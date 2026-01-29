@@ -1,61 +1,86 @@
-const Vendor = require("../models/vendor");
-const generateToken = require("../utils/generateToken");
+// controllers/vendor.controller.js
+import Vendor from "../models/Vendor.model.js";
 
-exports.registerVendor = async (req, res) => {
+/* ===============================
+   CREATE VENDOR
+=============================== */
+const createVendor = async (req, res) => {
   try {
-    const { businessName, email, mobile, address, panNumber, createPassword, confirmPassword } = req.body;
-
-    // Check passwords match 
-    if (createPassword !== confirmPassword) {
-      return res.status(400).json({ message: "Passwords do not match" });
-    }
-
-    // Check if admin exists
-    const vendorExists = await Vendor.findOne({ email });
-    if (vendorExists) {
-      return res.status(400).json({ message: "Vendor already exists" });
-    }
-
-    // Create new admin
-    const vendor = await Vendor.create({
-      businessName,
-      email,
-      mobile,
-      address,
-      panNumber,
-      password: createPassword
-    });
-
-    res.status(201).json({
-      _id: vendor.id,
-      businessName: vendor.businessName,
-      email: vendor.email,
-      token: generateToken(vendor.id)
-    });
-
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    const vendor = await Vendor.create(req.body);
+    res.status(201).json(vendor);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 };
 
-exports.loginVendor = async (req, res) => {
+/* ===============================
+   GET ALL VENDORS
+=============================== */
+const getVendors = async (_req, res) => {
   try {
-    const { email, password } = req.body;
-
-    const vendor = await Vendor.findOne({ email });
-
-    if (vendor && (await vendor.matchPassword(password))) {
-      res.json({
-        _id: vendor.id,
-        businessName: vendor.businessName,
-        email: vendor.email,
-        token: generateToken(vendor.id)
-      });
-    } else {
-      res.status(401).json({ message: "Invalid email or password" });
-    }
-
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    const vendors = await Vendor.find({});
+    res.json(vendors);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
+};
+
+/* ===============================
+   GET VENDOR BY ID
+=============================== */
+const getVendorById = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.params.id);
+    if (!vendor)
+      return res.status(404).json({ message: "Vendor not found" });
+    res.json(vendor);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+/* ===============================
+   UPDATE VENDOR
+=============================== */
+const updateVendor = async (req, res) => {
+  try {
+    const vendor = await Vendor.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+
+    if (!vendor)
+      return res.status(404).json({ message: "Vendor not found" });
+
+    res.json(vendor);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+/* ===============================
+   DELETE VENDOR
+=============================== */
+const deleteVendor = async (req, res) => {
+  try {
+    const vendor = await Vendor.findByIdAndDelete(req.params.id);
+    if (!vendor)
+      return res.status(404).json({ message: "Vendor not found" });
+
+    res.json({ message: "Vendor deleted successfully" });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+/* ===============================
+   ✅ DEFAULT EXPORT (REQUIRED)
+=============================== */
+export default {
+  createVendor,
+  getVendors,
+  getVendorById,
+  updateVendor,
+  deleteVendor,
 };

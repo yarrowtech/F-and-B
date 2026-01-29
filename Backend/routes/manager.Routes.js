@@ -1,37 +1,13 @@
-// const express = require("express");
-// const { createManager, loginManager } = require("../controllers/manager.Controller");
-// const { protect } = require("../middlewares/authMiddleware");
+import express from "express";
+import { dashboard } from "../controllers/manager.Controller.js";
 
-// const router = express.Router();
+import auth from "../middlewares/auth.middleware.js";
+import role from "../middlewares/role.middleware.js";
 
-// router.post("/create", protect, createManager);
-// router.post("/login", loginManager);
+const router = express.Router();
 
-// module.exports = router;
+router.use(auth, role("MANAGER"));
 
-// const express = require("express");
-// const { registerManager, loginManager } = require("../controllers/managerController");
+router.get("/dashboard", dashboard);
 
-// const router = express.Router();
-
-// router.post("/register", registerManager);
-// router.post("/login", loginManager);
-
-// module.exports = router;
-
-
-
-
- 
-// const express = require("express");
-// const { createManager, loginManager, getManager } = require("../controllers/manager.Controller");
-// const { protect } = require("../middlewares/authMiddleware");
-
-// const router = express.Router();
-
-// router.post("/create", protect, createManager);
-// router.get("/", protect, getManager);
-// router.post("/", protect, createManager);
-// router.post("/login", loginManager);
-
-// module.exports = router;
+export default router;

@@ -37,22 +37,29 @@
 
 
 
-// routes/table.Routes.js
-const express = require("express");
-const {
-  createTable,
-  getTables,
-  getTableById,
-  updateTable,
-  deleteTable,
-} = require("../controllers/table.Controller");
+// routes/Table.Routes.js
+import express from "express";
+import tableController from "../controllers/table.controller.js";
 
 const router = express.Router();
 
-router.post("/", createTable);
-router.get("/", getTables);
-router.get("/:id", getTableById);
-router.put("/:id", updateTable);
-router.delete("/:id", deleteTable);
+/* ===============================
+   TABLE ROUTES
+=============================== */
 
-module.exports = router;
+// create table (admin/manager)
+router.post("/", tableController.createTable);
+
+// get all tables
+router.get("/", tableController.getTables);
+
+// get single table
+router.get("/:id", tableController.getTableById);
+
+// update table status (occupied / free)
+router.put("/:id/status", tableController.updateTableStatus);
+
+// delete table
+router.delete("/:id", tableController.deleteTable);
+
+export default router;

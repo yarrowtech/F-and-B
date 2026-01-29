@@ -1,12 +1,17 @@
-// const express = require("express");
-// const { createAccountant, loginAccountant, getAccountant } = require("../controllers/accountant.Controller");
-// const { protect } = require("../middlewares/authMiddleware");
+import express from "express";
+import {
+  generateBill,
+  confirmPayment,
+} from "../controllers/accountant.Controller.js";
 
-// const router = express.Router();
+import auth from "../middlewares/auth.middleware.js";
+import role from "../middlewares/role.middleware.js";
 
-// router.post("/create", protect, createAccountant);
-// router.get("/", protect, getAccountant);
-// router.post("/", protect, createAccountant);
-// router.post("/login", loginAccountant);
+const router = express.Router();
 
-// module.exports = router;
+router.use(auth, role("ACCOUNTANT"));
+
+router.post("/bill/:orderId", generateBill);
+router.patch("/bill/:billId/pay", confirmPayment);
+
+export default router;

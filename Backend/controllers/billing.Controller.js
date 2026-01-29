@@ -99,35 +99,79 @@
 
 
 
+
 // controllers/billing.Controller.js
-const Bill = require("../models/billing");
-const Order = require("../models/Order");
-const Receipt = require("../models/receipt"); 
+import Bill from "../models/Bill.model.js";
+import Order from "../models/Order.model.js";
+
 const DEFAULT_TAX_PERCENT = 0.18;
 
-// helper
-function calculateTotals({ amount, taxPercent = DEFAULT_TAX_PERCENT, tip = 0, discount = 0 }) {
+/* ===============================
+   Helper: calculate totals
+=============================== */
+function calculateTotals({
+  amount,
+  taxPercent = DEFAULT_TAX_PERCENT,
+  tip = 0,
+  discount = 0,
+}) {
   const base = Number(amount) || 0;
   const tax = base * Number(taxPercent || 0);
-  const totalAmount = base + Number(tip || 0) + tax - Number(discount || 0);
-  return { amount: base, tax, tip: Number(tip || 0), discount: Number(discount || 0), totalAmount };
+  const totalAmount =
+    base + Number(tip || 0) + tax - Number(discount || 0);
+
+  return {
+    amount: base,
+    tax,
+    tip: Number(tip || 0),
+    discount: Number(discount || 0),
+    totalAmount,
+  };
 }
 
-// POST /api/billing
+/* ===============================
+   POST /api/billing
+   Create bill from order
+=============================== */
 const createBillFromOrder = async (req, res) => {
   try {
-    const { orderId, taxPercent, tip = 0, discount = 0, paymentMethod = "cash", autoPay = false, note = "" } = req.body;
+    const {
+      orderId,
+      taxPercent,
+      tip = 0,
+      discount = 0,
+      paymentMethod = "cash",
+      autoPay = false,
+      note = "",
+    } = req.body;
 
-    if (!orderId) return res.status(400).json({ message: "orderId required" });
+    if (!orderId) {
+      return res.status(400).json({ message: "orderId required" });
+    }
 
     const order = await Order.findById(orderId).lean();
-    if (!order) return res.status(404).json({ message: "Order not found" });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
 
     const existing = await Bill.findOne({ order: orderId });
-    if (existing) return res.status(400).json({ message: "Bill already created for this order", bill: existing });
+    if (existing) {
+      return res.status(400).json({
+        message: "Bill already created for this order",
+        bill: existing,
+      });
+    }
 
-    const baseAmount = Number(order.totalAmount ?? order.totalPrice ?? 0);
-    const totals = calculateTotals({ amount: baseAmount, taxPercent, tip, discount });
+    const baseAmount = Number(
+      order.totalAmount ?? order.totalPrice ?? 0
+    );
+
+    const totals = calculateTotals({
+      amount: baseAmount,
+      taxPercent,
+      tip,
+      discount,
+    });
 
     const bill = await Bill.create({
       order: orderId,
@@ -139,7 +183,7 @@ const createBillFromOrder = async (req, res) => {
       paid: Boolean(autoPay),
       paymentMethod: autoPay ? paymentMethod : "cash",
       paidAt: autoPay ? new Date() : undefined,
-      note
+      note,
     });
 
     res.status(201).json(bill);
@@ -148,7 +192,9 @@ const createBillFromOrder = async (req, res) => {
   }
 };
 
-// GET /api/billing
+/* ===============================
+   GET /api/billing
+=============================== */
 const listBills = async (_req, res) => {
   try {
     const bills = await Bill.find({}).sort({ createdAt: -1 });
@@ -158,62 +204,90 @@ const listBills = async (_req, res) => {
   }
 };
 
-// GET /api/billing/inbox (unpaid)
+/* ===============================
+   GET /api/billing/inbox
+=============================== */
 const getInbox = async (_req, res) => {
   try {
-    const bills = await Bill.find({ paid: false }).sort({ createdAt: -1 });
+    const bills = await Bill.find({ paid: false }).sort({
+      createdAt: -1,
+    });
     res.json(bills);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 };
 
-// GET /api/billing/history (paid)
+/* ===============================
+   GET /api/billing/history
+=============================== */
 const getHistory = async (_req, res) => {
   try {
-    const bills = await Bill.find({ paid: true }).sort({ paidAt: -1, updatedAt: -1 });
+    const bills = await Bill.find({ paid: true }).sort({
+      paidAt: -1,
+      updatedAt: -1,
+    });
     res.json(bills);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 };
 
-// GET /api/billing/:id
+/* ===============================
+   GET /api/billing/:id
+=============================== */
 const getBillById = async (req, res) => {
   try {
     const bill = await Bill.findById(req.params.id).populate({
       path: "order",
-      // table is a Number in Order, so don't populate "table".
-      populate: [{ path: "items.menuItem", model: "Menu", select: "name price category" }]
+      populate: [
+        {
+          path: "items.menuItem",
+          model: "Menu",
+          select: "name price category",
+        },
+      ],
     });
-    if (!bill) return res.status(404).json({ message: "Bill not found" });
+
+    if (!bill) {
+      return res.status(404).json({ message: "Bill not found" });
+    }
+
     res.json(bill);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 };
 
-// POST /api/billing/:id/pay
+/* ===============================
+   POST /api/billing/:id/pay
+=============================== */
 const markPaid = async (req, res) => {
   try {
     const { id } = req.params;
     const { paymentMethod = "cash", note } = req.body;
+
     const bill = await Bill.findById(id);
-    if (!bill) return res.status(404).json({ message: "Bill not found" });
+    if (!bill) {
+      return res.status(404).json({ message: "Bill not found" });
+    }
 
     bill.paid = true;
     bill.paymentMethod = paymentMethod;
     bill.paidAt = new Date();
     if (note != null) bill.note = String(note);
-    await bill.save();
 
+    await bill.save();
     res.json(bill);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 };
 
-module.exports = {
+/* ===============================
+   DEFAULT EXPORT (REQUIRED)
+=============================== */
+export default {
   createBillFromOrder,
   listBills,
   getInbox,

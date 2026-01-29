@@ -1,0 +1,9 @@
+const ROLES = {
+  ADMIN: "ADMIN",
+  MANAGER: "MANAGER",
+  WAITER: "WAITER",
+  CHEF: "CHEF",
+  ACCOUNTANT: "ACCOUNTANT",
+};
+
+export default ROLES;

@@ -13,10 +13,9 @@
 
 
 
-
 // routes/billing.Routes.js
-const express = require("express");
-const billing = require("../controllers/billing.Controller");
+import express from "express";
+import billing from "../controllers/billing.Controller.js";
 
 const router = express.Router();
 
@@ -38,6 +37,4 @@ router.param("id", (req, res, next, id) => {
 router.get("/:id", billing.getBillById);
 router.post("/:id/pay", billing.markPaid);
 
-module.exports = router;
-
-
+export default router;

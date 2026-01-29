@@ -1,12 +1,19 @@
-// const express = require("express");
-// const { createWaiter, loginWaiter, getWaiter } = require("../controllers/waiter.Controller");
-// const { protect } = require("../middlewares/authMiddleware");
+import express from "express";
+import {
+  createOrder,
+  serveOrder,
+  markPaymentReceived,
+} from "../controllers/waiter.Controller.js";
 
-// const router = express.Router();
+import auth from "../middlewares/auth.middleware.js";
+import role from "../middlewares/role.middleware.js";
 
-// router.post("/create", protect, createWaiter);
-// router.get("/", protect, getWaiter);
-// router.post("/", protect, createWaiter);
-// router.post("/login", loginWaiter);
+const router = express.Router();
 
-// module.exports = router;
+router.use(auth, role("WAITER"));
+
+router.post("/order", createOrder);
+router.patch("/order/:orderId/serve", serveOrder);
+router.patch("/order/:orderId/payment", markPaymentReceived);
+
+export default router;

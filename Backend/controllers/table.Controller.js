@@ -22,70 +22,90 @@
 
 
 
+// controllers/table.controller.js
+import Table from "../models/Table.model.js";
 
-// controllers/tableController.js
-const Table = require("../models/Table");
-
-/** Create table */
-const createTable = async (req, res, next) => {
+/* ===============================
+   CREATE TABLE
+=============================== */
+const createTable = async (req, res) => {
   try {
-    const { number, seats, status, notes } = req.body;
-    const existing = await Table.findOne({ number });
-    if (existing) return res.status(400).json({ message: "Table number already exists" });
-
-    const t = await Table.create({ number, seats, status, notes });
-    res.status(201).json(t);
+    const table = await Table.create(req.body);
+    res.status(201).json(table);
   } catch (err) {
-    next(err);
+    res.status(400).json({ message: err.message });
   }
 };
 
-/** List tables */
-const getTables = async (req, res, next) => {
+/* ===============================
+   GET ALL TABLES
+=============================== */
+const getTables = async (_req, res) => {
   try {
-    const tables = await Table.find({}).sort({ number: 1 });
+    const tables = await Table.find({});
     res.json(tables);
   } catch (err) {
-    next(err);
+    res.status(400).json({ message: err.message });
   }
 };
 
-/** Get table by ID */
-const getTableById = async (req, res, next) => {
+/* ===============================
+   GET TABLE BY ID
+=============================== */
+const getTableById = async (req, res) => {
   try {
-    const t = await Table.findById(req.params.id);
-    if (!t) return res.status(404).json({ message: "Table not found" });
-    res.json(t);
+    const table = await Table.findById(req.params.id);
+    if (!table)
+      return res.status(404).json({ message: "Table not found" });
+    res.json(table);
   } catch (err) {
-    next(err);
+    res.status(400).json({ message: err.message });
   }
 };
 
-/** Update table */
-const updateTable = async (req, res, next) => {
+/* ===============================
+   UPDATE TABLE STATUS
+=============================== */
+const updateTableStatus = async (req, res) => {
   try {
-    const updated = await Table.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-    if (!updated) return res.status(404).json({ message: "Table not found" });
-    res.json(updated);
+    const { status } = req.body;
+
+    const table = await Table.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+
+    if (!table)
+      return res.status(404).json({ message: "Table not found" });
+
+    res.json(table);
   } catch (err) {
-    next(err);
+    res.status(400).json({ message: err.message });
   }
 };
 
-/** Delete table */
-const deleteTable = async (req, res, next) => {
+/* ===============================
+   DELETE TABLE
+=============================== */
+const deleteTable = async (req, res) => {
   try {
-    await Table.findByIdAndDelete(req.params.id);
-    res.json({ message: "Table deleted" });
+    const table = await Table.findByIdAndDelete(req.params.id);
+    if (!table)
+      return res.status(404).json({ message: "Table not found" });
+    res.json({ message: "Table deleted successfully" });
   } catch (err) {
-    next(err);
+    res.status(400).json({ message: err.message });
   }
 };
 
-module.exports = {
+/* ===============================
+   ✅ DEFAULT EXPORT (REQUIRED)
+=============================== */
+export default {
   createTable,
   getTables,
   getTableById,
-  updateTable,
+  updateTableStatus,
   deleteTable,
 };
