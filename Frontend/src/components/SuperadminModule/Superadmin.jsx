@@ -8,16 +8,16 @@ import {
 } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
-import Sidebar from "../SuperadminModule/Sidebar";
-import Dashboard from "../SuperadminModule/Dashboard";
-import UserManagement from "../SuperadminModule/UserManagement";
-import Subscription from "../SuperadminModule/Subscription";
-import Analytics from "../SuperadminModule/Analytics";
-import Message from "../SuperadminModule/Message";
-import Settings from "../SuperadminModule/Settings";
-import Notepad from "../SuperadminModule/Notepad";
-import Alerts from "../SuperadminModule/Alearts";
-import Notifications from "../SuperadminModule/Notifications";
+import Sidebar from "./Sidebar";
+import Dashboard from "./Dashboard";
+import UserManagement from "./UserManagement";
+import Subscription from "./Subscription";
+import Analytics from "./Analytics";
+import Message from "./Message";
+import Settings from "./Settings";
+import Notepad from "./Notepad";
+import Alerts from "./Alearts";
+import Notifications from "./Notifications";
 
 const SuperAdmin = () => {
   const [active, setActive] = useState("dashboard");
@@ -26,7 +26,6 @@ const SuperAdmin = () => {
     () => localStorage.getItem("theme") === "dark"
   );
 
-  // Added message & notification counters
   const [unreadNotifications, setUnreadNotifications] = useState(5);
   const [unreadMessages, setUnreadMessages] = useState(2);
 
