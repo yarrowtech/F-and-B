@@ -1,497 +1,286 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import Calendar from "react-calendar";
-import "react-calendar/dist/Calendar.css";
-
-const LONG_PRESS_MS = 400;
+import React, { useState, useEffect } from "react";
+import {
+  checkIn,
+  checkOut,
+  getTodayAttendance,
+  getMonthlyStats,
+  getMonthlyChart,
+} from "../../services/attendance.service";
 
 const ChiefAttendancePage = () => {
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const today = new Date();
+
+  const [selectedMonth, setSelectedMonth] = useState(today.getMonth());
+  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
+
+  const [todayRecord, setTodayRecord] = useState(null);
   const [attendanceRecords, setAttendanceRecords] = useState({});
-  const [leaveRequests, setLeaveRequests] = useState([]);
+  const [monthlyStats, setMonthlyStats] = useState({});
 
-  // Desktop context menu
-  const [menu, setMenu] = useState({ visible: false, x: 0, y: 0, date: null });
+  /* ================= HELPERS ================= */
 
-  // Mobile bottom sheet
-  const [sheet, setSheet] = useState({ visible: false, date: null });
-
-  // Leave modal
-  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
-  const [leaveReason, setLeaveReason] = useState("");
-
-  const contextMenuRef = useRef(null);
-  const touchTimerRef = useRef(null);
-  const isTouch = useMemo(
-    () => typeof window !== "undefined" && "ontouchstart" in window,
-    []
-  );
-
-  const cheifName = localStorage.getItem("cheifName") || "cheif";
-
-  /* ------------------------ Persist state ------------------------ */
-  useEffect(() => {
-    const saved = localStorage.getItem("cheif-attendance");
-    if (saved) setAttendanceRecords(JSON.parse(saved));
-
-    const savedReq = localStorage.getItem("cheif-leave-requests");
-    if (savedReq) setLeaveRequests(JSON.parse(savedReq));
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("cheif-attendance", JSON.stringify(attendanceRecords));
-  }, [attendanceRecords]);
-
-  useEffect(() => {
-    localStorage.setItem("cheif-leave-requests", JSON.stringify(leaveRequests));
-  }, [leaveRequests]);
-
-  /* ------------------------ Helpers ------------------------ */
-  const fmtKey = (date) => date.toISOString().split("T")[0];
-  const timeNow = () =>
-    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const isToday = (date) => {
-    const t = new Date();
-    return (
-      date.getDate() === t.getDate() &&
-      date.getMonth() === t.getMonth() &&
-      date.getFullYear() === t.getFullYear()
-    );
+  const formatDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   };
 
-  const midnightToday = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-
-  const statusClass = (status) => {
-    switch (status) {
-      case "check-in":
-        return "bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-200";
-      case "check-out":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200";
-      case "absent":
-        return "bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200";
-      case "leave":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/60 dark:text-yellow-200";
-      default:
-        return "text-gray-500 dark:text-gray-300";
-    }
+  const getMonthString = () => {
+    return `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
   };
 
-  const getMonthlySummary = () => {
-    const monthPrefix = new Date().toISOString().slice(0, 7);
-    const s = { present: 0, absent: 0, leave: 0 };
-    for (const k in attendanceRecords) {
-      if (!k.startsWith(monthPrefix)) continue;
-      const st = attendanceRecords[k].status;
-      if (st === "absent") s.absent++;
-      else if (st === "leave") s.leave++;
-      else if (st === "check-in" || st === "check-out") s.present++;
-    }
-    return s;
-  };
+  /* ================= LOAD TODAY ================= */
 
-  const getYearlySummary = () => {
-    const yearPrefix = String(new Date().getFullYear());
-    const s = { present: 0, absent: 0, leave: 0 };
-    for (const k in attendanceRecords) {
-      if (!k.startsWith(yearPrefix)) continue;
-      const st = attendanceRecords[k].status;
-      if (st === "absent") s.absent++;
-      else if (st === "leave") s.leave++;
-      else if (st === "check-in" || st === "check-out") s.present++;
-    }
-    return s;
-  };
+  const loadTodayData = async () => {
+    try {
+      const res = await getTodayAttendance();
 
-  const todayKey = fmtKey(new Date());
-  const todayData = attendanceRecords[todayKey] || {};
-  const monthlySummary = getMonthlySummary();
-  const yearlySummary = getYearlySummary();
+      if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+        const record = res.data[0];
 
-  /* ------------------------ Menu logic ------------------------ */
-  // Close desktop menu on outside click
-  useEffect(() => {
-    const onDown = (e) => {
-      if (!menu.visible) return;
-      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target)) {
-        setMenu((m) => ({ ...m, visible: false }));
+        setTodayRecord({
+          status: record.status?.toLowerCase() || null,
+          checkIn: record.checkIn
+            ? new Date(record.checkIn).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : null,
+          checkOut: record.checkOut
+            ? new Date(record.checkOut).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : null,
+        });
+      } else {
+        setTodayRecord(null);
       }
-    };
-    window.addEventListener("mousedown", onDown);
-    return () => window.removeEventListener("mousedown", onDown);
-  }, [menu.visible]);
-
-  const openForDate = (date, event) => {
-    setSelectedDate(date);
-    if (isTouch || window.innerWidth < 1024) {
-      // mobile bottom sheet
-      setSheet({ visible: true, date });
-    } else {
-      // desktop context menu
-      setMenu({
-        visible: true,
-        x: event?.clientX ?? 20,
-        y: event?.clientY ?? 20,
-        date,
-      });
+    } catch (err) {
+      console.error("Today attendance error:", err);
     }
   };
 
-  const onTileClick = (date, event) => openForDate(date, event);
+  /* ================= LOAD MONTH ================= */
 
-  // Long press support on mobile
-  const onTileTouchStart = (date, event) => {
-    if (!isTouch) return;
-    touchTimerRef.current = setTimeout(() => openForDate(date, event), LONG_PRESS_MS);
-  };
-  const onTileTouchEnd = () => {
-    if (touchTimerRef.current) {
-      clearTimeout(touchTimerRef.current);
-      touchTimerRef.current = null;
-    }
-  };
+  const loadMonthlyData = async () => {
+    try {
+      const monthString = getMonthString();
 
-  /* ------------------------ Actions ------------------------ */
-  const handleOptionSelect = (option, source = "menu") => {
-    const date = source === "menu" ? menu.date : sheet.date;
-    if (!date) return;
-    const dateKey = fmtKey(date);
-    const time = timeNow();
+      const [chartRes, statsRes] = await Promise.all([
+        getMonthlyChart(monthString),
+        getMonthlyStats(monthString),
+      ]);
 
-    if (option === "request-leave") {
-      setShowLeaveDialog(true);
-      return;
-    }
+      const recordMap = {};
 
-    if (!isToday(date) && (option === "check-in" || option === "check-out")) {
-      alert("✅ Check-in/Check-out only allowed for today's date.");
-      return;
-    }
+      if (chartRes?.success && Array.isArray(chartRes.data)) {
+        chartRes.data.forEach((day) => {
+          const key = formatDate(new Date(day.date));
 
-    setAttendanceRecords((prev) => {
-      const existing = prev[dateKey] || {};
-      const updated = { ...prev };
-
-      if (
-        (existing.status === "absent" || existing.status === "leave") &&
-        (option === "check-in" || option === "check-out")
-      ) {
-        alert("❗ Cannot mark check-in/out on a day marked absent or leave.");
-        return prev;
+          recordMap[key] = {
+            status: day.status?.toLowerCase() || null,
+            checkInTime: day.checkIn
+              ? new Date(day.checkIn).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : null,
+            checkOutTime: day.checkOut
+              ? new Date(day.checkOut).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : null,
+          };
+        });
       }
 
-      switch (option) {
-        case "check-in":
-          if (existing.checkIn) {
-            alert("🔁 Already checked in.");
-            return prev;
-          }
-          updated[dateKey] = { ...existing, checkIn: time, status: "check-in" };
-          break;
-        case "check-out":
-          if (existing.checkOut) {
-            alert("🔁 Already checked out.");
-            return prev;
-          }
-          updated[dateKey] = { ...existing, checkOut: time, status: "check-out" };
-          break;
-        case "absent":
-          updated[dateKey] = { status: "absent" };
-          break;
-        case "clear":
-          delete updated[dateKey];
-          break;
-        default:
-          break;
-      }
-
-      // Close menu/sheet
-      setMenu((m) => ({ ...m, visible: false }));
-      setSheet({ visible: false, date: null });
-      return updated;
-    });
+      setAttendanceRecords(recordMap);
+      setMonthlyStats(statsRes?.data || {});
+    } catch (err) {
+      console.error("Monthly attendance error:", err);
+    }
   };
 
-  const submitLeaveRequest = () => {
-    const date = menu.date || sheet.date || selectedDate;
-    const dateKey = fmtKey(date);
-    setAttendanceRecords((prev) => ({
-      ...prev,
-      [dateKey]: { status: "leave", reason: leaveReason },
-    }));
-    // ✅ fixed: removed stray closing bracket
-    setLeaveRequests((prev) => [...prev, { date: dateKey, reason: leaveReason }]);
-    setLeaveReason("");
-    setShowLeaveDialog(false);
-    setMenu({ visible: false, x: 0, y: 0, date: null });
-    setSheet({ visible: false, date: null });
+  /* ================= EFFECT ================= */
+
+  useEffect(() => {
+    loadTodayData();
+    loadMonthlyData();
+  }, [selectedMonth, selectedYear]);
+
+  /* ================= CHECK IN / OUT ================= */
+
+  const handleCheckIn = async () => {
+    try {
+      await checkIn(0, 0);
+      await loadTodayData();
+      await loadMonthlyData();
+    } catch (err) {
+      console.error("Check-in error:", err);
+    }
   };
 
-  /* ------------------------ UI ------------------------ */
+  const handleCheckOut = async () => {
+    try {
+      await checkOut();
+      await loadTodayData();
+      await loadMonthlyData();
+    } catch (err) {
+      console.error("Check-out error:", err);
+    }
+  };
+
+  const months = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+  ];
+
+  const years = [];
+  for (let i = 0; i < 5; i++) {
+    years.push(today.getFullYear() - i);
+  }
+
   return (
-    <div className="min-h-screen p-4 md:p-6 bg-gradient-to-b from-gray-100 to-white dark:from-gray-900 dark:to-gray-800 text-gray-800 dark:text-white">
-      <h2 className="text-2xl md:text-3xl font-bold mb-6">
-        {cheifName}&apos;s Attendance
-      </h2>
+    <div className="min-h-screen p-6 bg-gray-100">
+      <div className="max-w-6xl mx-auto space-y-6">
 
-      {/* Top Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-6">
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg text-sm md:text-base">
-          <h3 className="font-semibold mb-2">📅 Today</h3>
-          <p className={`font-medium inline-block px-2 py-1 rounded ${statusClass(todayData.status)}`}>
-            {todayData.status
-              ? todayData.status === "leave"
-                ? `📝 Leave - ${todayData.reason || "No reason"}`
-                : todayData.status === "check-in"
-                ? `✅ Checked In (${todayData.checkIn || "-"})`
-                : `⏱️ Checked Out (${todayData.checkOut || "-"})`
-              : "No attendance marked"}
-          </p>
+        <h2 className="text-3xl font-bold">My Attendance</h2>
+
+        {/* TODAY SECTION */}
+        <div className="bg-white p-6 rounded-xl shadow space-y-2">
+          <h3 className="text-xl font-semibold">
+            Today ({today.toDateString()})
+          </h3>
+
+          <p>Status: {todayRecord?.status || "Not Marked"}</p>
+          <p>Check-In: {todayRecord?.checkIn || "--"}</p>
+          <p>Check-Out: {todayRecord?.checkOut || "--"}</p>
+
+          <div className="flex gap-3 mt-3">
+            <button
+              onClick={handleCheckIn}
+              disabled={!!todayRecord?.checkIn}
+              className="bg-green-500 text-white px-4 py-2 rounded disabled:opacity-50"
+            >
+              Check In
+            </button>
+
+            <button
+              onClick={handleCheckOut}
+              disabled={!todayRecord?.checkIn || !!todayRecord?.checkOut}
+              className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50"
+            >
+              Check Out
+            </button>
+          </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg text-sm md:text-base">
-          <h3 className="font-semibold mb-2">📊 This Month</h3>
-          <p>✅ Present: {monthlySummary.present}</p>
-          <p>❌ Absent: {monthlySummary.absent}</p>
-          <p>📝 Leave: {monthlySummary.leave}</p>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg text-sm md:text-base">
-          <h3 className="font-semibold mb-2">📆 This Year</h3>
-          <p>✅ Present: {yearlySummary.present}</p>
-          <p>❌ Absent: {yearlySummary.absent}</p>
-          <p>📝 Leave: {yearlySummary.leave}</p>
-        </div>
-      </div>
-
-      {/* Leave Requests */}
-      <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-lg mb-6">
-        <h3 className="text-lg md:text-xl font-semibold mb-4">✉️ Leave Requests</h3>
-        {leaveRequests.length > 0 ? (
-          <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-            {leaveRequests.map((req, i) => (
-              <div
-                key={i}
-                className="flex flex-col sm:flex-row justify-between border-b border-gray-200 dark:border-gray-600 pb-1"
-              >
-                <span>{new Date(req.date).toDateString()}</span>
-                <span className="text-yellow-700 dark:text-yellow-300 font-medium">
-                  📝 {req.reason}
-                </span>
-              </div>
+        {/* FILTER SECTION */}
+        <div className="flex gap-4">
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            className="p-2 border rounded"
+          >
+            {months.map((m, i) => (
+              <option key={i} value={i}>{m}</option>
             ))}
+          </select>
+
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="p-2 border rounded"
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* MONTHLY SUMMARY */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-white p-5 rounded-xl shadow text-center">
+            <p>Total Days</p>
+            <p className="font-bold text-xl">
+              {monthlyStats.totalDays || 0}
+            </p>
           </div>
-        ) : (
-          <p className="text-gray-500 dark:text-gray-400 text-sm">No leave requests.</p>
-        )}
+
+          <div className="bg-white p-5 rounded-xl shadow text-center">
+            <p>Present</p>
+            <p className="font-bold text-xl">
+              {monthlyStats.totalPresent || 0}
+            </p>
+          </div>
+
+          <div className="bg-white p-5 rounded-xl shadow text-center">
+            <p>Attendance %</p>
+            <p className="font-bold text-xl">
+              {monthlyStats.attendancePercent || 0}%
+            </p>
+          </div>
+        </div>
+
+        {/* MONTHLY LIST */}
+        <div className="bg-white p-6 rounded-xl shadow">
+          <h3 className="text-xl font-semibold mb-4">
+            Monthly Attendance List
+          </h3>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm text-left">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Check-In</th>
+                  <th className="px-4 py-3">Check-Out</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {Object.keys(attendanceRecords).length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="text-center py-6 text-gray-500">
+                      No records found
+                    </td>
+                  </tr>
+                ) : (
+                  Object.keys(attendanceRecords)
+                    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+                    .map((dateKey) => {
+                      const record = attendanceRecords[dateKey];
+
+                      return (
+                        <tr key={dateKey} className="border-b">
+                          <td className="px-4 py-3">
+                            {new Date(dateKey).toDateString()}
+                          </td>
+                          <td className="px-4 py-3 capitalize">
+                            {record?.status}
+                          </td>
+                          <td className="px-4 py-3">
+                            {record?.checkInTime || "--"}
+                          </td>
+                          <td className="px-4 py-3">
+                            {record?.checkOutTime || "--"}
+                          </td>
+                        </tr>
+                      );
+                    })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
-
-      {/* Calendar & Recent History */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-        {/* Calendar */}
-        <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-xl shadow-lg">
-          <Calendar
-            value={selectedDate}
-            minDate={new Date()} // only today & future selectable
-            onChange={setSelectedDate}
-            onClickDay={(value, event) => onTileClick(value, event)}
-            tileDisabled={({ date }) => date < midnightToday}
-            tileContent={({ date }) => (
-              <div
-                className="absolute inset-0"
-                onTouchStart={(e) => onTileTouchStart(date, e)}
-                onTouchEnd={onTileTouchEnd}
-              />
-            )}
-            className="w-full rounded-lg overflow-hidden"
-            tileClassName={({ date }) => {
-              const key = fmtKey(date);
-              const status = attendanceRecords[key]?.status;
-              const isPast = date < midnightToday;
-              return `relative px-1 py-1 rounded-md ${
-                isPast
-                  ? "text-gray-400 bg-gray-100 dark:text-gray-500 dark:bg-gray-700 cursor-not-allowed"
-                  : "cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/40"
-              } ${
-                status === "check-in"
-                  ? "bg-green-200 dark:bg-green-800/60"
-                  : status === "check-out"
-                  ? "bg-blue-200 dark:bg-blue-800/60"
-                  : status === "absent"
-                  ? "bg-red-200 dark:bg-red-800/60"
-                  : status === "leave"
-                  ? "bg-yellow-200 dark:bg-yellow-800/60"
-                  : ""
-              }`;
-            }}
-          />
-        </div>
-
-        {/* Recent History */}
-        <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-lg">
-          <h3 className="text-lg md:text-xl font-semibold mb-4">📌 Recent Attendance</h3>
-          <div className="space-y-2 max-h-64 overflow-y-auto pr-2 text-sm md:text-base">
-            {Object.entries(attendanceRecords)
-              .sort((a, b) => new Date(b[0]) - new Date(a[0]))
-              .slice(0, 30)
-              .map(([date, data]) => (
-                <div
-                  key={date}
-                  className="flex flex-col sm:flex-row justify-between border-b border-gray-200 dark:border-gray-600 pb-1"
-                >
-                  <span>{new Date(date).toDateString()}</span>
-                  <span className={`font-medium px-2 py-1 rounded-md ${statusClass(data.status)}`}>
-                    {data.status === "check-in" && `✅ Checked In (${data.checkIn || "-"})`}
-                    {data.status === "check-out" && `⏱️ Checked Out (${data.checkOut || "-"})`}
-                    {data.status === "absent" && "❌ Absent"}
-                    {data.status === "leave" && `📝 Leave - ${data.reason || "No reason"}`}
-                  </span>
-                </div>
-              ))}
-            {Object.keys(attendanceRecords).length === 0 && (
-              <p className="text-gray-500 dark:text-gray-400 text-sm">No records found.</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Desktop Context Menu */}
-      {menu.visible && (
-        <ul
-          ref={contextMenuRef}
-          className="fixed bg-white dark:bg-gray-700 shadow-xl rounded-md py-2 text-sm w-48 border border-gray-200 dark:border-gray-600 z-[9999]"
-          style={{
-            top: `${Math.min(menu.y, window.innerHeight - 200)}px`,
-            left: `${Math.min(menu.x, window.innerWidth - 208)}px`,
-          }}
-        >
-          {isToday(menu.date) ? (
-            <>
-              <MenuItem onClick={() => handleOptionSelect("check-in", "menu")} label="✅ Check In" />
-              <MenuItem onClick={() => handleOptionSelect("check-out", "menu")} label="⏱️ Check Out" />
-            </>
-          ) : (
-            <>
-              <MenuItem disabled label="✅ Check In (Today only)" />
-              <MenuItem disabled label="⏱️ Check Out (Today only)" />
-            </>
-          )}
-          <MenuItem onClick={() => handleOptionSelect("absent", "menu")} label="❌ Mark Absent" />
-          <MenuItem onClick={() => handleOptionSelect("request-leave", "menu")} label="📝 Request Leave" />
-          <hr className="my-1 border-gray-200 dark:border-gray-600" />
-          <MenuItem onClick={() => handleOptionSelect("clear", "menu")} label="🧹 Clear Marking" />
-        </ul>
-      )}
-
-      {/* Mobile Bottom Sheet */}
-      {sheet.visible && (
-        <div className="fixed inset-0 z-[9998] flex items-end justify-center">
-          <button
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setSheet({ visible: false, date: null })}
-          />
-          <div className="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-t-2xl p-4 pb-6 shadow-2xl">
-            <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-3" />
-            <h4 className="text-base md:text-lg font-semibold mb-3 text-center">
-              {sheet.date?.toDateString()}
-            </h4>
-            <div className="grid grid-cols-2 gap-2">
-              <ActionButton
-                disabled={!isToday(sheet.date)}
-                onClick={() => handleOptionSelect("check-in", "sheet")}
-                label="✅ Check In"
-              />
-              <ActionButton
-                disabled={!isToday(sheet.date)}
-                onClick={() => handleOptionSelect("check-out", "sheet")}
-                label="⏱️ Check Out"
-              />
-              <ActionButton
-                onClick={() => handleOptionSelect("absent", "sheet")}
-                label="❌ Mark Absent"
-              />
-              <ActionButton
-                onClick={() => handleOptionSelect("request-leave", "sheet")}
-                label="📝 Request Leave"
-              />
-              <div className="col-span-2">
-                <ActionButton
-                  onClick={() => handleOptionSelect("clear", "sheet")}
-                  label="🧹 Clear Marking"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Leave Modal */}
-      {showLeaveDialog && (
-        <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center px-4">
-          <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-xl shadow-lg w-full max-w-md">
-            <h3 className="text-base md:text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-              📝 Leave Request for {(menu.date || sheet.date || selectedDate)?.toDateString()}
-            </h3>
-            <textarea
-              className="w-full p-3 border rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white text-sm md:text-base"
-              rows="4"
-              placeholder="Enter reason for leave..."
-              value={leaveReason}
-              onChange={(e) => setLeaveReason(e.target.value)}
-            />
-            <div className="mt-4 flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setShowLeaveDialog(false);
-                  setLeaveReason("");
-                }}
-                className="px-3 md:px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-white rounded-md hover:bg-gray-400 dark:hover:bg-gray-500 text-sm md:text-base"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitLeaveRequest}
-                className="px-3 md:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-semibold text-sm md:text-base"
-              >
-                ✅ Send to Manager
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
-
-/* ------------------------ Small UI helpers ------------------------ */
-function MenuItem({ label, onClick, disabled }) {
-  const cls = disabled
-    ? "px-4 py-2 text-gray-400 cursor-not-allowed select-none"
-    : "px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer";
-  return (
-    <li className={cls} onClick={disabled ? undefined : onClick}>
-      {label}
-    </li>
-  );
-}
-
-function ActionButton({ label, onClick, disabled }) {
-  return (
-    <button
-      className={`w-full px-3 py-3 rounded-lg text-sm font-medium shadow
-        ${
-          disabled
-            ? "bg-gray-200 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
-            : "bg-green-600 text-white active:scale-[0.98] hover:bg-green-700 transition"
-        }`}
-      onClick={onClick}
-      disabled={disabled}
-    >
-      {label}
-    </button>
-  );
-}
 
 export default ChiefAttendancePage;

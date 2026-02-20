@@ -14,4 +14,10 @@ router.get("/:id", employeeController.getEmployeeById);
 router.put("/:id", employeeController.updateEmployee);
 router.delete("/:id", employeeController.deleteEmployee);
 
+router.put(
+  "/:id/remove-restaurant",
+  employeeController.removeEmployeeFromRestaurant
+);
+
+
 export default router;

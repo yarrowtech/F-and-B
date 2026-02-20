@@ -68,48 +68,257 @@
 
 
 
+import mongoose from "mongoose";
+
+import Admin from "../models/Admin.model.js";
 import Employee from "../models/Employee.model.js";
 import Menu from "../models/Menu.model.js";
 import Table from "../models/Table.model.js";
+
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import generateEmployeeId from "../utils/generateEmployeeId.js";
 
-export const createEmployee = async (req, res, next) => {
+/* =====================================================
+   ADMIN AUTH
+===================================================== */
+
+/* ---------- REGISTER ADMIN ---------- */
+export const registerAdmin = async (req, res) => {
+  try {
+    const { businessName, email, mobile, address, panNumber, password } =
+      req.body;
+
+    if (!businessName || !email || !password) {
+      return res.status(400).json({ message: "Required fields missing" });
+    }
+
+    const exists = await Admin.findOne({ email });
+    if (exists) {
+      return res.status(400).json({ message: "Admin already exists" });
+    }
+
+    const admin = await Admin.create({
+      businessName,
+      email,
+      mobile,
+      address,
+      panNumber,
+      password,
+    });
+
+    res.status(201).json({
+      message: "Admin registered successfully",
+      adminId: admin._id,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/* ---------- LOGIN ADMIN (FIXED) ---------- */
+export const loginAdmin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const isMatch = await admin.matchPassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const token = jwt.sign(
+      {
+        id: admin._id,
+        role: "admin", // ✅ unified role
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // ✅ RETURN USER OBJECT (FRONTEND EXPECTS THIS)
+    res.json({
+      token,
+      user: {
+        id: admin._id,
+        email: admin.email,
+        businessName: admin.businessName,
+        role: "admin",
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/* ---------- FORGOT PASSWORD ---------- */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    admin.password = "123456";
+    await admin.save();
+
+    res.json({
+      message: "Password reset successful. New password: 123456",
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/* =====================================================
+   ADMIN OPERATIONS (PROTECTED)
+===================================================== */
+
+/* ---------- CREATE EMPLOYEE ---------- */
+export const createEmployee = async (req, res) => {
   try {
     const { name, role, password, phone, email } = req.body;
 
-    const employeeId = await generateEmployeeId(role);
+    if (!name || !role || !password) {
+      return res.status(400).json({ message: "Required fields missing" });
+    }
+
+    const admin = await Admin.findById(req.user.id);
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    const normalizedRole = role.toUpperCase().replace(/\s+/g, "_");
+
+    if (email) {
+      const exists = await Employee.findOne({ email });
+      if (exists) {
+        return res.status(400).json({ message: "Employee already exists" });
+      }
+    }
+
+    const employeeId = await generateEmployeeId(admin._id, normalizedRole);
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const employee = await Employee.create({
       employeeId,
       name,
-      role,
+      role: normalizedRole,
       password: hashedPassword,
       phone,
       email,
+      createdBy: admin._id,
+      isActive: true,
     });
 
     res.status(201).json(employee);
   } catch (err) {
-    next(err);
+    res.status(500).json({ message: err.message });
   }
 };
 
-export const createMenuItem = async (req, res, next) => {
+/* ---------- GET ALL EMPLOYEES ---------- */
+export const getEmployees = async (req, res) => {
   try {
-    const menu = await Menu.create(req.body);
+    const adminId = new mongoose.Types.ObjectId(req.user.id);
+
+    const employees = await Employee.find({ createdBy: adminId })
+      .select("-password")
+      .sort({ createdAt: -1 });
+
+    res.json(employees);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/* ---------- DELETE EMPLOYEE ---------- */
+export const deleteEmployee = async (req, res) => {
+  try {
+    const adminId = new mongoose.Types.ObjectId(req.user.id);
+
+    const employee = await Employee.findOneAndDelete({
+      _id: req.params.id,
+      createdBy: adminId,
+    });
+
+    if (!employee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
+    res.json({ message: "Employee deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/* ---------- CREATE MENU ITEM ---------- */
+export const createMenuItem = async (req, res) => {
+  try {
+    const { name, price } = req.body;
+
+    if (!name || !price) {
+      return res.status(400).json({ message: "Menu name & price required" });
+    }
+
+    const menu = await Menu.create({
+      ...req.body,
+      createdBy: req.user.id,
+    });
+
     res.status(201).json(menu);
   } catch (err) {
-    next(err);
+    res.status(500).json({ message: err.message });
   }
 };
 
-export const createTable = async (req, res, next) => {
+/* =====================================================
+   TABLE LOGIC
+===================================================== */
+
+/* ---------- CREATE TABLE ---------- */
+export const createTable = async (req, res) => {
   try {
-    const table = await Table.create(req.body);
+    let { tableNumber } = req.body;
+
+    if (tableNumber === undefined || tableNumber === null) {
+      return res.status(400).json({ message: "Table number required" });
+    }
+
+    tableNumber = Number(tableNumber);
+    if (Number.isNaN(tableNumber) || tableNumber <= 0) {
+      return res.status(400).json({ message: "Invalid table number" });
+    }
+
+    const exists = await Table.findOne({
+      tableNumber,
+      createdBy: req.user.id,
+    });
+
+    if (exists) {
+      return res.status(400).json({ message: "Table already exists" });
+    }
+
+    const table = await Table.create({
+      tableNumber,
+      status: "FREE",
+      createdBy: req.user.id,
+      activeOrderId: null,
+    });
+
     res.status(201).json(table);
   } catch (err) {
-    next(err);
+    console.error("CREATE TABLE ERROR:", err.message);
+    res.status(500).json({ message: err.message });
   }
 };

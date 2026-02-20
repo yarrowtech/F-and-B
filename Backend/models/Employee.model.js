@@ -30,47 +30,107 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 import mongoose from "mongoose";
 
 const employeeSchema = new mongoose.Schema(
   {
+    /* =========================
+       EMPLOYEE ID
+       Format: AAAA-RR-0001
+    ========================= */
     employeeId: {
       type: String,
       required: true,
-      unique: true, // ADMNRESTWA0001
+      unique: true,
+      index: true,
     },
 
+    /* =========================
+       BASIC INFO
+    ========================= */
     name: {
       type: String,
       required: true,
+      trim: true,
     },
 
     role: {
       type: String,
-      enum: ["ADMIN", "MANAGER", "WAITER", "CHEF", "ACCOUNTANT"],
       required: true,
+      enum: [
+        "MANAGER",
+        "INVENTORY_MANAGER",
+        "CHEF",
+        "SUCHEF",
+        "WAITER",
+        "CLEANER",
+        "ACCOUNTANT",
+      ],
     },
 
     password: {
       type: String,
       required: true,
+      select: false, // 🔒 never return password
     },
 
-    phone: String,
-    email: String,
+    phone: {
+      type: String,
+      trim: true,
+    },
 
+    email: {
+      type: String,
+      lowercase: true,
+      trim: true,
+    },
+
+    /* =========================
+       STATUS
+    ========================= */
     isActive: {
       type: Boolean,
       default: true,
     },
 
+    /* =========================
+       PERFORMANCE STATS
+    ========================= */
     stats: {
-      ordersTaken: { type: Number, default: 0 },      // waiter
-      ordersPrepared: { type: Number, default: 0 },   // chef
-      billsGenerated: { type: Number, default: 0 },   // accountant
+      ordersTaken: { type: Number, default: 0 },     // waiter
+      ordersPrepared: { type: Number, default: 0 },  // chef
+      billsGenerated: { type: Number, default: 0 },  // accountant
+    },
+
+    /* =========================
+       RELATION
+    ========================= */
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Admin",
+      required: true,
+    },
+    restaurant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Restaurant",
+      default: null,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
 export default mongoose.model("Employee", employeeSchema);

@@ -79,6 +79,31 @@ const deleteEmployee = async (req, res) => {
 };
 
 /* ===============================
+   REMOVE EMPLOYEE FROM RESTAURANT
+=============================== */
+const removeEmployeeFromRestaurant = async (req, res) => {
+  try {
+    const employee = await Employee.findByIdAndUpdate(
+      req.params.id,
+      { restaurant: null },
+      { new: true }
+    );
+
+    if (!employee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
+    res.json({
+      success: true,
+      message: "Employee removed from restaurant",
+    });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+
+/* ===============================
    ✅ DEFAULT EXPORT (REQUIRED)
 =============================== */
 export default {
@@ -87,4 +112,5 @@ export default {
   getEmployeeById,
   updateEmployee,
   deleteEmployee,
+  removeEmployeeFromRestaurant,
 };

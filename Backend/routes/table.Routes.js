@@ -1,65 +1,97 @@
-// const express = require("express");
-// const router = express.Router();
-// const {
-//   getTables,
-//   createTable,
-//   updateTable,
-//   deleteTable,
-// } = require("../controllers/table.Controller");
-
-// // Routes
-// router.get("/", getTables);
-// router.post("/", createTable);
-// router.put("/:id", updateTable);
-// router.delete("/:id", deleteTable);
-
-// module.exports = router;
 
 
-// // routes/table.Routes.js
-// const express = require('express');
+
+// import express from "express";
+// import tableController from "../controllers/table.controller.js";
+// import auth from "../middlewares/auth.middleware.js";
+// import allowRoles from "../middlewares/role.middleware.js";
+
 // const router = express.Router();
 
-// const {
-//   getTables,
-//   createTable,
-//   updateTable,
-//   deleteTable,
-// } = require('../controllers/table.Controller');
+// /* ===============================
+//    TABLE ROUTES
+// =============================== */
 
-// // Routes
-// router.get('/', getTables);
-// router.post('/', createTable);
-// router.put('/:id', updateTable);
-// router.delete('/:id', deleteTable);
+// // admin / manager
+// router.post(
+//   "/",
+//   auth,
+//   allowRoles("admin", "manager"),
+//   tableController.createTable
+// );
 
-// module.exports = router;
+// // all logged-in users
+// router.get("/", auth, tableController.getTables);
+
+// // single table
+// router.get("/:id", auth, tableController.getTableById);
+
+// // admin / manager / waiter
+// router.put(
+//   "/:id/status",
+//   auth,
+//   allowRoles("admin", "manager", "waiter"),
+//   tableController.updateTableStatus
+// );
+
+// // admin only
+// router.delete(
+//   "/:id",
+//   auth,
+//   allowRoles("admin"),
+//   tableController.deleteTable
+// );
+
+// export default router;
 
 
 
-// routes/Table.Routes.js
+
+
 import express from "express";
 import tableController from "../controllers/table.controller.js";
+import auth from "../middlewares/auth.middleware.js";
+import allowRoles from "../middlewares/role.middleware.js";
 
 const router = express.Router();
 
-/* ===============================
-   TABLE ROUTES
-=============================== */
+/*
+Mounted in server.js as:
+app.use("/api/tables", tableRoutes);
 
-// create table (admin/manager)
-router.post("/", tableController.createTable);
+Final URLs:
 
-// get all tables
-router.get("/", tableController.getTables);
+GET    /api/tables/:restaurantId
+POST   /api/tables/:restaurantId
+PUT    /api/tables/:restaurantId/:id/status
+DELETE /api/tables/:restaurantId/:id
+*/
 
-// get single table
-router.get("/:id", tableController.getTableById);
+router.post(
+  "/:restaurantId",
+  auth,
+  allowRoles("admin", "manager"),
+  tableController.createTable
+);
 
-// update table status (occupied / free)
-router.put("/:id/status", tableController.updateTableStatus);
+router.get(
+  "/:restaurantId",
+  auth,
+  tableController.getTables
+);
 
-// delete table
-router.delete("/:id", tableController.deleteTable);
+router.put(
+  "/:restaurantId/:id/status",
+  auth,
+  allowRoles("admin", "manager", "waiter"),
+  tableController.updateTableStatus
+);
+
+router.delete(
+  "/:restaurantId/:id",
+  auth,
+  allowRoles("admin"),
+  tableController.deleteTable
+);
 
 export default router;

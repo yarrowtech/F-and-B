@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import { FaHome, FaEye, FaEyeSlash } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
+import { employeeLogin } from "../../services/employeeAuth.service";
 
 export default function ManagerPortal() {
+  const navigate = useNavigate();
+
   const [activePage, setActivePage] = useState("login");
   const [formData, setFormData] = useState({
     managerId: "",
@@ -10,6 +14,8 @@ export default function ManagerPortal() {
   });
 
   const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [message, setMessage] = useState("");     // ✅ added
+  const [isError, setIsError] = useState(false);  // ✅ added
   const firstInputRef = useRef(null);
 
   useEffect(() => {
@@ -18,6 +24,7 @@ export default function ManagerPortal() {
 
   const inputClass =
     "w-full px-4 py-2 bg-white/90 border border-green-200 focus:ring-2 focus:ring-green-400 outline-none transition duration-200 shadow-sm";
+
   const buttonClass =
     "w-full py-2 mt-2 text-white font-semibold bg-gradient-to-r from-lime-400 to-green-400 hover:from-lime-500 hover:to-green-500 transition-all duration-300 hover:scale-105 shadow-lg";
 
@@ -26,22 +33,61 @@ export default function ManagerPortal() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleLogin = (e) => {
+  /* ======================
+     ✅ REAL API LOGIN (FIXED)
+  ====================== */
+  const handleLogin = async (e) => {
     e.preventDefault();
-    // Generate name from managerId
-    const generateName = (id) => {
-      const namePart = id.replace(/\./g, ' ');
-      return namePart.charAt(0).toUpperCase() + namePart.slice(1);
-    };
-    const name = generateName(formData.managerId);
-    localStorage.setItem('managerName', name);
-    localStorage.setItem('managerLoginId', formData.managerId);
-    alert(`Manager Login: ${formData.managerId}`);
+
+    try {
+      const res = await employeeLogin({
+        employeeId: formData.managerId,
+        password: formData.loginPassword,
+      });
+
+      localStorage.setItem("token", res.token);
+      localStorage.setItem("user", JSON.stringify(res.user));
+      localStorage.setItem("role", res.user.role);
+
+      setIsError(false);
+      setMessage(`Welcome ${res.user.name} ✅`);
+
+      setTimeout(() => {
+        switch (res.user.role) {
+          case "MANAGER":
+            navigate("/manager");
+            break;
+          case "CHEF":
+            navigate("/cheif");
+            break;
+          case "SUCHEF":
+            navigate("/sucheif");
+            break;
+          case "WAITER":
+            navigate("/waiter");
+            break;
+          case "CLEANER":
+            navigate("/cleaner");
+            break;
+          case "ACCOUNTANT":
+            navigate("/accountant");
+            break;
+          default:
+            setIsError(true);
+            setMessage("Unauthorized role ❌");
+            navigate("/");
+        }
+      }, 700);
+    } catch (err) {
+      setIsError(true);
+      setMessage(err.response?.data?.message || "Login failed ❌");
+    }
   };
 
   const handleForgot = (e) => {
     e.preventDefault();
-    alert(`Reset link sent to: ${formData.resetEmail}`);
+    setIsError(false);
+    setMessage(`Reset link sent to: ${formData.resetEmail}`);
   };
 
   return (
@@ -51,7 +97,7 @@ export default function ManagerPortal() {
         {/* Home Icon */}
         <div className="absolute top-4 left-4">
           <button
-            onClick={() => (window.location.href = "/")}
+            onClick={() => navigate("/")}
             className="text-green-700 hover:text-green-900"
             title="Go to Home"
           >
@@ -59,10 +105,22 @@ export default function ManagerPortal() {
           </button>
         </div>
 
-        {/* Title */}
-        <h2 className="text-2xl font-bold text-center text-green-900 drop-shadow mb-6 mt-2">
+        <h2 className="text-2xl font-bold text-center text-green-900 drop-shadow mb-4 mt-2">
           Manager {activePage === "login" ? "Login" : "Reset Password"}
         </h2>
+
+        {/* ✅ MESSAGE BOX */}
+        {message && (
+          <div
+            className={`mb-4 text-center text-sm font-medium py-2 rounded-lg ${
+              isError
+                ? "bg-red-100 text-red-700"
+                : "bg-green-100 text-green-700"
+            }`}
+          >
+            {message}
+          </div>
+        )}
 
         {/* Login Form */}
         {activePage === "login" && (
@@ -77,6 +135,7 @@ export default function ManagerPortal() {
               className={inputClass}
               required
             />
+
             <div className="relative">
               <input
                 type={showLoginPassword ? "text" : "password"}
@@ -99,7 +158,7 @@ export default function ManagerPortal() {
             <div className="text-right text-sm">
               <button
                 type="button"
-                className="text-green-700 hover:underline ml-auto cursor-pointer"
+                className="text-green-700 hover:underline"
                 onClick={() => setActivePage("forgot")}
               >
                 Forgot password?
@@ -112,7 +171,7 @@ export default function ManagerPortal() {
           </form>
         )}
 
-        {/* Forgot Password Form */}
+        {/* Forgot Password */}
         {activePage === "forgot" && (
           <form onSubmit={handleForgot} className="space-y-4">
             <input
@@ -130,10 +189,10 @@ export default function ManagerPortal() {
             </button>
             <button
               type="button"
-              className="mt-2 text-green-700 hover:underline text-sm cursor-pointer"
+              className="mt-2 text-green-700 hover:underline text-sm"
               onClick={() => setActivePage("login")}
             >
-               Back to Login
+              Back to Login
             </button>
           </form>
         )}

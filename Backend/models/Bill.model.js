@@ -1,24 +1,91 @@
-
-// const mongoose = require("mongoose");
+// import mongoose from "mongoose";
 
 // const billSchema = new mongoose.Schema(
 //   {
-//     order: { type: mongoose.Schema.Types.ObjectId, ref: "Order", required: true, unique: true },
-//     amount: { type: Number, required: true },      // subtotal before tax+tip
-//     tax: { type: Number, default: 0 },
-//     tip: { type: Number, default: 0 },
-//     discount: { type: Number, default: 0 },
-//     totalAmount: { type: Number, required: true }, // final amount (amount + tax + tip - discount)
-//     paid: { type: Boolean, default: false },
-//     paymentMethod: { type: String, enum: ["cash", "card", "upi", "other"], default: "cash" },
-//     paidAt: { type: Date },
-//     note: { type: String, default: "" },
+//     billNo: {
+//       type: String,
+//       unique: true,
+//     },
+
+//     order: {
+//       type: mongoose.Schema.Types.ObjectId,
+//       ref: "Order",
+//       required: true,
+//     },
+
+//     // table: {
+//     //   type: mongoose.Schema.Types.ObjectId,
+//     //   ref: "Table",
+//     //   required: true,
+//     // },
+//     paidAt: {
+//   type: Date,
+//   default: null,
+// },
+
+
+//     accountant: {
+//       type: mongoose.Schema.Types.ObjectId,
+//       ref: "Employee",
+//       default: null,
+//     },
+
+//     itemsTotal: {
+//       type: Number,
+//       required: true,
+//     },
+
+//     cgst: {
+//       type: Number,
+//       default: 0,
+//     },
+
+//     sgst: {
+//       type: Number,
+//       default: 0,
+//     },
+
+//     serviceCharge: {
+//       type: Number,
+//       default: 0,
+//     },
+
+//     totalAmount: {
+//       type: Number,
+//       required: true,
+//     },
+
+//     paymentStatus: {
+//       type: String,
+//       enum: ["PENDING", "PAID"],
+//       default: "PENDING",
+//     },
+
+//     paymentMethod: {
+//       type: String,
+//       default: null,
+//     },
 //   },
 //   { timestamps: true }
 // );
 
-// const Bill = mongoose.model("Bill", billSchema);
-// module.exports = Bill;
+// /* ===============================
+//    AUTO BILL NUMBER (🔥 CRITICAL FIX)
+// =============================== */
+// billSchema.pre("save", function (next) {
+//   if (!this.billNo) {
+//     this.billNo = `BILL-${Date.now()}-${Math.floor(
+//       100 + Math.random() * 900
+//     )}`;
+//   }
+//   next();
+// });
+
+// export default mongoose.model("Bill", billSchema);
+
+
+
+
 
 
 
@@ -26,17 +93,33 @@ import mongoose from "mongoose";
 
 const billSchema = new mongoose.Schema(
   {
+    restaurant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Restaurant",
+      required: true,
+      index: true,
+    },
+
+    billNo: {
+      type: String,
+      unique: true,
+    },
+
     order: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Order",
       required: true,
-      unique: true,
+    },
+
+    paidAt: {
+      type: Date,
+      default: null,
     },
 
     accountant: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",
-      required: true,
+      default: null,
     },
 
     itemsTotal: {
@@ -44,7 +127,17 @@ const billSchema = new mongoose.Schema(
       required: true,
     },
 
-    taxAmount: {
+    cgst: {
+      type: Number,
+      default: 0,
+    },
+
+    sgst: {
+      type: Number,
+      default: 0,
+    },
+
+    serviceCharge: {
       type: Number,
       default: 0,
     },
@@ -54,18 +147,27 @@ const billSchema = new mongoose.Schema(
       required: true,
     },
 
-    paymentMethod: {
-      type: String,
-      enum: ["CASH", "UPI", "CARD"],
-    },
-
     paymentStatus: {
       type: String,
       enum: ["PENDING", "PAID"],
       default: "PENDING",
     },
+
+    paymentMethod: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );
+
+billSchema.pre("save", function (next) {
+  if (!this.billNo) {
+    this.billNo = `BILL-${Date.now()}-${Math.floor(
+      100 + Math.random() * 900
+    )}`;
+  }
+  next();
+});
 
 export default mongoose.model("Bill", billSchema);

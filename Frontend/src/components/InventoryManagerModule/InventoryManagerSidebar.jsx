@@ -1,122 +1,133 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   FaHome,
   FaTachometerAlt,
   FaClipboardCheck,
+  FaBoxes,
   FaUserTie,
   FaUserCircle,
   FaStickyNote,
   FaSignOutAlt,
-  FaBars, // ⬅ keep only bars
+  FaBars,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import {
+  getUser,
+  isAuthenticated,
+  logout,
+} from "../../services/auth.service";
 
 const InventoryManagerSidebar = ({ activeSection, setActiveSection }) => {
-  const [isOpen, setIsOpen] = useState(true);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-
-  // Generate name dynamically from login ID
-  const generateName = (loginId) => {
-    const namePart = loginId.replace(/\./g, " ");
-    return namePart.charAt(0).toUpperCase() + namePart.slice(1);
-  };
-
-  const [inventoryManagerLoginId, setInventoryManagerLoginId] = useState(
-    localStorage.getItem("InventoryManagerLoginId") || "inventorymanager123"
-  );
-  const [inventoryManagerName, setInventoryManagerName] = useState(
-    generateName(localStorage.getItem("InventoryManagerLoginId") || "inventorymanager123")
-  );
-
   const navigate = useNavigate();
 
-  const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: <FaTachometerAlt /> },
-    { id: "management", label: "Management", icon: <FaUserTie /> },
-    { id: "attendance", label: "Attendance", icon: <FaClipboardCheck /> },
-    { id: "profile", label: "Profile", icon: <FaUserCircle /> },
-    { id: "notes", label: "Notes", icon: <FaStickyNote /> },
-  ];
+  /* ================= SAFE ONLINE STATE ================= */
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
 
+  /* ================= SIDEBAR STATE ================= */
+  const [isOpen, setIsOpen] = useState(true);
+
+  /* ================= USER STATE ================= */
+  const [user, setUser] = useState(() => getUser());
+
+  /* ================= ROLE PROTECTION ================= */
+  useEffect(() => {
+    const currentUser = getUser();
+
+    if (
+      !isAuthenticated() ||
+      !currentUser ||
+      currentUser.role !== "inventory_manager" // ✅ updated
+    ) {
+      logout();
+      navigate("/inventory-manager-login", { replace: true });
+    } else {
+      setUser(currentUser);
+    }
+  }, [navigate]);
+
+  /* ================= ONLINE / OFFLINE ================= */
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
+
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
+
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
 
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const loginId =
-        localStorage.getItem("InventoryManagerLoginId") || "inventorymanager123";
-      setInventoryManagerLoginId(loginId);
-    };
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
+  /* ================= NAV ITEMS ================= */
+  const navItems = [
+    { id: "dashboard", label: "Dashboard", icon: <FaTachometerAlt /> },
+    { id: "management", label: "Management", icon: <FaUserTie /> },
+    { id: "attendance", label: "Attendance", icon: <FaClipboardCheck /> },
+    { id: "inventory", label: "Inventory", icon: <FaBoxes /> },
+    { id: "profile", label: "Profile", icon: <FaUserCircle /> },
+    { id: "notes", label: "Notes", icon: <FaStickyNote /> },
+  ];
 
-  // Update name when ID changes
-  useEffect(() => {
-    setInventoryManagerName(generateName(inventoryManagerLoginId));
-  }, [inventoryManagerLoginId]);
-
+  /* ================= LOGOUT ================= */
   const handleLogout = () => {
-    localStorage.clear();
-    navigate("/inventory-manager-login");
+    logout();
+    navigate("/inventory-manager-login", { replace: true });
   };
 
+  /* ================= HOME ================= */
   const handleHomeClick = () => {
-    navigate("/");
+    navigate("/inventory-manager"); // ✅ correct route
     if (window.innerWidth < 1024) setIsOpen(false);
   };
 
+  if (!user) return null;
+
   return (
     <>
-      {/* Mobile toggle: show ONLY when sidebar is CLOSED (no green X when open) */}
+      {/* ================= MOBILE TOGGLE ================= */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
           className="lg:hidden fixed top-4 left-4 z-[1002] p-2 bg-green-600 dark:bg-gray-800 text-white rounded-full shadow-lg"
-          aria-label="Open Sidebar"
         >
           <FaBars />
         </button>
       )}
 
-      {/* Backdrop for mobile, click to close */}
-      {isOpen && (
+      {/* ================= MOBILE BACKDROP ================= */}
+      {isOpen && window.innerWidth < 1024 && (
         <div
           className="fixed inset-0 bg-black/30 z-[1000] lg:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
+      {/* ================= SIDEBAR ================= */}
       <aside
         className={`fixed z-[1001] top-0 left-0 h-full w-72 bg-green-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 shadow-2xl p-6 border-r border-green-300 dark:border-gray-700 rounded-r-2xl transform transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
         <div className="flex flex-col h-full">
-          {/* Header */}
+
+          {/* ================= HEADER ================= */}
           <div className="mb-6 flex items-center justify-between">
             <button
               onClick={handleHomeClick}
               className="text-green-700 dark:text-green-400 hover:text-green-900 dark:hover:text-green-200 transition text-2xl"
-              title="Go to Dashboard"
             >
               <FaHome />
             </button>
+
             <h2 className="text-xl font-bold text-green-800 dark:text-green-300">
-              F&B Management
+              Inventory Manager Panel
             </h2>
           </div>
 
-          {/* Nav */}
+          {/* ================= NAVIGATION ================= */}
           <ul className="flex-grow space-y-3 overflow-y-auto">
             {navItems.map(({ id, label, icon }) => (
               <li key={id}>
@@ -127,7 +138,7 @@ const InventoryManagerSidebar = ({ activeSection, setActiveSection }) => {
                   }}
                   className={`flex items-center gap-4 w-full px-5 py-3 rounded-xl transition-all shadow-sm ${
                     activeSection === id
-                      ? "bg-green-500 text-white border-l-4 border-green-700"
+                      ? "bg-green-600 text-white border-l-4 border-green-800"
                       : "bg-white dark:bg-gray-700 hover:bg-green-200 dark:hover:bg-gray-600 text-green-800 dark:text-green-100"
                   }`}
                 >
@@ -138,18 +149,21 @@ const InventoryManagerSidebar = ({ activeSection, setActiveSection }) => {
             ))}
           </ul>
 
-          {/* Footer */}
+          {/* ================= FOOTER ================= */}
           <div className="pt-6 border-t border-green-300 dark:border-gray-700 text-sm">
-            <div className="flex items-center gap-3 mb-2">
-              <FaUserCircle className="text-2xl text-green-700 dark:text-green-400" />
+            <div className="flex items-center gap-3 mb-3">
+              <FaUserCircle className="text-3xl text-green-700 dark:text-green-400" />
+
               <div>
                 <p className="font-semibold text-green-800 dark:text-green-300">
-                  {inventoryManagerName}
+                  {user.name || "Inventory Manager"}
                 </p>
+
                 <p className="text-xs text-green-600 dark:text-green-400">
-                  ID: {inventoryManagerLoginId}
+                  ID: {user.employeeId || user.id?.slice(-6) || "N/A"}
                 </p>
-                <p className="flex items-center gap-1 text-xs">
+
+                <p className="flex items-center gap-1 text-xs mt-1">
                   <span
                     className={`h-2 w-2 rounded-full ${
                       isOnline ? "bg-green-500" : "bg-red-500"
@@ -159,14 +173,16 @@ const InventoryManagerSidebar = ({ activeSection, setActiveSection }) => {
                 </p>
               </div>
             </div>
+
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300 hover:text-green-900 dark:hover:text-green-100"
+              className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300 hover:text-green-900 dark:hover:text-green-100 transition"
             >
-              <FaSignOutAlt className="text-lg" />
+              <FaSignOutAlt />
               Logout
             </button>
           </div>
+
         </div>
       </aside>
     </>

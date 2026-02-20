@@ -53,8 +53,12 @@
 
 
 
-const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
+
+
+
+
+import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 
 const adminSchema = new mongoose.Schema(
   {
@@ -111,10 +115,10 @@ adminSchema.pre("save", async function (next) {
 });
 
 /* Compare password */
-adminSchema.methods.matchPassword = async function (enteredPassword) {
+adminSchema.methods.matchPassword = function (enteredPassword) {
   return bcrypt.compare(enteredPassword, this.password);
 };
 
-/* Safe export */
-const Admin = mongoose.models.Admin || mongoose.model("Admin", adminSchema);
-module.exports = Admin;
+/* ✅ SAFE ESM EXPORT */
+export default mongoose.models.Admin ||
+  mongoose.model("Admin", adminSchema);

@@ -1,23 +1,40 @@
-
-// const mongoose = require("mongoose");
+// import mongoose from "mongoose";
 
 // const tableSchema = new mongoose.Schema(
 //   {
-//     number: { type: Number, required: true, unique: true }, // e.g., 1..20
-//     capacity: { type: Number, default: 4 },
+//     tableNumber: {
+//       type: Number,
+//       required: true,
+//       unique: true,
+//     },
+
+//     capacity: {
+//       type: Number,
+//       required: true,
+//     },
+
 //     status: {
 //       type: String,
-//       enum: ["free", "occupied", "preparing", "ready", "delayed"],
-//       default: "free",
+//       enum: ["available", "occupied", "reserved"],
+//       default: "available",
 //     },
-//     notes: { type: String, default: "" },
+
+//     createdBy: {
+//       type: mongoose.Schema.Types.ObjectId,
+//       required: true,
+//       refPath: "createdByModel", // 🔥 FIX
+//     },
+
+//     createdByModel: {
+//       type: String,
+//       required: true,
+//       enum: ["Admin", "Employee"], // must match model names
+//     },
 //   },
 //   { timestamps: true }
 // );
 
-// const Table = mongoose.models.Table || mongoose.model("Table", tableSchema);
-// module.exports = Table;
-
+// export default mongoose.model("Table", tableSchema);
 
 
 
@@ -27,25 +44,49 @@ import mongoose from "mongoose";
 
 const tableSchema = new mongoose.Schema(
   {
+    restaurant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Restaurant",
+      required: true,
+      index: true,
+    },
+
     tableNumber: {
       type: Number,
       required: true,
-      unique: true,
+    },
+
+    capacity: {
+      type: Number,
+      required: true,
     },
 
     status: {
       type: String,
-      enum: ["FREE", "OCCUPIED"],
-      default: "FREE",
+      enum: ["available", "occupied", "reserved"],
+      default: "available",
     },
 
-    activeOrderId: {
+    createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Order",
-      default: null,
+      required: true,
+      refPath: "createdByModel",
+    },
+
+    createdByModel: {
+      type: String,
+      required: true,
+      enum: ["Admin", "Employee"],
     },
   },
   { timestamps: true }
 );
 
+/* 🔥 Unique per restaurant */
+tableSchema.index(
+  { restaurant: 1, tableNumber: 1 },
+  { unique: true }
+);
+
 export default mongoose.model("Table", tableSchema);
+

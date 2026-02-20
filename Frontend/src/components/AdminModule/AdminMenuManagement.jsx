@@ -1,433 +1,451 @@
-// import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  getMenu,
+  createMenu,
+  deleteMenu,
+  updateMenu,
+} from "../../services/menu.service";
+import { getRestaurants } from "../../services/restaurant.service";
+import { getInventory } from "../../services/inventory.service";
 
-// const MenuManagement = () => {
-//   const [restaurants] = useState(["Downtown Diner", "Ocean View Cafe", "Mountain Retreat"]);
-//   const [selectedRestaurant, setSelectedRestaurant] = useState("Downtown Diner");
+const CATEGORIES = [
+  "indian",
+  "chinese",
+  "italian",
+  "continental",
+  "beverages",
+];
 
-//   const categories = ["Indian", "Chinese", "Italian", "Continental", "Beverages"];
+const COURSE_TYPES = [
+  "starter",
+  "main_course",
+  "dessert",
+  "beverage",
+];
 
-//   const [menus, setMenus] = useState({
-//     "Downtown Diner": [
-//       { id: 1, name: "Paneer Butter Masala", price: 250, category: "Indian", bestSeller: false },
-//       { id: 2, name: "Hakka Noodles", price: 180, category: "Chinese", bestSeller: false },
-//       { id: 3, name: "Margherita Pizza", price: 300, category: "Italian", bestSeller: false },
-//       { id: 4, name: "Pasta Alfredo", price: 280, category: "Italian", bestSeller: false },
-//       { id: 5, name: "Mojito", price: 120, category: "Beverages", bestSeller: false },
-//     ],
-//     "Ocean View Cafe": [
-//       { id: 6, name: "Fish Tacos", price: 140, category: "Continental", bestSeller: true },
-//       { id: 7, name: "Iced Coffee", price: 60, category: "Beverages", bestSeller: false },
-//     ],
-//     "Mountain Retreat": [
-//       { id: 8, name: "Hot Chocolate", price: 70, category: "Beverages", bestSeller: true },
-//     ],
-//   });
+const AdminMenuManagement = () => {
+  const [restaurants, setRestaurants] = useState([]);
+  const [selectedRestaurant, setSelectedRestaurant] = useState("");
 
-//   const [form, setForm] = useState({ name: "", price: "", category: categories[0], bestSeller: false });
+  const [menus, setMenus] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
 
-//   const handleAddMenu = (e) => {
-//     e.preventDefault();
-//     const newItem = {
-//       id: Date.now(),
-//       name: form.name,
-//       price: parseFloat(form.price),
-//       category: form.category,
-//       bestSeller: form.bestSeller,
-//     };
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
-//     setMenus((prev) => ({
-//       ...prev,
-//       [selectedRestaurant]: [...(prev[selectedRestaurant] || []), newItem],
-//     }));
-
-//     setForm({ name: "", price: "", category: categories[0], bestSeller: false });
-//   };
-
-//   const handleRemove = (id) => {
-//     setMenus((prev) => ({
-//       ...prev,
-//       [selectedRestaurant]: prev[selectedRestaurant].filter((item) => item.id !== id),
-//     }));
-//   };
-
-//   const currentMenu = menus[selectedRestaurant] || [];
-//   const bestSellers = currentMenu.filter((item) => item.bestSeller);
-
-//   // Group menu by category
-//   const menuByCategory = categories.reduce((acc, cat) => {
-//     const items = currentMenu.filter((item) => item.category === cat);
-//     if (items.length > 0) acc[cat] = items;
-//     return acc;
-//   }, {});
-
-//   return (
-//     <div className="p-6 space-y-10 bg-gray-50 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors">
-//       <h1 className="text-3xl font-bold mb-6 text-left text-black-700 dark:text-green-400">
-//         Menu Management 
-//       </h1>
-
-//       {/* Restaurant Selector */}
-//       <div className="mb-6">
-//         <label className="block text-lg font-semibold mb-2">Select Restaurant:</label>
-//         <select
-//           value={selectedRestaurant}
-//           onChange={(e) => setSelectedRestaurant(e.target.value)}
-//           className="border p-2 rounded-full w-full max-w-xs bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500"
-//         >
-//           {restaurants.map((r) => (
-//             <option key={r} value={r}>
-//               {r}
-//             </option>
-//           ))}
-//         </select>
-//       </div>
-
-//       {/* Show Menu Grouped by Category */}
-//       <section>
-//         <h2 className="text-2xl font-semibold mb-4"> Current Menu ({selectedRestaurant})</h2>
-//         {Object.keys(menuByCategory).map((cat) => (
-//           <div key={cat} className="mb-6">
-//             <h3 className="text-xl font-semibold mb-2">{cat}</h3>
-//             <ul className="grid md:grid-cols-2 gap-4">
-//               {menuByCategory[cat].map((item) => (
-//                 <li
-//                   key={item.id}
-//                   className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow flex justify-between items-center border border-gray-200 dark:border-gray-700"
-//                 >
-//                   <div>
-//                     <div className="font-bold text-lg">{item.name}</div>
-//                     <div className="text-gray-600 dark:text-gray-400">₹{item.price}</div>
-//                     {item.bestSeller && (
-//                       <span className="text-sm text-green-600 dark:text-green-400 font-semibold">
-//                         Best Seller
-//                       </span>
-//                     )}
-//                   </div>
-//                   <button
-//                     onClick={() => handleRemove(item.id)}
-//                     className="text-red-500 hover:text-red-700 font-medium rounded-full px-4 py-1 transition-colors"
-//                   >
-//                     Remove
-//                   </button>
-//                 </li>
-//               ))}
-//             </ul>
-//           </div>
-//         ))}
-//       </section>
-
-//       {/* Add Menu Item */}
-//       <section>
-//         <h2 className="text-2xl font-semibold mb-4"> Add Menu Item</h2>
-//         <form onSubmit={handleAddMenu} className="grid gap-4 max-w-md bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-200 dark:border-gray-700">
-//           <input
-//             type="text"
-//             placeholder="Dish Name"
-//             value={form.name}
-//             onChange={(e) => setForm({ ...form, name: e.target.value })}
-//             className="border p-2 rounded-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-//             required
-//           />
-//           <input
-//             type="number"
-//             placeholder="Price"
-//             value={form.price}
-//             onChange={(e) => setForm({ ...form, price: e.target.value })}
-//             className="border p-2 rounded-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-//             required
-//           />
-//           <select
-//             value={form.category}
-//             onChange={(e) => setForm({ ...form, category: e.target.value })}
-//             className="border p-2 rounded-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-//           >
-//             {categories.map((cat) => (
-//               <option key={cat} value={cat}>
-//                 {cat}
-//               </option>
-//             ))}
-//           </select>
-//           <label className="flex items-center gap-2 text-sm">
-//             <input
-//               type="checkbox"
-//               checked={form.bestSeller}
-//               onChange={(e) => setForm({ ...form, bestSeller: e.target.checked })}
-//               className="accent-green-600"
-//             />
-//             Mark as Best Seller
-//           </label>
-//           <button
-//             type="submit"
-//             className="bg-green-600 text-white px-6 py-2 rounded-full hover:bg-green-700 transition-transform transform hover:scale-105 font-semibold"
-//           >
-//             Add Item
-//           </button>
-//         </form>
-//       </section>
-
-//       {/* Best Sellers */}
-//       <section>
-//         <h2 className="text-2xl font-semibold mb-4"> Best Selling Items</h2>
-//         {bestSellers.length > 0 ? (
-//           <ul className="grid md:grid-cols-2 gap-4">
-//             {bestSellers.map((item) => (
-//               <li
-//                 key={item.id}
-//                 className="bg-green-100 dark:bg-green-900 p-4 rounded-xl shadow border border-green-300 dark:border-green-800"
-//               >
-//                 <div className="font-bold text-lg">{item.name}</div>
-//                 <div className="text-gray-700 dark:text-gray-300">₹{item.price}</div>
-//                 <div className="text-sm text-gray-600 dark:text-gray-300">{item.category}</div>
-//               </li>
-//             ))}
-//           </ul>
-//         ) : (
-//           <p className="text-gray-600 dark:text-gray-400">
-//             No best sellers marked for {selectedRestaurant}.
-//           </p>
-//         )}
-//       </section>
-//     </div>
-//   );
-// };
-
-// export default MenuManagement;
-
-
-
-
-
-import React, { useState } from "react";
-
-const MenuManagement = () => {
-  const [restaurants] = useState(["Downtown Diner", "Ocean View Cafe", "Mountain Retreat"]);
-  const [selectedRestaurant, setSelectedRestaurant] = useState("Downtown Diner");
-
-  const categories = ["Indian", "Chinese", "Italian", "Continental", "Beverages"];
-
-  const [menus, setMenus] = useState({
-    "Downtown Diner": [
-      { id: 1, name: "Paneer Butter Masala", price: 250, category: "Indian", bestSeller: false },
-      { id: 2, name: "Hakka Noodles", price: 180, category: "Chinese", bestSeller: false },
-      { id: 3, name: "Margherita Pizza", price: 300, category: "Italian", bestSeller: false },
-      { id: 4, name: "Pasta Alfredo", price: 280, category: "Italian", bestSeller: false },
-      { id: 5, name: "Mojito", price: 120, category: "Beverages", bestSeller: false },
-    ],
-    "Ocean View Cafe": [
-      { id: 6, name: "Fish Tacos", price: 140, category: "Continental", bestSeller: true },
-      { id: 7, name: "Iced Coffee", price: 60, category: "Beverages", bestSeller: false },
-    ],
-    "Mountain Retreat": [
-      { id: 8, name: "Hot Chocolate", price: 70, category: "Beverages", bestSeller: true },
-    ],
+  const [form, setForm] = useState({
+    name: "",
+    price: "",
+    category: "indian",
+    cuisine: "",
+    courseType: "",
+    isAvailable: true,
   });
 
-  const [form, setForm] = useState({ name: "", price: "", category: categories[0], bestSeller: false });
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [ingredients, setIngredients] = useState([
+    { itemId: "", quantity: "" },
+  ]);
 
-  const handleAddMenu = (e) => {
-    e.preventDefault();
-    const newItem = {
-      id: Date.now(),
-      name: form.name,
-      price: parseFloat(form.price),
-      category: form.category,
-      bestSeller: form.bestSeller,
+  /* ================= LOAD RESTAURANTS ================= */
+
+  useEffect(() => {
+    const loadRestaurants = async () => {
+      try {
+        const data = await getRestaurants();
+        setRestaurants(Array.isArray(data) ? data : []);
+      } catch {
+        alert("Failed to load restaurants");
+      }
     };
+    loadRestaurants();
+  }, []);
 
-    setMenus((prev) => ({
-      ...prev,
-      [selectedRestaurant]: [...(prev[selectedRestaurant] || []), newItem],
-    }));
+  /* ================= LOAD MENU + INVENTORY ================= */
 
-    setForm({ name: "", price: "", category: categories[0], bestSeller: false });
+  useEffect(() => {
+    if (!selectedRestaurant) {
+      setMenus([]);
+      setInventoryItems([]);
+      return;
+    }
+
+    loadMenus();
+    loadInventory();
+  }, [selectedRestaurant]);
+
+  const loadMenus = async () => {
+    try {
+      setLoading(true);
+      const data = await getMenu(selectedRestaurant);
+      setMenus(Array.isArray(data) ? data : []);
+    } catch (err) {
+      alert(err?.response?.data?.message || "Failed to load menu");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRemove = (id) => {
-    setMenus((prev) => ({
-      ...prev,
-      [selectedRestaurant]: prev[selectedRestaurant].filter((item) => item.id !== id),
-    }));
+  const loadInventory = async () => {
+    try {
+      const data = await getInventory(selectedRestaurant);
+      setInventoryItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      alert(err?.response?.data?.message || "Failed to load inventory");
+    }
   };
 
-  const currentMenu = menus[selectedRestaurant] || [];
-  const bestSellers = currentMenu.filter((item) => item.bestSeller);
+  /* ================= ADD / UPDATE ================= */
 
-  // Apply category filter
-  const filteredMenu =
-    selectedCategory === "All"
-      ? currentMenu
-      : currentMenu.filter((item) => item.category === selectedCategory);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!selectedRestaurant)
+      return alert("Please select a restaurant first");
+
+    if (!form.name || !form.price || !form.cuisine || !form.courseType)
+      return alert("All fields are required");
+
+    const validIngredients = ingredients
+      .filter((i) => i.itemId && i.quantity && i.quantity > 0)
+      .map((i) => ({
+        item: i.itemId,
+        quantity: Number(i.quantity),
+      }));
+
+    if (validIngredients.length === 0)
+      return alert("Add at least one valid ingredient");
+
+    try {
+      setSubmitting(true);
+
+      const payload = {
+        name: form.name,
+        price: Number(form.price),
+        category: form.category,
+        cuisine: form.cuisine,
+        courseType: form.courseType,
+        isAvailable: form.isAvailable,
+        ingredients: validIngredients,
+      };
+
+      if (editingId) {
+        const updated = await updateMenu(
+          selectedRestaurant,
+          editingId,
+          payload
+        );
+
+        setMenus((prev) =>
+          prev.map((m) => (m._id === editingId ? updated : m))
+        );
+
+        setEditingId(null);
+      } else {
+        const created = await createMenu(
+          selectedRestaurant,
+          payload
+        );
+        setMenus((prev) => [created, ...prev]);
+      }
+
+      /* RESET FORM */
+      setForm({
+        name: "",
+        price: "",
+        category: "indian",
+        cuisine: "",
+        courseType: "",
+        isAvailable: true,
+      });
+
+      setIngredients([{ itemId: "", quantity: "" }]);
+    } catch (err) {
+      alert(err?.response?.data?.message || "Operation failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /* ================= DELETE ================= */
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this menu item?")) return;
+
+    try {
+      await deleteMenu(selectedRestaurant, id);
+      setMenus((prev) => prev.filter((m) => m._id !== id));
+    } catch (err) {
+      alert(err?.response?.data?.message || "Delete failed");
+    }
+  };
+
+  /* ================= EDIT ================= */
+
+  const handleEdit = (item) => {
+    setEditingId(item._id);
+
+    setForm({
+      name: item.name,
+      price: item.price,
+      category: item.category,
+      cuisine: item.cuisine,
+      courseType: item.courseType,
+      isAvailable: item.isAvailable,
+    });
+
+    setIngredients(
+      item.ingredients?.map((ing) => ({
+        itemId:
+          typeof ing.item === "object"
+            ? ing.item._id
+            : ing.item,
+        quantity: ing.quantity,
+      })) || [{ itemId: "", quantity: "" }]
+    );
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  /* ================= UI ================= */
 
   return (
-    <div className="px-4 md:px-6 py-6 space-y-6 md:space-y-10 bg-gray-50 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors max-w-5xl mx-auto">
-      <h1 className="text-2xl md:text-3xl font-bold mb-4 md:mb-6 text-left text-black-700 dark:text-green-400">
+    <div className="max-w-6xl mx-auto p-6 bg-gray-50 min-h-screen">
+      <h1 className="text-3xl font-bold mb-6">
         Menu Management
       </h1>
 
-      {/* Restaurant Selector */}
-      <div className="mb-6">
-        <label className="block text-base md:text-lg font-semibold mb-2">
-          Select Restaurant:
-        </label>
-        <select
-          value={selectedRestaurant}
-          onChange={(e) => {
-            setSelectedRestaurant(e.target.value);
-            setSelectedCategory("All"); // reset category filter when restaurant changes
-          }}
-          className="border p-3 rounded-full w-full bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500"
-        >
-          {restaurants.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Category Filter Buttons */}
-      <div className="flex flex-wrap gap-2 overflow-x-auto pb-2">
-        <button
-          onClick={() => setSelectedCategory("All")}
-          className={`px-4 py-2 rounded-full border font-semibold transition-colors ${
-            selectedCategory === "All"
-              ? "bg-green-600 text-white border-green-600"
-              : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-          }`}
-        >
-          All
-        </button>
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`px-4 py-2 rounded-full border font-semibold transition-colors ${
-              selectedCategory === cat
-                ? "bg-green-600 text-white border-green-600"
-                : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-            }`}
-          >
-            {cat}
-          </button>
+      {/* RESTAURANT SELECT */}
+      <select
+        value={selectedRestaurant}
+        onChange={(e) =>
+          setSelectedRestaurant(e.target.value)
+        }
+        className="border p-3 rounded w-full mb-6"
+      >
+        <option value="">-- Choose Restaurant --</option>
+        {restaurants.map((r) => (
+          <option key={r._id} value={r._id}>
+            {r.name}
+          </option>
         ))}
-      </div>
+      </select>
 
-      {/* Filtered Menu Items */}
-      <section>
-        <h2 className="text-xl md:text-2xl font-semibold mb-4">
-          Menu ({selectedRestaurant}){" "}
-          {selectedCategory !== "All" && <span className="text-green-600">- {selectedCategory}</span>}
-        </h2>
-
-        {filteredMenu.length > 0 ? (
-          <ul className="grid sm:grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredMenu.map((item) => (
-              <li
-                key={item.id}
-                className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow flex justify-between items-center border border-gray-200 dark:border-gray-700"
-              >
-                <div>
-                  <div className="font-bold text-lg">{item.name}</div>
-                  <div className="text-gray-600 dark:text-gray-400">₹{item.price}</div>
-                  {item.bestSeller && (
-                    <span className="text-sm text-green-600 dark:text-green-400 font-semibold">
-                      Best Seller
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleRemove(item.id)}
-                  className="text-red-500 hover:text-red-700 font-medium rounded-full px-4 py-1 transition-colors"
+      {selectedRestaurant && (
+        <>
+          {/* MENU LIST */}
+          {loading ? (
+            <p>Loading menu...</p>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-4 mb-10">
+              {menus.map((item) => (
+                <div
+                  key={item._id}
+                  className="p-4 bg-white rounded-xl shadow flex justify-between"
                 >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-gray-600 dark:text-gray-400">
-            No items found for {selectedCategory} in {selectedRestaurant}.
-          </p>
-        )}
-      </section>
+                  <div>
+                    <h3 className="font-bold">
+                      {item.name}
+                    </h3>
+                    <p>₹{item.price}</p>
+                    <p className="text-sm text-gray-500">
+                      {item.cuisine} • {item.courseType}
+                    </p>
+                  </div>
 
-      {/* Add Menu Item */}
-      <section>
-        <h2 className="text-xl md:text-2xl font-semibold mb-4">Add Menu Item</h2>
-        <form
-          onSubmit={handleAddMenu}
-          className="grid gap-4 w-full bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-200 dark:border-gray-700"
-        >
-          <input
-            type="text"
-            placeholder="Dish Name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="border p-3 rounded-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-            required
-          />
-          <input
-            type="number"
-            placeholder="Price"
-            value={form.price}
-            onChange={(e) => setForm({ ...form, price: e.target.value })}
-            className="border p-3 rounded-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-            required
-          />
-          <select
-            value={form.category}
-            onChange={(e) => setForm({ ...form, category: e.target.value })}
-            className="border p-3 rounded-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleEdit(item)}
+                      className="text-blue-500"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleDelete(item._id)
+                      }
+                      className="text-red-500"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* FORM */}
+          <form
+            onSubmit={handleSubmit}
+            className="bg-white p-6 rounded-xl shadow space-y-4"
           >
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-          <label className="flex items-center gap-2 text-sm">
+            <h2 className="text-xl font-semibold">
+              {editingId
+                ? "Edit Menu Item"
+                : "Add New Menu"}
+            </h2>
+
             <input
-              type="checkbox"
-              checked={form.bestSeller}
-              onChange={(e) => setForm({ ...form, bestSeller: e.target.checked })}
-              className="accent-green-600"
+              placeholder="Dish name"
+              value={form.name}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  name: e.target.value,
+                })
+              }
+              className="border p-3 rounded-full w-full"
+              required
             />
-            Mark as Best Seller
-          </label>
-          <button
-            type="submit"
-            className="bg-green-600 text-white px-6 py-3 rounded-full hover:bg-green-700 transition-transform transform hover:scale-105 font-semibold"
-          >
-            Add Item
-          </button>
-        </form>
-      </section>
 
-      {/* Best Sellers */}
-      <section>
-        <h2 className="text-xl md:text-2xl font-semibold mb-4">Best Selling Items</h2>
-        {bestSellers.length > 0 ? (
-          <ul className="grid sm:grid-cols-1 md:grid-cols-2 gap-4">
-            {bestSellers.map((item) => (
-              <li
-                key={item.id}
-                className="bg-green-100 dark:bg-green-900 p-4 rounded-xl shadow border border-green-300 dark:border-green-800"
+            <input
+              type="number"
+              placeholder="Price"
+              value={form.price}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  price: e.target.value,
+                })
+              }
+              className="border p-3 rounded-full w-full"
+              required
+            />
+
+            <input
+              placeholder="Cuisine"
+              value={form.cuisine}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  cuisine: e.target.value,
+                })
+              }
+              className="border p-3 rounded-full w-full"
+              required
+            />
+
+            <select
+              value={form.courseType}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  courseType: e.target.value,
+                })
+              }
+              className="border p-3 rounded-full w-full"
+              required
+            >
+              <option value="">
+                Select Course Type
+              </option>
+              {COURSE_TYPES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+
+            {/* INGREDIENT SECTION */}
+            <div className="space-y-3">
+              <h3 className="font-semibold">
+                Ingredients
+              </h3>
+
+              {ingredients.map((ing, index) => (
+                <div
+                  key={index}
+                  className="flex gap-3"
+                >
+                  <select
+                    value={ing.itemId}
+                    onChange={(e) => {
+                      const updated = [
+                        ...ingredients,
+                      ];
+                      updated[index].itemId =
+                        e.target.value;
+                      setIngredients(updated);
+                    }}
+                    className="border p-2 rounded w-full"
+                  >
+                    <option value="">
+                      Select Item
+                    </option>
+                    {inventoryItems.map((inv) => (
+                      <option
+                        key={inv._id}
+                        value={inv._id}
+                      >
+                        {inv.name} —{" "}
+                        {inv.quantity} {inv.unit}
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="number"
+                    placeholder="Qty"
+                    value={ing.quantity}
+                    onChange={(e) => {
+                      const updated = [
+                        ...ingredients,
+                      ];
+                      updated[index].quantity =
+                        e.target.value;
+                      setIngredients(updated);
+                    }}
+                    className="border p-2 rounded w-32"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setIngredients(
+                        ingredients.filter(
+                          (_, i) => i !== index
+                        )
+                      )
+                    }
+                    className="text-red-500"
+                  >
+                    X
+                  </button>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={() =>
+                  setIngredients([
+                    ...ingredients,
+                    {
+                      itemId: "",
+                      quantity: "",
+                    },
+                  ])
+                }
+                className="text-blue-600"
               >
-                <div className="font-bold text-lg">{item.name}</div>
-                <div className="text-gray-700 dark:text-gray-300">₹{item.price}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-300">{item.category}</div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-gray-600 dark:text-gray-400">
-            No best sellers marked for {selectedRestaurant}.
-          </p>
-        )}
-      </section>
+                + Add Ingredient
+              </button>
+            </div>
+
+            <button
+              disabled={submitting}
+              className="bg-green-600 text-white py-3 rounded-full w-full"
+            >
+              {submitting
+                ? "Saving..."
+                : editingId
+                ? "Update Menu"
+                : "Add Menu"}
+            </button>
+          </form>
+        </>
+      )}
     </div>
   );
 };
 
-export default MenuManagement;
+export default AdminMenuManagement;

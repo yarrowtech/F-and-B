@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  getPendingBills,
   generateBill,
   confirmPayment,
 } from "../controllers/accountant.Controller.js";
@@ -9,9 +10,15 @@ import role from "../middlewares/role.middleware.js";
 
 const router = express.Router();
 
-router.use(auth, role("ACCOUNTANT"));
+/* ============================
+   ACCOUNTANT PROTECTED ROUTES
+============================ */
+router.use(auth);
+router.use(role("accountant"));
 
-router.post("/bill/:orderId", generateBill);
-router.patch("/bill/:billId/pay", confirmPayment);
+/* ===== BILLING ===== */
+router.get("/bills/pending", getPendingBills);
+router.post("/bill/:orderId/generate", generateBill);
+router.post("/bill/:billId/pay", confirmPayment);
 
 export default router;

@@ -1,32 +1,51 @@
+import mongoose from "mongoose";
 import Employee from "../models/Employee.model.js";
+import Admin from "../models/Admin.model.js";
 
-/**
- * ROLE MAP
- */
-const ROLE_CODE = {
-  ADMIN: "AD",
+/*
+FORMAT:
+AAAA-RR-0001
+AAAA = first 4 letters of admin businessName
+RR   = role code
+*/
+
+const ROLE_PREFIX = {
   MANAGER: "MA",
-  WAITER: "WA",
+  INVENTORY_MANAGER: "IM",
   CHEF: "CH",
+  SUCHEF: "SC",
+  WAITER: "WA",
+  CLEANER: "CL",
   ACCOUNTANT: "AC",
 };
 
-/**
- * Generate unique employee ID
- */
-const generateEmployeeId = async (role) => {
-  const roleCode = ROLE_CODE[role];
-  if (!roleCode) {
-    throw new Error("Invalid role for employee ID generation");
+const generateEmployeeId = async (adminId, role) => {
+  // 🔒 Prevent CastError forever
+  if (!mongoose.Types.ObjectId.isValid(adminId)) {
+    throw new Error("Invalid adminId for employeeId generation");
   }
 
-  // count existing employees of this role
-  const count = await Employee.countDocuments({ role });
+  // 1️⃣ Fetch admin
+  const admin = await Admin.findById(adminId);
+  if (!admin) throw new Error("Admin not found");
 
-  const number = String(count + 1).padStart(4, "0");
+  // 2️⃣ Admin prefix
+  const adminPrefix = admin.businessName
+    .replace(/\s+/g, "")
+    .substring(0, 4)
+    .toUpperCase();
 
-  // ADMN = admin prefix, REST = restaurant prefix
-  return `ADMNREST${roleCode}${number}`;
+  // 3️⃣ Role prefix
+  const rolePrefix = ROLE_PREFIX[role];
+  if (!rolePrefix) throw new Error("Invalid role for employeeId");
+
+  // 4️⃣ Count employees created by admin
+  const count = await Employee.countDocuments({ createdBy: adminId });
+
+  // 5️⃣ Sequence
+  const seq = String(count + 1).padStart(4, "0");
+
+  return `${adminPrefix}-${rolePrefix}-${seq}`;
 };
 
 export default generateEmployeeId;

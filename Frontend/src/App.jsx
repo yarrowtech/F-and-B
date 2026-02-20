@@ -1,7 +1,123 @@
-import React, { useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+// import React, { useEffect } from "react";
+// import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
-// Public Pages
+// // Public Pages
+// import Home from "./Pages/Home";
+// import About from "./Pages/About";
+// import Services from "./Pages/Services";
+// import Contact from "./Pages/Contact";
+// import Subscription from "./Pages/Subscription";
+// import Department from "./Pages/Department";
+// import KitchenPage from "./Pages/Kitchen";
+// import FloorPage from "./Pages/Floor";
+
+// // Login Pages
+// import SuperAdminLogin from "./components/Login/SuperAdminLogin";
+// import AdminLogin from "./components/Login/AdminLogin";
+// import VendorLogin from "./components/Login/VendorLogin";
+// import ManagerLogin from "./components/Login/ManagerLogin";
+// import CheifLogin from "./components/Login/CheifLogin";
+// import SucheifLogin from "./components/Login/SuCheifLogin";
+// import InventoryManagerLogin from "./components/Login/InventoryManagerLogin";
+// import WaiterLogin from "./components/Login/WaiterLogin";
+// import CleanerLogin from "./components/Login/CleanerLogin";
+// import AccountantLogin from "./components/Login/AccountantLogin";
+
+// // Dashboards
+// import Superadmin from "./components/SuperAdminModule/Superadmin";
+// import Admin from "./components/AdminModule/Admin";
+// import Vendor from "./components/VendorModule/Vendor";
+// import Manager from "./components/ManagerModule/Manager";
+// import Cheif from "./components/CheifModule/Cheif";
+// import SuCheif from "./components/SuCheifModule/SuCheif";
+// import InventoryManager from "./components/InventoryManagerModule/InventoryManager";
+// import Accountant from "./components/AccountantModule/Accountant";
+// import Waiter from "./components/WaiterModule/Waiter";
+// import Cleaner from "./components/CleanerModule/Cleaner";
+
+// const App = () => {
+//   useEffect(() => {
+//     const savedTheme = localStorage.getItem("theme");
+//     const isDark = savedTheme === "dark";
+//     document.documentElement.classList.toggle("dark", isDark);
+//   }, []);
+
+//   const loginRoutes = [
+//     { path: "/superadmin-login", element: <SuperAdminLogin /> },
+//     { path: "/admin-login", element: <AdminLogin /> },
+//     { path: "/vendor-login", element: <VendorLogin /> },
+//     { path: "/manager-login", element: <ManagerLogin /> },
+//     { path: "/cheif-login", element: <CheifLogin /> },
+//     { path: "/su-cheif-login", element: <SucheifLogin /> },
+//     { path: "/inventory-manager-login", element: <InventoryManagerLogin /> },
+//     { path: "/waiter-login", element: <WaiterLogin /> },
+//     { path: "/cleaner-login", element: <CleanerLogin /> },
+//     { path: "/accountant-login", element: <AccountantLogin /> },
+//   ];
+
+//   const dashboardRoutes = [
+//     { path: "/superadmin", element: <Superadmin /> },
+//     { path: "/admin", element: <Admin /> },
+//     { path: "/vendor", element: <Vendor /> },
+//     { path: "/manager", element: <Manager /> },
+//     { path: "/cheif", element: <Cheif /> },
+//     { path: "/sucheif", element: <SuCheif /> },
+//     { path: "/inventorymanager", element: <InventoryManager /> },
+//     { path: "/accountant", element: <Accountant /> },
+//     { path: "/waiter", element: <Waiter /> },
+//     { path: "/cleaner", element: <Cleaner /> },
+//   ];
+
+//   return (
+//     <Router>
+//       <Routes>
+//         {/* Public Pages */}
+//         <Route path="/" element={<Home />} />
+//         <Route path="/about" element={<About />} />
+//         <Route path="/services" element={<Services />} />
+//         <Route path="/contact" element={<Contact />} />
+//         <Route path="/subscription" element={<Subscription />} />
+
+//         {/* Department Pages */}
+//         <Route path="/department" element={<Department />} />
+//         <Route path="/department/kitchen" element={<KitchenPage />} />
+//         <Route path="/department/floor" element={<FloorPage />} />
+
+//         {/* Login Pages */}
+//         {loginRoutes.map(({ path, element }) => (
+//           <Route key={path} path={path} element={element} />
+//         ))}
+
+//         {/* Dashboards */}
+//         {dashboardRoutes.map(({ path, element }) => (
+//           <Route key={path} path={path} element={element} />
+//         ))}
+//       </Routes>
+//     </Router>
+//   );
+// };
+
+// export default App;
+
+
+
+
+
+
+
+
+
+import React, { useEffect } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+
+import ProtectedRoute from "./routes/ProtectedRoute";
+
+/* ================= PUBLIC PAGES ================= */
 import Home from "./Pages/Home";
 import About from "./Pages/About";
 import Services from "./Pages/Services";
@@ -11,7 +127,7 @@ import Department from "./Pages/Department";
 import KitchenPage from "./Pages/Kitchen";
 import FloorPage from "./Pages/Floor";
 
-// Login Pages
+/* ================= LOGIN PAGES ================= */
 import SuperAdminLogin from "./components/Login/SuperAdminLogin";
 import AdminLogin from "./components/Login/AdminLogin";
 import VendorLogin from "./components/Login/VendorLogin";
@@ -23,7 +139,7 @@ import WaiterLogin from "./components/Login/WaiterLogin";
 import CleanerLogin from "./components/Login/CleanerLogin";
 import AccountantLogin from "./components/Login/AccountantLogin";
 
-// Dashboards
+/* ================= DASHBOARDS ================= */
 import Superadmin from "./components/SuperAdminModule/Superadmin";
 import Admin from "./components/AdminModule/Admin";
 import Vendor from "./components/VendorModule/Vendor";
@@ -38,60 +154,138 @@ import Cleaner from "./components/CleanerModule/Cleaner";
 const App = () => {
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
-    const isDark = savedTheme === "dark";
-    document.documentElement.classList.toggle("dark", isDark);
+    document.documentElement.classList.toggle(
+      "dark",
+      savedTheme === "dark"
+    );
   }, []);
-
-  const loginRoutes = [
-    { path: "/superadmin-login", element: <SuperAdminLogin /> },
-    { path: "/admin-login", element: <AdminLogin /> },
-    { path: "/vendor-login", element: <VendorLogin /> },
-    { path: "/manager-login", element: <ManagerLogin /> },
-    { path: "/cheif-login", element: <CheifLogin /> },
-    { path: "/su-cheif-login", element: <SucheifLogin /> },
-    { path: "/inventory-manager-login", element: <InventoryManagerLogin /> },
-    { path: "/waiter-login", element: <WaiterLogin /> },
-    { path: "/cleaner-login", element: <CleanerLogin /> },
-    { path: "/accountant-login", element: <AccountantLogin /> },
-  ];
-
-  const dashboardRoutes = [
-    { path: "/superadmin", element: <Superadmin /> },
-    { path: "/admin", element: <Admin /> },
-    { path: "/vendor", element: <Vendor /> },
-    { path: "/manager", element: <Manager /> },
-    { path: "/cheif", element: <Cheif /> },
-    { path: "/sucheif", element: <SuCheif /> },
-    { path: "/inventorymanager", element: <InventoryManager /> },
-    { path: "/accountant", element: <Accountant /> },
-    { path: "/waiter", element: <Waiter /> },
-    { path: "/cleaner", element: <Cleaner /> },
-  ];
 
   return (
     <Router>
       <Routes>
-        {/* Public Pages */}
+        {/* ===== PUBLIC ===== */}
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/services" element={<Services />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/subscription" element={<Subscription />} />
 
-        {/* Department Pages */}
+        {/* ===== DEPARTMENTS ===== */}
         <Route path="/department" element={<Department />} />
         <Route path="/department/kitchen" element={<KitchenPage />} />
         <Route path="/department/floor" element={<FloorPage />} />
 
-        {/* Login Pages */}
-        {loginRoutes.map(({ path, element }) => (
-          <Route key={path} path={path} element={element} />
-        ))}
+        {/* ===== LOGIN ===== */}
+        <Route path="/superadmin-login" element={<SuperAdminLogin />} />
+        <Route path="/admin-login" element={<AdminLogin />} />
+        <Route path="/vendor-login" element={<VendorLogin />} />
+        <Route path="/manager-login" element={<ManagerLogin />} />
+        <Route path="/cheif-login" element={<CheifLogin />} />
+        <Route path="/sucheif-login" element={<SucheifLogin />} />
+        <Route
+          path="/inventory-manager-login"
+          element={<InventoryManagerLogin />}
+        />
+        <Route path="/waiter-login" element={<WaiterLogin />} />
+        <Route path="/cleaner-login" element={<CleanerLogin />} />
+        <Route path="/accountant-login" element={<AccountantLogin />} />
 
-        {/* Dashboards */}
-        {dashboardRoutes.map(({ path, element }) => (
-          <Route key={path} path={path} element={element} />
-        ))}
+        {/* ===== DASHBOARDS (ROLE PROTECTED) ===== */}
+        <Route
+          path="/superadmin/*"
+          element={
+            <ProtectedRoute allowedRoles={["superadmin"]}>
+              <Superadmin />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/*"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <Admin />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/vendor/*"
+          element={
+            <ProtectedRoute allowedRoles={["vendor"]}>
+              <Vendor />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/manager/*"
+          element={
+            <ProtectedRoute allowedRoles={["manager"]}>
+              <Manager />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 🔥 CHEF (FIXED & STABLE) */}
+        <Route
+          path="/cheif/*"
+          element={
+            <ProtectedRoute allowedRoles={["chef"]}>
+              <Cheif />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 🔥 SU CHEF (PATH CONSISTENT) */}
+        <Route
+          path="/sucheif/*"
+          element={
+            <ProtectedRoute allowedRoles={["suchef"]}>
+              <SuCheif />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/inventorymanager/*"
+          element={
+            <ProtectedRoute allowedRoles={["inventory_manager"]}
+>
+              <InventoryManager />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/accountant/*"
+          element={
+            <ProtectedRoute allowedRoles={["accountant"]}>
+              <Accountant />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/waiter/*"
+          element={
+            <ProtectedRoute allowedRoles={["waiter"]}>
+              <Waiter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/cleaner/*"
+          element={
+            <ProtectedRoute allowedRoles={["cleaner"]}>
+              <Cleaner />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ===== FALLBACK ===== */}
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>
   );

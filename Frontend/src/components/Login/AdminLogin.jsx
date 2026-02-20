@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import { FaHome, FaEye, FaEyeSlash } from "react-icons/fa";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
-export default function AdminPortal() {
+export default function AdminLogin() {
+  const navigate = useNavigate();
+
   const [activePage, setActivePage] = useState("login");
   const [formData, setFormData] = useState({
     email: "",
@@ -18,6 +22,10 @@ export default function AdminPortal() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [message, setMessage] = useState("");     // ✅ added
+  const [isError, setIsError] = useState(false);  // ✅ added
+
   const firstInputRef = useRef(null);
 
   useEffect(() => {
@@ -26,6 +34,7 @@ export default function AdminPortal() {
 
   const inputClass =
     "w-full px-4 py-2 bg-white/90 border border-green-200 focus:ring-2 focus:ring-green-400 outline-none transition duration-200 shadow-sm";
+
   const buttonClass =
     "w-full py-2 mt-2 text-white font-semibold bg-gradient-to-r from-lime-400 to-green-400 hover:from-lime-500 hover:to-green-500 transition-all duration-300 hover:scale-105 shadow-lg";
 
@@ -34,39 +43,102 @@ export default function AdminPortal() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleLogin = (e) => {
+  /* ================= LOGIN ================= */
+  const handleLogin = async (e) => {
     e.preventDefault();
-    alert(`Admin Login: ${formData.email}`);
+
+    try {
+      const res = await axios.post(
+        "http://localhost:5000/api/admin/login",
+        {
+          email: formData.email,
+          password: formData.password,
+        }
+      );
+
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+
+      setIsError(false);
+      setMessage("Login Successful ✅");
+
+      setTimeout(() => {
+        navigate("/admin");
+      }, 700);
+    } catch (err) {
+      setIsError(true);
+      setMessage(err.response?.data?.message || "Login failed ❌");
+    }
   };
 
-  const handleForgot = (e) => {
+  /* ================= REGISTER ================= */
+  const handleRegister = async (e) => {
     e.preventDefault();
-    alert(`Reset link sent to: ${formData.resetEmail}`);
-  };
 
-  const handleRegister = (e) => {
-    e.preventDefault();
     if (formData.createPassword !== formData.confirmPassword) {
-      alert("Passwords do not match!");
+      setIsError(true);
+      setMessage("Passwords do not match ❌");
       return;
     }
-    alert(`Admin Registered: ${formData.businessName}`);
+
+    try {
+      await axios.post("http://localhost:5000/api/admin/register", {
+        businessName: formData.businessName,
+        email: formData.email,
+        mobile: formData.mobile,
+        address: formData.address,
+        panNumber: formData.pan,
+        password: formData.createPassword,
+      });
+
+      setIsError(false);
+      setMessage("Admin registered successfully ✅");
+
+      setTimeout(() => {
+        setActivePage("login");
+      }, 700);
+    } catch (err) {
+      setIsError(true);
+      setMessage(err.response?.data?.message || "Registration failed ❌");
+    }
+  };
+
+  /* ================= FORGOT PASSWORD ================= */
+  const handleForgot = async (e) => {
+    e.preventDefault();
+
+    try {
+      await axios.post(
+        "http://localhost:5000/api/admin/forgot-password",
+        { email: formData.resetEmail }
+      );
+
+      setIsError(false);
+      setMessage("Password reset instructions sent ✅");
+
+      setTimeout(() => {
+        setActivePage("login");
+      }, 700);
+    } catch (err) {
+      setIsError(true);
+      setMessage(err.response?.data?.message || "Reset failed ❌");
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-lime-100 via-green-100 to-lime-200 flex items-center justify-center px-4">
       <div className="relative w-full max-w-md p-8 backdrop-blur-xl bg-white/40 border border-white/50 rounded-3xl shadow-2xl">
+
         <div className="absolute top-4 left-4">
           <button
-            onClick={() => (window.location.href = "/")}
-            className="text-green-700 hover:text-green-900 cursor-pointer"
-            title="Go to Home"
+            onClick={() => navigate("/")}
+            className="text-green-700 hover:text-green-900"
           >
             <FaHome className="text-xl" />
           </button>
         </div>
 
-        <h2 className="text-2xl font-bold text-center text-green-900 drop-shadow mb-6 mt-2">
+        <h2 className="text-2xl font-bold text-center text-green-900 mb-4 mt-2">
           Admin{" "}
           {activePage === "login"
             ? "Login"
@@ -75,7 +147,20 @@ export default function AdminPortal() {
             : "Forgot Password"}
         </h2>
 
-        {/* Login Form */}
+        {/* ✅ MESSAGE BOX */}
+        {message && (
+          <div
+            className={`mb-4 text-center text-sm font-medium py-2 rounded-lg ${
+              isError
+                ? "bg-red-100 text-red-700"
+                : "bg-green-100 text-green-700"
+            }`}
+          >
+            {message}
+          </div>
+        )}
+
+        {/* LOGIN */}
         {activePage === "login" && (
           <form onSubmit={handleLogin} className="space-y-4">
             <input
@@ -88,6 +173,7 @@ export default function AdminPortal() {
               className={inputClass}
               required
             />
+
             <div className="relative">
               <input
                 type={showLoginPassword ? "text" : "password"}
@@ -101,7 +187,7 @@ export default function AdminPortal() {
               <button
                 type="button"
                 onClick={() => setShowLoginPassword(!showLoginPassword)}
-                className="absolute right-3 top-2 text-xl text-gray-600 hover:text-gray-800 cursor-pointer"
+                className="absolute right-3 top-2 text-xl text-gray-600"
               >
                 {showLoginPassword ? <FaEyeSlash /> : <FaEye />}
               </button>
@@ -110,7 +196,7 @@ export default function AdminPortal() {
             <div className="text-right text-sm">
               <button
                 type="button"
-                className="text-green-700 hover:underline cursor-pointer"
+                className="text-green-700 hover:underline"
                 onClick={() => setActivePage("forgot")}
               >
                 Forgot password?
@@ -125,7 +211,7 @@ export default function AdminPortal() {
               <span>Don't have an account? </span>
               <button
                 type="button"
-                className="text-green-700 font-medium hover:underline cursor-pointer"
+                className="text-green-700 font-medium hover:underline"
                 onClick={() => setActivePage("register")}
               >
                 Register here
@@ -134,7 +220,7 @@ export default function AdminPortal() {
           </form>
         )}
 
-        {/* Registration Form */}
+        {/* REGISTER */}
         {activePage === "register" && (
           <form onSubmit={handleRegister} className="space-y-4">
             <input
@@ -147,6 +233,7 @@ export default function AdminPortal() {
               className={inputClass}
               required
             />
+
             <input
               type="email"
               name="email"
@@ -156,6 +243,7 @@ export default function AdminPortal() {
               className={inputClass}
               required
             />
+
             <input
               type="tel"
               name="mobile"
@@ -165,6 +253,7 @@ export default function AdminPortal() {
               className={inputClass}
               required
             />
+
             <input
               type="text"
               name="address"
@@ -174,6 +263,7 @@ export default function AdminPortal() {
               className={inputClass}
               required
             />
+
             <input
               type="text"
               name="pan"
@@ -196,8 +286,10 @@ export default function AdminPortal() {
               />
               <button
                 type="button"
-                onClick={() => setShowCreatePassword(!showCreatePassword)}
-                className="absolute right-3 top-2 text-xl text-gray-600 hover:text-gray-800 cursor-pointer"
+                onClick={() =>
+                  setShowCreatePassword(!showCreatePassword)
+                }
+                className="absolute right-3 top-2 text-xl text-gray-600"
               >
                 {showCreatePassword ? <FaEyeSlash /> : <FaEye />}
               </button>
@@ -215,8 +307,10 @@ export default function AdminPortal() {
               />
               <button
                 type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-2 text-xl text-gray-600 hover:text-gray-800 cursor-pointer"
+                onClick={() =>
+                  setShowConfirmPassword(!showConfirmPassword)
+                }
+                className="absolute right-3 top-2 text-xl text-gray-600"
               >
                 {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
               </button>
@@ -225,21 +319,10 @@ export default function AdminPortal() {
             <button type="submit" className={buttonClass}>
               Register
             </button>
-
-            <div className="text-center text-sm mt-2">
-              <span>Already have an account? </span>
-              <button
-                type="button"
-                className="text-green-700 font-medium hover:underline cursor-pointer"
-                onClick={() => setActivePage("login")}
-              >
-                Login here
-              </button>
-            </div>
           </form>
         )}
 
-        {/* Forgot Password Form */}
+        {/* FORGOT */}
         {activePage === "forgot" && (
           <form onSubmit={handleForgot} className="space-y-4">
             <input
@@ -255,17 +338,9 @@ export default function AdminPortal() {
             <button type="submit" className={buttonClass}>
               Submit
             </button>
-            <button
-              type="button"
-              className="mt-2 text-green-700 hover:underline text-sm cursor-pointer"
-              onClick={() => setActivePage("login")}
-            >
-              Back to Login
-            </button>
           </form>
         )}
       </div>
     </div>
   );
 }
-

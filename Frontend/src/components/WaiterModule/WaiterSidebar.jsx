@@ -3,11 +3,8 @@ import {
   FaHome,
   FaTachometerAlt,
   FaClipboardCheck,
-  FaBoxes,
   FaUserTie,
-  FaUtensils,
   FaUserCircle,
-  FaChartLine,
   FaStickyNote,
   FaSignOutAlt,
   FaBars,
@@ -19,20 +16,15 @@ const WaiterSidebar = ({ activeSection, setActiveSection }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-  // Generate name dynamically from login ID
-  const generateName = (loginId) => {
-    const namePart = loginId.replace(/\./g, " ");
-    return namePart.charAt(0).toUpperCase() + namePart.slice(1);
-  };
-
-  const [WaiterLoginId, setWaiterLoginId] = useState(
-    localStorage.getItem("WaiterLoginId") || "Waiter456"
-  );
-  const [WaiterName, setWaiterName] = useState(
-    generateName(localStorage.getItem("WaiterLoginId") || "Waiter456")
-  );
-
   const navigate = useNavigate();
+
+  /* ======================
+     GET REAL USER DATA
+  ====================== */
+  const user = JSON.parse(localStorage.getItem("user"));
+
+  const waiterName = user?.name || "Waiter";
+  const waiterId = user?.employeeId || user?.id || "N/A";
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: <FaTachometerAlt /> },
@@ -42,33 +34,28 @@ const WaiterSidebar = ({ activeSection, setActiveSection }) => {
     { id: "notes", label: "Notes", icon: <FaStickyNote /> },
   ];
 
+  /* ======================
+     ONLINE / OFFLINE
+  ====================== */
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
+
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
+
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
 
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const loginId = localStorage.getItem("WaiterLoginId") || "Waiter456";
-      setWaiterLoginId(loginId);
-    };
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
-
-  
-  useEffect(() => {
-    setWaiterName(generateName(WaiterLoginId));
-  }, [WaiterLoginId]);
-
+  /* ======================
+     LOGOUT
+  ====================== */
   const handleLogout = () => {
-    localStorage.clear();
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     navigate("/waiter-login");
   };
 
@@ -81,8 +68,7 @@ const WaiterSidebar = ({ activeSection, setActiveSection }) => {
     <>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-[1002] p-2 bg-green-600 dark:bg-gray-800 text-white rounded-full shadow-lg"
-        aria-label="Toggle Sidebar"
+        className="lg:hidden fixed top-4 left-4 z-[1002] p-2 bg-green-600 text-white rounded-full shadow-lg"
       >
         {isOpen ? <FaTimes /> : <FaBars />}
       </button>
@@ -95,7 +81,7 @@ const WaiterSidebar = ({ activeSection, setActiveSection }) => {
       )}
 
       <aside
-        className={`fixed z-[1001] top-0 left-0 h-full w-72 bg-green-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 shadow-2xl p-6 border-r border-green-300 dark:border-gray-700 rounded-r-2xl transform transition-transform duration-300 ease-in-out ${
+        className={`fixed z-[1001] top-0 left-0 h-full w-72 bg-green-100 text-gray-800 shadow-2xl p-6 border-r rounded-r-2xl transform transition-transform duration-300 ${
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -103,12 +89,12 @@ const WaiterSidebar = ({ activeSection, setActiveSection }) => {
           <div className="mb-6 flex items-center justify-between">
             <button
               onClick={handleHomeClick}
-              className="text-green-700 dark:text-green-400 hover:text-green-900 dark:hover:text-green-200 transition text-2xl"
-              title="Go to Dashboard"
+              className="text-green-700 text-2xl"
             >
               <FaHome />
             </button>
-            <h2 className="text-xl font-bold text-green-800 dark:text-green-300">
+
+            <h2 className="text-xl font-bold text-green-800">
               F&B Management
             </h2>
           </div>
@@ -121,10 +107,10 @@ const WaiterSidebar = ({ activeSection, setActiveSection }) => {
                     setActiveSection(id);
                     if (window.innerWidth < 1024) setIsOpen(false);
                   }}
-                  className={`flex items-center gap-4 w-full px-5 py-3 rounded-xl transition-all shadow-sm ${
+                  className={`flex items-center gap-4 w-full px-5 py-3 rounded-xl transition ${
                     activeSection === id
-                      ? "bg-green-500 text-white border-l-4 border-green-700"
-                      : "bg-white dark:bg-gray-700 hover:bg-green-200 dark:hover:bg-gray-600 text-green-800 dark:text-green-100"
+                      ? "bg-green-500 text-white"
+                      : "bg-white hover:bg-green-200 text-green-800"
                   }`}
                 >
                   <span className="text-lg">{icon}</span>
@@ -134,15 +120,16 @@ const WaiterSidebar = ({ activeSection, setActiveSection }) => {
             ))}
           </ul>
 
-          <div className="pt-6 border-t border-green-300 dark:border-gray-700 text-sm">
+          {/* USER INFO */}
+          <div className="pt-6 border-t text-sm">
             <div className="flex items-center gap-3 mb-2">
-              <FaUserCircle className="text-2xl text-green-700 dark:text-green-400" />
+              <FaUserCircle className="text-2xl text-green-700" />
               <div>
-                <p className="font-semibold text-green-800 dark:text-green-300">
-                  {WaiterName}
+                <p className="font-semibold text-green-800">
+                  {waiterName}
                 </p>
-                <p className="text-xs text-green-600 dark:text-green-400">
-                  ID: {WaiterLoginId}
+                <p className="text-xs text-green-600">
+                  ID: {waiterId}
                 </p>
                 <p className="flex items-center gap-1 text-xs">
                   <span
@@ -154,11 +141,12 @@ const WaiterSidebar = ({ activeSection, setActiveSection }) => {
                 </p>
               </div>
             </div>
+
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300 hover:text-green-900 dark:hover:text-green-100"
+              className="flex items-center gap-2 text-sm text-green-700 hover:text-green-900"
             >
-              <FaSignOutAlt className="text-lg" />
+              <FaSignOutAlt />
               Logout
             </button>
           </div>

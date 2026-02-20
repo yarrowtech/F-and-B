@@ -1,40 +1,84 @@
-// // routes/billing.Routes.js
-// const express = require("express");
-// const billing = require("../controllers/billing.Controller");
+// import express from "express";
+// import billingController from "../controllers/billing.Controller.js";
+// import protect from "../middlewares/auth.middleware.js";
+// import allowRoles from "../middlewares/role.middleware.js";
 
 // const router = express.Router();
 
-// router.post("/", billing.createBillFromOrder); // create bill from orderId
-// router.get("/", billing.listBills);
-// router.get("/:id", billing.getBillById);
-// router.post("/:id/pay", billing.markPaid);
+// /* ===============================
+//    BILLING ROUTES
+// =============================== */
 
-// module.exports = router;
+// // 🔐 Accountant inbox (UNPAID bills)
+// router.get(
+//   "/inbox",
+//   protect,
+//   allowRoles("accountant"),
+//   billingController.getInbox
+// );
+
+// // 🔐 Paid bills history (Accountant + Admin)
+// router.get(
+//   "/history",
+//   protect,
+//   allowRoles("accountant", "admin"),
+//   billingController.getHistory
+// );
+
+// // 🔐 Pay bill (Accountant only)
+// router.post(
+//   "/:id/pay",
+//   protect,
+//   allowRoles("accountant"),
+//   billingController.markPaid
+// );
+
+// // ✅ Bill PDF (READ-ONLY, PUBLIC – REQUIRED for window.open)
+// router.get(
+//   "/:id/pdf",
+//   billingController.generateBillPDF
+// );
+
+// export default router;
 
 
 
-// routes/billing.Routes.js
+
+
+
 import express from "express";
-import billing from "../controllers/billing.Controller.js";
+import billingController from "../controllers/billing.Controller.js";
+import auth from "../middlewares/auth.middleware.js";
+import allowRoles from "../middlewares/role.middleware.js";
 
 const router = express.Router();
 
-/** Put static routes first so they don't hit :id */
-router.get("/inbox", billing.getInbox);
-router.get("/history", billing.getHistory);
-router.get("/", billing.listBills);
-router.post("/", billing.createBillFromOrder);
+router.get(
+  "/inbox",
+  auth,
+  allowRoles("accountant"),
+  billingController.getInbox
+);
 
-/** Optional: central ObjectId guard for any :id on this router */
-router.param("id", (req, res, next, id) => {
-  if (!/^[0-9a-fA-F]{24}$/.test(id)) {
-    return res.status(400).json({ message: "Invalid id format" });
-  }
-  next();
-});
+router.get(
+  "/history",
+  auth,
+  allowRoles("accountant", "admin"),
+  billingController.getHistory
+);
 
-/** Dynamic id routes (no inline regex) */
-router.get("/:id", billing.getBillById);
-router.post("/:id/pay", billing.markPaid);
+router.post(
+  "/:id/pay",
+  auth,
+  allowRoles("accountant"),
+  billingController.markPaid
+);
+
+router.get(
+  "/:id/pdf",
+  auth,
+  allowRoles("accountant", "admin"),
+  billingController.generateBillPDF
+);
 
 export default router;
