@@ -230,6 +230,8 @@ import Menu from "../models/Menu.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import Employee from "../models/Employee.model.js";
 import Inventory from "../models/Inventory.model.js";
+import Order from "../models/Order.model.js";
+import mongoose from "mongoose";
 
 /* ===============================
    CREATE MENU ITEM
@@ -522,5 +524,130 @@ export const deleteMenuItem = async (req, res) => {
     });
   } catch (err) {
     res.status(400).json({ message: err.message });
+  }
+};
+
+
+export const getMenuOrdersByDate = async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const { date, range } = req.query;
+
+    /* 🔒 Verify employee belongs to restaurant */
+    const employee = await Employee.findById(req.user.id);
+
+    if (
+      !employee ||
+      !employee.restaurant ||
+      employee.restaurant.toString() !== restaurantId
+    ) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    let start;
+    let end;
+
+    const now = new Date();
+
+    /* ================= RANGE SUPPORT ================= */
+
+    if (range === "today") {
+      start = new Date();
+      start.setHours(0, 0, 0, 0);
+
+      end = new Date();
+      end.setHours(23, 59, 59, 999);
+    }
+
+    else if (range === "yesterday") {
+      start = new Date();
+      start.setDate(start.getDate() - 1);
+      start.setHours(0, 0, 0, 0);
+
+      end = new Date();
+      end.setDate(end.getDate() - 1);
+      end.setHours(23, 59, 59, 999);
+    }
+
+    else if (range === "week") {
+      start = new Date();
+      start.setDate(start.getDate() - 7);
+      start.setHours(0, 0, 0, 0);
+
+      end = new Date();
+      end.setHours(23, 59, 59, 999);
+    }
+
+    /* ================= DATE SUPPORT ================= */
+
+    else if (date) {
+      start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+
+      end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+    }
+
+    else {
+      return res.status(400).json({
+        message: "Provide date or range",
+      });
+    }
+
+    /* ================= ANALYTICS ================= */
+
+const result = await Order.aggregate([
+
+  {
+    $match: {
+      restaurant: new mongoose.Types.ObjectId(restaurantId),
+      createdAt: { $gte: start, $lte: end },
+      status: { $ne: "CANCELLED" }
+    }
+  },
+
+  {
+    $unwind: "$items"
+  },
+
+  {
+    $group: {
+      _id: "$items.menuItem",
+      totalOrders: { $sum: "$items.quantity" }
+    }
+  },
+
+  {
+    $lookup: {
+      from: "menus",
+      localField: "_id",
+      foreignField: "_id",
+      as: "menu"
+    }
+  },
+
+  {
+    $unwind: "$menu"
+  },
+
+  {
+    $project: {
+      name: "$menu.name",
+      cuisine: "$menu.cuisine",
+      courseType: "$menu.courseType",
+      totalOrders: 1
+    }
+  },
+
+  {
+    $sort: { totalOrders: -1 }
+  }
+
+]);
+
+    res.json(result);
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };

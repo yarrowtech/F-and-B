@@ -711,8 +711,11 @@ export default function WaiterManagement() {
     if (order.status === "PENDING")
       return "Order Placed";
 
-    if (order.status === "ACCEPTED")
-      return `Accepted by ${order.chef?.name || "Chef"}`;
+   if (order.status === "ACCEPTED") {
+  return order.chef?.name
+    ? `Accepted by Chef ${order.chef.name}`
+    : "Accepted by Chef";
+}
 
     if (order.status === "PREPARING")
       return "Preparing";

@@ -7,14 +7,29 @@ import {
   getInventory,
   updateInventoryItem,
   deleteInventoryItem,
+  getManagerInventory,
+  getItemLogs
 } from "../controllers/inventory.controller.js";
 
 const router = express.Router();
 
-/*
-Base mounted in server.js:
-app.use("/api/inventory", inventoryRoutes);
-*/
+/* ================= MANAGER INVENTORY VIEW ================= */
+/* GET /api/inventory/manager */
+router.get(
+  "/manager",
+  auth,
+  allowRoles("admin", "manager"),
+  getManagerInventory
+);
+
+/* ================= INVENTORY LOGS ================= */
+/* GET /api/inventory/logs/:itemId */
+router.get(
+  "/logs/:itemId",
+  auth,
+  allowRoles("admin", "manager"),
+  getItemLogs
+);
 
 /* ================= CREATE ================= */
 /* POST /api/inventory/:restaurantId */
@@ -25,7 +40,7 @@ router.post(
   createInventoryItem
 );
 
-/* ================= GET ================= */
+/* ================= GET INVENTORY ================= */
 /* GET /api/inventory/:restaurantId */
 router.get(
   "/:restaurantId",

@@ -59,3 +59,24 @@ export const deleteMenu = async (restaurantId, id) => {
   const res = await api.delete(`/menu/${restaurantId}/${id}`);
   return res.data;
 };
+
+/* ================= ANALYTICS ================= */
+
+/* Date wise analytics (existing) */
+export const getMenuOrdersByDate = async (restaurantId, date) => {
+  const res = await api.get(
+    `/menu/orders-by-date/${restaurantId}?date=${date}`
+  );
+
+  return Array.isArray(res.data) ? res.data : [];
+};
+
+/* Range analytics (NEW) */
+
+export const getMenuAnalytics = async (restaurantId, range) => {
+  const res = await api.get(
+    `/menu/orders-by-date/${restaurantId}?range=${range}`
+  );
+
+  return Array.isArray(res.data) ? res.data : [];
+};

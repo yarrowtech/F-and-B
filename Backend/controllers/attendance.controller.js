@@ -9,7 +9,7 @@ import mongoose from "mongoose";
 const getRestaurantFilter = (req) => {
   if (req.user.role === "admin") return {};
 
-  if (req.user.role === "manager") {
+  if (req.user.role === "MANAGER") {
     return {
       restaurant: new mongoose.Types.ObjectId(req.user.restaurant),
     };
@@ -156,7 +156,7 @@ export const getTodayAttendance = async (req, res) => {
 ===================================================== */
 export const getMonthlyAttendanceStats = async (req, res) => {
   try {
-    const { month, type } = req.query;
+    const { month } = req.query;
 
     if (!month) {
       return res.status(400).json({
@@ -169,36 +169,42 @@ export const getMonthlyAttendanceStats = async (req, res) => {
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + 1);
 
-    const filter =
-      type === "own"
-        ? getOwnFilter(req)
-        : getRestaurantFilter(req);
-
-    const records = await Attendance.find({
-      date: { $gte: startDate, $lt: endDate },
-      ...filter,
+    /* 1️⃣ Get all employees in restaurant */
+    const employees = await Employee.find({
+      restaurant: req.user.restaurant,
     });
 
+    /* 2️⃣ Get attendance records */
+    const records = await Attendance.find({
+      restaurant: req.user.restaurant,
+      date: { $gte: startDate, $lt: endDate },
+    });
+
+    /* 3️⃣ Calculate days */
     const totalMonthDays = new Date(
       startDate.getFullYear(),
       startDate.getMonth() + 1,
       0
     ).getDate();
 
-    const totalWorkingDays = totalMonthDays;
+    const totalEmployees = employees.length;
+
+    const totalPossibleAttendance =
+      totalEmployees * totalMonthDays;
 
     const totalPresent = records.filter(
       (r) => r.status === "PRESENT"
     ).length;
 
     const attendancePercent =
-      totalWorkingDays === 0
+      totalPossibleAttendance === 0
         ? 0
-        : ((totalPresent / totalWorkingDays) * 100).toFixed(2);
+        : ((totalPresent / totalPossibleAttendance) * 100).toFixed(2);
 
     res.json({
       success: true,
-      totalDays: totalWorkingDays,
+      totalEmployees,
+      totalDays: totalMonthDays,
       totalPresent,
       attendancePercent,
     });
@@ -213,25 +219,68 @@ export const getMonthlyAttendanceStats = async (req, res) => {
 ===================================================== */
 export const getMonthlyChart = async (req, res) => {
   try {
-    const { month, type } = req.query;
+    const { month } = req.query;
+
+    if (!month) {
+      return res.status(400).json({
+        success: false,
+        message: "Month is required (YYYY-MM)",
+      });
+    }
 
     const startDate = new Date(`${month}-01`);
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + 1);
 
-    const filter =
-      type === "own"
-        ? getOwnFilter(req)
-        : getRestaurantFilter(req);
+    /* 1️⃣ Get all employees in the restaurant */
+    const employees = await Employee.find({
+      restaurant: req.user.restaurant,
+    }).select("name role employeeId");
 
-    const data = await Attendance.find({
+    /* 2️⃣ Get attendance records for the month */
+    const attendanceRecords = await Attendance.find({
+      restaurant: req.user.restaurant,
       date: { $gte: startDate, $lt: endDate },
-      ...filter,
-    })
-      .populate("employee", "name role department employeeId")
-      .sort({ date: 1 });
+    });
 
-    res.json({ success: true, data });
+    /* 3️⃣ Prepare monthly grid */
+    const daysInMonth = new Date(
+      startDate.getFullYear(),
+      startDate.getMonth() + 1,
+      0
+    ).getDate();
+
+    const data = employees.map((emp) => {
+      const days = {};
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        days[d] = null;
+      }
+
+      attendanceRecords
+        .filter((a) => a.employee.toString() === emp._id.toString())
+        .forEach((a) => {
+          const day = new Date(a.date).getDate();
+
+          days[day] = {
+            status: a.status,
+            checkIn: a.checkIn,
+            checkOut: a.checkOut,
+          };
+        });
+
+      return {
+        employeeId: emp.employeeId,
+        name: emp.name,
+        role: emp.role,
+        days,
+      };
+    });
+
+    res.json({
+      success: true,
+      data,
+    });
 
   } catch (error) {
     res.status(500).json({ message: error.message });

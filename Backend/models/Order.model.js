@@ -239,7 +239,8 @@ orderSchema.index({ restaurant: 1, table: 1 });
 
 // Faster status filtering
 orderSchema.index({ restaurant: 1, status: 1 });
-
+// 🔥 Analytics optimization (date-wise queries)
+orderSchema.index({ restaurant: 1, createdAt: 1, status: 1 });
 /* ===============================
    EXPORT
 =============================== */

@@ -188,6 +188,14 @@ import restaurantRoutes from "./routes/restaurant.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import attendanceRoutes from "./routes/attendance.routes.js";
 import inventoryRoutes from "./routes/inventory.routes.js";
+import noteRoutes from "./routes/note.routes.js";
+// dashboard
+import adminDashboardRoutes from "./routes/adminDashboard.routes.js";
+import managerDashboardRoutes from "./routes/managerDashboard.routes.js";
+import waiterDashboardRoutes from "./routes/waiterDashboard.routes.js";
+import accountantDashboardRoutes from "./routes/accountantDashboard.routes.js";
+import chefDashboardRoutes from "./routes/chefDashboard.routes.js";
+import inventoryDashboardRoutes from "./routes/inventoryDashboard.routes.js";
 dotenv.config();
 
 const app = express();
@@ -311,6 +319,17 @@ app.use("/api/attendance", attendanceRoutes);
 
 /* 📦 INVENTORY */
 app.use("/api/inventory", inventoryRoutes);
+
+/* 📝 NOTES */
+app.use("/api/notes", noteRoutes);
+
+// dashboard
+app.use("/api/admin", adminDashboardRoutes);
+app.use("/api/manager", managerDashboardRoutes);
+app.use("/api/waiter", waiterDashboardRoutes);
+app.use("/api/accountant", accountantDashboardRoutes);
+app.use("/api/chef", chefDashboardRoutes);
+app.use("/api/inventory", inventoryDashboardRoutes);
 
 
 /* ================= HEALTH CHECK ================= */

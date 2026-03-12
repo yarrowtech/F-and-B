@@ -1,117 +1,189 @@
 import React, { useState, useEffect } from "react";
-import { FaPlus, FaTrash, FaEdit, FaSave } from "react-icons/fa";
+import {
+  FaPlus,
+  FaTrash,
+  FaThumbtack,
+  FaSearch
+} from "react-icons/fa";
+
+import {
+  getNotes,
+  createNote,
+  deleteNote,
+  togglePinNote,
+  searchNotes,
+  getNotesByDate
+} from "../../services/note.service";
 
 const ManagerNotes = () => {
+
   const [notes, setNotes] = useState([]);
-  const [newNote, setNewNote] = useState("");
-  const [editingIndex, setEditingIndex] = useState(null);
-  const [editValue, setEditValue] = useState("");
+  const [noteInput, setNoteInput] = useState("");
+  const [search, setSearch] = useState("");
+
+  /* LOAD NOTES */
+
+  const loadNotes = async () => {
+    const data = await getNotes();
+    setNotes(data);
+  };
 
   useEffect(() => {
-    const savedNotes = localStorage.getItem("managerNotes");
-    if (savedNotes) setNotes(JSON.parse(savedNotes));
+    loadNotes();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("managerNotes", JSON.stringify(notes));
-  }, [notes]);
+  /* ADD NOTE */
 
-  const handleAddNote = () => {
-    if (newNote.trim()) {
-      setNotes([...notes, newNote.trim()]);
-      setNewNote("");
+  const addNote = async () => {
+    if (!noteInput.trim()) return;
+
+    await createNote(noteInput);
+    setNoteInput("");
+    loadNotes();
+  };
+
+  /* DELETE */
+
+  const removeNote = async (id) => {
+    await deleteNote(id);
+    setNotes(notes.filter((n) => n._id !== id));
+  };
+
+  /* PIN */
+
+  const togglePin = async (id) => {
+    await togglePinNote(id);
+    loadNotes();
+  };
+
+  /* SEARCH (WORD OR DATE) */
+
+  const handleSearch = async () => {
+
+    if (!search.trim()) return loadNotes();
+
+    // check if search is date
+    if (!isNaN(Date.parse(search))) {
+      const data = await getNotesByDate(search);
+      setNotes(data);
+    } else {
+      const data = await searchNotes(search);
+      setNotes(data);
     }
   };
 
-  const handleDelete = (index) => {
-    const updated = [...notes];
-    updated.splice(index, 1);
-    setNotes(updated);
-  };
-
-  const handleEdit = (index) => {
-    setEditingIndex(index);
-    setEditValue(notes[index]);
-  };
-
-  const handleSave = (index) => {
-    const updated = [...notes];
-    updated[index] = editValue.trim();
-    setNotes(updated);
-    setEditingIndex(null);
-  };
-
   return (
-    <div className="p-6 max-w-3xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen text-black dark:text-white">
-      <h2 className="text-3xl font-bold mb-6 text-left text-black dark:text-green-400">
-        Manager Notes
+    <div className="p-8 max-w-5xl mx-auto">
+
+      <h2 className="text-3xl font-bold mb-6">
+        Manager Personal Notes
       </h2>
 
-      {/* Add Note Input */}
+      {/* ADD NOTE */}
+
       <div className="flex gap-3 mb-6">
+
         <input
-          type="text"
-          value={newNote}
-          onChange={(e) => setNewNote(e.target.value)}
+          value={noteInput}
+          onChange={(e) => setNoteInput(e.target.value)}
           placeholder="Write a note..."
-          className="flex-1 px-4 py-2 border rounded-md bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white"
+          className="flex-1 p-3 rounded border focus:ring-2 focus:ring-green-500"
         />
+
         <button
-          onClick={handleAddNote}
-          className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+          onClick={addNote}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 rounded flex items-center"
         >
           <FaPlus />
         </button>
+
       </div>
 
-      {/* Notes List */}
-      {notes.length === 0 ? (
-        <p className="text-gray-500 dark:text-gray-400">No notes yet.</p>
-      ) : (
-        <ul className="space-y-4">
-          {notes.map((note, index) => (
-            <li
-              key={index}
-              className="bg-white dark:bg-gray-800 shadow p-4 rounded-md flex justify-between items-start"
-            >
-              {editingIndex === index ? (
-                <textarea
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  className="flex-1 p-2 border rounded resize-none bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white"
-                  rows={2}
-                />
-              ) : (
-                <p className="flex-1 text-black dark:text-white">{note}</p>
-              )}
 
-              <div className="flex items-center gap-2 ml-4">
-                {editingIndex === index ? (
-                  <button
-                    onClick={() => handleSave(index)}
-                    className="text-green-600 hover:text-green-800 dark:hover:text-green-400"
-                  >
-                    <FaSave />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleEdit(index)}
-                    className="text-green-700 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                  >
-                    <FaEdit />
-                  </button>
-                )}
-                <button
-                  onClick={() => handleDelete(index)}
-                  className="text-red-600 hover:text-red-800 dark:hover:text-red-400"
-                >
-                  <FaTrash />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+      {/* SEARCH */}
+
+      <div className="flex gap-3 mb-8">
+
+        <input
+          placeholder="Search note or date (yyyy-mm-dd)"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1 p-3 border rounded"
+        />
+
+        <button
+          onClick={handleSearch}
+          className="bg-blue-600 text-white px-4 rounded"
+        >
+          <FaSearch />
+        </button>
+
+      </div>
+
+
+      {/* PINNED NOTES */}
+
+      <div className="grid gap-4">
+
+        {notes.map((note) => (
+
+          <div
+            key={note._id}
+            className={`group flex justify-between items-start p-4 rounded-lg shadow transition
+            ${note.isPinned
+                ? "bg-yellow-100 border-l-4 border-yellow-500"
+                : "bg-white dark:bg-neutral-800"
+            }`}
+          >
+
+            <div>
+
+              <p className="text-lg text-gray-800 dark:text-white">
+                {note.note}
+              </p>
+
+              <p className="text-sm text-gray-500 mt-1">
+                {new Date(note.date).toLocaleDateString()}
+              </p>
+
+            </div>
+
+            {/* ACTIONS */}
+
+            <div className="flex gap-3 opacity-70 group-hover:opacity-100 transition">
+
+              <button
+                onClick={() => togglePin(note._id)}
+                className={`text-lg ${
+                  note.isPinned
+                    ? "text-yellow-600"
+                    : "text-gray-400"
+                }`}
+              >
+                <FaThumbtack />
+              </button>
+
+              <button
+                onClick={() => removeNote(note._id)}
+                className="text-red-500"
+              >
+                <FaTrash />
+              </button>
+
+            </div>
+
+          </div>
+
+        ))}
+
+      </div>
+
+      {notes.length === 0 && (
+        <p className="text-center text-gray-500 mt-10">
+          No notes found
+        </p>
       )}
+
     </div>
   );
 };

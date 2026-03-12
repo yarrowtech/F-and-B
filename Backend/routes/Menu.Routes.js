@@ -1,4 +1,3 @@
-
 import express from "express";
 import auth from "../middlewares/auth.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
@@ -8,27 +7,29 @@ import {
   getMenuItemById,
   updateMenuItem,
   deleteMenuItem,
-} from "../controllers/menu.controller.js";
+  getMenuOrdersByDate,
+} from "../controllers/Menu.Controller.js";
 
 const router = express.Router();
 
-/*
-Base path:
-app.use("/api/menu", menuRoutes);
+/* ⭐ ANALYTICS ROUTE FIRST */
+router.get(
+  "/orders-by-date/:restaurantId",
+  auth,
+  allowRoles("manager", "admin"),
+  getMenuOrdersByDate
+);
 
-Final endpoints:
-
-POST   /api/menu/:restaurantId
-GET    /api/menu/:restaurantId
-GET    /api/menu/:restaurantId/:id
-PUT    /api/menu/:restaurantId/:id
-DELETE /api/menu/:restaurantId/:id
-*/
+/* MENU ROUTES */
 
 router.post("/:restaurantId", auth, allowRoles("admin"), createMenuItem);
+
 router.get("/:restaurantId", auth, getMenu);
+
 router.get("/:restaurantId/:id", auth, getMenuItemById);
+
 router.put("/:restaurantId/:id", auth, allowRoles("admin"), updateMenuItem);
+
 router.delete("/:restaurantId/:id", auth, allowRoles("admin"), deleteMenuItem);
 
 export default router;

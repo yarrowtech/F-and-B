@@ -1,104 +1,208 @@
 import React, { useState, useEffect } from "react";
-import { FaPlus, FaTrash } from "react-icons/fa";
+import { FaPlus, FaTrash, FaThumbtack, FaSearch } from "react-icons/fa";
 
-const cheifPersonalNotes = () => {
-  const [notes, setNotes] = useState(() => {
+import {
+  getNotes,
+  createNote,
+  deleteNote,
+  togglePinNote,
+  searchNotes,
+  getNotesByDate
+} from "../../services/note.service";
+
+const ChefPersonalNotes = () => {
+
+  const [notes, setNotes] = useState([]);
+  const [noteInput, setNoteInput] = useState("");
+  const [search, setSearch] = useState("");
+
+  /* LOAD NOTES */
+
+  const loadNotes = async () => {
     try {
-      const saved = localStorage.getItem("cheifPersonalNotes");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
+      const data = await getNotes();
+      setNotes(data);
+    } catch (error) {
+      console.error("Error loading notes", error);
     }
-  });
-  const [input, setInput] = useState("");
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("cheifPersonalNotes", JSON.stringify(notes));
-    } catch {}
-  }, [notes]);
-
-  const addNote = () => {
-    const text = input.trim();
-    if (!text) return;
-    setNotes((prev) => [{ id: Date.now(), text }, ...prev]);
-    setInput("");
   };
 
-  const deleteNote = (id) => setNotes((prev) => prev.filter((n) => n.id !== id));
+  useEffect(() => {
+    loadNotes();
+  }, []);
 
-  const isEmpty = !input.trim();
+  /* ADD NOTE */
+
+  const addNote = async () => {
+    if (!noteInput.trim()) return;
+
+    try {
+      await createNote(noteInput);
+      setNoteInput("");
+      loadNotes();
+    } catch (error) {
+      console.error("Add note error", error);
+    }
+  };
+
+  /* DELETE NOTE */
+
+  const removeNote = async (id) => {
+    try {
+      await deleteNote(id);
+      setNotes(notes.filter((n) => n._id !== id));
+    } catch (error) {
+      console.error("Delete error", error);
+    }
+  };
+
+  /* PIN NOTE */
+
+  const togglePin = async (id) => {
+    try {
+      await togglePinNote(id);
+      loadNotes();
+    } catch (error) {
+      console.error("Pin error", error);
+    }
+  };
+
+  /* SEARCH (WORD OR DATE) */
+
+  const handleSearch = async () => {
+
+    if (!search.trim()) {
+      return loadNotes();
+    }
+
+    try {
+
+      if (!isNaN(Date.parse(search))) {
+        const data = await getNotesByDate(search);
+        setNotes(data);
+      } else {
+        const data = await searchNotes(search);
+        setNotes(data);
+      }
+
+    } catch (error) {
+      console.error("Search error", error);
+    }
+  };
 
   return (
-    <div className="h-[100dvh] bg-gray-50 dark:bg-neutral-900 text-gray-800 dark:text-gray-100 flex flex-col">
-      {/* Header */}
-      <header className="px-4 sm:px-6 pt-6 pb-3">
-        <h2 className="text-2xl sm:text-3xl font-semibold">cheif Personal Notes</h2>
-      </header>
+    <div className="p-8 max-w-5xl mx-auto bg-gray-50 dark:bg-neutral-900 min-h-screen">
 
-      {/* Scrollable notes list */}
-      <main className="flex-1 overflow-y-auto px-4 sm:px-6 pb-24 sm:pb-6">
-        {notes.length === 0 ? (
-          <p className="text-center text-gray-500 dark:text-gray-400 mt-8 text-lg">
-            No personal notes yet.
-          </p>
-        ) : (
-          <div className="space-y-3 sm:space-y-4">
-            {notes.map((note) => (
-              <div
-                key={note.id}
-                className="p-4 bg-white dark:bg-neutral-800 rounded-lg shadow-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-              >
-                <span className="text-md break-words whitespace-pre-wrap">
-                  {note.text}
-                </span>
+      <h2 className="text-3xl font-semibold text-gray-800 dark:text-gray-100 mb-6">
+        Chef Personal Notes
+      </h2>
 
-                <button
-                  onClick={() => deleteNote(note.id)}
-                  className="px-4 py-2 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white rounded w-full sm:w-auto inline-flex items-center justify-center gap-2 transition"
-                  aria-label="Delete note"
-                >
-                  <FaTrash /> Delete
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </main>
+      {/* ADD NOTE */}
 
-      {/* Sticky composer (bottom) */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          addNote();
-        }}
-        className="sticky bottom-0 inset-x-0 bg-white/95 dark:bg-neutral-900/95 backdrop-blur border-t border-black/5 dark:border-white/10 px-4 sm:px-6 py-3"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
-      >
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <input
-            type="text"
-            placeholder="Write a quick note..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="w-full p-3 rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-          <button
-            type="submit"
-            disabled={isEmpty}
-            className={`px-5 py-3 rounded-lg flex items-center justify-center gap-2 transition text-white ${
-              isEmpty
-                ? "bg-gray-400 dark:bg-gray-600 cursor-not-allowed"
-                : "bg-green-600 hover:bg-green-700 active:bg-green-800"
+      <div className="flex gap-3 mb-6">
+
+        <input
+          type="text"
+          placeholder="Write a note..."
+          value={noteInput}
+          onChange={(e) => setNoteInput(e.target.value)}
+          className="flex-1 p-3 border rounded-lg bg-white dark:bg-neutral-800 focus:ring-2 focus:ring-green-500"
+        />
+
+        <button
+          onClick={addNote}
+          className="px-5 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center"
+        >
+          <FaPlus />
+        </button>
+
+      </div>
+
+
+      {/* SEARCH */}
+
+      <div className="flex gap-3 mb-8">
+
+        <input
+          placeholder="Search note or date (yyyy-mm-dd)"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1 p-3 border rounded-lg"
+        />
+
+        <button
+          onClick={handleSearch}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-lg"
+        >
+          <FaSearch />
+        </button>
+
+      </div>
+
+
+      {/* NOTES */}
+
+      <div className="grid gap-4">
+
+        {notes.map((note) => (
+
+          <div
+            key={note._id}
+            className={`flex justify-between items-start p-4 rounded-lg shadow transition
+            ${note.isPinned
+              ? "bg-yellow-100 border-l-4 border-yellow-500"
+              : "bg-white dark:bg-neutral-800"
             }`}
-            aria-label="Add note"
           >
-            <FaPlus /> Add
-          </button>
-        </div>
-      </form>
+
+            <div>
+
+              <p className="text-gray-800 dark:text-white text-lg">
+                {note.note}
+              </p>
+
+              <p className="text-sm text-gray-500 mt-1">
+                {new Date(note.date).toLocaleDateString()}
+              </p>
+
+            </div>
+
+            <div className="flex gap-3">
+
+              <button
+                onClick={() => togglePin(note._id)}
+                className={`text-lg ${
+                  note.isPinned
+                    ? "text-yellow-600"
+                    : "text-gray-400"
+                }`}
+              >
+                <FaThumbtack />
+              </button>
+
+              <button
+                onClick={() => removeNote(note._id)}
+                className="text-red-500"
+              >
+                <FaTrash />
+              </button>
+
+            </div>
+
+          </div>
+
+        ))}
+
+      </div>
+
+      {notes.length === 0 && (
+        <p className="text-center text-gray-500 mt-10">
+          No notes found
+        </p>
+      )}
+
     </div>
   );
 };
 
-export default cheifPersonalNotes;
+export default ChefPersonalNotes;

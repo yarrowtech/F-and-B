@@ -891,10 +891,12 @@ export const getWaiterOrders = async (req, res) => {
       status: { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY"] },
     };
 
-    const orders = await Order.find(filter)
-      .populate("table", "tableNumber")
-      .populate("items.menuItem", "name")
-      .sort({ createdAt: -1 });
+  const orders = await Order.find(filter)
+  .populate("table", "tableNumber")
+  .populate("waiter", "name")
+  .populate("chef", "name")   // ⭐ THIS LINE
+  .populate("items.menuItem", "name")
+  .sort({ createdAt: -1 });
 
     return sendSuccess(res, orders);
   } catch (err) {

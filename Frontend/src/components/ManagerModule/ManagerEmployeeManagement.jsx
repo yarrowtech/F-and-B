@@ -40,36 +40,34 @@ const EmployeeManagement = () => {
   };
 
   /* ================= GROUP DATA BY EMPLOYEE ================= */
-  const groupByEmployee = (data) => {
-    const map = {};
+const groupByEmployee = (data) => {
+  const map = {};
 
-    data.forEach((item) => {
-      const emp = item.employee;
-      if (!emp) return;
+  data.forEach((emp) => {
+    const records = {};
 
-      const empId = emp._id;
+    Object.entries(emp.days || {}).forEach(([day, value]) => {
+      if (!value) return;
 
-      if (!map[empId]) {
-        map[empId] = {
-          employeeId: emp.employeeId || "N/A",
-          name: emp.name,
-          records: {},
-        };
-      }
+      const dateKey = `${selectedYear}-${String(
+        selectedMonth + 1
+      ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-    const d = new Date(item.date);
-const dateKey = `${d.getFullYear()}-${String(
-  d.getMonth() + 1
-).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-      map[empId].records[dateKey] = {
-        checkIn: item.checkIn,
-        checkOut: item.checkOut,
+      records[dateKey] = {
+        checkIn: value.checkIn,
+        checkOut: value.checkOut,
       };
     });
 
-    setGroupedData(map);
-  };
+    map[emp.employeeId] = {
+      employeeId: emp.employeeId,
+      name: emp.name,
+      records,
+    };
+  });
+
+  setGroupedData(map);
+};
 
   useEffect(() => {
     loadMonthly();

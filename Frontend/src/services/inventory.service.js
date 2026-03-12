@@ -8,6 +8,7 @@ export const getInventory = async (restaurantId) => {
   if (!restaurantId) return [];
 
   const res = await api.get(`/inventory/${restaurantId}`);
+
   return Array.isArray(res.data?.data)
     ? res.data.data
     : [];
@@ -15,16 +16,12 @@ export const getInventory = async (restaurantId) => {
 
 /* ===== CREATE INVENTORY ITEM ===== */
 /* POST /api/inventory/:restaurantId */
-export const createInventoryItem = async (
-  restaurantId,
-  data
-) => {
-  const res = await api.post(
-    `/inventory/${restaurantId}`,
-    data
-  );
+export const createInventoryItem = async (restaurantId, data) => {
+
+  const res = await api.post(`/inventory/${restaurantId}`, data);
 
   return res.data?.data || null;
+
 };
 
 /* ===== UPDATE INVENTORY ITEM ===== */
@@ -34,12 +31,14 @@ export const updateInventoryItem = async (
   id,
   data
 ) => {
+
   const res = await api.put(
     `/inventory/${restaurantId}/${id}`,
     data
   );
 
   return res.data?.data || null;
+
 };
 
 /* ===== DELETE INVENTORY ITEM ===== */
@@ -48,24 +47,58 @@ export const deleteInventoryItem = async (
   restaurantId,
   id
 ) => {
+
   const res = await api.delete(
     `/inventory/${restaurantId}/${id}`
   );
 
   return res.data?.data || null;
+
 };
+
+/* ================= MANAGER INVENTORY ================= */
+/* GET /api/inventory/manager */
+
+export const getManagerInventory = async () => {
+
+  const res = await api.get("/inventory/manager");
+
+  return Array.isArray(res.data?.data)
+    ? res.data.data
+    : [];
+
+};
+
+/* ================= INVENTORY LOGS ================= */
+/* GET /api/inventory/logs/:itemId */
+
+export const getItemLogs = async (itemId, restaurantId) => {
+
+  const res = await api.get(
+    `/inventory/logs/${itemId}?restaurantId=${restaurantId}`
+  );
+
+  return Array.isArray(res.data?.data)
+    ? res.data.data
+    : [];
+
+};
+
 
 /* ===== ADD STOCK ===== */
 /* PUT /api/inventory/:restaurantId/:id/add-stock */
+
 export const addStock = async (
   restaurantId,
   id,
   quantity
 ) => {
+
   const res = await api.put(
     `/inventory/${restaurantId}/${id}/add-stock`,
     { quantity }
   );
 
   return res.data?.data || null;
+
 };

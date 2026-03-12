@@ -1,39 +1,96 @@
 
-// const mongoose = require("mongoose");
-// const bcrypt = require("bcryptjs");
+// import mongoose from "mongoose";
 
-// const employeeSchema = new mongoose.Schema({
-//   fullName: { type: String, required: true },
-//   employeeId: { type: String, unique: true, required: true },
-//   password: { type: String, required: true },
-//   role: { type: String, required: true },
-//   restaurantName: { type: String, required: true },
-//   email: { type: String },
-//   mobile: { type: String },
-// });
+// const employeeSchema = new mongoose.Schema(
+//   {
+//     /* =========================
+//        EMPLOYEE ID
+//        Format: AAAA-RR-0001
+//     ========================= */
+//     employeeId: {
+//       type: String,
+//       required: true,
+//       unique: true,
+//       index: true,
+//     },
 
-// // Hash password before save
-// employeeSchema.pre("save", async function (next) {
-//   if (!this.isModified("password")) return next();
-//   this.password = await bcrypt.hash(this.password, 10);
-//   next();
-// });
+//     /* =========================
+//        BASIC INFO
+//     ========================= */
+//     name: {
+//       type: String,
+//       required: true,
+//       trim: true,
+//     },
 
-// // Compare password method
-// employeeSchema.methods.matchPassword = async function (enteredPassword) {
-//   return await bcrypt.compare(enteredPassword, this.password);
-// };
+//     role: {
+//       type: String,
+//       required: true,
+//       enum: [
+//         "MANAGER",
+//         "INVENTORY_MANAGER",
+//         "CHEF",
+//         "SUCHEF",
+//         "WAITER",
+//         "CLEANER",
+//         "ACCOUNTANT",
+//       ],
+//     },
 
-// module.exports = mongoose.model("Employee", employeeSchema);
+//     password: {
+//       type: String,
+//       required: true,
+//       select: false, // 🔒 never return password
+//     },
 
+//     phone: {
+//       type: String,
+//       trim: true,
+//     },
 
+//     email: {
+//       type: String,
+//       lowercase: true,
+//       trim: true,
+//     },
 
+//     /* =========================
+//        STATUS
+//     ========================= */
+//     isActive: {
+//       type: Boolean,
+//       default: true,
+//     },
 
+//     /* =========================
+//        PERFORMANCE STATS
+//     ========================= */
+//     stats: {
+//       ordersTaken: { type: Number, default: 0 },     // waiter
+//       ordersPrepared: { type: Number, default: 0 },  // chef
+//       billsGenerated: { type: Number, default: 0 },  // accountant
+//     },
 
+//     /* =========================
+//        RELATION
+//     ========================= */
+//     createdBy: {
+//       type: mongoose.Schema.Types.ObjectId,
+//       ref: "Admin",
+//       required: true,
+//     },
+//     restaurant: {
+//       type: mongoose.Schema.Types.ObjectId,
+//       ref: "Restaurant",
+//       default: null,
+//     },
+//   },
+//   {
+//     timestamps: true,
+//   }
+// );
 
-
-
-
+// export default mongoose.model("Employee", employeeSchema);
 
 
 
@@ -48,13 +105,14 @@ const employeeSchema = new mongoose.Schema(
   {
     /* =========================
        EMPLOYEE ID
-       Format: AAAA-RR-0001
+       Example: TAJ01-WTR-0001
     ========================= */
     employeeId: {
       type: String,
       required: true,
       unique: true,
       index: true,
+      trim: true,
     },
 
     /* =========================
@@ -80,10 +138,10 @@ const employeeSchema = new mongoose.Schema(
       ],
     },
 
-    password: {
+    email: {
       type: String,
-      required: true,
-      select: false, // 🔒 never return password
+      lowercase: true,
+      trim: true,
     },
 
     phone: {
@@ -91,10 +149,19 @@ const employeeSchema = new mongoose.Schema(
       trim: true,
     },
 
-    email: {
+    /* =========================
+       PASSWORD
+    ========================= */
+    password: {
       type: String,
-      lowercase: true,
-      trim: true,
+      required: true,
+      select: false, // 🔒 never return password
+    },
+
+    // used when admin resets password
+    mustChangePassword: {
+      type: Boolean,
+      default: true,
     },
 
     /* =========================
@@ -109,28 +176,55 @@ const employeeSchema = new mongoose.Schema(
        PERFORMANCE STATS
     ========================= */
     stats: {
-      ordersTaken: { type: Number, default: 0 },     // waiter
-      ordersPrepared: { type: Number, default: 0 },  // chef
-      billsGenerated: { type: Number, default: 0 },  // accountant
+      ordersTaken: {
+        type: Number,
+        default: 0,
+      },
+
+      ordersPrepared: {
+        type: Number,
+        default: 0,
+      },
+
+      billsGenerated: {
+        type: Number,
+        default: 0,
+      },
     },
 
     /* =========================
-       RELATION
+       RELATIONSHIPS
     ========================= */
+
+    // Admin who created this employee
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",
       required: true,
+      index: true,
     },
+
+    // Restaurant where employee works
     restaurant: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Restaurant",
-      default: null,
+      required: true,
+      index: true,
     },
   },
   {
     timestamps: true,
   }
+);
+
+/* =========================
+   INDEXES
+   ========================= */
+
+// Prevent duplicate employeeId inside same restaurant
+employeeSchema.index(
+  { employeeId: 1, restaurant: 1 },
+  { unique: true }
 );
 
 export default mongoose.model("Employee", employeeSchema);

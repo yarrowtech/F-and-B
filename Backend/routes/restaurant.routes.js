@@ -5,6 +5,8 @@ import {
   createRestaurant,
   getRestaurants,
   getRestaurantById,
+  updateRestaurant,
+  deleteRestaurant,
   assignEmployeesToRestaurant,
   getRestaurantEmployees,
 } from "../controllers/restaurant.controller.js";
@@ -21,8 +23,14 @@ router.post("/", auth, createRestaurant);
 // Get all restaurants for logged-in admin
 router.get("/", auth, getRestaurants);
 
-// ✅ GET SINGLE RESTAURANT (FIXED 404 ISSUE)
+// Get single restaurant
 router.get("/:restaurantId", auth, getRestaurantById);
+
+// Update restaurant
+router.put("/:restaurantId", auth, updateRestaurant);
+
+// Delete restaurant
+router.delete("/:restaurantId", auth, deleteRestaurant);
 
 // Assign employees to restaurant
 router.put(

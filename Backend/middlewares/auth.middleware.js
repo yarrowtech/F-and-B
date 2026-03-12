@@ -165,7 +165,7 @@ const auth = async (req, res, next) => {
 
       req.user = {
         id: employee._id.toString(),
-        role: employee.role.toLowerCase(),
+        role: employee.role,
         employeeId: employee.employeeId,
         restaurant: employee.restaurant,
       };

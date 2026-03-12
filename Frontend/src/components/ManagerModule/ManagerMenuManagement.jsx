@@ -1,137 +1,274 @@
-import React, { useState } from "react";
-import { FaPlus, FaTrash } from "react-icons/fa";
+import React, { useEffect, useState } from "react";
+import {
+  getMenu,
+  getMenuOrdersByDate,
+  getMenuAnalytics,
+} from "../../services/menu.service";
 
-const MenuManagement = () => {
-  const restaurantName = "Downtown Diner";
+const ManagerMenuManagement = () => {
 
-  const [menus, setMenus] = useState([
-    { id: 1, name: "Grilled Cheese", price: 80, bestSeller: true },
-    { id: 2, name: "Tomato Soup", price: 50, bestSeller: false },
-  ]);
+  const user = JSON.parse(localStorage.getItem("user"));
+  const restaurantId = user?.restaurant;
 
-  const [form, setForm] = useState({ name: "", price: "", bestSeller: false });
+  const [menus, setMenus] = useState([]);
+  const [analytics, setAnalytics] = useState([]);
+  const [date, setDate] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const handleAddMenu = (e) => {
-    e.preventDefault();
-    const newItem = {
-      id: Date.now(),
-      name: form.name,
-      price: parseFloat(form.price),
-      bestSeller: form.bestSeller,
-    };
+  /* ================= FETCH MENU ================= */
 
-    setMenus((prev) => [...prev, newItem]);
-    setForm({ name: "", price: "", bestSeller: false });
+  useEffect(() => {
+    if (restaurantId) {
+      fetchMenu();
+      fetchRangeAnalytics("today"); // auto load today analytics
+    }
+  }, [restaurantId]);
+
+  const fetchMenu = async () => {
+    try {
+
+      setLoading(true);
+
+      const data = await getMenu(restaurantId);
+
+      setMenus(data);
+
+    } catch (err) {
+      console.error("Menu fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRemove = (id) => {
-    setMenus((prev) => prev.filter((item) => item.id !== id));
+  /* ================= DATE ANALYTICS ================= */
+
+  const fetchOrders = async () => {
+
+    if (!date) {
+      alert("Please select a date");
+      return;
+    }
+
+    try {
+
+      const data = await getMenuOrdersByDate(restaurantId, date);
+
+      setAnalytics(data);
+
+    } catch (err) {
+      console.error("Analytics error:", err);
+    }
   };
 
-  const bestSellers = menus.filter((item) => item.bestSeller);
+  /* ================= RANGE ANALYTICS ================= */
+
+  const fetchRangeAnalytics = async (range) => {
+
+    try {
+
+      const data = await getMenuAnalytics(restaurantId, range);
+
+      setAnalytics(data);
+
+    } catch (err) {
+      console.error("Range analytics error:", err);
+    }
+  };
 
   return (
-    <div className="p-6 space-y-10 bg-gray-50 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-2xl font-bold">Menu Management</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Managing menu of <span className="font-medium text-green-500">{restaurantName}</span>
-          </p>
-        </div>
+    <div className="p-6">
+
+      {/* ================= PAGE HEADER ================= */}
+
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Menu Management</h1>
+        <p className="text-gray-500">
+          View restaurant menu and order analytics
+        </p>
       </div>
 
-      {/* Show Menu */}
-      <section>
-        <h2 className="text-2xl font-semibold mb-4">📋 Current Menu</h2>
-        <ul className="grid md:grid-cols-2 gap-4">
-          {menus.map((item) => (
-            <li
-              key={item.id}
-              className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow flex justify-between items-center border border-gray-200 dark:border-gray-700"
-            >
-              <div>
-                <div className="font-bold text-lg">{item.name}</div>
-                <div className="text-gray-600 dark:text-gray-400">₹{item.price}</div>
-                {item.bestSeller && (
-                  <span className="text-sm text-green-600 dark:text-green-400 font-semibold">
-                    ⭐ Best Seller
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={() => handleRemove(item.id)}
-                className="text-red-500 hover:text-red-700 font-medium rounded-full px-4 py-1 transition-colors"
-              >
-                <FaTrash />
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {/* ================= MENU LIST ================= */}
 
-      {/* Add Menu Item */}
-      <section>
-        <h2 className="text-2xl font-semibold mb-4">➕ Add Menu Item</h2>
-        <form onSubmit={handleAddMenu} className="grid gap-4 max-w-md bg-white dark:bg-gray-800 p-6 rounded-xl shadow border border-gray-200 dark:border-gray-700">
-          <input
-            type="text"
-            placeholder="Dish Name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="border p-2 rounded-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-            required
-          />
-          <input
-            type="number"
-            placeholder="Price"
-            value={form.price}
-            onChange={(e) => setForm({ ...form, price: e.target.value })}
-            className="border p-2 rounded-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-            required
-          />
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.bestSeller}
-              onChange={(e) => setForm({ ...form, bestSeller: e.target.checked })}
-              className="accent-green-600"
-            />
-            Mark as Best Seller
-          </label>
+      <div className="bg-white rounded-xl shadow mb-8">
+
+        <div className="p-4 border-b font-semibold text-lg">
+          Restaurant Menu
+        </div>
+
+        <table className="w-full">
+
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-3 text-left">Name</th>
+              <th className="p-3 text-left">Cuisine</th>
+              <th className="p-3 text-left">Course</th>
+              <th className="p-3 text-left">Price</th>
+              <th className="p-3 text-left">Available</th>
+            </tr>
+          </thead>
+
+          <tbody>
+
+            {loading ? (
+
+              <tr>
+                <td colSpan="5" className="p-6 text-center">
+                  Loading menu...
+                </td>
+              </tr>
+
+            ) : menus.length > 0 ? (
+
+              menus.map((item) => (
+                <tr key={item._id} className="border-t hover:bg-gray-50">
+
+                  <td className="p-3 font-medium">{item.name}</td>
+
+                  <td className="p-3">{item.cuisine}</td>
+
+                  <td className="p-3">
+                    {item.courseType
+                      .replace("_", " ")
+                      .replace(/\b\w/g, (l) => l.toUpperCase())}
+                  </td>
+
+                  <td className="p-3">₹{item.price}</td>
+
+                  <td className="p-3">
+                    {item.isAvailable ? "Yes" : "No"}
+                  </td>
+
+                </tr>
+              ))
+
+            ) : (
+
+              <tr>
+                <td colSpan="5" className="p-6 text-center text-gray-500">
+                  No menu items found
+                </td>
+              </tr>
+
+            )}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+      {/* ================= ANALYTICS ================= */}
+
+      <div className="bg-white rounded-xl shadow">
+
+        <div className="p-4 border-b font-semibold text-lg">
+          Menu Orders Analytics
+        </div>
+
+        {/* QUICK FILTER BUTTONS */}
+
+        <div className="p-4 flex gap-3 flex-wrap">
+
           <button
-            type="submit"
-            className="bg-green-600 text-white px-6 py-2 rounded-full hover:bg-green-700 transition-transform transform hover:scale-105 font-semibold"
+            onClick={() => fetchRangeAnalytics("today")}
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
           >
-            <FaPlus /> Add Item
+            Today
           </button>
-        </form>
-      </section>
 
-      {/* Best Sellers */}
-      <section>
-        <h2 className="text-2xl font-semibold mb-4">🏆 Best Selling Items</h2>
-        {bestSellers.length > 0 ? (
-          <ul className="grid md:grid-cols-2 gap-4">
-            {bestSellers.map((item) => (
-              <li
-                key={item.id}
-                className="bg-green-100 dark:bg-green-900 p-4 rounded-xl shadow border border-green-300 dark:border-green-800"
-              >
-                <div className="font-bold text-lg">{item.name}</div>
-                <div className="text-gray-700 dark:text-gray-300">₹{item.price}</div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-gray-600 dark:text-gray-400">
-            No best sellers marked for {restaurantName}.
-          </p>
-        )}
-      </section>
+          <button
+            onClick={() => fetchRangeAnalytics("yesterday")}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Yesterday
+          </button>
+
+          <button
+            onClick={() => fetchRangeAnalytics("week")}
+            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+          >
+            Last 7 Days
+          </button>
+
+        </div>
+
+        {/* DATE PICKER */}
+
+        <div className="px-4 pb-4 flex gap-4 flex-wrap">
+
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="border rounded px-3 py-2"
+          />
+
+          <button
+            onClick={fetchOrders}
+            className="bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-800"
+          >
+            Check Date
+          </button>
+
+        </div>
+
+        {/* ANALYTICS TABLE */}
+
+        <table className="w-full">
+
+          <thead className="bg-gray-100">
+
+            <tr>
+              <th className="p-3 text-left">Menu Item</th>
+              <th className="p-3 text-left">Cuisine</th>
+              <th className="p-3 text-left">Course</th>
+              <th className="p-3 text-left">Orders</th>
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            {analytics.length > 0 ? (
+
+              analytics.map((item, index) => (
+
+                <tr key={index} className="border-t">
+
+                  <td className="p-3">{item.name}</td>
+
+                  <td className="p-3">{item.cuisine}</td>
+
+                  <td className="p-3">
+                    {item.courseType
+                      .replace("_", " ")
+                      .replace(/\b\w/g, (l) => l.toUpperCase())}
+                  </td>
+
+                  <td className="p-3 font-bold">{item.totalOrders}</td>
+
+                </tr>
+
+              ))
+
+            ) : (
+
+              <tr>
+                <td colSpan="4" className="p-6 text-center text-gray-500">
+                  No analytics data found for selected filter
+                </td>
+              </tr>
+
+            )}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
     </div>
   );
 };
 
-export default MenuManagement;
+export default ManagerMenuManagement;

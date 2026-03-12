@@ -279,18 +279,40 @@ const getTables = async (req, res) => {
   try {
     const { restaurantId } = req.params;
 
+    let restaurant;
+
+    /* Admin access */
+    if (req.user.role === "admin") {
+      restaurant = await Restaurant.findOne({
+        _id: restaurantId,
+        admin: req.user.id,
+      });
+    } 
+    /* Employee access */
+    else {
+      restaurant = await Restaurant.findById(restaurantId);
+    }
+
+    if (!restaurant) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied for this restaurant",
+      });
+    }
+
     const tables = await Table.find({
       restaurant: restaurantId,
     })
-      .sort({ createdAt: -1 })
+      .sort({ tableNumber: 1 })
       .populate("createdBy", "name email");
 
     res.json({
       success: true,
       data: tables,
     });
+
   } catch (err) {
-    res.status(400).json({
+    res.status(500).json({
       success: false,
       message: err.message,
     });
