@@ -1,23 +1,22 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  FaUserFriends,
-  FaBuilding,
   FaShoppingBasket,
-  FaCalendarAlt,
   FaRupeeSign,
-  FaBell,
+  FaBuilding,
 } from "react-icons/fa";
+
 import {
   LineChart, Line,
   BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer
 } from "recharts";
-import axios from "axios";
-import { io } from "socket.io-client";
 
-/* ================= SOCKET ================= */
-const socket = io("http://localhost:5000");
+import axios from "axios";
+// import { io } from "socket.io-client"; ❌ disabled for now
+
+/* ================= CONFIG ================= */
+const BASE = "http://localhost:5000/api/admin-dashboard";
 
 /* ================= HELPERS ================= */
 const formatCurrency = (value) =>
@@ -27,114 +26,117 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const GraphBlock = ({ title, height = 300, children }) => (
-  <div className="bg-white/20 dark:bg-white/10 backdrop-blur-md border border-white/30 dark:border-white/10 rounded-2xl shadow-lg p-5">
-    <h3 className="text-lg font-semibold mb-4 text-gray-700 dark:text-gray-200">
-      {title}
-    </h3>
-    <ResponsiveContainer width="100%" height={height}>
+/* ================= GRAPH BLOCK ================= */
+const GraphBlock = ({ title, children }) => (
+  <div className="bg-white/20 backdrop-blur-md rounded-2xl shadow p-5">
+    <h3 className="mb-4 font-semibold">{title}</h3>
+    <ResponsiveContainer width="100%" height={300}>
       {children}
     </ResponsiveContainer>
   </div>
 );
 
+/* ================= MAIN COMPONENT ================= */
 const Dashboard = () => {
   const token = localStorage.getItem("token");
 
-  const [todayData, setTodayData] = useState([]);
+  const [summary, setSummary] = useState({});
   const [monthlyData, setMonthlyData] = useState([]);
   const [topItems, setTopItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  /* ================= FETCH DATA ================= */
+  /* ================= FETCH ================= */
   const fetchDashboard = async () => {
     try {
       setLoading(true);
 
-      const todayRes = await axios.get(
-        "http://localhost:5000/api/dashboard/today",
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const headers = {
+        Authorization: `Bearer ${token}`,
+      };
 
-      const monthlyRes = await axios.get(
-        "http://localhost:5000/api/dashboard/monthly",
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const [summaryRes, monthlyRes, topRes] = await Promise.all([
+        axios.get(`${BASE}/dashboard`, { headers }),
+        axios.get(`${BASE}/dashboard/monthly`, { headers }),
+        axios.get(`${BASE}/dashboard/top-items`, { headers }),
+      ]);
 
-      const topRes = await axios.get(
-        "http://localhost:5000/api/dashboard/top-items?type=today",
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      console.log("Dashboard Data:", {
+        summary: summaryRes.data,
+        monthly: monthlyRes.data,
+        top: topRes.data,
+      });
 
-      setTodayData(todayRes.data.data);
-      setMonthlyData(monthlyRes.data.data);
-      setTopItems(topRes.data.data);
+      setSummary(summaryRes.data || {});
+      setMonthlyData(monthlyRes.data?.data || []);
+      setTopItems(topRes.data?.data || []);
 
     } catch (err) {
-      console.error("Dashboard error:", err);
+      console.error("Dashboard Error:", err.response?.data || err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  /* ================= INITIAL LOAD + SOCKET ================= */
+  /* ================= LOAD ================= */
   useEffect(() => {
     fetchDashboard();
 
-    socket.on("dashboardUpdate", () => {
-      fetchDashboard();
+    // ✅ Enable later when socket works
+    /*
+    const socket = io("http://localhost:5000", {
+      auth: { token }
     });
 
-    return () => {
-      socket.off("dashboardUpdate");
-    };
-  }, []);
+    socket.on("dashboardUpdate", fetchDashboard);
 
-  /* ================= KPI VALUES ================= */
-  const totalTodayRevenue = todayData.reduce(
-    (sum, r) => sum + r.totalRevenue,
-    0
-  );
+    return () => socket.disconnect();
+    */
 
-  const totalTodayOrders = todayData.reduce(
-    (sum, r) => sum + r.totalOrders,
-    0
-  );
+  }, [token]);
 
-  const totalMonthlyRevenue = monthlyData.reduce(
-    (sum, r) => sum + r.totalRevenue,
-    0
-  );
+  /* ================= KPI ================= */
+  const KPIs = useMemo(() => [
+    {
+      title: "Orders Today",
+      value: summary.todayOrders || 0,
+      Icon: FaShoppingBasket
+    },
+    {
+      title: "Daily Revenue",
+      value: summary.todayRevenue || 0,
+      Icon: FaRupeeSign
+    },
+    {
+      title: "Monthly Revenue",
+      value: summary.monthlyRevenue || 0,
+      Icon: FaRupeeSign
+    },
+    {
+      title: "Top Items",
+      value: topItems.length,
+      Icon: FaBuilding
+    },
+  ], [summary, topItems]);
 
-  const KPIs = useMemo(
-    () => [
-      { title: "Orders Today", value: totalTodayOrders, Icon: FaShoppingBasket, color: "text-orange-500" },
-      { title: "Daily Revenue", value: totalTodayRevenue, Icon: FaRupeeSign, color: "text-emerald-500" },
-      { title: "Monthly Revenue", value: totalMonthlyRevenue, Icon: FaRupeeSign, color: "text-teal-500" },
-      { title: "Top Items", value: topItems.length, Icon: FaBuilding, color: "text-blue-500" },
-    ],
-    [totalTodayOrders, totalTodayRevenue, totalMonthlyRevenue, topItems]
-  );
-
+  /* ================= LOADING ================= */
   if (loading) {
     return <div className="p-10 text-center">Loading dashboard...</div>;
   }
 
+  /* ================= UI ================= */
   return (
-    <div className="p-6 space-y-8">
-      <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+    <div className="p-6 space-y-6">
 
-      {/* ================= KPI CARDS ================= */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {KPIs.map(({ title, value, Icon, color }, i) => (
-          <div
-            key={i}
-            className="bg-white/20 backdrop-blur-md rounded-2xl shadow p-4 flex items-center gap-4"
-          >
-            <Icon size={26} className={color} />
+      <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+
+      {/* KPI CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {KPIs.map(({ title, value, Icon }, i) => (
+          <div key={i} className="bg-white/20 p-4 rounded-xl flex gap-3">
+            <Icon size={20} />
             <div>
-              <p className="text-sm text-gray-500">{title}</p>
-              <h2 className="text-xl font-semibold">
+              <p className="text-sm">{title}</p>
+              <h2 className="text-lg font-semibold">
                 {title.includes("Revenue")
                   ? formatCurrency(value)
                   : value}
@@ -144,26 +146,24 @@ const Dashboard = () => {
         ))}
       </div>
 
-      {/* ================= TOP ITEMS CHART ================= */}
-      <GraphBlock title="Top Selling Items Today">
+      {/* TOP ITEMS */}
+      <GraphBlock title="Top Selling Items">
         <BarChart data={topItems}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="name" />
           <YAxis />
           <Tooltip />
-          <Legend />
           <Bar dataKey="quantity" fill="#10B981" />
         </BarChart>
       </GraphBlock>
 
-      {/* ================= MONTHLY REVENUE CHART ================= */}
-      <GraphBlock title="Monthly Revenue Overview">
+      {/* MONTHLY REVENUE */}
+      <GraphBlock title="Monthly Revenue">
         <LineChart data={monthlyData}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="date" />
           <YAxis />
           <Tooltip formatter={(v) => formatCurrency(v)} />
-          <Legend />
           <Line
             type="monotone"
             dataKey="totalRevenue"
@@ -171,6 +171,7 @@ const Dashboard = () => {
           />
         </LineChart>
       </GraphBlock>
+
     </div>
   );
 };

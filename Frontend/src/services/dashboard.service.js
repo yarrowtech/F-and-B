@@ -33,12 +33,13 @@
 import API from "./api";
 
 /* ================= ADMIN ================= */
+export const getAdminSummary = () => API.get("/admin-dashboard/dashboard");
 
-export const getAdminDashboard = async () => {
-  const res = await API.get("/admin/dashboard");
-  return res.data;
-};
+export const getMonthlyChart = () =>
+  API.get("/admin-dashboard/dashboard/monthly");
 
+export const getTopItems = () =>
+  API.get("/admin-dashboard/dashboard/top-items");
 /* ================= MANAGER ================= */
 
 export const getManagerDashboard = async () => {

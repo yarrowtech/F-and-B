@@ -324,7 +324,7 @@ app.use("/api/inventory", inventoryRoutes);
 app.use("/api/notes", noteRoutes);
 
 // dashboard
-app.use("/api/admin", adminDashboardRoutes);
+app.use("/api/admin-dashboard", adminDashboardRoutes);
 app.use("/api/manager", managerDashboardRoutes);
 app.use("/api/waiter", waiterDashboardRoutes);
 app.use("/api/accountant", accountantDashboardRoutes);
