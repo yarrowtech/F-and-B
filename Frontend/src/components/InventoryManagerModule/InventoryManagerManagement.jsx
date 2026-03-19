@@ -228,15 +228,23 @@ export default function InventoryManagement() {
             required
           />
 
-          <input
-            placeholder="Unit (kg, pcs, etc)"
-            value={form.unit}
-            onChange={(e) =>
-              setForm({ ...form, unit: e.target.value })
-            }
-            className="border p-3 rounded"
-            required
-          />
+<select
+  value={form.unit}
+  onChange={(e) =>
+    setForm({ ...form, unit: e.target.value })
+  }
+  className="border p-3 rounded"
+  required
+>
+  <option value="">Select Unit</option>
+  <option value="kg">Kilogram (kg)</option>
+  <option value="g">Gram (g)</option>
+  <option value="ltr">Liter (ltr)</option>
+  <option value="ml">Milliliter (ml)</option>
+  <option value="pcs">Pieces (pcs)</option>
+  <option value="pack">Pack</option>
+  <option value="box">Box</option>
+</select>
 
           <input
             type="number"
