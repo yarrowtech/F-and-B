@@ -1,109 +1,181 @@
-import SalesAnalytics from "../models/SalesAnalytics.model.js";
+import mongoose from "mongoose";
+import Order from "../models/Order.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 
-/* ================= SUMMARY ================= */
-export const getAdminDashboardSummary = async (req, res) => {
+/* ================= HELPER ================= */
+const buildFilter = ({ restaurantId, startDate, endDate }) => {
+  const filter = {};
+
+  if (restaurantId && mongoose.Types.ObjectId.isValid(restaurantId)) {
+    filter.restaurant = new mongoose.Types.ObjectId(restaurantId);
+  }
+
+  if (startDate || endDate) {
+    filter.createdAt = {};
+
+    if (startDate) filter.createdAt.$gte = new Date(startDate);
+    if (endDate) filter.createdAt.$lte = new Date(endDate);
+  }
+
+  return filter;
+};
+
+/* ================= ADMIN SUMMARY ================= */
+export const getAdminSummary = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const { restaurantId, startDate, endDate } = req.query;
+    const baseFilter = buildFilter({ restaurantId, startDate, endDate });
 
-    const restaurants = await Restaurant.find({ admin: adminId }).select("_id");
-    const ids = restaurants.map(r => r._id);
+    const totalOrders = await Order.countDocuments(baseFilter);
 
-    if (!ids.length) {
-      return res.json({
-        todayOrders: 0,
-        todayRevenue: 0,
-        monthlyOrders: 0,
-        monthlyRevenue: 0
-      });
-    }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-
-    const startMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-
-    const todayStats = await SalesAnalytics.aggregate([
-      { $match: { restaurant: { $in: ids }, date: { $gte: today, $lt: tomorrow } } },
-      { $group: { _id: null, totalOrders: { $sum: "$totalOrders" }, totalRevenue: { $sum: "$totalRevenue" } } }
+    const revenueAgg = await Order.aggregate([
+      {
+        $match: {
+          ...baseFilter,
+          status: { $in: ["PAID", "completed"] }, // ✅ FIX
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: "$totalAmount" },
+        },
+      },
     ]);
 
-    const monthlyStats = await SalesAnalytics.aggregate([
-      { $match: { restaurant: { $in: ids }, date: { $gte: startMonth, $lt: nextMonth } } },
-      { $group: { _id: null, totalOrders: { $sum: "$totalOrders" }, totalRevenue: { $sum: "$totalRevenue" } } }
-    ]);
+    const totalRevenue = revenueAgg[0]?.totalRevenue || 0;
+
+    const totalRestaurants = restaurantId
+      ? 1
+      : await Restaurant.countDocuments();
 
     res.json({
-      todayOrders: todayStats[0]?.totalOrders || 0,
-      todayRevenue: todayStats[0]?.totalRevenue || 0,
-      monthlyOrders: monthlyStats[0]?.totalOrders || 0,
-      monthlyRevenue: monthlyStats[0]?.totalRevenue || 0
+      success: true,
+      data: { totalOrders, totalRevenue, totalRestaurants },
     });
-
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
 /* ================= MONTHLY ================= */
 export const getMonthlyChart = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const { restaurantId, startDate, endDate } = req.query;
+    const matchFilter = buildFilter({ restaurantId, startDate, endDate });
 
-    const restaurants = await Restaurant.find({ admin: adminId }).select("_id");
-    const ids = restaurants.map(r => r._id);
-
-    const data = await SalesAnalytics.aggregate([
-      { $match: { restaurant: { $in: ids } } },
-      { $group: { _id: "$date", totalRevenue: { $sum: "$totalRevenue" } } },
-      { $sort: { _id: 1 } }
+    const data = await Order.aggregate([
+      {
+        $match: {
+          ...matchFilter,
+          status: { $in: ["PAID", "completed"] }, // ✅ FIX
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+          },
+          revenue: { $sum: "$totalAmount" },
+          orders: { $sum: 1 },
+        },
+      },
+      { $sort: { "_id.year": 1, "_id.month": 1 } },
     ]);
 
-    res.json({
-      data: data.map(d => ({
-        date: new Date(d._id).toLocaleDateString("en-IN"),
-        totalRevenue: d.totalRevenue
-      }))
-    });
+    const formatted = data.map((d) => ({
+      month: `${d._id.month}/${d._id.year}`,
+      revenue: d.revenue,
+      orders: d.orders,
+    }));
 
+    res.json({ success: true, data: formatted });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
 /* ================= TOP ITEMS ================= */
 export const getTopItems = async (req, res) => {
   try {
-    const adminId = req.user._id;
+    const { restaurantId, startDate, endDate } = req.query;
+    const matchFilter = buildFilter({ restaurantId, startDate, endDate });
 
-    const restaurants = await Restaurant.find({ admin: adminId }).select("_id");
-    const ids = restaurants.map(r => r._id);
-
-    const data = await SalesAnalytics.aggregate([
-      { $match: { restaurant: { $in: ids } } },
+    const data = await Order.aggregate([
+      {
+        $match: {
+          ...matchFilter,
+          status: { $in: ["PAID", "completed"] }, // ✅ FIX
+        },
+      },
       { $unwind: "$items" },
       {
         $group: {
           _id: "$items.name",
-          quantity: { $sum: "$items.quantity" }
-        }
+          totalSold: { $sum: "$items.quantity" },
+          revenue: {
+            $sum: {
+              $multiply: ["$items.quantity", "$items.price"],
+            },
+          },
+        },
       },
-      { $sort: { quantity: -1 } },
-      { $limit: 5 }
+      { $sort: { totalSold: -1 } },
+      { $limit: 10 },
     ]);
 
-    res.json({
-      data: data.map(d => ({
-        name: d._id,
-        quantity: d.quantity
-      }))
-    });
-
+    res.json({ success: true, data });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/* ================= DAILY ================= */
+export const getDailySales = async (req, res) => {
+  try {
+    const { restaurantId, startDate, endDate } = req.query;
+    const matchFilter = buildFilter({ restaurantId, startDate, endDate });
+
+    const data = await Order.aggregate([
+      {
+        $match: {
+          ...matchFilter,
+          status: { $in: ["PAID", "completed"] }, // ✅ FIX
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+            day: { $dayOfMonth: "$createdAt" },
+          },
+          revenue: { $sum: "$totalAmount" },
+          orders: { $sum: 1 },
+        },
+      },
+      {
+        $sort: {
+          "_id.year": 1,
+          "_id.month": 1,
+          "_id.day": 1,
+        },
+      },
+    ]);
+
+    const formatted = data.map((d) => ({
+      date: `${d._id.day}/${d._id.month}/${d._id.year}`,
+      revenue: d.revenue,
+      orders: d.orders,
+    }));
+
+    res.json({ success: true, data: formatted });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
   }
 };

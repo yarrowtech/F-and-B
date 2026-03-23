@@ -1,25 +1,43 @@
 import express from "express";
 import {
-  getAdminDashboardSummary,
+  getAdminSummary,
   getMonthlyChart,
-  getTopItems
+  getTopItems,
+  getDailySales,
 } from "../controllers/adminDashboard.controller.js";
-
-import auth from "../middlewares/auth.middleware.js";
-import allowRoles from "../middlewares/role.middleware.js";
 
 const router = express.Router();
 
-/*
-====================================================
-ADMIN DASHBOARD
-====================================================
-*/
+/* =========================================================
+   📊 ADMIN DASHBOARD ROUTES
+========================================================= */
 
-router.get("/dashboard", auth, allowRoles("admin"), getAdminDashboardSummary);
+/**
+ * @route   GET /api/admin-dashboard/summary
+ * @desc    Get dashboard summary (orders, revenue, restaurants)
+ * @query   restaurantId, startDate, endDate
+ */
+router.get("/summary", getAdminSummary);
 
-router.get("/dashboard/monthly", auth, allowRoles("admin"), getMonthlyChart);
+/**
+ * @route   GET /api/admin-dashboard/monthly
+ * @desc    Get monthly revenue + orders chart
+ * @query   restaurantId, startDate, endDate
+ */
+router.get("/monthly", getMonthlyChart);
 
-router.get("/dashboard/top-items", auth, allowRoles("admin"), getTopItems);
+/**
+ * @route   GET /api/admin-dashboard/top-items
+ * @desc    Get top selling items
+ * @query   restaurantId, startDate, endDate
+ */
+router.get("/top-items", getTopItems);
+
+/**
+ * @route   GET /api/admin-dashboard/daily-sales
+ * @desc    Get daily sales analytics
+ * @query   restaurantId, startDate, endDate
+ */
+router.get("/daily-sales", getDailySales);
 
 export default router;

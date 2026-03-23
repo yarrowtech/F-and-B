@@ -1,9 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  FaShoppingBasket,
-  FaRupeeSign,
-  FaBuilding,
-} from "react-icons/fa";
+import { FaShoppingBasket, FaRupeeSign } from "react-icons/fa";
 
 import {
   LineChart, Line,
@@ -12,11 +8,11 @@ import {
   ResponsiveContainer
 } from "recharts";
 
-import axios from "axios";
-// import { io } from "socket.io-client"; ❌ disabled for now
-
-/* ================= CONFIG ================= */
-const BASE = "http://localhost:5000/api/admin-dashboard";
+import {
+  getAdminSummary,
+  getMonthlyChart,
+  getTopItems
+} from "../../services/adminDashboard.service";
 
 /* ================= HELPERS ================= */
 const formatCurrency = (value) =>
@@ -37,90 +33,82 @@ const GraphBlock = ({ title, children }) => (
 );
 
 /* ================= MAIN COMPONENT ================= */
-const Dashboard = () => {
-  const token = localStorage.getItem("token");
+const AdminDashboard = () => {
+  const user = JSON.parse(localStorage.getItem("user"));
 
   const [summary, setSummary] = useState({});
   const [monthlyData, setMonthlyData] = useState([]);
   const [topItems, setTopItems] = useState([]);
+
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  /* ================= FILTER STATE ================= */
+  const [restaurantId, setRestaurantId] = useState(user?.restaurant || "");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   /* ================= FETCH ================= */
   const fetchDashboard = async () => {
     try {
       setLoading(true);
+      setError("");
 
-      const headers = {
-        Authorization: `Bearer ${token}`,
+      const params = {
+        restaurantId,
+        startDate,
+        endDate,
       };
 
-      const [summaryRes, monthlyRes, topRes] = await Promise.all([
-        axios.get(`${BASE}/dashboard`, { headers }),
-        axios.get(`${BASE}/dashboard/monthly`, { headers }),
-        axios.get(`${BASE}/dashboard/top-items`, { headers }),
+      const [s, m, t] = await Promise.all([
+        getAdminSummary(params),
+        getMonthlyChart(params),
+        getTopItems(params),
       ]);
 
-      console.log("Dashboard Data:", {
-        summary: summaryRes.data,
-        monthly: monthlyRes.data,
-        top: topRes.data,
-      });
-
-      setSummary(summaryRes.data || {});
-      setMonthlyData(monthlyRes.data?.data || []);
-      setTopItems(topRes.data?.data || []);
+      setSummary(s.data.data || {});
+      setMonthlyData(m.data.data || []);
+      setTopItems(t.data.data || []);
 
     } catch (err) {
-      console.error("Dashboard Error:", err.response?.data || err.message);
+      console.error("Dashboard Error:", err);
+      setError(err.response?.data?.message || "Failed to load dashboard");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ================= LOAD ================= */
   useEffect(() => {
     fetchDashboard();
-
-    // ✅ Enable later when socket works
-    /*
-    const socket = io("http://localhost:5000", {
-      auth: { token }
-    });
-
-    socket.on("dashboardUpdate", fetchDashboard);
-
-    return () => socket.disconnect();
-    */
-
-  }, [token]);
+  }, [restaurantId, startDate, endDate]);
 
   /* ================= KPI ================= */
   const KPIs = useMemo(() => [
     {
-      title: "Orders Today",
-      value: summary.todayOrders || 0,
+      title: "Total Orders",
+      value: summary.totalOrders || 0,
       Icon: FaShoppingBasket
     },
     {
-      title: "Daily Revenue",
-      value: summary.todayRevenue || 0,
+      title: "Total Revenue",
+      value: summary.totalRevenue || 0,
       Icon: FaRupeeSign
     },
     {
-      title: "Monthly Revenue",
-      value: summary.monthlyRevenue || 0,
-      Icon: FaRupeeSign
+      title: "Restaurants",
+      value: summary.totalRestaurants || 0,
+      Icon: FaShoppingBasket
     },
-    {
-      title: "Top Items",
-      value: topItems.length,
-      Icon: FaBuilding
-    },
-  ], [summary, topItems]);
+  ], [summary]);
 
   /* ================= LOADING ================= */
   if (loading) {
-    return <div className="p-10 text-center">Loading dashboard...</div>;
+    return <div className="p-6">Loading dashboard...</div>;
+  }
+
+  /* ================= ERROR ================= */
+  if (error) {
+    return <div className="p-6 text-red-500">{error}</div>;
   }
 
   /* ================= UI ================= */
@@ -129,8 +117,44 @@ const Dashboard = () => {
 
       <h1 className="text-2xl font-bold">Admin Dashboard</h1>
 
-      {/* KPI CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* ================= FILTERS ================= */}
+      <div className="flex flex-wrap gap-4 items-center bg-white/20 p-4 rounded-xl">
+        
+        {/* Date Filters */}
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="p-2 rounded border"
+        />
+
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="p-2 rounded border"
+        />
+
+        <button
+          onClick={fetchDashboard}
+          className="px-4 py-2 bg-green-500 text-white rounded"
+        >
+          Apply
+        </button>
+
+        <button
+          onClick={() => {
+            setStartDate("");
+            setEndDate("");
+          }}
+          className="px-4 py-2 bg-gray-400 text-white rounded"
+        >
+          Reset
+        </button>
+      </div>
+
+      {/* ================= KPI CARDS ================= */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {KPIs.map(({ title, value, Icon }, i) => (
           <div key={i} className="bg-white/20 p-4 rounded-xl flex gap-3">
             <Icon size={20} />
@@ -146,34 +170,43 @@ const Dashboard = () => {
         ))}
       </div>
 
-      {/* TOP ITEMS */}
+      {/* ================= TOP ITEMS ================= */}
       <GraphBlock title="Top Selling Items">
-        <BarChart data={topItems}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="name" />
-          <YAxis />
-          <Tooltip />
-          <Bar dataKey="quantity" fill="#10B981" />
-        </BarChart>
+        {topItems.length === 0 ? (
+          <p className="text-center text-gray-500">No data available</p>
+        ) : (
+          <BarChart data={topItems}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="_id" />
+            <YAxis />
+            <Tooltip formatter={(v) => `${v} units`} />
+            <Bar dataKey="totalSold" fill="#10B981" />
+          </BarChart>
+        )}
       </GraphBlock>
 
-      {/* MONTHLY REVENUE */}
+      {/* ================= MONTHLY REVENUE ================= */}
       <GraphBlock title="Monthly Revenue">
-        <LineChart data={monthlyData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" />
-          <YAxis />
-          <Tooltip formatter={(v) => formatCurrency(v)} />
-          <Line
-            type="monotone"
-            dataKey="totalRevenue"
-            stroke="#4F46E5"
-          />
-        </LineChart>
+        {monthlyData.length === 0 ? (
+          <p className="text-center text-gray-500">No data available</p>
+        ) : (
+          <LineChart data={monthlyData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="month" />
+            <YAxis />
+            <Tooltip formatter={(v) => formatCurrency(v)} />
+            <Line
+              type="monotone"
+              dataKey="revenue"
+              stroke="#4F46E5"
+              strokeWidth={3}
+            />
+          </LineChart>
+        )}
       </GraphBlock>
 
     </div>
   );
 };
 
-export default Dashboard;
+export default AdminDashboard;

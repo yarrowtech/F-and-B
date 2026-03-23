@@ -28,18 +28,21 @@
 
 
 
-
-
 import API from "./api";
 
 /* ================= ADMIN ================= */
-export const getAdminSummary = () => API.get("/admin-dashboard/dashboard");
+export const getAdminSummary = (restaurantId) => 
+  API.get(`/admin-dashboard/dashboard${restaurantId ? `?restaurantId=${restaurantId}` : ''}`);
 
-export const getMonthlyChart = () =>
-  API.get("/admin-dashboard/dashboard/monthly");
+export const getMonthlyChart = (restaurantId) =>
+  API.get(`/admin-dashboard/dashboard/monthly${restaurantId ? `?restaurantId=${restaurantId}` : ''}`);
 
-export const getTopItems = () =>
-  API.get("/admin-dashboard/dashboard/top-items");
+export const getTopItems = (restaurantId) =>
+  API.get(`/admin-dashboard/dashboard/top-items${restaurantId ? `?restaurantId=${restaurantId}` : ''}`);
+
+// New: Fetch list of restaurants (assuming endpoint exists; adjust if needed)
+export const getRestaurants = () => API.get("/admin-dashboard/restaurants");
+
 /* ================= MANAGER ================= */
 
 export const getManagerDashboard = async () => {

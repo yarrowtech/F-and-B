@@ -1,22 +1,3 @@
-// import api from "./api";
-
-// /* ===============================
-//    EMPLOYEE MANAGEMENT SERVICES
-// =============================== */
-
-// // Get all employees (Admin / Manager)
-// export const getAllEmployees = async () => {
-//   const res = await api.get("/employees");
-//   return res.data;
-// };
-
-// // Remove employee from restaurant
-// export const removeEmployeeFromRestaurant = async (employeeId) => {
-//   const res = await api.put(
-//     `/employees/${employeeId}/remove-restaurant`
-//   );
-//   return res.data;
-// };
 
 
 import api from "./api";
@@ -24,6 +5,10 @@ import api from "./api";
 /* ===============================
    EMPLOYEE MANAGEMENT SERVICES
 =============================== */
+/* Get my profile */
+export const getMyProfile = async () => {
+  return (await api.get("/employees/me")).data;
+};
 
 /* Get all employees */
 export const getAllEmployees = async () => {
