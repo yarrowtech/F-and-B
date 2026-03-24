@@ -30,3 +30,5 @@ const noteSchema = new mongoose.Schema(
 noteSchema.index({ note: "text" });
 
 export default mongoose.model("Note", noteSchema);
+
+// dj
