@@ -189,7 +189,7 @@ const Header = () => {
         </button>
       </div>
 
-      {/* Mobile Nav */}
+      {/* Mobile Nav    */}
       <div
         className={`md:hidden transition-all duration-500 ease-in-out overflow-hidden ${
           isMenuOpen ? "max-h-screen opacity-100" : "max-h-0 opacity-0"
