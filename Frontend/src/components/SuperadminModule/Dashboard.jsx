@@ -124,7 +124,7 @@ const Dashboard = () => {
         />
 
         <GlassCard
-          title="🔔 Total Notifications"
+          title="notification of the messages"
           value="92"
           subtext="Unread: 25 | Read: 67"
           chart={

@@ -1,22 +1,24 @@
 import { Navigate } from "react-router-dom";
 import { getUser, isAuthenticated } from "../services/auth.service";
 
-/**
- * Role → Login route mapping
- * Used when a logged-in user tries to access
- * a route they are NOT allowed to access
- */
+// Role → Login route mappingUsed when a logged-in user tries to accessa route they are NOT allowed to access
+
+
+
 const roleLoginMap = {
-  chef: "/chef-login",
-  admin: "/admin-login",
-  accountant: "/accountant-login",
-  manager: "/manager-login",
-  waiter: "/waiter-login",
-  cleaner: "/cleaner-login",
-  vendor: "/vendor-login",
-  inventorymanager: "/inventory-manager-login",
+  chef: "/login",
+  cheif: "/login",
+  admin: "/login",
+  accountant: "/login",
+  manager: "/login",
+  waiter: "/login",
+  cleaner: "/login",
+  vendor: "/login",
+  inventorymanager: "/login",
+  inventory_manager: "/login",
   superadmin: "/superadmin-login",
-  suchef: "/sucheif-login",
+  suchef: "/login",
+  sucheif: "/login",
 };
 
 const ProtectedRoute = ({ children, allowedRoles }) => {

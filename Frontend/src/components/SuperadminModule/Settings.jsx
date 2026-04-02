@@ -34,7 +34,7 @@ const SettingsPage = () => {
           </h2>
 
           {/* Two-Factor Authentication */}
-          <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+          {/* <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700">
             <div>
               <p>Two-Factor Authentication</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -42,7 +42,17 @@ const SettingsPage = () => {
               </p>
             </div>
             <Toggle checked={twoFactorAuth} onChange={() => setTwoFactorAuth(!twoFactorAuth)} />
-          </div>
+          </div> */}
+
+          <div classname ="flex item-center justify-between py-2 border  border-gray-200 dark:border-gray-7000">
+            <div>
+              <p>Two-Factor Authentication</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+              add an extra layer of secuirity
+              </p>
+              </div>
+              <Toggle checked={twoFactorAuth} onChange={() => setTwoFactorAuth(!twoFactorAuth)} />
+              </div>
 
           {/* Change Password */}
           <button className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline py-2 border-b border-gray-200 dark:border-gray-700 w-full text-left">

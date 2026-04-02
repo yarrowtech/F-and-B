@@ -2,18 +2,18 @@ import React, { useState, useEffect, useRef } from "react";
 import { FaBars, FaEnvelope, FaBell, FaCogs, FaHome } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
-import CheifSidebar from "../CheifModule/CheifSidebar";
-import CheifSettings from "../CheifModule/CheifSettings";
-import CheifNotes from "../CheifModule/CheifNotes";
-import CheifProfile from "../CheifModule/CheifProfile";
-import CheifAttendance from "../CheifModule/CheifAttendance";
-import CheifInventory from "../CheifModule/CheifInventory";
-import CheifManagement from "../CheifModule/CheifManagement";
-import CheifDashboard from "../CheifModule/CheifDashboard";
-import CheifMessage from "./CheifMessage";
-import CheifNotifications from "./CheifNotification";
+import ChefSidebar from "../ChefModule/ChefSidebar";
+import ChefSettings from "../ChefModule/ChefSettings";
+import ChefNotes from "../ChefModule/ChefNotes";
+import ChefProfile from "../ChefModule/ChefProfile";
+import ChefAttendance from "../ChefModule/ChefAttendance";
+import ChefInventory from "../ChefModule/ChefInventory";
+import ChefManagement from "../ChefModule/ChefManagement";
+import ChefDashboard from "../ChefModule/ChefDashboard";
+import ChefMessage from "./ChefMessage";
+import ChefNotifications from "./ChefNotification";
 
-const Cheif = () => {
+const Chef = () => {
   const [active, setActive] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("isDark") === "true");
@@ -86,15 +86,15 @@ const Cheif = () => {
 
   const renderContent = () => {
     switch (active) {
-      case "dashboard": return <CheifDashboard />;
-      case "management": return <CheifManagement />;
-      case "inventory": return <CheifInventory />;
-      case "attendance": return <CheifAttendance />;
-      case "notes": return <CheifNotes />;
-      case "profile": return <CheifProfile />;
-      case "settings": return <CheifSettings />;
-      case "message": return <CheifMessage />;
-      case "notification": return <CheifNotifications />;
+      case "dashboard": return <ChefDashboard />;
+      case "management": return <ChefManagement />;
+      case "inventory": return <ChefInventory />;
+      case "attendance": return <ChefAttendance />;
+      case "notes": return <ChefNotes />;
+      case "profile": return <ChefProfile />;
+      case "settings": return <ChefSettings />;
+      case "message": return <ChefMessage />;
+      case "notification": return <ChefNotifications />;
       default:
         return (
           <div className="p-4 text-green-800 dark:text-green-200">
@@ -151,7 +151,7 @@ const Cheif = () => {
         {/* Sidebar (Desktop) */}
         <aside className="hidden lg:block w-72 shrink-0">
           <div className="h-full bg-white dark:bg-neutral-800 shadow rounded-xl overflow-hidden">
-            <CheifSidebar activeSection={active} setActiveSection={handleSetActive} />
+            <ChefSidebar activeSection={active} setActiveSection={handleSetActive} />
           </div>
         </aside>
 
@@ -163,7 +163,7 @@ const Cheif = () => {
               onClick={() => setSidebarOpen(false)}
             />
             <div className="fixed top-0 left-0 h-full w-72 z-[1001] bg-white dark:bg-neutral-800 shadow-2xl rounded-r-xl overflow-y-auto">
-              <CheifSidebar activeSection={active} setActiveSection={handleSetActive} />
+              <ChefSidebar activeSection={active} setActiveSection={handleSetActive} />
             </div>
           </>
         )}
@@ -290,9 +290,8 @@ function TabItem({ label, icon, active, onClick, badge }) {
   return (
     <button
       onClick={onClick}
-      className={`relative flex flex-col items-center justify-center py-2.5 text-xs ${
-        active ? "text-green-700 dark:text-green-300 font-semibold" : "text-gray-600 dark:text-gray-300"
-      }`}
+      className={`relative flex flex-col items-center justify-center py-2.5 text-xs ${active ? "text-green-700 dark:text-green-300 font-semibold" : "text-gray-600 dark:text-gray-300"
+        }`}
     >
       <div className="relative">
         {icon}
@@ -307,4 +306,4 @@ function TabItem({ label, icon, active, onClick, badge }) {
   );
 }
 
-export default Cheif;
+export default Chef;

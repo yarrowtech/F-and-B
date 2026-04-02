@@ -2,52 +2,56 @@ import mongoose from "mongoose";
 import Order from "../models/Order.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 
-/* ================= HELPER ================= */
-const buildFilter = ({ restaurantId, startDate, endDate }) => {
-  const filter = {};
+/* ================= HELPER: get admin's restaurant IDs ================= */
+const getAdminRestaurantIds = async (adminId, requestedRestaurantId) => {
+  // Fetch only restaurants that belong to this admin
+  const ownedRestaurants = await Restaurant.find({ admin: adminId }).select("_id");
+  const ownedIds = ownedRestaurants.map((r) => r._id);
 
-  if (restaurantId && mongoose.Types.ObjectId.isValid(restaurantId)) {
-    filter.restaurant = new mongoose.Types.ObjectId(restaurantId);
+  if (requestedRestaurantId && mongoose.Types.ObjectId.isValid(requestedRestaurantId)) {
+    const reqId = new mongoose.Types.ObjectId(requestedRestaurantId);
+    // Only allow if the admin actually owns this restaurant
+    const isOwned = ownedIds.some((id) => id.equals(reqId));
+    if (!isOwned) return null; // signals unauthorized
+    return [reqId];
   }
 
-  if (startDate || endDate) {
-    filter.createdAt = {};
+  return ownedIds;
+};
 
-    if (startDate) filter.createdAt.$gte = new Date(startDate);
-    if (endDate) filter.createdAt.$lte = new Date(endDate);
-  }
-
-  return filter;
+/* ================= HELPER: build date filter ================= */
+const buildDateFilter = ({ startDate, endDate }) => {
+  if (!startDate && !endDate) return {};
+  const createdAt = {};
+  if (startDate) createdAt.$gte = new Date(startDate);
+  if (endDate) createdAt.$lte = new Date(endDate);
+  return { createdAt };
 };
 
 /* ================= ADMIN SUMMARY ================= */
 export const getAdminSummary = async (req, res) => {
   try {
     const { restaurantId, startDate, endDate } = req.query;
-    const baseFilter = buildFilter({ restaurantId, startDate, endDate });
+
+    const restaurantIds = await getAdminRestaurantIds(req.user.id, restaurantId);
+    if (restaurantIds === null) {
+      return res.status(403).json({ success: false, message: "Access denied to this restaurant" });
+    }
+
+    const baseFilter = {
+      restaurant: { $in: restaurantIds },
+      ...buildDateFilter({ startDate, endDate }),
+    };
 
     const totalOrders = await Order.countDocuments(baseFilter);
 
     const revenueAgg = await Order.aggregate([
-      {
-        $match: {
-          ...baseFilter,
-          status: { $in: ["PAID", "completed"] }, // ✅ FIX
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalRevenue: { $sum: "$totalAmount" },
-        },
-      },
+      { $match: { ...baseFilter, status: { $in: ["PAID", "completed"] } } },
+      { $group: { _id: null, totalRevenue: { $sum: "$totalAmount" } } },
     ]);
 
     const totalRevenue = revenueAgg[0]?.totalRevenue || 0;
-
-    const totalRestaurants = restaurantId
-      ? 1
-      : await Restaurant.countDocuments();
+    const totalRestaurants = restaurantIds.length;
 
     res.json({
       success: true,
@@ -63,21 +67,23 @@ export const getAdminSummary = async (req, res) => {
 export const getMonthlyChart = async (req, res) => {
   try {
     const { restaurantId, startDate, endDate } = req.query;
-    const matchFilter = buildFilter({ restaurantId, startDate, endDate });
+
+    const restaurantIds = await getAdminRestaurantIds(req.user.id, restaurantId);
+    if (restaurantIds === null) {
+      return res.status(403).json({ success: false, message: "Access denied to this restaurant" });
+    }
+
+    const matchFilter = {
+      restaurant: { $in: restaurantIds },
+      status: { $in: ["PAID", "completed"] },
+      ...buildDateFilter({ startDate, endDate }),
+    };
 
     const data = await Order.aggregate([
-      {
-        $match: {
-          ...matchFilter,
-          status: { $in: ["PAID", "completed"] }, // ✅ FIX
-        },
-      },
+      { $match: matchFilter },
       {
         $group: {
-          _id: {
-            year: { $year: "$createdAt" },
-            month: { $month: "$createdAt" },
-          },
+          _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
           revenue: { $sum: "$totalAmount" },
           orders: { $sum: 1 },
         },
@@ -102,25 +108,26 @@ export const getMonthlyChart = async (req, res) => {
 export const getTopItems = async (req, res) => {
   try {
     const { restaurantId, startDate, endDate } = req.query;
-    const matchFilter = buildFilter({ restaurantId, startDate, endDate });
+
+    const restaurantIds = await getAdminRestaurantIds(req.user.id, restaurantId);
+    if (restaurantIds === null) {
+      return res.status(403).json({ success: false, message: "Access denied to this restaurant" });
+    }
+
+    const matchFilter = {
+      restaurant: { $in: restaurantIds },
+      status: { $in: ["PAID", "completed"] },
+      ...buildDateFilter({ startDate, endDate }),
+    };
 
     const data = await Order.aggregate([
-      {
-        $match: {
-          ...matchFilter,
-          status: { $in: ["PAID", "completed"] }, // ✅ FIX
-        },
-      },
+      { $match: matchFilter },
       { $unwind: "$items" },
       {
         $group: {
           _id: "$items.name",
           totalSold: { $sum: "$items.quantity" },
-          revenue: {
-            $sum: {
-              $multiply: ["$items.quantity", "$items.price"],
-            },
-          },
+          revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } },
         },
       },
       { $sort: { totalSold: -1 } },
@@ -138,15 +145,20 @@ export const getTopItems = async (req, res) => {
 export const getDailySales = async (req, res) => {
   try {
     const { restaurantId, startDate, endDate } = req.query;
-    const matchFilter = buildFilter({ restaurantId, startDate, endDate });
+
+    const restaurantIds = await getAdminRestaurantIds(req.user.id, restaurantId);
+    if (restaurantIds === null) {
+      return res.status(403).json({ success: false, message: "Access denied to this restaurant" });
+    }
+
+    const matchFilter = {
+      restaurant: { $in: restaurantIds },
+      status: { $in: ["PAID", "completed"] },
+      ...buildDateFilter({ startDate, endDate }),
+    };
 
     const data = await Order.aggregate([
-      {
-        $match: {
-          ...matchFilter,
-          status: { $in: ["PAID", "completed"] }, // ✅ FIX
-        },
-      },
+      { $match: matchFilter },
       {
         $group: {
           _id: {
@@ -158,13 +170,7 @@ export const getDailySales = async (req, res) => {
           orders: { $sum: 1 },
         },
       },
-      {
-        $sort: {
-          "_id.year": 1,
-          "_id.month": 1,
-          "_id.day": 1,
-        },
-      },
+      { $sort: { "_id.year": 1, "_id.month": 1, "_id.day": 1 } },
     ]);
 
     const formatted = data.map((d) => ({

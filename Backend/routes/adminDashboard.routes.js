@@ -5,8 +5,14 @@ import {
   getTopItems,
   getDailySales,
 } from "../controllers/adminDashboard.controller.js";
+import auth from "../middlewares/auth.middleware.js";
+import allowRoles from "../middlewares/role.middleware.js";
 
 const router = express.Router();
+
+// All admin-dashboard routes require authentication
+router.use(auth);
+router.use(allowRoles("admin"));
 
 /* =========================================================
    📊 ADMIN DASHBOARD ROUTES

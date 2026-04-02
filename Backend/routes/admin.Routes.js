@@ -7,14 +7,14 @@ import express from "express";
    CONTROLLERS
 ========================= */
 import {
-  registerAdmin,
-  loginAdmin,
-  forgotPassword,
-  createEmployee,
-  getEmployees,
-  deleteEmployee,
-  createMenuItem,
-  createTable,
+   registerAdmin,
+   loginAdmin,
+   forgotPassword,
+   createEmployee,
+   getEmployees,
+   deleteEmployee,
+   createMenuItem,
+   createTable,
 } from "../controllers/admin.Controller.js";
 
 /* =========================
@@ -28,7 +28,6 @@ const router = express.Router();
 /* =====================================================
    PUBLIC ROUTES (NO AUTH)
 ===================================================== */
-router.post("/register", registerAdmin);
 router.post("/login", loginAdmin);
 router.post("/forgot-password", forgotPassword);
 

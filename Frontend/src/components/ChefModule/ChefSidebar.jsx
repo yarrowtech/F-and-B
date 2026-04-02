@@ -24,9 +24,10 @@ const ChefSidebar = ({ activeSection, setActiveSection }) => {
 
   /* ================= PROTECT SIDEBAR ================= */
   useEffect(() => {
-    if (!isAuthenticated() || !user || user.role !== "chef") {
+    const role = String(user?.role || "").trim().toLowerCase();
+    if (!isAuthenticated() || !user || role !== "chef") {
       logout();
-      navigate("/chef-login");
+      navigate("/login");
     }
   }, [user, navigate]);
 
@@ -88,11 +89,10 @@ const ChefSidebar = ({ activeSection, setActiveSection }) => {
             <li key={id}>
               <button
                 onClick={() => setActiveSection(id)}
-                className={`flex items-center gap-4 w-full px-5 py-3 rounded-xl transition-all shadow-sm ${
-                  activeSection === id
+                className={`flex items-center gap-4 w-full px-5 py-3 rounded-xl transition-all shadow-sm ${activeSection === id
                     ? "bg-green-600 text-white"
                     : "bg-white dark:bg-gray-700 hover:bg-green-200 dark:hover:bg-gray-600 text-green-800 dark:text-green-100"
-                }`}
+                  }`}
               >
                 <span className="text-lg">{icon}</span>
                 <span className="text-md font-medium">{label}</span>
@@ -116,9 +116,8 @@ const ChefSidebar = ({ activeSection, setActiveSection }) => {
 
               <p className="flex items-center gap-1 text-xs">
                 <span
-                  className={`h-2 w-2 rounded-full ${
-                    isOnline ? "bg-green-500" : "bg-red-500"
-                  }`}
+                  className={`h-2 w-2 rounded-full ${isOnline ? "bg-green-500" : "bg-red-500"
+                    }`}
                 />
                 {isOnline ? "Online" : "Offline"}
               </p>

@@ -24,9 +24,7 @@ const Header = () => {
 
   const loginLinks = [
     { to: "/superadmin-login", label: "Super Admin" },
-    { to: "/admin-login", label: "Admin" },
-    { to: "/vendor-login", label: "Vendor" },
-    { to: "/department", label: "Department" },
+    { to: "/login", label: "Login" },
   ];
 
   const dashboardRoutes = {
@@ -34,10 +32,13 @@ const Header = () => {
     manager: "/manager",
     vendor: "/vendor",
     superadmin: "/superadmin",
-    cheif: "/cheif",
+    chef: "/chef",
+    cheif: "/chef", // alias fallback
     cleaner: "/cleaner",
-    inventoryManager: "/inventorymanager",
+    inventory_manager: "/inventorymanager",
+    inventorymanager: "/inventorymanager",
     sucheif: "/sucheif",
+    suchef: "/sucheif",
     waiter: "/waiter",
     accountant: "/accountant",
   };
@@ -66,9 +67,12 @@ const Header = () => {
   }, []);
 
   const handleDashboard = () => {
-    if (user && user.role && dashboardRoutes[user.role]) {
-      navigate(dashboardRoutes[user.role]);
-    }
+    if (!user || !user.role) return;
+
+    const roleKey = String(user.role).trim().toLowerCase();
+    const destination = dashboardRoutes[roleKey] || "/login";
+
+    navigate(destination);
   };
 
   const handleLogout = () => {
@@ -79,11 +83,10 @@ const Header = () => {
 
   return (
     <header
-      className={`fixed top-0 w-full z-50 transition-all duration-300 ${
-        isScrolled
-          ? "backdrop-blur-lg bg-white/80 shadow-md"
-          : "backdrop-blur-md bg-white/50"
-      }`}
+      className={`fixed top-0 w-full z-50 transition-all duration-300 ${isScrolled
+        ? "backdrop-blur-lg bg-white/80 shadow-md"
+        : "backdrop-blur-md bg-white/50"
+        }`}
     >
       <div className="max-w-7xl mx-auto px-6 md:px-10 h-16 flex items-center justify-between">
         {/* Logo */}
@@ -111,11 +114,10 @@ const Header = () => {
               <Link
                 key={label}
                 to={to}
-                className={`px-4 py-2 rounded-full transition-all duration-300 ${
-                  isActive
-                    ? "bg-lime-400 text-white shadow-lg"
-                    : "bg-white text-gray-800 hover:bg-lime-100 hover:text-lime-600"
-                }`}
+                className={`px-4 py-2 rounded-full transition-all duration-300 ${isActive
+                  ? "bg-lime-400 text-white shadow-lg"
+                  : "bg-white text-gray-800 hover:bg-lime-100 hover:text-lime-600"
+                  }`}
               >
                 {label}
               </Link>
@@ -151,11 +153,10 @@ const Header = () => {
                   Login
                 </button>
                 <ul
-                  className={`absolute right-0 mt-3 w-56 border border-lime-200 rounded-2xl shadow-lg backdrop-blur-md bg-white/90 text-gray-800 transform transition-all duration-300 ease-out ${
-                    isLoginOpenDesktop
-                      ? "scale-100 opacity-100 translate-y-0"
-                      : "scale-95 opacity-0 -translate-y-2 pointer-events-none"
-                  }`}
+                  className={`absolute right-0 mt-3 w-56 border border-lime-200 rounded-2xl shadow-lg backdrop-blur-md bg-white/90 text-gray-800 transform transition-all duration-300 ease-out ${isLoginOpenDesktop
+                    ? "scale-100 opacity-100 translate-y-0"
+                    : "scale-95 opacity-0 -translate-y-2 pointer-events-none"
+                    }`}
                 >
                   {loginLinks.map(({ to, label }) => (
                     <li key={label}>
@@ -191,9 +192,8 @@ const Header = () => {
 
       {/* Mobile Nav    */}
       <div
-        className={`md:hidden transition-all duration-500 ease-in-out overflow-hidden ${
-          isMenuOpen ? "max-h-screen opacity-100" : "max-h-0 opacity-0"
-        }`}
+        className={`md:hidden transition-all duration-500 ease-in-out overflow-hidden ${isMenuOpen ? "max-h-screen opacity-100" : "max-h-0 opacity-0"
+          }`}
       >
         <nav
           className="bg-white/95 backdrop-blur-md border-t border-lime-200 rounded-b-2xl shadow-md p-6"
@@ -210,11 +210,10 @@ const Header = () => {
                       setIsMenuOpen(false);
                       setIsLoginOpenMobile(false);
                     }}
-                    className={`block px-4 py-2 rounded-full transition-all duration-300 text-center ${
-                      isActive
-                        ? "bg-lime-400 text-white shadow"
-                        : "bg-white text-gray-800 hover:bg-lime-100 hover:text-lime-600"
-                    }`}
+                    className={`block px-4 py-2 rounded-full transition-all duration-300 text-center ${isActive
+                      ? "bg-lime-400 text-white shadow"
+                      : "bg-white text-gray-800 hover:bg-lime-100 hover:text-lime-600"
+                      }`}
                   >
                     {label}
                   </Link>
@@ -251,9 +250,8 @@ const Header = () => {
                     Login
                   </button>
                   <ul
-                    className={`transition-all duration-300 overflow-hidden mt-2 rounded-xl p-3 bg-white/95 shadow-md ${
-                      isLoginOpenMobile ? "max-h-96 opacity-100" : "max-h-0 opacity-0 pointer-events-none"
-                    }`}
+                    className={`transition-all duration-300 overflow-hidden mt-2 rounded-xl p-3 bg-white/95 shadow-md ${isLoginOpenMobile ? "max-h-96 opacity-100" : "max-h-0 opacity-0 pointer-events-none"
+                      }`}
                   >
                     {loginLinks.map(({ to, label }) => (
                       <li key={label}>

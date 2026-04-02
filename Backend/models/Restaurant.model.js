@@ -2,34 +2,79 @@
 
 // const restaurantSchema = new mongoose.Schema(
 //   {
+//     /* =========================
+//        BASIC INFO
+//     ========================= */
 //     name: {
 //       type: String,
 //       required: true,
+//       trim: true,
+//     },
+
+
+//     restaurantCode: {
+//       type: String,
+//       required: true,
+//       unique: true,
+//       uppercase: true,
+//       trim: true,
 //     },
 
 //     address: {
 //       type: String,
+//       trim: true,
 //     },
 
 //     phone: {
 //       type: String,
+//       trim: true,
 //     },
 
 //     gstNo: {
 //       type: String,
+//       trim: true,
 //     },
+
+//     /* =========================
+//        RELATIONSHIP
+//     ========================= */
 
 //     // Admin who owns this restaurant
 //     admin: {
 //       type: mongoose.Schema.Types.ObjectId,
-//       ref: "Employee",
+//       ref: "Admin",
 //       required: true,
+//       index: true,
+//     },
+
+//     /* =========================
+//        STATUS
+//     ========================= */
+//     isActive: {
+//       type: Boolean,
+//       default: true,
 //     },
 //   },
-//   { timestamps: true }
+//   {
+//     timestamps: true,
+//   }
 // );
 
+// /* =========================
+//    INDEXES
+// ========================= */
+
+// // Prevent same restaurant code duplication
+// restaurantSchema.index(
+//   { restaurantCode: 1 },
+//   { unique: true }
+// );
+
+// // One admin can have multiple restaurants
+// restaurantSchema.index({ admin: 1 });
+
 // export default mongoose.model("Restaurant", restaurantSchema);
+
 
 
 
@@ -50,12 +95,11 @@ const restaurantSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // Unique branch code
-    // Example: TAJ01, SPC02
+    // Unique branch code (e.g., TAJ01, SPC02)
     restaurantCode: {
       type: String,
       required: true,
-      unique: true,
+      unique: true,       // ✅ creates index automatically
       uppercase: true,
       trim: true,
     },
@@ -78,13 +122,11 @@ const restaurantSchema = new mongoose.Schema(
     /* =========================
        RELATIONSHIP
     ========================= */
-
-    // Admin who owns this restaurant
     admin: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",
       required: true,
-      index: true,
+      index: true,        // ✅ keep single index here
     },
 
     /* =========================
@@ -99,18 +141,5 @@ const restaurantSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
-
-/* =========================
-   INDEXES
-========================= */
-
-// Prevent same restaurant code duplication
-restaurantSchema.index(
-  { restaurantCode: 1 },
-  { unique: true }
-);
-
-// One admin can have multiple restaurants
-restaurantSchema.index({ admin: 1 });
 
 export default mongoose.model("Restaurant", restaurantSchema);

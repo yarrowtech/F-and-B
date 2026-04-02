@@ -107,7 +107,7 @@
 
 
 
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -129,22 +129,14 @@ import FloorPage from "./Pages/Floor";
 
 /* ================= LOGIN PAGES ================= */
 import SuperAdminLogin from "./components/Login/SuperAdminLogin";
-import AdminLogin from "./components/Login/AdminLogin";
-import VendorLogin from "./components/Login/VendorLogin";
-import ManagerLogin from "./components/Login/ManagerLogin";
-import CheifLogin from "./components/Login/CheifLogin";
-import SucheifLogin from "./components/Login/SuCheifLogin";
-import InventoryManagerLogin from "./components/Login/InventoryManagerLogin";
-import WaiterLogin from "./components/Login/WaiterLogin";
-import CleanerLogin from "./components/Login/CleanerLogin";
-import AccountantLogin from "./components/Login/AccountantLogin";
+import StaffLogin from "./components/Login/StaffLogin";
 
 /* ================= DASHBOARDS ================= */
-import Superadmin from "./components/SuperAdminModule/Superadmin";
+import Superadmin from "./components/SuperadminModule/SuperAdmin";
 import Admin from "./components/AdminModule/Admin";
 import Vendor from "./components/VendorModule/Vendor";
 import Manager from "./components/ManagerModule/Manager";
-import Cheif from "./components/CheifModule/Cheif";
+import Chef from "./components/ChefModule/Chef";
 import SuCheif from "./components/SuCheifModule/SuCheif";
 import InventoryManager from "./components/InventoryManagerModule/InventoryManager";
 import Accountant from "./components/AccountantModule/Accountant";
@@ -177,24 +169,13 @@ const App = () => {
 
         {/* ===== LOGIN ===== */}
         <Route path="/superadmin-login" element={<SuperAdminLogin />} />
-        <Route path="/admin-login" element={<AdminLogin />} />
-        <Route path="/vendor-login" element={<VendorLogin />} />
-        <Route path="/manager-login" element={<ManagerLogin />} />
-        <Route path="/cheif-login" element={<CheifLogin />} />
-        <Route path="/sucheif-login" element={<SucheifLogin />} />
-        <Route
-          path="/inventory-manager-login"
-          element={<InventoryManagerLogin />}
-        />
-        <Route path="/waiter-login" element={<WaiterLogin />} />
-        <Route path="/cleaner-login" element={<CleanerLogin />} />
-        <Route path="/accountant-login" element={<AccountantLogin />} />
+        <Route path="/login" element={<StaffLogin />} />
 
         {/* ===== DASHBOARDS (ROLE PROTECTED) ===== */}
         <Route
           path="/superadmin/*"
           element={
-            <ProtectedRoute allowedRoles={["superadmin"]}>
+            <ProtectedRoute allowedRoles={["super_admin"]}>
               <Superadmin />
             </ProtectedRoute>
           }
@@ -229,10 +210,18 @@ const App = () => {
 
         {/* 🔥 CHEF (FIXED & STABLE) */}
         <Route
+          path="/chef/*"
+          element={
+            <ProtectedRoute allowedRoles={["chef"]}>
+              <Chef />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/cheif/*"
           element={
             <ProtectedRoute allowedRoles={["chef"]}>
-              <Cheif />
+              <Chef />
             </ProtectedRoute>
           }
         />
@@ -251,7 +240,7 @@ const App = () => {
           path="/inventorymanager/*"
           element={
             <ProtectedRoute allowedRoles={["inventory_manager"]}
->
+            >
               <InventoryManager />
             </ProtectedRoute>
           }

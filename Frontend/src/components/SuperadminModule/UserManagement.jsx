@@ -1,209 +1,823 @@
-import React, { useState } from "react";
-import { motion } from "framer-motion";
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Plus, Users, ShieldCheck, Clock, KeyRound, Eye, EyeOff, Trash2, AlertTriangle } from "lucide-react";
+import API from "../../services/api";
 
-const dummyUsers = [
-  { id: 1, name: "Rahul Sharma", email: "rahul@admin.com", role: "Admin", active: true },
-  { id: 2, name: "Priya Mehta", email: "priya@admin.com", role: "Admin", active: true },
-  { id: 3, name: "Karan Patel", email: "karan@admin.com", role: "Admin", active: false },
-  { id: 4, name: "Meera Bansal", email: "meera@admin.com", role: "Admin", active: true },
-  { id: 5, name: "Ritika Singh", email: "vendor1@fnb.com", role: "Vendor", active: true },
-  { id: 6, name: "Amit Rao", email: "vendor2@fnb.com", role: "Vendor", active: false },
-  { id: 7, name: "Neha Gupta", email: "vendor3@fnb.com", role: "Vendor", active: true },
-  { id: 8, name: "Sahil Kumar", email: "vendor4@fnb.com", role: "Vendor", active: true },
-  { id: 9, name: "Isha Verma", email: "vendor5@fnb.com", role: "Vendor", active: true },
-  { id: 10, name: "Arjun Das", email: "vendor6@fnb.com", role: "Vendor", active: false },
-];
+/* ── helpers ── */
+const InputField = ({ label, type = "text", value, onChange, placeholder, error, maxLength }) => (
+  <div className="flex flex-col gap-1">
+    <label className="text-sm font-medium text-gray-600 dark:text-gray-300">{label}</label>
+    <input
+      type={type}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      maxLength={maxLength}
+      className={`px-3 py-2 rounded-lg border bg-gray-50 dark:bg-neutral-700 text-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 ${
+        error
+          ? "border-red-400 dark:border-red-500 focus:ring-red-400"
+          : "border-gray-200 dark:border-neutral-600 focus:ring-green-500"
+      }`}
+    />
+    {error && <p className="text-xs text-red-500 mt-0.5">{error}</p>}
+  </div>
+);
 
-const UserManagement = () => {
-  const [tab, setTab] = useState("users");
-  const [filter, setFilter] = useState("All");
-  const [users, setUsers] = useState(dummyUsers);
-  const [history, setHistory] = useState([]);
-
-  const adminCount = users.filter((u) => u.role === "Admin").length;
-  const vendorCount = users.filter((u) => u.role === "Vendor").length;
-
-  const filteredUsers = users.filter((u) =>
-    filter === "All" ? true : u.role === filter
-  );
-
-  const addHistory = (user, action) => {
-    setHistory((prev) => [
-      { id: Date.now(), name: user.name, action, time: new Date().toLocaleString() },
-      ...prev,
-    ]);
-  };
-
-  const toggleActive = (id) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, active: !u.active } : u))
-    );
-    const user = users.find((u) => u.id === id);
-    addHistory(user, user.active ? "Deactivated" : "Activated");
-  };
-
-  const deleteUser = (id) => {
-    const user = users.find((u) => u.id === id);
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-    addHistory(user, "Deleted");
-  };
-
-  return (
-    <div className="p-4 sm:p-6 md:p-10 bg-gray-100 dark:bg-zinc-900 min-h-screen space-y-6">
-      <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">
-        User Management
-      </h1>
-
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <button
-          onClick={() => setTab("users")}
-          className={`px-4 py-2 rounded-lg transition ${
-            tab === "users"
-              ? "bg-green-600 text-white"
-              : "bg-white dark:bg-zinc-800 border border-gray-300 text-gray-700 dark:text-white"
-          }`}
-        >
-          Users
-        </button>
-        <button
-          onClick={() => setTab("history")}
-          className={`px-4 py-2 rounded-lg transition ${
-            tab === "history"
-              ? "bg-green-600 text-white"
-              : "bg-white dark:bg-zinc-800 border border-gray-300 text-gray-700 dark:text-white"
-          }`}
-        >
-          History
+const Modal = ({ title, onClose, onSubmit, children, loading }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.2 }}
+      className="bg-white dark:bg-neutral-800 rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 space-y-5"
+    >
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{title}</h2>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <X size={20} />
         </button>
       </div>
+      <div className="space-y-4">{children}</div>
+      <div className="flex justify-end gap-3 pt-2">
+        <button
+          onClick={onClose}
+          className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-neutral-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-700"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onSubmit}
+          disabled={loading}
+          className="px-4 py-2 text-sm rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium disabled:opacity-60"
+        >
+          {loading ? "Saving..." : "Save"}
+        </button>
+      </div>
+    </motion.div>
+  </div>
+);
 
-      {tab === "users" && (
-        <>
-          {/* Filter Buttons */}
-          <div className="flex flex-wrap gap-3 mb-6">
-            {[
-              { label: "All", value: "All", count: users.length },
-              { label: "Admin", value: "Admin", count: adminCount },
-              { label: "Vendor", value: "Vendor", count: vendorCount },
-            ].map(({ label, value, count }) => (
-              <button
-                key={value}
-                onClick={() => setFilter(value)}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
-                  filter === value
-                    ? "bg-green-600 text-white"
-                    : "bg-white dark:bg-zinc-800 border border-gray-300 text-gray-700 dark:text-white"
-                }`}
-              >
-                {label}
-                <span className="bg-gray-200 dark:bg-zinc-700 text-xs rounded-full px-2 py-0.5">
-                  {count}
+/* ── Password input with eye toggle ── */
+const PasswordField = ({ label, value, onChange, placeholder, error }) => {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-sm font-medium text-gray-600 dark:text-gray-300">{label}</label>
+      <div className="relative">
+        <input
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          className={`w-full px-3 py-2 pr-10 rounded-lg border bg-gray-50 dark:bg-neutral-700 text-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 ${
+            error
+              ? "border-red-400 dark:border-red-500 focus:ring-red-400"
+              : "border-gray-200 dark:border-neutral-600 focus:ring-green-500"
+          }`}
+        />
+        <button
+          type="button"
+          onClick={() => setShow((s) => !s)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+        >
+          {show ? <EyeOff size={15} /> : <Eye size={15} />}
+        </button>
+      </div>
+      {error && <p className="text-xs text-red-500 mt-0.5">{error}</p>}
+    </div>
+  );
+};
+
+/* ── Admin Detail Modal (center) ── */
+const AdminDetailPanel = ({ admin, onClose, onUpdate, onPasswordReset }) => {
+  const [form, setForm] = useState({
+    businessName: admin.name || "",
+    email: admin.email || "",
+    mobile: admin.mobile || "",
+    address: admin.address || "",
+    panNumber: admin.panNumber || "",
+  });
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [updateMsg, setUpdateMsg] = useState("");
+  const [updateErr, setUpdateErr] = useState("");
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMsg, setResetMsg] = useState("");
+  const [resetErr, setResetErr] = useState("");
+
+  const handleUpdate = async () => {
+    try {
+      setUpdateLoading(true);
+      setUpdateErr("");
+      await API.put(`/super_admin/admins/${admin.id}`, form);
+      setUpdateMsg("Details updated successfully");
+      setTimeout(() => setUpdateMsg(""), 3000);
+      onUpdate();
+    } catch (err) {
+      setUpdateErr(err?.response?.data?.message || "Failed to update details");
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!newPassword || newPassword.length < 8) {
+      setResetErr("Password must be at least 8 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setResetErr("Passwords do not match");
+      return;
+    }
+    try {
+      setResetLoading(true);
+      setResetErr("");
+      await API.put(`/super_admin/admins/${admin.id}/reset-password`, { newPassword });
+      setResetMsg("Password reset successfully");
+      setNewPassword("");
+      setConfirmPassword("");
+      setTimeout(() => setResetMsg(""), 3000);
+      onPasswordReset();
+    } catch (err) {
+      setResetErr(err?.response?.data?.message || "Failed to reset password");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const f = (key) => ({
+    value: form[key],
+    onChange: (e) => { setForm((p) => ({ ...p, [key]: e.target.value })); setUpdateErr(""); },
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.2 }}
+        className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-neutral-700 sticky top-0 bg-white dark:bg-neutral-800 z-10">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Account Details</h2>
+              {admin.adminId && (
+                <span className="px-2 py-0.5 rounded font-mono text-xs font-semibold bg-gray-100 dark:bg-neutral-700 text-gray-500 dark:text-gray-400">
+                  {admin.adminId}
                 </span>
-              </button>
-            ))}
+              )}
+            </div>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+              admin.active
+                ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400"
+                : "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
+            }`}>
+              {admin.active ? "Active" : "Inactive"}
+            </span>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Account Details Section */}
+        <div className="px-6 py-5 space-y-4 border-b border-gray-100 dark:border-neutral-700">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Profile Info</p>
+
+          {updateMsg && (
+            <p className="text-xs px-3 py-2 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700">
+              {updateMsg}
+            </p>
+          )}
+          {updateErr && (
+            <p className="text-xs px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700">
+              {updateErr}
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <InputField label="Business Name" placeholder="e.g. Spice Garden" {...f("businessName")} />
+            <InputField label="Email" type="email" placeholder="admin@example.com" {...f("email")} />
+            <InputField label="Mobile" placeholder="+91 9876543210" {...f("mobile")} />
+            <InputField label="PAN Number" placeholder="ABCDE1234F" {...f("panNumber")} />
+          </div>
+          <InputField label="Address" placeholder="123, Main Street" {...f("address")} />
+
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              Created: {admin.createdAt ? new Date(admin.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+            </p>
+            <button
+              onClick={handleUpdate}
+              disabled={updateLoading}
+              className="px-4 py-2 text-sm rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium disabled:opacity-60 transition-colors"
+            >
+              {updateLoading ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </div>
+
+        {/* Reset Password Section */}
+        <div className="px-6 py-5 space-y-4">
+          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium">
+            <KeyRound size={15} />
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Reset Password</span>
           </div>
 
-          {/* User Table */}
-          <div className="overflow-x-auto bg-white dark:bg-zinc-800 rounded-xl shadow">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 text-sm table-auto">
-              <thead className="bg-gray-50 dark:bg-zinc-700 text-left text-gray-700 dark:text-white">
-                <tr>
-                  <th className="px-6 py-3 font-semibold">Name</th>
-                  <th className="px-6 py-3 font-semibold">Email</th>
-                  <th className="px-6 py-3 font-semibold">Role</th>
-                  <th className="px-6 py-3 font-semibold">Status</th>
-                  <th className="px-6 py-3 font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-zinc-700">
-                {filteredUsers.length === 0 ? (
+          {resetMsg && (
+            <p className="text-xs px-3 py-2 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700">
+              {resetMsg}
+            </p>
+          )}
+          {resetErr && (
+            <p className="text-xs px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700">
+              {resetErr}
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <PasswordField
+              label="New Password"
+              value={newPassword}
+              onChange={(e) => { setNewPassword(e.target.value); setResetErr(""); }}
+              placeholder="Min. 8 characters"
+            />
+            <PasswordField
+              label="Confirm Password"
+              value={confirmPassword}
+              onChange={(e) => { setConfirmPassword(e.target.value); setResetErr(""); }}
+              placeholder="Re-enter password"
+            />
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <button
+              onClick={handleReset}
+              disabled={resetLoading}
+              className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium disabled:opacity-60 transition-colors"
+            >
+              {resetLoading ? "Resetting..." : "Reset Password"}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+/* ── Confirm Delete Dialog ── */
+const ConfirmDialog = ({ message, onConfirm, onCancel, loading }) => (
+  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.15 }}
+      className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4"
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+          <AlertTriangle size={18} className="text-red-600 dark:text-red-400" />
+        </div>
+        <div>
+          <h3 className="font-semibold text-gray-800 dark:text-gray-100">Confirm Delete</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{message}</p>
+        </div>
+      </div>
+      <div className="flex justify-end gap-3 pt-1">
+        <button
+          onClick={onCancel}
+          disabled={loading}
+          className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-neutral-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-700 disabled:opacity-60"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={loading}
+          className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium disabled:opacity-60 transition-colors"
+        >
+          {loading ? "Deleting..." : "Delete"}
+        </button>
+      </div>
+    </motion.div>
+  </div>
+);
+
+/* ── main component ── */
+const UserManagement = () => {
+  const [activeTab, setActiveTab] = useState("admins");
+  const [admins, setAdmins] = useState([]);
+  const [superAdmins, setSuperAdmins] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [formLoading, setFormLoading] = useState(false);
+
+  const [showAdminForm, setShowAdminForm] = useState(false);
+  const [showSuperAdminForm, setShowSuperAdminForm] = useState(false);
+  const [selectedAdmin, setSelectedAdmin] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null); // { type: "admin"|"superAdmin", id, label }
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const [newAdminData, setNewAdminData] = useState({
+    businessName: "",
+    email: "",
+    mobile: "",
+    address: "",
+    panNumber: "",
+    password: "",
+  });
+  const [adminErrors, setAdminErrors] = useState({});
+
+  const [newSuperAdminData, setNewSuperAdminData] = useState({
+    email: "",
+    password: "",
+  });
+  const [saErrors, setSaErrors] = useState({});
+
+  const [actionMessage, setActionMessage] = useState("");
+  const [actionError, setActionError] = useState("");
+
+  useEffect(() => {
+    fetchAdmins();
+    fetchSuperAdmins();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "history") fetchHistory();
+  }, [activeTab]);
+
+  const notify = (msg, isError = false) => {
+    if (isError) setActionError(msg);
+    else setActionMessage(msg);
+    setTimeout(() => { setActionMessage(""); setActionError(""); }, 3500);
+  };
+
+  const fetchHistory = async () => {
+    try {
+      const res = await API.get("/super_admin/history");
+      setHistory(res.data.history);
+    } catch {
+      notify("Failed to load history", true);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    try {
+      setDeleteLoading(true);
+      if (confirmDelete.type === "admin") {
+        await API.delete(`/super_admin/admins/${confirmDelete.id}`);
+        fetchAdmins();
+        notify(`Admin "${confirmDelete.label}" deleted`);
+      } else {
+        await API.delete(`/super_admin/super-admins/${confirmDelete.id}`);
+        fetchSuperAdmins();
+        notify(`Super Admin "${confirmDelete.label}" deleted`);
+      }
+      setConfirmDelete(null);
+    } catch (err) {
+      notify(err?.response?.data?.message || "Delete failed", true);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const fetchAdmins = async () => {
+    try {
+      const res = await API.get("/super_admin/admins");
+      setAdmins(
+        res.data.admins.map((a) => ({
+          id: a.id,
+          adminId: a.adminId,
+          name: a.businessName,
+          email: a.email,
+          mobile: a.mobile,
+          address: a.address,
+          panNumber: a.panNumber,
+          active: a.isActive,
+          createdAt: a.createdAt,
+        }))
+      );
+    } catch {
+      notify("Failed to load admins", true);
+    }
+  };
+
+  const fetchSuperAdmins = async () => {
+    try {
+      setLoading(true);
+      const res = await API.get("/super_admin/super-admins");
+      setSuperAdmins(res.data.superAdmins);
+    } catch {
+      notify("Failed to load super admins", true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const validateAdmin = () => {
+    const e = {};
+    if (!newAdminData.businessName.trim()) e.businessName = "Business name is required";
+    if (!newAdminData.email.trim()) e.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newAdminData.email)) e.email = "Enter a valid email (must contain @)";
+    if (!newAdminData.mobile.trim()) e.mobile = "Mobile number is required";
+    else if (!/^\d{10}$/.test(newAdminData.mobile)) e.mobile = "Mobile must be exactly 10 digits";
+    if (!newAdminData.address.trim()) e.address = "Address is required";
+    if (!newAdminData.panNumber.trim()) e.panNumber = "PAN number is required";
+    else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(newAdminData.panNumber)) e.panNumber = "Invalid PAN format (e.g. ABCDE1234F)";
+    if (!newAdminData.password) e.password = "Password is required";
+    else if (newAdminData.password.length < 8) e.password = "Password must be at least 8 characters";
+    setAdminErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleAddAdmin = async () => {
+    if (!validateAdmin()) return;
+    try {
+      setFormLoading(true);
+      await API.post("/super_admin/create-admin", newAdminData);
+      notify("Admin added successfully");
+      setShowAdminForm(false);
+      setAdminErrors({});
+      setNewAdminData({ businessName: "", email: "", mobile: "", address: "", panNumber: "", password: "" });
+      fetchAdmins();
+    } catch (err) {
+      notify(err?.response?.data?.message || "Failed to add admin", true);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const validateSuperAdmin = () => {
+    const e = {};
+    if (!newSuperAdminData.email.trim()) e.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newSuperAdminData.email)) e.email = "Enter a valid email (must contain @)";
+    if (!newSuperAdminData.password) e.password = "Password is required";
+    else if (newSuperAdminData.password.length < 8) e.password = "Password must be at least 8 characters";
+    setSaErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleAddSuperAdmin = async () => {
+    if (!validateSuperAdmin()) return;
+    try {
+      setFormLoading(true);
+      await API.post("/super_admin/create-super-admin", newSuperAdminData);
+      notify("Super Admin added successfully");
+      setShowSuperAdminForm(false);
+      setSaErrors({});
+      setNewSuperAdminData({ email: "", password: "" });
+      fetchSuperAdmins();
+    } catch (err) {
+      notify(err?.response?.data?.message || "Failed to add super admin", true);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const tabs = [
+    { key: "admins", label: "Admins", icon: <Users size={15} /> },
+    { key: "superAdmins", label: "Super Admins", icon: <ShieldCheck size={15} /> },
+    { key: "history", label: "History", icon: <Clock size={15} /> },
+  ];
+
+  return (
+    <div className="space-y-6">
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">User Management</h1>
+      </div>
+
+      {/* Toast */}
+      <AnimatePresence>
+        {(actionMessage || actionError) && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className={`px-4 py-3 rounded-xl text-sm font-medium ${
+              actionError
+                ? "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700"
+                : "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700"
+            }`}
+          >
+            {actionError || actionMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-gray-200 dark:border-neutral-700">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+              activeTab === tab.key
+                ? "bg-white dark:bg-neutral-800 text-green-600 border border-b-white dark:border-neutral-600 dark:border-b-neutral-800 -mb-px"
+                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            }`}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── ADMINS ── */}
+      {activeTab === "admins" && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowAdminForm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg"
+            >
+              <Plus size={15} /> Add Admin
+            </button>
+          </div>
+
+          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow overflow-hidden">
+            {loading ? (
+              <p className="p-6 text-sm text-gray-400">Loading...</p>
+            ) : admins.length === 0 ? (
+              <p className="p-6 text-sm text-gray-400">No admins found.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-neutral-700 text-gray-500 dark:text-gray-400 uppercase text-xs">
                   <tr>
-                    <td colSpan={5} className="px-6 py-6 text-center text-gray-500 dark:text-zinc-400">
-                      No users found.
-                    </td>
+                    <th className="px-5 py-3 text-left font-medium">Admin ID</th>
+                    <th className="px-5 py-3 text-left font-medium">Business Name</th>
+                    <th className="px-5 py-3 text-left font-medium">Email</th>
+                    <th className="px-5 py-3 text-left font-medium">Created</th>
+                    <th className="px-5 py-3 text-left font-medium">Status</th>
+                    <th className="px-5 py-3 text-left font-medium">Action</th>
                   </tr>
-                ) : (
-                  filteredUsers.map((user) => (
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
+                  {admins.map((a) => (
                     <motion.tr
-                      key={user.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="hover:bg-gray-50 dark:hover:bg-zinc-700"
+                      key={a.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="hover:bg-gray-50 dark:hover:bg-neutral-700/50 transition-colors cursor-pointer"
+                      onClick={() => setSelectedAdmin(a)}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap">{user.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{user.email}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">{user.role}</td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            user.active
-                              ? "bg-green-100 text-green-700"
-                              : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {user.active ? "Active" : "Inactive"}
+                      <td className="px-5 py-3">
+                        <span className="px-2 py-0.5 rounded font-mono text-xs font-semibold bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-gray-300">
+                          {a.adminId || "—"}
                         </span>
                       </td>
-                      <td className="px-6 py-4 flex flex-wrap gap-2">
+                      <td className="px-5 py-3 font-medium text-green-700 dark:text-green-400 hover:underline">{a.name}</td>
+                      <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{a.email}</td>
+                      <td className="px-5 py-3 text-gray-500 dark:text-gray-400">
+                        {a.createdAt ? new Date(a.createdAt).toLocaleDateString() : "—"}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          a.active
+                            ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400"
+                            : "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
+                        }`}>
+                          {a.active ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
                         <button
-                          onClick={() => toggleActive(user.id)}
-                          className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1 rounded transition"
+                          onClick={() => setConfirmDelete({ type: "admin", id: a.id, label: a.name })}
+                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                          title="Delete admin"
                         >
-                          {user.active ? "Deactivate" : "Activate"}
-                        </button>
-                        <button
-                          onClick={() => deleteUser(user.id)}
-                          className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1 rounded transition"
-                        >
-                          Delete
+                          <Trash2 size={15} />
                         </button>
                       </td>
                     </motion.tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
-        </>
+        </motion.div>
       )}
 
-      {tab === "history" && (
-        <div className="overflow-x-auto bg-white dark:bg-zinc-800 rounded-xl shadow">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-zinc-700 text-sm table-auto">
-            <thead className="bg-gray-50 dark:bg-zinc-700 text-left text-gray-700 dark:text-white">
-              <tr>
-                <th className="px-6 py-3 font-semibold">User</th>
-                <th className="px-6 py-3 font-semibold">Action</th>
-                <th className="px-6 py-3 font-semibold">Time</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-zinc-700">
-              {history.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="px-6 py-6 text-center text-gray-500 dark:text-zinc-400">
-                    No actions recorded yet.
-                  </td>
-                </tr>
-              ) : (
-                history.map((h) => (
-                  <motion.tr
-                    key={h.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">{h.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{h.action}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{h.time}</td>
-                  </motion.tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      {/* ── SUPER ADMINS ── */}
+      {activeTab === "superAdmins" && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowSuperAdminForm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg"
+            >
+              <Plus size={15} /> Add Super Admin
+            </button>
+          </div>
+
+          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow overflow-hidden">
+            {loading ? (
+              <p className="p-6 text-sm text-gray-400">Loading...</p>
+            ) : superAdmins.length === 0 ? (
+              <p className="p-6 text-sm text-gray-400">No super admins found.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-neutral-700 text-gray-500 dark:text-gray-400 uppercase text-xs">
+                  <tr>
+                    <th className="px-5 py-3 text-left font-medium">#</th>
+                    <th className="px-5 py-3 text-left font-medium">Email</th>
+                    <th className="px-5 py-3 text-left font-medium">Status</th>
+                    <th className="px-5 py-3 text-left font-medium">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
+                  {superAdmins.map((sa, i) => (
+                    <motion.tr
+                      key={sa.id || i}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="hover:bg-gray-50 dark:hover:bg-neutral-700/50 transition-colors"
+                    >
+                      <td className="px-5 py-3 text-gray-400">{i + 1}</td>
+                      <td className="px-5 py-3 font-medium text-gray-800 dark:text-gray-100">{sa.email}</td>
+                      <td className="px-5 py-3">
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">
+                          Active
+                        </span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <button
+                          onClick={() => setConfirmDelete({ type: "superAdmin", id: sa.id, label: sa.email })}
+                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                          title="Delete super admin"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </motion.div>
       )}
+
+      {/* ── HISTORY ── */}
+      {activeTab === "history" && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow overflow-hidden">
+            {history.length === 0 ? (
+              <div className="p-10 flex flex-col items-center gap-2 text-gray-400">
+                <Clock size={32} strokeWidth={1.2} />
+                <p className="text-sm">No deletion history yet.</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-gray-100 dark:divide-neutral-700">
+                {history.map((h) => (
+                  <li key={h.id} className="px-5 py-4 flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                        <Trash2 size={13} className="text-red-500 dark:text-red-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{h.message}</p>
+                        {h.meta?.adminId && (
+                          <span className="text-xs font-mono text-gray-400 dark:text-gray-500">{h.meta.adminId}</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                      {new Date(h.createdAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── CONFIRM DELETE ── */}
+      <AnimatePresence>
+        {confirmDelete && (
+          <ConfirmDialog
+            message={`Delete "${confirmDelete.label}"? This action cannot be undone.`}
+            onConfirm={handleDelete}
+            onCancel={() => setConfirmDelete(null)}
+            loading={deleteLoading}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── ADMIN DETAIL PANEL ── */}
+      <AnimatePresence>
+        {selectedAdmin && (
+          <AdminDetailPanel
+            admin={selectedAdmin}
+            onClose={() => setSelectedAdmin(null)}
+            onUpdate={() => { fetchAdmins(); notify("Admin details updated"); }}
+            onPasswordReset={() => notify("Admin password reset successfully")}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── MODALS ── */}
+      <AnimatePresence>
+        {showAdminForm && (
+          <Modal
+            title="Add New Admin"
+            onClose={() => { setShowAdminForm(false); setAdminErrors({}); }}
+            onSubmit={handleAddAdmin}
+            loading={formLoading}
+          >
+            <InputField
+              label="Business Name"
+              value={newAdminData.businessName}
+              onChange={(e) => { setNewAdminData({ ...newAdminData, businessName: e.target.value }); setAdminErrors((p) => ({ ...p, businessName: "" })); }}
+              placeholder="e.g. Spice Garden"
+              error={adminErrors.businessName}
+            />
+            <InputField
+              label="Email"
+              type="email"
+              value={newAdminData.email}
+              onChange={(e) => { setNewAdminData({ ...newAdminData, email: e.target.value }); setAdminErrors((p) => ({ ...p, email: "" })); }}
+              placeholder="admin@example.com"
+              error={adminErrors.email}
+            />
+            <InputField
+              label="Mobile Number"
+              value={newAdminData.mobile}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, "");
+                setNewAdminData({ ...newAdminData, mobile: val });
+                setAdminErrors((p) => ({ ...p, mobile: "" }));
+              }}
+              placeholder="10-digit number"
+              maxLength={10}
+              error={adminErrors.mobile}
+            />
+            <InputField
+              label="Address"
+              value={newAdminData.address}
+              onChange={(e) => { setNewAdminData({ ...newAdminData, address: e.target.value }); setAdminErrors((p) => ({ ...p, address: "" })); }}
+              placeholder="123, Main Street"
+              error={adminErrors.address}
+            />
+            <InputField
+              label="PAN Number"
+              value={newAdminData.panNumber}
+              onChange={(e) => {
+                const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                setNewAdminData({ ...newAdminData, panNumber: val });
+                setAdminErrors((p) => ({ ...p, panNumber: "" }));
+              }}
+              placeholder="ABCDE1234F"
+              maxLength={10}
+              error={adminErrors.panNumber}
+            />
+            <PasswordField
+              label="Password"
+              value={newAdminData.password}
+              onChange={(e) => { setNewAdminData({ ...newAdminData, password: e.target.value }); setAdminErrors((p) => ({ ...p, password: "" })); }}
+              placeholder="Min. 8 characters"
+              error={adminErrors.password}
+            />
+          </Modal>
+        )}
+
+        {showSuperAdminForm && (
+          <Modal
+            title="Add New Super Admin"
+            onClose={() => { setShowSuperAdminForm(false); setSaErrors({}); }}
+            onSubmit={handleAddSuperAdmin}
+            loading={formLoading}
+          >
+            <InputField
+              label="Email"
+              type="email"
+              value={newSuperAdminData.email}
+              onChange={(e) => { setNewSuperAdminData({ ...newSuperAdminData, email: e.target.value }); setSaErrors((p) => ({ ...p, email: "" })); }}
+              placeholder="superadmin@example.com"
+              error={saErrors.email}
+            />
+            <PasswordField
+              label="Password"
+              value={newSuperAdminData.password}
+              onChange={(e) => { setNewSuperAdminData({ ...newSuperAdminData, password: e.target.value }); setSaErrors((p) => ({ ...p, password: "" })); }}
+              placeholder="Min. 8 characters"
+              error={saErrors.password}
+            />
+          </Modal>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 };

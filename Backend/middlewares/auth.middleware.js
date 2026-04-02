@@ -7,9 +7,6 @@
 //   try {
 //     let token;
 
-//     /* ===============================
-//        READ TOKEN
-//     =============================== */
 //     if (
 //       req.headers.authorization &&
 //       req.headers.authorization.startsWith("Bearer ")
@@ -24,9 +21,6 @@
 //       });
 //     }
 
-//     /* ===============================
-//        VERIFY TOKEN
-//     =============================== */
 //     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
 //     if (!mongoose.Types.ObjectId.isValid(decoded.id)) {
@@ -36,9 +30,7 @@
 //       });
 //     }
 
-//     /* ===============================
-//        ADMIN TOKEN
-//     =============================== */
+//     /* ===== ADMIN ===== */
 //     if (decoded.role === "admin") {
 //       const admin = await Admin.findById(decoded.id).select("-password");
 
@@ -52,12 +44,11 @@
 //       req.user = {
 //         id: admin._id.toString(),
 //         role: "admin",
+//         restaurant: admin.restaurant || null,
 //       };
 //     }
 
-//     /* ===============================
-//        EMPLOYEE TOKEN
-//     =============================== */
+//     /* ===== EMPLOYEE ===== */
 //     else if (decoded.role) {
 //       const employee = await Employee.findById(decoded.id);
 
@@ -70,15 +61,11 @@
 
 //       req.user = {
 //         id: employee._id.toString(),
-//         role: employee.role.toLowerCase(),
+//         role: employee.role,
 //         employeeId: employee.employeeId,
+//         restaurant: employee.restaurant,
 //       };
-//     }
-
-//     /* ===============================
-//        INVALID TOKEN
-//     =============================== */
-//     else {
+//     } else {
 //       return res.status(401).json({
 //         success: false,
 //         message: "Invalid token",
@@ -102,6 +89,10 @@
 
 
 
+
+
+
+
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import Admin from "../models/Admin.model.js";
@@ -111,6 +102,9 @@ const auth = async (req, res, next) => {
   try {
     let token;
 
+    /* =========================
+       GET TOKEN
+    ========================= */
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer ")
@@ -125,17 +119,50 @@ const auth = async (req, res, next) => {
       });
     }
 
+    /* =========================
+       VERIFY TOKEN
+    ========================= */
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (!mongoose.Types.ObjectId.isValid(decoded.id)) {
+    // Normalize role 🔥
+    const role = decoded.role?.toLowerCase();
+
+    /* =========================
+       BASIC VALIDATION
+    ========================= */
+    if (!decoded.id || !role) {
       return res.status(401).json({
         success: false,
         message: "Invalid token payload",
       });
     }
 
-    /* ===== ADMIN ===== */
-    if (decoded.role === "admin") {
+    if (!mongoose.Types.ObjectId.isValid(decoded.id)) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token ID",
+      });
+    }
+
+        /* =========================
+       🔥 SUPER ADMIN AUTH
+    ========================= */
+    if (role === "super_admin") {
+      req.user = {
+        id: decoded.id,
+        role: "super_admin",
+      };
+
+      return next(); // ⚡ IMPORTANT (avoid falling to next conditions)
+    }
+
+
+
+
+    /* =========================
+       ADMIN AUTH
+    ========================= */
+    if (role === "admin") {
       const admin = await Admin.findById(decoded.id).select("-password");
 
       if (!admin) {
@@ -152,9 +179,21 @@ const auth = async (req, res, next) => {
       };
     }
 
-    /* ===== EMPLOYEE ===== */
-    else if (decoded.role) {
-      const employee = await Employee.findById(decoded.id);
+    /* =========================
+       EMPLOYEE AUTH
+    ========================= */
+    else if (
+      [
+        "manager",
+        "inventory_manager",
+        "chef",
+        "suchef",
+        "waiter",
+        "cleaner",
+        "accountant",
+      ].includes(role)
+    ) {
+      const employee = await Employee.findById(decoded.id).select("-password");
 
       if (!employee || employee.isActive === false) {
         return res.status(401).json({
@@ -165,20 +204,26 @@ const auth = async (req, res, next) => {
 
       req.user = {
         id: employee._id.toString(),
-        role: employee.role,
+        role: role, // ✅ always lowercase
         employeeId: employee.employeeId,
         restaurant: employee.restaurant,
       };
-    } else {
+    }
+
+    /* =========================
+       INVALID ROLE
+    ========================= */
+    else {
       return res.status(401).json({
         success: false,
-        message: "Invalid token",
+        message: "Invalid role in token",
       });
     }
 
     next();
   } catch (err) {
     console.error("AUTH ERROR:", err.message);
+
     return res.status(401).json({
       success: false,
       message: "Token invalid or expired",

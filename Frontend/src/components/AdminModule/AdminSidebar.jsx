@@ -29,8 +29,9 @@ const Sidebar = ({ active, setActive }) => {
   /* ================= GET REAL ADMIN ================= */
   const user = JSON.parse(localStorage.getItem("user")) || {};
 
-  const adminName = user?.name || "Admin";
-  const adminEmail = user?.email || "admin@email.com";
+  const adminName = user?.name || "Name";
+  const businessName = "Business Name";
+  const adminId = user?.adminId || "N/A";
 
   /* ================= DARK MODE ================= */
   useEffect(() => {
@@ -141,10 +142,9 @@ const Sidebar = ({ active, setActive }) => {
                   if (window.innerWidth < 1024) setIsOpen(false);
                 }}
                 className={`w-full flex items-center gap-4 px-4 py-3 mb-2 rounded-lg text-sm font-medium border-l-4 transition-all
-                  ${
-                    isActive
-                      ? "bg-green-500 text-white border-green-700"
-                      : "bg-white dark:bg-gray-800 text-green-700 dark:text-gray-200 border-transparent hover:bg-green-200 dark:hover:bg-gray-700"
+                  ${isActive
+                    ? "bg-green-500 text-white border-green-700"
+                    : "bg-white dark:bg-gray-800 text-green-700 dark:text-gray-200 border-transparent hover:bg-green-200 dark:hover:bg-gray-700"
                   }`}
               >
                 <Icon className="text-lg" />
@@ -163,14 +163,16 @@ const Sidebar = ({ active, setActive }) => {
                 {adminName}
               </p>
               <p className="text-xs text-gray-600 dark:text-gray-400">
-                {adminEmail}
+                {businessName}
+              </p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                ID: {adminId}
               </p>
 
               <div className="flex items-center gap-1 text-xs mt-1">
                 <span
-                  className={`h-2 w-2 rounded-full ${
-                    isOnline ? "bg-green-500" : "bg-red-500"
-                  }`}
+                  className={`h-2 w-2 rounded-full ${isOnline ? "bg-green-500" : "bg-red-500"
+                    }`}
                 />
                 {isOnline ? "Online" : "Offline"}
               </div>

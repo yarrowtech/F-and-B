@@ -116,35 +116,40 @@ export const registerAdmin = async (req, res) => {
   }
 };
 
-/* ---------- LOGIN ADMIN (FIXED) ---------- */
+/* ---------- LOGIN ADMIN (by adminId) ---------- */
 export const loginAdmin = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { adminId, password } = req.body;
 
-    const admin = await Admin.findOne({ email });
+    if (!adminId || !password) {
+      return res.status(400).json({ message: "Admin ID and password are required" });
+    }
+
+    const admin = await Admin.findOne({ adminId: adminId.trim().toUpperCase() });
     if (!admin) {
-      return res.status(401).json({ message: "Invalid email or password" });
+      return res.status(401).json({ message: "Invalid Admin ID or password" });
+    }
+
+    if (!admin.isActive) {
+      return res.status(403).json({ message: "Account is inactive. Contact super admin." });
     }
 
     const isMatch = await admin.matchPassword(password);
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid email or password" });
+      return res.status(401).json({ message: "Invalid Admin ID or password" });
     }
 
     const token = jwt.sign(
-      {
-        id: admin._id,
-        role: "admin", // ✅ unified role
-      },
+      { id: admin._id, role: "admin" },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    // ✅ RETURN USER OBJECT (FRONTEND EXPECTS THIS)
     res.json({
       token,
       user: {
         id: admin._id,
+        adminId: admin.adminId,
         email: admin.email,
         businessName: admin.businessName,
         role: "admin",

@@ -62,6 +62,12 @@ import bcrypt from "bcryptjs";
 
 const adminSchema = new mongoose.Schema(
   {
+    adminId: {
+      type: String,
+      unique: true,
+      trim: true,
+    },
+
     businessName: {
       type: String,
       required: true,

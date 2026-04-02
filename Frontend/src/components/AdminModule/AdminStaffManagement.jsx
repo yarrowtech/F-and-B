@@ -632,11 +632,11 @@ export default function AdminStaffManagement() {
           >
             <option value="">Select Restaurant</option>
 
-            {restaurants.map((r)=>(
-              <option key={r._id} value={r._id}>
-                {r.name} ({r.restaurantCode})
-              </option>
-            ))}
+{restaurants.map((r, index)=>(
+  <option key={r?._id || `res-${index}`} value={r?._id}>
+    {r?.name} ({r?.restaurantCode})
+  </option>
+))}
           </select>
 
           <button className="bg-green-600 text-white rounded-full px-4 py-2">
@@ -700,9 +700,8 @@ export default function AdminStaffManagement() {
 
           <tbody>
 
-            {filteredEmployees.map((emp)=>(
-
-              <tr key={emp._id} className="border-t">
+  {filteredEmployees.map((emp, index)=>(
+  <tr key={emp._id ?? emp.employeeId ?? index} className="border-t">
 
                 <td className="font-mono text-blue-600">
                   {emp.employeeId}
