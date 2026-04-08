@@ -88,6 +88,15 @@ router.get(
   employeeController.getEmployees
 );
 
+/* DELETE HISTORY (ADMIN ONLY) */
+router.get(
+  "/history/deleted",
+  auth,
+  apiLimiter, // ⚡ normal
+  allowRoles("admin"),
+  employeeController.getDeletedEmployeesHistory
+);
+
 /* PROFILE (ALL LOGGED-IN USERS) */
 router.get(
   "/me",

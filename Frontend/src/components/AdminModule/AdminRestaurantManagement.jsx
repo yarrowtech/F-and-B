@@ -21,6 +21,7 @@ export default function AdminRestaurantManagement({
     phone: "",
     gstNo: "",
   });
+  const [errors, setErrors] = useState({});
 
   /* ===== FILTER ===== */
   const [search, setSearch] = useState("");
@@ -46,8 +47,18 @@ export default function AdminRestaurantManagement({
   const handleCreateRestaurant = async (e) => {
     e.preventDefault();
 
-    if (!form.name || !form.address || !form.phone) {
-      alert("Name, Address & Phone are required");
+    // Clear previous errors
+    setErrors({});
+
+    // Validate required fields
+    const newErrors = {};
+    if (!form.name.trim()) newErrors.name = "Restaurant name is required";
+    if (!form.address.trim()) newErrors.address = "Address is required";
+    if (!form.phone.trim()) newErrors.phone = "Phone number is required";
+    else if (!/^\d{10}$/.test(form.phone)) newErrors.phone = "Phone number must be exactly 10 digits";
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
@@ -55,10 +66,24 @@ export default function AdminRestaurantManagement({
       await createRestaurant(form);
       setForm({ name: "", address: "", phone: "", gstNo: "" });
       setShowAddForm(false);
+      setErrors({});
       fetchRestaurants();
     } catch (err) {
       console.error(err);
       alert("Failed to create restaurant");
+    }
+  };
+
+  /* ================= FORM HANDLERS ================= */
+  const handleInputChange = (field, value) => {
+    if (field === "phone") {
+      // Only allow digits and cap phone length to 10 characters
+      value = value.replace(/\D/g, "").slice(0, 10);
+    }
+    setForm({ ...form, [field]: value });
+    // Clear error for this field
+    if (errors[field]) {
+      setErrors({ ...errors, [field]: "" });
     }
   };
 
@@ -107,8 +132,8 @@ export default function AdminRestaurantManagement({
 
       {/* ===== ADD FORM ===== */}
       {showAddForm && (
-        <div className="bg-white border rounded p-4">
-          <h3 className="text-lg font-semibold mb-3">
+        <div className="bg-white border rounded p-6 shadow-md">
+          <h3 className="text-lg font-semibold mb-4 text-gray-800">
             Create Restaurant
           </h3>
 
@@ -116,54 +141,89 @@ export default function AdminRestaurantManagement({
             onSubmit={handleCreateRestaurant}
             className="grid grid-cols-1 md:grid-cols-2 gap-4"
           >
-            <input
-              className="border p-2 rounded"
-              placeholder="Restaurant Name"
-              value={form.name}
-              onChange={(e) =>
-                setForm({ ...form, name: e.target.value })
-              }
-            />
+            <div className="md:col-span-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Restaurant Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                className={`border p-3 rounded w-full focus:outline-none focus:ring-2 focus:ring-green-500 ${errors.name ? "border-red-500" : "border-gray-300"
+                  }`}
+                placeholder="Enter restaurant name"
+                value={form.name}
+                onChange={(e) => handleInputChange("name", e.target.value)}
+                required
+              />
+              {errors.name && (
+                <p className="text-red-500 text-sm mt-1">{errors.name}</p>
+              )}
+            </div>
 
-            <input
-              className="border p-2 rounded"
-              placeholder="Phone"
-              value={form.phone}
-              onChange={(e) =>
-                setForm({ ...form, phone: e.target.value })
-              }
-            />
+            <div className="md:col-span-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Phone Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                pattern="[0-9]{10}"
+                className={`border p-3 rounded w-full focus:outline-none focus:ring-2 focus:ring-green-500 ${errors.phone ? "border-red-500" : "border-gray-300"
+                  }`}
+                placeholder="Enter 10-digit phone number"
+                value={form.phone}
+                onChange={(e) => handleInputChange("phone", e.target.value)}
+                required
+              />
+              {errors.phone && (
+                <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
+              )}
+            </div>
 
-            <input
-              className="border p-2 rounded md:col-span-2"
-              placeholder="Address"
-              value={form.address}
-              onChange={(e) =>
-                setForm({ ...form, address: e.target.value })
-              }
-            />
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Address <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                className={`border p-3 rounded w-full focus:outline-none focus:ring-2 focus:ring-green-500 resize-none ${errors.address ? "border-red-500" : "border-gray-300"
+                  }`}
+                placeholder="Enter restaurant address"
+                value={form.address}
+                onChange={(e) => handleInputChange("address", e.target.value)}
+                rows="3"
+                required
+              />
+              {errors.address && (
+                <p className="text-red-500 text-sm mt-1">{errors.address}</p>
+              )}
+            </div>
 
-            <input
-              className="border p-2 rounded md:col-span-2"
-              placeholder="GST No (optional)"
-              value={form.gstNo}
-              onChange={(e) =>
-                setForm({ ...form, gstNo: e.target.value })
-              }
-            />
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                GST Number (Optional)
+              </label>
+              <input
+                type="text"
+                className="border border-gray-300 p-3 rounded w-full focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Enter GST number"
+                value={form.gstNo}
+                onChange={(e) => handleInputChange("gstNo", e.target.value)}
+              />
+            </div>
 
-            <div className="md:col-span-2 flex gap-3">
+            <div className="md:col-span-2 flex gap-3 mt-4">
               <button
                 type="submit"
-                className="bg-green-600 text-white px-4 py-2 rounded"
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-medium transition-colors"
               >
-                Save
+                Save Restaurant
               </button>
 
               <button
                 type="button"
-                onClick={() => setShowAddForm(false)}
-                className="bg-gray-300 px-4 py-2 rounded"
+                onClick={() => {
+                  setShowAddForm(false);
+                  setErrors({});
+                }}
+                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-2 rounded font-medium transition-colors"
               >
                 Cancel
               </button>

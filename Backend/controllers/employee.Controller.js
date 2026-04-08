@@ -700,6 +700,7 @@
 import bcrypt from "bcryptjs";
 import Employee from "../models/Employee.model.js";
 import Restaurant from "../models/Restaurant.model.js";
+import Log from "../models/Log.model.js";
 
 /* 🔥 LOGGER */
 import { logAction, logError } from "../utils/logger.js";
@@ -898,11 +899,27 @@ const updateEmployee = async (req, res) => {
     const allowedUpdates = ["name", "email", "phone", "role"];
     const updates = {};
 
-    allowedUpdates.forEach(field => {
+    allowedUpdates.forEach((field) => {
       if (req.body[field] !== undefined) {
         updates[field] = req.body[field];
       }
     });
+
+    // Admin can also move the employee to another restaurant (optional)
+    if (req.body.restaurantId !== undefined) {
+      const restaurant = await Restaurant.findOne({
+        _id: req.body.restaurantId,
+        admin: req.user.id,
+      });
+
+      if (!restaurant) {
+        return res.status(404).json({
+          message: "Restaurant not found",
+        });
+      }
+
+      updates.restaurant = req.body.restaurantId;
+    }
 
     const employee = await Employee.findOneAndUpdate(
       {
@@ -967,7 +984,15 @@ const deleteEmployee = async (req, res) => {
     await logAction({
       action: "EMPLOYEE_DELETED",
       userId: req.user.id,
-      meta: { employeeId: employee._id },
+      message: `Employee "${employee.name}" (${employee.employeeId}) was deleted`,
+      meta: {
+        adminId: req.user.id,
+        employeeDbId: employee._id,
+        employeeId: employee.employeeId,
+        name: employee.name,
+        role: employee.role,
+        restaurant: employee.restaurant,
+      },
     });
 
     res.json({
@@ -979,6 +1004,43 @@ const deleteEmployee = async (req, res) => {
     await logError(err, "DELETE_EMPLOYEE");
     res.status(400).json({
       message: err.message
+    });
+  }
+};
+
+/* ===============================
+   EMPLOYEE DELETE HISTORY (ADMIN)
+=============================== */
+const getDeletedEmployeesHistory = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Only admin can view history",
+      });
+    }
+
+    const logs = await Log.find({
+      type: "ACTION",
+      action: "EMPLOYEE_DELETED",
+      $or: [{ userId: req.user.id }, { "meta.adminId": req.user.id }],
+    })
+      .sort({ createdAt: -1 })
+      .limit(100);
+
+    res.json({
+      success: true,
+      history: logs.map((l) => ({
+        id: l._id,
+        action: l.action,
+        message: l.message,
+        meta: l.meta,
+        createdAt: l.createdAt,
+      })),
+    });
+  } catch (err) {
+    await logError(err, "GET_EMPLOYEE_DELETE_HISTORY");
+    res.status(500).json({
+      message: err.message,
     });
   }
 };
@@ -1126,5 +1188,6 @@ export default {
   deleteEmployee,
   removeEmployeeFromRestaurant,
   resetEmployeePassword,
+  getDeletedEmployeesHistory,
   getMyProfile,
 };

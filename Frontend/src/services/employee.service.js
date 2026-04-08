@@ -50,3 +50,8 @@ export const resetEmployeePassword = async (employeeId, newPassword) => {
     })
   ).data;
 };
+
+/* Get deleted employees history (admin only) */
+export const getDeletedEmployeesHistory = async () => {
+  return (await api.get("/employees/history/deleted")).data;
+};
