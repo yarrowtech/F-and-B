@@ -8,7 +8,8 @@ import {
   updateInventoryItem,
   deleteInventoryItem,
   getManagerInventory,
-  getItemLogs
+  getItemLogs,
+  addStockToItem,
 } from "../controllers/inventory.controller.js";
 
 const router = express.Router();
@@ -56,6 +57,15 @@ router.put(
   auth,
   allowRoles("admin", "manager", "inventory_manager"),
   updateInventoryItem
+);
+
+/* ================= ADD STOCK ================= */
+/* PUT /api/inventory/:restaurantId/:id/add-stock */
+router.put(
+  "/:restaurantId/:id/add-stock",
+  auth,
+  allowRoles("admin", "manager", "inventory_manager"),
+  addStockToItem
 );
 
 /* ================= DELETE ================= */

@@ -87,6 +87,13 @@ router.put(
   tableController.updateTableStatus
 );
 
+router.put(
+  "/:restaurantId/:id",
+  auth,
+  allowRoles("admin", "manager"),
+  tableController.updateTable
+);
+
 router.delete(
   "/:restaurantId/:id",
   auth,

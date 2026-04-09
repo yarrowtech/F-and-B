@@ -395,6 +395,45 @@ const updateTableStatus = async (req, res) => {
 };
 
 /* ===============================
+   UPDATE TABLE (capacity + status)
+=============================== */
+const updateTable = async (req, res) => {
+  try {
+    const { restaurantId, id } = req.params;
+    const { capacity, status } = req.body;
+
+    const updates = {};
+    if (capacity !== undefined) {
+      const cap = Number(capacity);
+      if (!cap || cap <= 0) {
+        return res.status(400).json({ success: false, message: "Invalid capacity" });
+      }
+      updates.capacity = cap;
+    }
+    if (status !== undefined) {
+      if (!["available", "occupied", "reserved"].includes(status)) {
+        return res.status(400).json({ success: false, message: "Invalid table status" });
+      }
+      updates.status = status;
+    }
+
+    const table = await Table.findOneAndUpdate(
+      { _id: id, restaurant: restaurantId },
+      updates,
+      { new: true }
+    );
+
+    if (!table) {
+      return res.status(404).json({ success: false, message: "Table not found" });
+    }
+
+    res.json({ success: true, message: "Table updated", data: table });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+/* ===============================
    DELETE TABLE
 =============================== */
 const deleteTable = async (req, res) => {
@@ -430,5 +469,6 @@ export default {
   getTables,
   getTableById,
   updateTableStatus,
+  updateTable,
   deleteTable,
 };

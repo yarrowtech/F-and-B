@@ -18,8 +18,11 @@ export const createInventoryItem = async (req, res) => {
     if (!name || !unit)
       return sendError(res, "Name and unit are required");
 
+    const restaurantId =
+      req.user.role === "admin" ? req.params.restaurantId : req.user.restaurant;
+
     const item = await Inventory.create({
-      restaurant: req.user.restaurant,
+      restaurant: restaurantId,
       name,
       unit,
       quantity: quantity || 0,
@@ -29,7 +32,7 @@ export const createInventoryItem = async (req, res) => {
 
     await InventoryLog.create({
       item: item._id,
-      restaurant: req.user.restaurant,
+      restaurant: restaurantId,
       quantityAdded: quantity || 0,
       unit,
       action: "ADD",
@@ -80,9 +83,12 @@ export const getInventory = async (req, res) => {
 
 export const updateInventoryItem = async (req, res) => {
   try {
+    const restaurantId =
+      req.user.role === "admin" ? req.params.restaurantId : req.user.restaurant;
+
     const item = await Inventory.findOne({
       _id: req.params.id,
-      restaurant: req.user.restaurant,
+      restaurant: restaurantId,
     });
 
     if (!item)
@@ -100,7 +106,7 @@ export const updateInventoryItem = async (req, res) => {
 
       await InventoryLog.create({
         item: item._id,
-        restaurant: req.user.restaurant,
+        restaurant: restaurantId,
         quantityAdded: diff,
         unit: item.unit,
         action: "UPDATE",
@@ -125,9 +131,12 @@ export const updateInventoryItem = async (req, res) => {
 
 export const deleteInventoryItem = async (req, res) => {
   try {
+    const restaurantId =
+      req.user.role === "admin" ? req.params.restaurantId : req.user.restaurant;
+
     const item = await Inventory.findOne({
       _id: req.params.id,
-      restaurant: req.user.restaurant,
+      restaurant: restaurantId,
     });
 
     if (!item)
@@ -138,7 +147,7 @@ export const deleteInventoryItem = async (req, res) => {
 
     await InventoryLog.create({
       item: item._id,
-      restaurant: req.user.restaurant,
+      restaurant: restaurantId,
       quantityAdded: item.quantity,
       unit: item.unit,
       action: "DELETE",
@@ -182,6 +191,46 @@ export const getManagerInventory = async (req, res) => {
   }
 };
 
+
+/* ================= ADD STOCK ================= */
+
+export const addStockToItem = async (req, res) => {
+  try {
+    const restaurantId =
+      req.user.role === "admin" ? req.params.restaurantId : req.user.restaurant;
+
+    const item = await Inventory.findOne({
+      _id: req.params.id,
+      restaurant: restaurantId,
+      isActive: true,
+    });
+
+    if (!item)
+      return sendError(res, "Inventory item not found", 404);
+
+    const { quantity } = req.body;
+
+    if (!quantity || Number(quantity) <= 0)
+      return sendError(res, "Quantity must be greater than 0");
+
+    item.quantity += Number(quantity);
+    item.lastUpdatedBy = req.user.id;
+    await item.save();
+
+    await InventoryLog.create({
+      item: item._id,
+      restaurant: restaurantId,
+      quantityAdded: Number(quantity),
+      unit: item.unit,
+      action: "ADD",
+      addedBy: req.user.id,
+    });
+
+    return sendSuccess(res, item);
+  } catch (err) {
+    return sendError(res, err.message);
+  }
+};
 
 /* ================= GET ITEM LOGS ================= */
 

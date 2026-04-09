@@ -266,37 +266,26 @@ export const createMenuItem = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    /* 🔥 VALIDATE INGREDIENTS */
-    if (
-      !ingredients ||
-      !Array.isArray(ingredients) ||
-      ingredients.length === 0
-    ) {
-      return res.status(400).json({
-        message:
-          "Menu must have at least one ingredient",
-      });
-    }
+    /* 🔥 VALIDATE INGREDIENTS (only if provided) */
+    if (Array.isArray(ingredients) && ingredients.length > 0) {
+      for (const ing of ingredients) {
+        if (!ing.item || !ing.quantity || ing.quantity <= 0) {
+          return res.status(400).json({
+            message: "Each ingredient must have item and quantity greater than 0",
+          });
+        }
 
-    for (const ing of ingredients) {
-      if (!ing.item || !ing.quantity || ing.quantity <= 0) {
-        return res.status(400).json({
-          message:
-            "Each ingredient must have item and quantity greater than 0",
+        const inventoryExists = await Inventory.findOne({
+          _id: ing.item,
+          restaurant: restaurantId,
+          isActive: true,
         });
-      }
 
-      // Ensure inventory item exists
-      const inventoryExists = await Inventory.findOne({
-        _id: ing.item,
-        restaurant: restaurantId,
-        isActive: true,
-      });
-
-      if (!inventoryExists) {
-        return res.status(400).json({
-          message: "Invalid inventory item used in ingredients",
-        });
+        if (!inventoryExists) {
+          return res.status(400).json({
+            message: "Invalid inventory item used in ingredients",
+          });
+        }
       }
     }
 
@@ -362,12 +351,13 @@ export const getMenu = async (req, res) => {
     const items = await Menu.find({
       restaurant: restaurantId,
     })
-      .populate("ingredients.item", "name unit")
+      .populate({ path: "ingredients.item", select: "name unit", strictPopulate: false })
       .sort({ createdAt: -1 });
 
     res.json(items);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    console.error("GET MENU ERROR:", err.message);
+    res.status(500).json({ message: err.message });
   }
 };
 
@@ -442,23 +432,16 @@ export const updateMenuItem = async (req, res) => {
     if (isAvailable !== undefined)
       item.isAvailable = isAvailable;
 
-    /* 🔥 Validate ingredients if updating */
+    /* 🔥 Validate ingredients if updating (empty array allowed) */
     if (ingredients !== undefined) {
-      if (
-        !Array.isArray(ingredients) ||
-        ingredients.length === 0
-      ) {
-        return res.status(400).json({
-          message:
-            "Menu must have at least one ingredient",
-        });
+      if (!Array.isArray(ingredients)) {
+        return res.status(400).json({ message: "Ingredients must be an array" });
       }
 
       for (const ing of ingredients) {
         if (!ing.item || !ing.quantity || ing.quantity <= 0) {
           return res.status(400).json({
-            message:
-              "Each ingredient must have item and quantity greater than 0",
+            message: "Each ingredient must have item and quantity greater than 0",
           });
         }
 
@@ -470,8 +453,7 @@ export const updateMenuItem = async (req, res) => {
 
         if (!inventoryExists) {
           return res.status(400).json({
-            message:
-              "Invalid inventory item used in ingredients",
+            message: "Invalid inventory item used in ingredients",
           });
         }
       }

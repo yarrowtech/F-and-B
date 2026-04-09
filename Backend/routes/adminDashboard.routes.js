@@ -4,6 +4,7 @@ import {
   getMonthlyChart,
   getTopItems,
   getDailySales,
+  getRestaurantBreakdown,
 } from "../controllers/adminDashboard.controller.js";
 import auth from "../middlewares/auth.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
@@ -45,5 +46,7 @@ router.get("/top-items", getTopItems);
  * @query   restaurantId, startDate, endDate
  */
 router.get("/daily-sales", getDailySales);
+
+router.get("/restaurant-breakdown", getRestaurantBreakdown);
 
 export default router;

@@ -97,6 +97,11 @@ export const updateTableStatus = async (restaurantId, id, status) => {
   return res.data.data;
 };
 
+export const updateTable = async (restaurantId, id, data) => {
+  const res = await api.put(`/tables/${restaurantId}/${id}`, data);
+  return res.data.data;
+};
+
 export const deleteTable = async (restaurantId, id) => {
   const res = await api.delete(
     `/tables/${restaurantId}/${id}`

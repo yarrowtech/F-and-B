@@ -141,6 +141,46 @@ export const getTopItems = async (req, res) => {
   }
 };
 
+/* ================= RESTAURANT BREAKDOWN ================= */
+export const getRestaurantBreakdown = async (req, res) => {
+  try {
+    const adminId = req.user.id;
+
+    const restaurants = await Restaurant.find({ admin: adminId }).select("_id name").lean();
+    if (!restaurants.length) return res.json({ success: true, data: [] });
+
+    const restaurantIds = restaurants.map((r) => r._id);
+
+    const dateFilter = buildDateFilter({ startDate: req.query.startDate, endDate: req.query.endDate });
+
+    const [orderCounts, revenueCounts] = await Promise.all([
+      Order.aggregate([
+        { $match: { restaurant: { $in: restaurantIds }, ...dateFilter } },
+        { $group: { _id: "$restaurant", totalOrders: { $sum: 1 } } },
+      ]),
+      Order.aggregate([
+        { $match: { restaurant: { $in: restaurantIds }, status: { $in: ["PAID", "completed"] }, ...dateFilter } },
+        { $group: { _id: "$restaurant", totalRevenue: { $sum: "$totalAmount" } } },
+      ]),
+    ]);
+
+    const orderMap   = Object.fromEntries(orderCounts.map((x) => [x._id.toString(), x.totalOrders]));
+    const revenueMap = Object.fromEntries(revenueCounts.map((x) => [x._id.toString(), x.totalRevenue]));
+
+    const data = restaurants.map((r) => ({
+      _id:          r._id,
+      name:         r.name,
+      totalOrders:  orderMap[r._id.toString()]   || 0,
+      totalRevenue: revenueMap[r._id.toString()] || 0,
+    }));
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 /* ================= DAILY ================= */
 export const getDailySales = async (req, res) => {
   try {

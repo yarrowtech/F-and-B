@@ -704,7 +704,7 @@ export default function AdminStaffManagement() {
           <button
             type="button"
             onClick={() => setShowAddForm(true)}
-            className="bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2 text-sm font-medium flex items-center gap-2"
+            className="bg-green-600 hover:bg-green-700 text-white rounded-lg px-5 py-3 text-base font-medium flex items-center gap-2"
           >
             <FaUserPlus /> Add Employee
           </button>
@@ -1127,7 +1127,7 @@ export default function AdminStaffManagement() {
             placeholder="Search staff..."
             value={search}
             onChange={(e)=>setSearch(e.target.value)}
-            className="w-full outline-none"
+            className="w-full outline-none text-lg"
           />
 
         </div>
@@ -1135,7 +1135,7 @@ export default function AdminStaffManagement() {
         <select
           value={roleFilter}
           onChange={(e)=>setRoleFilter(e.target.value)}
-          className="border rounded-full px-4"
+          className="border rounded-full px-4 text-lg py-2"
         >
           {ROLE_OPTIONS.map((r)=>(
             <option key={r} value={r}>
@@ -1150,15 +1150,15 @@ export default function AdminStaffManagement() {
 
       <div className="bg-white rounded-xl shadow overflow-x-auto">
 
-        <table className="min-w-full text-sm">
+        <table className="min-w-full text-base">
 
-          <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
+          <thead className="bg-gray-50 text-gray-600 uppercase text-sm">
 
             <tr>
               <th className="px-5 py-3 text-left font-medium">Employee ID</th>
               <th className="px-5 py-3 text-left font-medium">Name</th>
               <th className="px-5 py-3 text-left font-medium">Role</th>
-              <th className="px-5 py-3 text-center font-medium">Delete</th>
+              <th className="px-5 py-3 text-center font-medium">Actions</th>
             </tr>
 
           </thead>
@@ -1179,7 +1179,7 @@ export default function AdminStaffManagement() {
                   key={emp.id ?? emp._id ?? emp.employeeId}
                   className="border-t hover:bg-gray-50 transition-colors"
                 >
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-4 text-base">
                     <button
                       type="button"
                       onClick={() => openEditModal(emp)}
@@ -1203,22 +1203,38 @@ export default function AdminStaffManagement() {
                     {emp.role ? emp.role.replace(/_/g, " ") : "-"}
                   </td>
 
-                  <td className="px-5 py-3 text-center">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setConfirmDelete({
-                          id: emp.id ?? emp._id ?? emp.employeeId,
-                          employeeId: emp.employeeId,
-                          name: emp.name,
-                          role: emp.role,
-                        })
-                      }
-                      className="text-red-600 hover:bg-red-50 rounded-full w-8 h-8 inline-flex items-center justify-center"
-                    >
-                      <FaTrash />
-                    </button>
-                  </td>
+<td className="px-5 py-3 text-center">
+  <div className="flex items-center justify-center gap-2">
+
+    {/* EDIT BUTTON */}
+    <button
+      type="button"
+      onClick={() => openEditModal(emp)}
+      className="text-blue-600 hover:bg-blue-50 rounded-full w-10 h-10 flex items-center justify-center transition"
+      title="Edit"
+    >
+      <FaEdit />
+    </button>
+
+    {/* DELETE BUTTON */}
+    <button
+      type="button"
+      onClick={() =>
+        setConfirmDelete({
+          id: emp.id ?? emp._id ?? emp.employeeId,
+          employeeId: emp.employeeId,
+          name: emp.name,
+          role: emp.role,
+        })
+      }
+      className="text-red-600 hover:bg-red-50 rounded-full w-8 h-8 flex items-center justify-center transition"
+      title="Delete"
+    >
+      <FaTrash />
+    </button>
+
+  </div>
+</td>
                 </tr>
               ))
             )}
@@ -1335,83 +1351,87 @@ export default function AdminStaffManagement() {
       )}
 
       {/* DELETE CONFIRM MODAL */}
-      {confirmDelete && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm delete employee"
-          onClick={() => {
-            if (deleteLoading) return;
-            setConfirmDelete(null);
-          }}
+{/* DELETE CONFIRM MODAL (FULL UPDATED) */}
+{confirmDelete && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+    
+    <div
+      className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-8"
+      onClick={(e) => e.stopPropagation()}
+    >
+
+      {/* HEADER */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold text-gray-800">
+          Confirm Delete
+        </h2>
+        <button
+          onClick={() => setConfirmDelete(null)}
+          disabled={deleteLoading}
+          className="text-gray-400 hover:text-gray-600 text-xl"
         >
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-800">
-                Delete Employee
-              </h2>
-              <button
-                type="button"
-                onClick={() => {
-                  if (deleteLoading) return;
-                  setConfirmDelete(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                X
-              </button>
-            </div>
+          ×
+        </button>
+      </div>
 
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              This action cannot be undone.
-            </div>
+      {/* MESSAGE */}
+      <div className="text-center space-y-4 mb-8">
 
-            <div className="space-y-2 text-sm text-gray-700">
-              <div>
-                <span className="text-gray-500">Name:</span>{" "}
-                <span className="font-medium">{confirmDelete.name ?? "—"}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Employee ID:</span>{" "}
-                <span className="font-mono font-semibold text-gray-800">
-                  {confirmDelete.employeeId ?? "—"}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500">Role:</span>{" "}
-                <span className="font-medium">
-                  {confirmDelete.role
-                    ? String(confirmDelete.role).replace(/_/g, " ")
-                    : "—"}
-                </span>
-              </div>
-            </div>
+        <p className="text-gray-600 text-base">
+          Are you sure you want to delete{" "}
+          <span className="text-red-600 font-semibold">
+            {confirmDelete.name}
+          </span>?
+        </p>
 
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(null)}
-                disabled={deleteLoading}
-                className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDelete(confirmDelete.id)}
-                disabled={deleteLoading}
-                className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium disabled:opacity-60"
-              >
-                {deleteLoading ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
+        {/* DETAILS BOX */}
+        <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600 space-y-1">
+          <p>
+            <span className="text-gray-400">Employee ID:</span>{" "}
+            <span className="font-mono font-semibold text-gray-800">
+              {confirmDelete.employeeId || "—"}
+            </span>
+          </p>
+
+          <p>
+            <span className="text-gray-400">Role:</span>{" "}
+            <span className="font-medium">
+              {confirmDelete.role
+                ? confirmDelete.role.replace(/_/g, " ")
+                : "—"}
+            </span>
+          </p>
         </div>
-      )}
+
+        {/* WARNING */}
+        <div className="text-sm text-gray-400">
+          This action cannot be undone.
+        </div>
+
+      </div>
+
+      {/* BUTTONS */}
+      <div className="flex gap-4">
+        <button
+          onClick={() => setConfirmDelete(null)}
+          disabled={deleteLoading}
+          className="flex-1 py-3 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition disabled:opacity-60"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={() => handleDelete(confirmDelete.id)}
+          disabled={deleteLoading}
+          className="flex-1 py-3 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold transition disabled:opacity-60"
+        >
+          {deleteLoading ? "Deleting..." : "Delete"}
+        </button>
+      </div>
+
+    </div>
+  </div>
+)}
 
     </div>
   );

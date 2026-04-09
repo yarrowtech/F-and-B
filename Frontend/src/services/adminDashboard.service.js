@@ -23,3 +23,8 @@ export const getTopItems = (params = {}) => {
 export const getDailySales = (params = {}) => {
   return API.get("/admin-dashboard/daily-sales", { params });
 };
+
+/* ================= RESTAURANT BREAKDOWN ================= */
+export const getRestaurantBreakdown = (params = {}) => {
+  return API.get("/admin-dashboard/restaurant-breakdown", { params });
+};
