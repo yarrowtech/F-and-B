@@ -1,32 +1,50 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import {
+  ArrowUpRight,
+  Building2,
+  ShieldCheck,
+  Users,
+  UserCog,
+} from "lucide-react";
 import API from "../../services/api";
 
-const cardStyle =
-  "rounded-2xl border border-gray-100 bg-white p-4 sm:p-6 shadow-sm dark:border-neutral-700 dark:bg-neutral-800";
+const shellCard =
+  "rounded-xl border border-white/50 bg-white/80 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.45)] backdrop-blur dark:border-white/10 dark:bg-[#171c25]";
 
-const SummaryCard = ({ title, value, subtext }) => (
+const SummaryCard = ({ title, value, subtext, icon: Icon, accent }) => (
   <motion.div
-    initial={{ opacity: 0, y: 16 }}
+    initial={{ opacity: 0, y: 18 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.35 }}
-    className={cardStyle}
+    className={`${shellCard} overflow-hidden`}
   >
-    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-      {title}
-    </p>
-    <p className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">
-      {value}
-    </p>
-    {subtext ? (
-      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{subtext}</p>
-    ) : null}
+    <div className="flex items-start justify-between gap-4 bg-gradient-to-br from-white/60 via-white/95 to-white/70 p-5 dark:from-white/5 dark:via-white/[0.07] dark:to-white/[0.03]">
+      <div>
+        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+          {title}
+        </p>
+        <p className="mt-3 text-3xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
+          {value}
+        </p>
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          {subtext}
+        </p>
+      </div>
+      <div
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${accent}`}
+      >
+        <Icon size={22} />
+      </div>
+    </div>
   </motion.div>
 );
 
 const Dashboard = () => {
   const [summary, setSummary] = useState({
     totalAdmins: 0,
+    totalEmployees: 0,
+    totalVendors: 0,
     totalUsersExcludingSuperadmin: 0,
   });
   const [loading, setLoading] = useState(true);
@@ -38,6 +56,8 @@ const Dashboard = () => {
         const res = await API.get("/super_admin/dashboard-summary");
         setSummary({
           totalAdmins: res.data?.data?.totalAdmins || 0,
+          totalEmployees: res.data?.data?.totalEmployees || 0,
+          totalVendors: res.data?.data?.totalVendors || 0,
           totalUsersExcludingSuperadmin:
             res.data?.data?.totalUsersExcludingSuperadmin || 0,
         });
@@ -51,32 +71,121 @@ const Dashboard = () => {
     fetchSummary();
   }, []);
 
+  const statCards = useMemo(
+    () => [
+      {
+        title: "Total Admins",
+        value: summary.totalAdmins,
+        subtext: "Business accounts currently managed",
+        icon: ShieldCheck,
+        accent:
+          "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300",
+      },
+      {
+        title: "Employees",
+        value: summary.totalEmployees,
+        subtext: "Staff records across all operations",
+        icon: Users,
+        accent:
+          "bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300",
+      },
+      {
+        title: "Vendors",
+        value: summary.totalVendors,
+        subtext: "External supply partners in the system",
+        icon: Building2,
+        accent:
+          "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300",
+      },
+      {
+        title: "Platform Users",
+        value: summary.totalUsersExcludingSuperadmin,
+        subtext: "Excluding the super admin account",
+        icon: UserCog,
+        accent:
+          "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300",
+      },
+    ],
+    [summary]
+  );
+
   return (
-    <div className="min-h-full space-y-8 bg-white p-4 sm:p-6 md:p-8 dark:bg-zinc-900">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-800 dark:text-gray-100">
-          Dashboard
-        </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Live application totals
-        </p>
-      </div>
+    <div className="space-y-6">
+      <section className={`${shellCard} overflow-hidden`}>
+        <div className="grid gap-6 bg-gradient-to-br from-emerald-100 via-sky-50 to-amber-100 px-5 py-6 lg:grid-cols-[1.35fr_0.85fr] lg:px-6 dark:from-[#1a2230] dark:via-[#182129] dark:to-[#231d1b]">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-rose-600 dark:text-rose-300">
+              Overview
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
+              Platform activity at a glance
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-300">
+              Review system-wide account volume, operational reach, and current platform scale without leaving the dashboard.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-3 text-sm">
+              <div className="rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-3 text-white shadow-sm">
+                <span className="block text-xs uppercase tracking-[0.18em] opacity-75">
+                  Coverage
+                </span>
+                <span className="mt-1 block font-semibold">
+                  Admins, employees, and vendors
+                </span>
+              </div>
+              <div className="rounded-lg bg-gradient-to-r from-sky-500 to-cyan-500 px-4 py-3 text-white shadow-sm">
+                <span className="block text-xs uppercase tracking-[0.18em] opacity-75">
+                  Visibility
+                </span>
+                <span className="mt-1 block font-semibold">
+                  Live totals from the current database
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-gradient-to-br from-[#ff6b6b] via-[#f97316] to-[#fbbf24] p-5 text-white shadow-[0_20px_45px_-28px_rgba(249,115,22,0.9)]">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/80">
+              Total footprint
+            </p>
+            <p className="mt-4 text-5xl font-semibold tracking-tight">
+              {loading ? "--" : summary.totalUsersExcludingSuperadmin}
+            </p>
+            <p className="mt-3 text-sm text-white/85">
+              Active user records across platform operations.
+            </p>
+
+            <div className="mt-8 space-y-3">
+              <div className="flex items-center justify-between rounded-lg bg-white/15 px-4 py-3 backdrop-blur-sm">
+                <span className="text-sm text-white/85">Admin accounts</span>
+                <span className="inline-flex items-center gap-2 font-semibold">
+                  {loading ? "--" : summary.totalAdmins}
+                  <ArrowUpRight size={16} />
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-white/15 px-4 py-3 backdrop-blur-sm">
+                <span className="text-sm text-white/85">Vendor records</span>
+                <span className="font-semibold">
+                  {loading ? "--" : summary.totalVendors}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {loading ? (
-        <div className={cardStyle}>
+        <div className={`${shellCard} p-5`}>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Loading dashboard...
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <SummaryCard title="Total Admins" value={summary.totalAdmins} />
-          <SummaryCard
-            title="Total Users"
-            value={summary.totalUsersExcludingSuperadmin}
-            subtext="Excluding superadmin"
-          />
-        </div>
+        <section className="grid grid-cols-1 gap-5 xl:grid-cols-2 2xl:grid-cols-4">
+          {statCards.map((card) => (
+            <SummaryCard key={card.title} {...card} />
+          ))}
+        </section>
       )}
     </div>
   );

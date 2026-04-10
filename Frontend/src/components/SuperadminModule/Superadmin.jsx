@@ -53,7 +53,7 @@ function SuperAdminProfileButton() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 text-sm font-bold text-white shadow-sm transition hover:from-emerald-600 hover:to-cyan-600"
         title={name}
       >
         {name.charAt(0).toUpperCase()}
@@ -67,7 +67,7 @@ function SuperAdminProfileButton() {
             onClick={() => setOpen(false)}
           />
 
-          <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-xl border border-white/10 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900">
+          <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-xl border border-white/20 bg-gradient-to-br from-white via-emerald-50 to-sky-50 shadow-2xl dark:border-neutral-700 dark:bg-gradient-to-br dark:from-[#1b222c] dark:via-[#182028] dark:to-[#231b20]">
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-neutral-800">
               <div>
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -87,7 +87,7 @@ function SuperAdminProfileButton() {
 
             <div className="space-y-5 p-5">
               <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-2xl font-bold text-white">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 text-2xl font-bold text-white">
                   {name.charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0">
@@ -100,7 +100,7 @@ function SuperAdminProfileButton() {
                 </div>
               </div>
 
-              <div className="rounded-xl bg-gray-50 p-4 dark:bg-neutral-800">
+              <div className="rounded-xl bg-white/70 p-4 dark:bg-white/5">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Status</span>
                   <span
@@ -116,7 +116,7 @@ function SuperAdminProfileButton() {
 
               <button
                 onClick={handleLogout}
-                className="w-full rounded-lg bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700"
+                className="w-full rounded-lg bg-gradient-to-r from-rose-500 to-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:from-rose-600 hover:to-orange-600"
               >
                 Logout
               </button>
@@ -196,7 +196,7 @@ const SuperAdmin = () => {
   const currentMeta = sectionMeta[active] || sectionMeta.dashboard;
 
   return (
-    <div className="flex h-[100dvh] w-full bg-[#f4f7f2] text-gray-900 dark:bg-[#0f1412] dark:text-white">
+    <div className="flex h-[100dvh] w-full bg-gradient-to-br from-emerald-50 via-sky-50 to-amber-50 text-gray-900 dark:bg-gradient-to-br dark:from-[#10151d] dark:via-[#131a23] dark:to-[#1f1820] dark:text-white">
       <Sidebar
         activeSection={active}
         setActiveSection={handleSetActive}
@@ -206,7 +206,7 @@ const SuperAdmin = () => {
 
       <div className="flex min-w-0 flex-1">
         <aside
-          className={`hidden border-r border-black/5 bg-white/80 backdrop-blur xl:block dark:border-white/10 dark:bg-[#111714] ${
+          className={`hidden border-r border-white/30 bg-gradient-to-b from-white/90 via-emerald-50/80 to-sky-50/80 backdrop-blur xl:block dark:border-white/10 dark:bg-gradient-to-b dark:from-[#141b24] dark:via-[#151d24] dark:to-[#1d1821] ${
             collapsedSidebar ? "w-24" : "w-72"
           } transition-all duration-300`}
         >
@@ -218,12 +218,12 @@ const SuperAdmin = () => {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b border-black/5 bg-white/80 backdrop-blur dark:border-white/10 dark:bg-[#111714]/90">
+          <header className="sticky top-0 z-30 border-b border-white/30 bg-gradient-to-r from-white/80 via-emerald-50/80 to-sky-50/80 backdrop-blur dark:border-white/10 dark:bg-gradient-to-r dark:from-[#151b23]/95 dark:via-[#18202a]/95 dark:to-[#211a21]/95">
             <div className="flex items-center justify-between gap-4 px-4 py-4 sm:px-6">
               <div className="flex min-w-0 items-center gap-3">
                 <button
                   onClick={() => setSidebarOpen(true)}
-                  className="rounded-lg border border-gray-200 bg-white p-2.5 text-gray-700 transition hover:bg-gray-50 xl:hidden dark:border-neutral-700 dark:bg-neutral-900 dark:text-gray-200 dark:hover:bg-neutral-800"
+                  className="rounded-lg border border-white/60 bg-white/80 p-2.5 text-gray-700 transition hover:bg-white xl:hidden dark:border-neutral-700 dark:bg-neutral-900 dark:text-gray-200 dark:hover:bg-neutral-800"
                   aria-label="Open menu"
                 >
                   <Menu size={18} />
@@ -231,7 +231,7 @@ const SuperAdmin = () => {
 
                 <button
                   onClick={() => setCollapsedSidebar((value) => !value)}
-                  className="hidden rounded-lg border border-gray-200 bg-white p-2.5 text-gray-700 transition hover:bg-gray-50 xl:inline-flex dark:border-neutral-700 dark:bg-neutral-900 dark:text-gray-200 dark:hover:bg-neutral-800"
+                  className="hidden rounded-lg border border-white/60 bg-white/80 p-2.5 text-gray-700 transition hover:bg-white xl:inline-flex dark:border-neutral-700 dark:bg-neutral-900 dark:text-gray-200 dark:hover:bg-neutral-800"
                   aria-label="Toggle sidebar width"
                 >
                   {collapsedSidebar ? (
@@ -242,7 +242,7 @@ const SuperAdmin = () => {
                 </button>
 
                 <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-rose-500 dark:text-rose-300">
                     Super Admin
                   </p>
                   <h1 className="truncate text-lg font-semibold sm:text-2xl">
@@ -252,13 +252,13 @@ const SuperAdmin = () => {
               </div>
 
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className="hidden items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 lg:flex dark:border-neutral-700 dark:bg-neutral-900 dark:text-gray-400">
+                <div className="hidden items-center gap-3 rounded-lg border border-white/60 bg-white/80 px-3 py-2 text-sm text-gray-500 lg:flex dark:border-neutral-700 dark:bg-neutral-900 dark:text-gray-400">
                   <Search size={16} />
                   <span className="max-w-44 truncate">Search panels, users, and notes</span>
                 </div>
 
                 <button
-                  className="rounded-lg border border-gray-200 bg-white p-2.5 text-gray-600 transition hover:bg-gray-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-gray-300 dark:hover:bg-neutral-800"
+                  className="rounded-lg border border-white/60 bg-white/80 p-2.5 text-gray-600 transition hover:bg-white dark:border-neutral-700 dark:bg-neutral-900 dark:text-gray-300 dark:hover:bg-neutral-800"
                   aria-label="Notifications"
                 >
                   <Bell size={18} />
@@ -266,7 +266,7 @@ const SuperAdmin = () => {
 
                 <button
                   onClick={() => setDarkMode((value) => !value)}
-                  className="rounded-lg border border-gray-200 bg-white p-2.5 text-gray-600 transition hover:bg-gray-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-gray-300 dark:hover:bg-neutral-800"
+                  className="rounded-lg border border-white/60 bg-white/80 p-2.5 text-gray-600 transition hover:bg-white dark:border-neutral-700 dark:bg-neutral-900 dark:text-gray-300 dark:hover:bg-neutral-800"
                   aria-label="Toggle theme"
                 >
                   {darkMode ? <Sun size={18} /> : <Moon size={18} />}
@@ -281,7 +281,7 @@ const SuperAdmin = () => {
             ref={mainRef}
             className="min-h-0 flex-1 overflow-y-auto bg-transparent px-4 py-4 sm:px-6 sm:py-6"
           >
-            <div className="mb-6 rounded-xl border border-black/5 bg-white px-5 py-5 shadow-sm dark:border-white/10 dark:bg-[#131916]">
+            <div className="mb-6 rounded-xl border border-white/40 bg-gradient-to-r from-white via-emerald-50/80 to-amber-50/80 px-5 py-5 shadow-[0_18px_40px_-28px_rgba(14,165,233,0.45)] dark:border-white/10 dark:bg-gradient-to-r dark:from-[#181f28] dark:via-[#172129] dark:to-[#231d22]">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -292,10 +292,10 @@ const SuperAdmin = () => {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs font-medium">
-                  <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                  <span className="rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1.5 text-white">
                     Live session
                   </span>
-                  <span className="rounded-full bg-gray-100 px-3 py-1.5 text-gray-700 dark:bg-white/5 dark:text-gray-300">
+                  <span className="rounded-full bg-gradient-to-r from-sky-500 to-cyan-500 px-3 py-1.5 text-white">
                     Control center
                   </span>
                 </div>
