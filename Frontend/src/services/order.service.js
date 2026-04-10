@@ -151,11 +151,6 @@ export const acceptOrder = async (id) => {
 
 /* Update Status */
 export const updateOrderStatusApi = async (id, status) => {
-  if (status === "PREPARING") {
-    const res = await api.put(`/order/${id}/preparing`);
-    return res.data?.data || null;
-  }
-
   if (status === "READY") {
     const res = await api.put(`/order/${id}/ready`);
     return res.data?.data || null;

@@ -4,7 +4,6 @@ import Employee from "../models/Employee.model.js";
 import Log from "../models/Log.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import SuperAdmin from "../models/superAdmin.js";
-import Vendor from "../models/Vendor.model.js";
 import generateToken from "../utils/generateToken.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -274,10 +273,9 @@ export const getAllAdmins = async (_req, res) => {
 /* ================= DASHBOARD SUMMARY ================= */
 export const getSuperAdminDashboardSummary = async (_req, res) => {
   try {
-    const [totalAdmins, totalEmployees, totalVendors] = await Promise.all([
+    const [totalAdmins, totalEmployees] = await Promise.all([
       Admin.countDocuments({}),
       Employee.countDocuments({}),
-      Vendor.countDocuments({}),
     ]);
 
     res.json({
@@ -285,8 +283,7 @@ export const getSuperAdminDashboardSummary = async (_req, res) => {
       data: {
         totalAdmins,
         totalEmployees,
-        totalVendors,
-        totalUsersExcludingSuperadmin: totalAdmins + totalEmployees + totalVendors,
+        totalUsersExcludingSuperadmin: totalAdmins + totalEmployees,
       },
     });
   } catch (error) {

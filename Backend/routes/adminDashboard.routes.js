@@ -5,6 +5,7 @@ import {
   getTopItems,
   getDailySales,
   getRestaurantBreakdown,
+  getAdminAccountHistory,
 } from "../controllers/adminDashboard.controller.js";
 import auth from "../middlewares/auth.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
@@ -48,5 +49,7 @@ router.get("/top-items", getTopItems);
 router.get("/daily-sales", getDailySales);
 
 router.get("/restaurant-breakdown", getRestaurantBreakdown);
+
+router.get("/account-history", getAdminAccountHistory);
 
 export default router;

@@ -1,188 +1,183 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { FaBars, FaCogs, FaEnvelope, FaBell } from "react-icons/fa";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { FaBars, FaSignOutAlt } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
-import WaiterSidebar from "../WaiterModule/WaiterSidebar";
-import WaiterManagement from "../WaiterModule/WaiterManagement"
-import WaiterAttendancePage from "../WaiterModule/WaiterAttendance";
-import WaiterProfile from "../WaiterModule/WaiterProfile";
-import WaiterNotes from "../WaiterModule/WaiterNotes";
-import SettingsPage from "../WaiterModule/WaiterSettings";
-import WaiterMessage from "../WaiterModule/WaiterMessages";
-import WaiterNotifications from "../WaiterModule/WaiterNotification";
-import WaiterDashboard from "../WaiterModule/WaiterDashboard";
 
+import WaiterSidebar from "./WaiterSidebar";
+import WaiterManagement from "./WaiterManagement";
+import WaiterAttendancePage from "./WaiterAttendance";
+import WaiterProfile from "./WaiterProfile";
+import WaiterNotes from "./WaiterNotes";
+import SettingsPage from "./WaiterSettings";
+import WaiterMessage from "./WaiterMessages";
+import WaiterNotifications from "./WaiterNotification";
+import WaiterDashboard from "./WaiterDashboard";
 
-const Placeholder = ({ title }) => (
-  <div className="p-6 text-green-800 dark:text-green-200">
-    <h2 className="text-2xl font-bold">{title}</h2>
-    <p className="mt-2">This page is under development.</p>
-  </div>
-);
+/* ─── Profile Popup ─── */
+function WaiterProfileButton() {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-const Waiter = () => {
-  const [active, setActive] = useState("dashboard");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem("theme");
-    return saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
-  const [unreadNotifications, setUnreadNotifications] = useState(5);
-  const [unreadMessages, setUnreadMessages] = useState(2);
-  const mainRef = useRef(null);
+  const user = JSON.parse(localStorage.getItem("user")) || {};
+  const name       = user?.name       || "Waiter";
+  const employeeId = user?.employeeId || user?.id?.slice(-6) || "N/A";
+  const email      = user?.email      || "";
 
-  /* ----------------- THEME HANDLING ----------------- */
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
-    localStorage.setItem("theme", darkMode ? "dark" : "light");
-  }, [darkMode]);
-
-  /* ----------------- DYNAMIC PAGE TITLE ----------------- */
-  useEffect(() => {
-    document.title = `Waiter - ${active.charAt(0).toUpperCase() + active.slice(1)}`;
-  }, [active]);
-
-  /* ----------------- ACTIVE SECTION HANDLER ----------------- */
-  const handleSetActive = useCallback((section) => {
-    setActive(section);
-    setSidebarOpen(false);
-
-    if (section === "notifications") setUnreadNotifications(0);
-    if (section === "messages") setUnreadMessages(0);
-
-    if (mainRef.current) {
-      mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    const on  = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener("online",  on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
-  /* ----------------- MAIN CONTENT RENDERER ----------------- */
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/waiter-login");
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="rounded-full bg-green-600 hover:bg-green-700 text-white shadow flex items-center justify-center text-lg font-bold transition-colors shrink-0"
+        style={{ width: 42, height: 42 }}
+        title={name}
+      >
+        {name.charAt(0).toUpperCase()}
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-80 mx-4 p-7 z-10">
+            <button
+              onClick={() => setOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl leading-none"
+            >
+              ×
+            </button>
+
+            <div className="flex flex-col items-center gap-3 mb-6">
+              <div className="w-20 h-20 rounded-full bg-green-600 text-white flex items-center justify-center text-4xl font-bold">
+                {name.charAt(0).toUpperCase()}
+              </div>
+              <div className="text-center">
+                <p className="text-xl font-bold text-gray-800 dark:text-white">{name}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Waiter</p>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 space-y-3 mb-6">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500 dark:text-gray-400 font-medium">Employee ID</span>
+                <span className="font-semibold text-gray-800 dark:text-white">{employeeId}</span>
+              </div>
+              {email && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400 font-medium">Email</span>
+                  <span className="font-semibold text-gray-800 dark:text-white truncate max-w-[160px]">{email}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500 dark:text-gray-400 font-medium">Status</span>
+                <span className={`font-semibold ${isOnline ? "text-green-600" : "text-red-500"}`}>
+                  {isOnline ? "● Online" : "● Offline"}
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-semibold text-base transition-colors"
+            >
+              <FaSignOutAlt />
+              Logout
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ─── Main Layout ─── */
+const Waiter = () => {
+  const [active, setActive] = useState("dashboard");
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("isDark") === "true");
+  const mainRef = useRef(null);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode);
+    localStorage.setItem("isDark", String(darkMode));
+  }, [darkMode]);
+
+  useEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
+  }, [active]);
+
+  const handleSetActive = useCallback((section) => setActive(section), []);
+
   const renderContent = () => {
     switch (active) {
-      case "dashboard":
-        return <WaiterDashboard />;
-      case "management":
-        return <WaiterManagement  />;
-      case "attendance":
-        return <WaiterAttendancePage  />;
-      case "notes":
-        return <WaiterNotes />;
-      case "profile":
-        return <WaiterProfile />;
-      case "messages":
-        return <WaiterMessage  />;
-      case "settings":
-        return <SettingsPage  />;
-      case "notifications":
-        return <WaiterNotifications />;
-      default:
-        return <Placeholder title="Coming Soon" />;
+      case "dashboard":    return <WaiterDashboard />;
+      case "management":   return <WaiterManagement />;
+      case "attendance":   return <WaiterAttendancePage />;
+      case "notes":        return <WaiterNotes />;
+      case "profile":      return <WaiterProfile />;
+      case "messages":     return <WaiterMessage />;
+      case "settings":     return <SettingsPage />;
+      case "notifications":return <WaiterNotifications />;
+      default:             return <div className="p-4">Page not found</div>;
     }
   };
 
-  /* ----------------- HEADER ----------------- */
-  const Header = () => (
-    <header className="sticky top-0 z-20 bg-white dark:bg-neutral-800 shadow px-4 py-3 rounded-xl flex items-center justify-between flex-wrap gap-6">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-green-100">
-          Waiter Panel
-        </h1>
-        <p className="text-sm capitalize text-gray-500 dark:text-gray-300">
-          {active.replace("-", " ")}
-        </p>
-      </div>
-      <div className="flex gap-4 items-center text-gray-600 dark:text-gray-300 text-lg relative">
-        {/* Dark/Light Mode Toggle */}
-        <button
-          aria-label="Toggle Dark Mode"
-          onClick={() => setDarkMode(!darkMode)}
-          className="p-2 hover:text-yellow-500 dark:hover:text-yellow-400 transition"
-        >
-          {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
-
-        {/* Notifications */}
-        <button
-          aria-label="Notifications"
-          title="Notifications"
-          className="p-2 hover:text-yellow-500 relative"
-          onClick={() => handleSetActive("notifications")}
-        >
-          <FaBell />
-          {unreadNotifications > 0 && (
-            <span className="absolute -top-1 -right-2 text-[10px] bg-red-600 text-white rounded-full px-1.5 animate-pulse">
-              {unreadNotifications}
-            </span>
-          )}
-        </button>
-
-        {/* Messages */}
-        <button
-          aria-label="Messages"
-          title="Messages"
-          className="p-2 hover:text-green-600 transition relative"
-          onClick={() => handleSetActive("messages")}
-        >
-          <FaEnvelope />
-          {unreadMessages > 0 && (
-            <span className="absolute -top-1 -right-2 text-[10px] bg-blue-600 text-white rounded-full px-1.5 animate-pulse">
-              {unreadMessages}
-            </span>
-          )}
-        </button>
-
-        {/* Settings */}
-        <button
-          aria-label="Settings"
-          title="Settings"
-          className="p-2 hover:text-green-600 transition"
-          onClick={() => handleSetActive("settings")}
-        >
-          <FaCogs />
-        </button>
-      </div>
-    </header>
-  );
-
   return (
-    <div className="flex h-screen bg-green-50 dark:bg-neutral-900 text-gray-800 dark:text-gray-200 overflow-hidden gap-6 p-4">
-      {/* Desktop Sidebar */}
-      <nav className="hidden lg:block w-64 bg-white dark:bg-neutral-800 shadow rounded-xl">
-        <WaiterSidebar activeSection={active} setActiveSection={handleSetActive} />
-      </nav>
-
-      {/* Mobile Sidebar */}
-      <div
-        className={`fixed top-0 left-0 z-[1001] w-64 h-full bg-white dark:bg-neutral-700 shadow-lg transform transition-transform duration-300 rounded-r-xl lg:hidden ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <WaiterSidebar activeSection={active} setActiveSection={handleSetActive} />
+    <div className="h-screen w-full bg-green-50 dark:bg-neutral-900">
+      {/* ===== Mobile Header ===== */}
+      <div className="lg:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between px-4 py-3">
+          <FaBars className="text-gray-600 dark:text-gray-300" />
+          <div className="flex items-center gap-3">
+            <button onClick={() => setDarkMode((v) => !v)}>
+              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <WaiterProfileButton />
+          </div>
+        </div>
       </div>
 
-      {/* Overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-40 z-[1000] cursor-pointer lg:hidden backdrop-blur-sm"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      <div className="flex h-full">
+        {/* ===== Sidebar (desktop) ===== */}
+        <aside className="hidden lg:block w-72 shrink-0">
+          <WaiterSidebar active={active} setActive={handleSetActive} />
+        </aside>
 
-      {/* Sidebar Toggle Button */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-[1002] p-2 bg-white dark:bg-neutral-800 shadow-md rounded-md"
-      >
-        <FaBars size={18} />
-      </button>
+        {/* ===== Right Column ===== */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* ── Top Bar (desktop) ── */}
+          <div className="hidden lg:flex items-center justify-between px-6 py-3 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 capitalize">
+              {active.replace(/-/g, " ")}
+            </p>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setDarkMode((v) => !v)}>
+                {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+              <WaiterProfileButton />
+            </div>
+          </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col gap-6">
-        <Header />
-        <main
-          ref={mainRef}
-          className="flex-1 flex flex-col gap-6 overflow-y-auto bg-white dark:bg-neutral-800 rounded-xl shadow p-6 transition-colors"
-        >
-          {renderContent()}
-        </main>
+          {/* ===== Main Content ===== */}
+          <main
+            ref={mainRef}
+            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-6"
+          >
+            {renderContent()}
+          </main>
+        </div>
       </div>
     </div>
   );

@@ -10,6 +10,9 @@ import {
   getManagerInventory,
   getItemLogs,
   addStockToItem,
+  getMyInventoryStats,
+  getInventoryCategories,
+  addInventoryCategory,
 } from "../controllers/inventory.controller.js";
 
 const router = express.Router();
@@ -23,12 +26,38 @@ router.get(
   getManagerInventory
 );
 
+/* ================= INVENTORY MANAGER DASHBOARD STATS ================= */
+/* GET /api/inventory/my-stats */
+router.get(
+  "/my-stats",
+  auth,
+  allowRoles("inventory_manager"),
+  getMyInventoryStats
+);
+
+/* ================= INVENTORY CATEGORIES ================= */
+/* GET  /api/inventory/categories */
+router.get(
+  "/categories",
+  auth,
+  allowRoles("admin", "manager", "inventory_manager"),
+  getInventoryCategories
+);
+
+/* POST /api/inventory/categories */
+router.post(
+  "/categories",
+  auth,
+  allowRoles("admin", "manager", "inventory_manager"),
+  addInventoryCategory
+);
+
 /* ================= INVENTORY LOGS ================= */
 /* GET /api/inventory/logs/:itemId */
 router.get(
   "/logs/:itemId",
   auth,
-  allowRoles("admin", "manager"),
+  allowRoles("admin", "manager", "inventory_manager"),
   getItemLogs
 );
 

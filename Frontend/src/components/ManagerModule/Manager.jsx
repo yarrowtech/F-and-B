@@ -1,105 +1,190 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { FaBars, FaCogs, FaEnvelope, FaBell, FaHome } from "react-icons/fa";
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { FaBars, FaSignOutAlt } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import ManagerSidebar from "./ManagerSidebar";
 import EmployeeManagement from "./ManagerEmployeeManagement";
 import ManagerInventoryManagement from "./ManagerInventoryManagement";
-import ManagerVendorManagement from "./ManagerVendorManagement";
 import ManagerMenuManagement from "./ManagerMenuManagement";
+import ManagerProfile from "./ManagerProfile";
 import ManagerAccount from "./ManagerAccount";
 import ManagerMessage from "./ManagerMessage";
 import ManagerNotes from "./ManagerNotes";
 import ManagerNotification from "./ManagerNotification";
 import ManagerSettings from "./ManagerSettings";
 import ManagerDashboard from "./ManagerDashboard";
-import ManagerAnalytics from "./ManagerAnalytics";
-import ManagerAttendancePage from "./ManagerAttendence"; // keep same if your file name is this
+import ManagerAttendancePage from "./ManagerAttendence";
 
-const Placeholder = ({ title }) => (
-  <div className="p-6 text-green-800 dark:text-green-200">
-    <h2 className="text-2xl font-bold">{title}</h2>
-    <p className="mt-2">This page is under development.</p>
-  </div>
-);
+/* ─── Profile Popup ─── */
+function ManagerProfileButton() {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-const ManagerPanel = () => {
+  const user = JSON.parse(localStorage.getItem("user")) || {};
+  const name       = user?.name       || "Manager";
+  const employeeId = user?.employeeId || user?.id?.slice(-6) || "N/A";
+  const email      = user?.email      || "";
 
-  const initialDark = () => {
-    const isDarkLS = localStorage.getItem("isDark");
-    if (isDarkLS !== null) return isDarkLS === "true";
-    const theme = localStorage.getItem("theme");
-    if (theme) return theme === "dark";
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  useEffect(() => {
+    const on  = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener("online",  on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/manager-login");
   };
 
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="rounded-full bg-green-600 hover:bg-green-700 text-white shadow flex items-center justify-center text-lg font-bold transition-colors shrink-0"
+        style={{ width: 42, height: 42 }}
+        title={name}
+      >
+        {name.charAt(0).toUpperCase()}
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-80 mx-4 p-7 z-10">
+            <button
+              onClick={() => setOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl leading-none"
+            >
+              ×
+            </button>
+
+            <div className="flex flex-col items-center gap-3 mb-6">
+              <div className="w-20 h-20 rounded-full bg-green-600 text-white flex items-center justify-center text-4xl font-bold">
+                {name.charAt(0).toUpperCase()}
+              </div>
+              <div className="text-center">
+                <p className="text-xl font-bold text-gray-800 dark:text-white">{name}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Manager</p>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 space-y-3 mb-6">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500 dark:text-gray-400 font-medium">Employee ID</span>
+                <span className="font-semibold text-gray-800 dark:text-white">{employeeId}</span>
+              </div>
+              {email && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400 font-medium">Email</span>
+                  <span className="font-semibold text-gray-800 dark:text-white truncate max-w-[160px]">{email}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500 dark:text-gray-400 font-medium">Status</span>
+                <span className={`font-semibold ${isOnline ? "text-green-600" : "text-red-500"}`}>
+                  {isOnline ? "● Online" : "● Offline"}
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-semibold text-base transition-colors"
+            >
+              <FaSignOutAlt />
+              Logout
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ─── Main Layout ─── */
+const ManagerPanel = () => {
   const [active, setActive] = useState("dashboard");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(initialDark);
-
-  const [unreadNotifications, setUnreadNotifications] = useState(5);
-  const [unreadMessages, setUnreadMessages] = useState(3);
-
+  const [darkMode, setDarkMode] = useState(false);
   const mainRef = useRef(null);
+
+  useLayoutEffect(() => {
+    document.documentElement.classList.remove("dark");
+    localStorage.setItem("isDark", "false");
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
     localStorage.setItem("isDark", String(darkMode));
-    localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
 
   useEffect(() => {
-    document.body.style.overflow = sidebarOpen ? "hidden" : "auto";
-  }, [sidebarOpen]);
-
-  useEffect(() => {
-    const pretty = active.replace(/-/g, " ");
-    document.title = `Manager - ${pretty.charAt(0).toUpperCase() + pretty.slice(1)}`;
-    if (mainRef.current) {
-      mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
   }, [active]);
 
-  const handleModeChange = () => setDarkMode((v) => !v);
+  const handleSetActive = useCallback((section) => setActive(section), []);
 
-  const handleSetActive = useCallback((section) => {
-    setActive(section);
-    setSidebarOpen(false);
-    if (section === "notification") setUnreadNotifications(0);
-    if (section === "message") setUnreadMessages(0);
-  }, []);
-
-  /* ✅ FIXED SPELLING HERE */
   const renderContent = () => {
     switch (active) {
-      case "dashboard": return <ManagerDashboard />;
+      case "dashboard":        return <ManagerDashboard />;
       case "staff-management": return <EmployeeManagement />;
-      case "inventory": return <ManagerInventoryManagement />;
-      case "vendor-management": return <ManagerVendorManagement />;
-      case "menu-management": return <ManagerMenuManagement />;
-      case "profile": return <ManagerAccount />;
-      case "analytics": return <ManagerAnalytics />;
-      case "notes": return <ManagerNotes />;
-      case "message": return <ManagerMessage />;
-      case "notification": return <ManagerNotification />;
-      case "settings": return <ManagerSettings />;
-      case "attendance": return <ManagerAttendancePage />; // ✅ CORRECTED
-      default: return <Placeholder title="Coming Soon" />;
+      case "inventory":        return <ManagerInventoryManagement />;
+      case "menu-management":  return <ManagerMenuManagement />;
+      case "account":          return <ManagerAccount />;
+      case "profile":          return <ManagerProfile />;
+      case "notes":            return <ManagerNotes />;
+      case "message":          return <ManagerMessage />;
+      case "notification":     return <ManagerNotification />;
+      case "settings":         return <ManagerSettings />;
+      case "attendance":       return <ManagerAttendancePage />;
+      default:                 return <div className="p-4">Page not found</div>;
     }
   };
 
   return (
-    <div className="h-screen w-full bg-green-50 dark:bg-neutral-900 text-gray-800 dark:text-gray-200">
-      <ManagerSidebar
-        activeSection={active}
-        setActiveSection={handleSetActive}
-      />
+    <div className="h-screen w-full bg-green-50 dark:bg-neutral-900">
+      {/* ===== Mobile Header ===== */}
+      <div className="lg:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between px-4 py-3">
+          <FaBars className="text-gray-600 dark:text-gray-300" />
+          <div className="flex items-center gap-3">
+            <button onClick={() => setDarkMode((v) => !v)}>
+              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <ManagerProfileButton />
+          </div>
+        </div>
+      </div>
 
-      <div className="flex h-screen gap-6 px-3 sm:px-4 py-3 sm:py-4 pt-16 lg:pt-4 lg:pl-80 overflow-hidden">
-        <div className="flex-1 min-w-0 flex flex-col gap-4 sm:gap-6">
+      <div className="flex h-full">
+        {/* ===== Sidebar (desktop) ===== */}
+        <aside className="hidden lg:block w-72 shrink-0">
+          <ManagerSidebar active={active} setActive={handleSetActive} />
+        </aside>
+
+        {/* ===== Right Column ===== */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* ── Top Bar (desktop) ── */}
+          <div className="hidden lg:flex items-center justify-between px-6 py-3 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 capitalize">
+              {active.replace(/-/g, " ")}
+            </p>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setDarkMode((v) => !v)}>
+                {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+              <ManagerProfileButton />
+            </div>
+          </div>
+
+          {/* ===== Main Content ===== */}
           <main
             ref={mainRef}
-            className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-neutral-800 rounded-xl shadow p-4 sm:p-6"
+            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-6"
           >
             {renderContent()}
           </main>

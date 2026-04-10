@@ -28,7 +28,7 @@ router.get("/:restaurantId", auth, getMenu);
 
 router.get("/:restaurantId/:id", auth, getMenuItemById);
 
-router.put("/:restaurantId/:id", auth, allowRoles("admin"), updateMenuItem);
+router.put("/:restaurantId/:id", auth, allowRoles("admin", "manager"), updateMenuItem);
 
 router.delete("/:restaurantId/:id", auth, allowRoles("admin"), deleteMenuItem);
 

@@ -69,6 +69,33 @@ export const getManagerInventory = async () => {
 
 };
 
+/* ================= INVENTORY CATEGORIES ================= */
+/* GET /api/inventory/categories */
+export const getInventoryCategories = async (restaurantId = null) => {
+  const url = restaurantId
+    ? `/inventory/categories?restaurantId=${restaurantId}`
+    : "/inventory/categories";
+  const res = await api.get(url);
+  return Array.isArray(res.data?.data) ? res.data.data : [];
+};
+
+/* POST /api/inventory/categories */
+export const addInventoryCategory = async (name, restaurantId = null) => {
+  const body = { name };
+  if (restaurantId) body.restaurantId = restaurantId;
+  const res = await api.post("/inventory/categories", body);
+  return res.data?.data || null;
+};
+
+/* ================= INVENTORY MANAGER DASHBOARD STATS ================= */
+/* GET /api/inventory/my-stats */
+export const getMyInventoryStats = async ({ period = "today", from = "", to = "" } = {}) => {
+  let url = `/inventory/my-stats?period=${period}`;
+  if (period === "custom" && from && to) url += `&from=${from}&to=${to}`;
+  const res = await api.get(url);
+  return res.data?.data || {};
+};
+
 /* ================= INVENTORY LOGS ================= */
 /* GET /api/inventory/logs/:itemId */
 

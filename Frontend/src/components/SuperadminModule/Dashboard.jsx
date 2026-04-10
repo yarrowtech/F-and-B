@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowUpRight,
-  Building2,
   ShieldCheck,
   Users,
   UserCog,
@@ -44,7 +43,6 @@ const Dashboard = () => {
   const [summary, setSummary] = useState({
     totalAdmins: 0,
     totalEmployees: 0,
-    totalVendors: 0,
     totalUsersExcludingSuperadmin: 0,
   });
   const [loading, setLoading] = useState(true);
@@ -57,7 +55,6 @@ const Dashboard = () => {
         setSummary({
           totalAdmins: res.data?.data?.totalAdmins || 0,
           totalEmployees: res.data?.data?.totalEmployees || 0,
-          totalVendors: res.data?.data?.totalVendors || 0,
           totalUsersExcludingSuperadmin:
             res.data?.data?.totalUsersExcludingSuperadmin || 0,
         });
@@ -88,14 +85,6 @@ const Dashboard = () => {
         icon: Users,
         accent:
           "bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300",
-      },
-      {
-        title: "Vendors",
-        value: summary.totalVendors,
-        subtext: "External supply partners in the system",
-        icon: Building2,
-        accent:
-          "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300",
       },
       {
         title: "Platform Users",
@@ -130,7 +119,7 @@ const Dashboard = () => {
                   Coverage
                 </span>
                 <span className="mt-1 block font-semibold">
-                  Admins, employees, and vendors
+                  Admins and employees
                 </span>
               </div>
               <div className="rounded-lg bg-gradient-to-r from-sky-500 to-cyan-500 px-4 py-3 text-white shadow-sm">
@@ -164,9 +153,10 @@ const Dashboard = () => {
                 </span>
               </div>
               <div className="flex items-center justify-between rounded-lg bg-white/15 px-4 py-3 backdrop-blur-sm">
-                <span className="text-sm text-white/85">Vendor records</span>
-                <span className="font-semibold">
-                  {loading ? "--" : summary.totalVendors}
+                <span className="text-sm text-white/85">Employee records</span>
+                <span className="inline-flex items-center gap-2 font-semibold">
+                  {loading ? "--" : summary.totalEmployees}
+                  <ArrowUpRight size={16} />
                 </span>
               </div>
             </div>
@@ -181,7 +171,7 @@ const Dashboard = () => {
           </p>
         </div>
       ) : (
-        <section className="grid grid-cols-1 gap-5 xl:grid-cols-2 2xl:grid-cols-4">
+        <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
           {statCards.map((card) => (
             <SummaryCard key={card.title} {...card} />
           ))}

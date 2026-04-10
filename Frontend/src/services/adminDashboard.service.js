@@ -28,3 +28,8 @@ export const getDailySales = (params = {}) => {
 export const getRestaurantBreakdown = (params = {}) => {
   return API.get("/admin-dashboard/restaurant-breakdown", { params });
 };
+
+/* ================= ACCOUNT HISTORY ================= */
+export const getAdminAccountHistory = (params = {}) => {
+  return API.get("/admin-dashboard/account-history", { params });
+};

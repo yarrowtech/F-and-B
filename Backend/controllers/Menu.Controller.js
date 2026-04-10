@@ -405,7 +405,28 @@ export const updateMenuItem = async (req, res) => {
       });
     }
 
-    if (item.restaurant.admin.toString() !== req.user.id) {
+    const isAdmin = req.user.role === "admin";
+    const isManager = req.user.role === "manager";
+
+    if (isAdmin) {
+      if (item.restaurant.admin.toString() !== req.user.id) {
+        return res.status(403).json({
+          message: "Access denied",
+        });
+      }
+    } else if (isManager) {
+      const employee = await Employee.findById(req.user.id).select("restaurant");
+
+      if (
+        !employee ||
+        !employee.restaurant ||
+        employee.restaurant.toString() !== restaurantId
+      ) {
+        return res.status(403).json({
+          message: "Access denied",
+        });
+      }
+    } else {
       return res.status(403).json({
         message: "Access denied",
       });
@@ -421,16 +442,24 @@ export const updateMenuItem = async (req, res) => {
       ingredients,
     } = req.body;
 
+    if (isManager) {
+      if (isAvailable === undefined) {
+        return res.status(400).json({
+          message: "Availability status is required",
+        });
+      }
+
+      item.isAvailable = Boolean(isAvailable);
+      await item.save();
+      return res.json(item);
+    }
+
     if (name !== undefined) item.name = name.trim();
     if (price !== undefined) item.price = Number(price);
-    if (cuisine !== undefined)
-      item.cuisine = cuisine.trim();
-    if (courseType !== undefined)
-      item.courseType = courseType.trim();
-    if (description !== undefined)
-      item.description = description;
-    if (isAvailable !== undefined)
-      item.isAvailable = isAvailable;
+    if (cuisine !== undefined) item.cuisine = cuisine.trim();
+    if (courseType !== undefined) item.courseType = courseType.trim();
+    if (description !== undefined) item.description = description;
+    if (isAvailable !== undefined) item.isAvailable = isAvailable;
 
     /* 🔥 Validate ingredients if updating (empty array allowed) */
     if (ingredients !== undefined) {
@@ -516,20 +545,29 @@ export const getMenuOrdersByDate = async (req, res) => {
     const { date, range } = req.query;
 
     /* 🔒 Verify employee belongs to restaurant */
-    const employee = await Employee.findById(req.user.id);
+    if (req.user.role === "admin") {
+      const restaurant = await Restaurant.findOne({
+        _id: restaurantId,
+        admin: req.user.id,
+      });
 
-    if (
-      !employee ||
-      !employee.restaurant ||
-      employee.restaurant.toString() !== restaurantId
-    ) {
-      return res.status(403).json({ message: "Access denied" });
+      if (!restaurant) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    } else {
+      const employee = await Employee.findById(req.user.id);
+
+      if (
+        !employee ||
+        !employee.restaurant ||
+        employee.restaurant.toString() !== restaurantId
+      ) {
+        return res.status(403).json({ message: "Access denied" });
+      }
     }
 
     let start;
     let end;
-
-    const now = new Date();
 
     /* ================= RANGE SUPPORT ================= */
 
@@ -541,19 +579,18 @@ export const getMenuOrdersByDate = async (req, res) => {
       end.setHours(23, 59, 59, 999);
     }
 
-    else if (range === "yesterday") {
+    else if (range === "last7days" || range === "week") {
       start = new Date();
-      start.setDate(start.getDate() - 1);
+      start.setDate(start.getDate() - 6);
       start.setHours(0, 0, 0, 0);
 
       end = new Date();
-      end.setDate(end.getDate() - 1);
       end.setHours(23, 59, 59, 999);
     }
 
-    else if (range === "week") {
+    else if (range === "last1month" || range === "month") {
       start = new Date();
-      start.setDate(start.getDate() - 7);
+      start.setDate(start.getDate() - 29);
       start.setHours(0, 0, 0, 0);
 
       end = new Date();

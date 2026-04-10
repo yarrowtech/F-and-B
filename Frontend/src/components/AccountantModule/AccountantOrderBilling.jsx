@@ -1,19 +1,57 @@
 import React, { useEffect, useState } from "react";
 import {
-  FaCashRegister,
-  FaSearch,
   FaCheck,
   FaFilePdf,
+  FaMoneyBillWave,
+  FaReceipt,
+  FaSearch,
+  FaTimes,
 } from "react-icons/fa";
 
-import axios from "axios"; // ✅ ADDED
-
 import {
-  getBillingInbox,
-  getBillingHistory,
-  markBillPaid,
+  customizeBill,
   downloadBillPdf,
+  getBillingHistory,
+  getBillingInbox,
+  markBillPaid,
 } from "../../services/billing.service";
+
+const formatCurrency = (value) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
+
+const sanitizeNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+};
+
+const buildTotals = (itemsTotal, customValues) => {
+  const safeItemsTotal = sanitizeNumber(itemsTotal);
+  const cgstRate = sanitizeNumber(customValues.cgstRate);
+  const sgstRate = sanitizeNumber(customValues.sgstRate);
+  const serviceCharge = sanitizeNumber(customValues.serviceCharge);
+  const discount = sanitizeNumber(customValues.discount);
+
+  const cgst = Number((safeItemsTotal * (cgstRate / 100)).toFixed(2));
+  const sgst = Number((safeItemsTotal * (sgstRate / 100)).toFixed(2));
+  const grossAmount = safeItemsTotal + cgst + sgst + serviceCharge;
+  const finalDiscount = Math.min(discount, grossAmount);
+  const totalAmount = Number((grossAmount - finalDiscount).toFixed(2));
+
+  return {
+    itemsTotal: safeItemsTotal,
+    cgstRate,
+    sgstRate,
+    cgst,
+    sgst,
+    serviceCharge,
+    discount: finalDiscount,
+    totalAmount,
+  };
+};
 
 export default function AccountantOrderBilling() {
   const [bills, setBills] = useState([]);
@@ -21,8 +59,19 @@ export default function AccountantOrderBilling() {
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("INBOX");
   const [paymentMethod, setPaymentMethod] = useState({});
+  const [selectedBill, setSelectedBill] = useState(null);
+  const [customValues, setCustomValues] = useState({
+    cgstRate: 2.5,
+    sgstRate: 2.5,
+    serviceCharge: 0,
+    discount: 0,
+    customerEmail: "",
+    customerPhone: "",
+    sendToEmail: false,
+    sendToPhone: false,
+  });
+  const [savingBill, setSavingBill] = useState(false);
 
-  /* ================= FETCH BILLS ================= */
   const fetchBills = async () => {
     try {
       setLoading(true);
@@ -45,186 +94,586 @@ export default function AccountantOrderBilling() {
     fetchBills();
   }, [tab]);
 
-  /* ================= PAY BILL ================= */
+  const openBillModal = (bill) => {
+    setSelectedBill(bill);
+    setCustomValues({
+      cgstRate: Number(bill.cgstRate ?? 2.5),
+      sgstRate: Number(bill.sgstRate ?? 2.5),
+      serviceCharge: Number(bill.serviceCharge ?? 0),
+      discount: Number(bill.discount ?? 0),
+      customerEmail: bill.customerEmail || "",
+      customerPhone: bill.customerPhone || "",
+      sendToEmail: false,
+      sendToPhone: false,
+    });
+  };
+
+  const closeBillModal = () => {
+    setSelectedBill(null);
+    setSavingBill(false);
+  };
+
+  const handleCustomValueChange = (field, value) => {
+    setCustomValues((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleGenerateBill = async () => {
+    if (!selectedBill?._id) return;
+
+    try {
+      setSavingBill(true);
+
+      const response = await customizeBill(selectedBill._id, {
+        cgstRate: sanitizeNumber(customValues.cgstRate),
+        sgstRate: sanitizeNumber(customValues.sgstRate),
+        serviceCharge: sanitizeNumber(customValues.serviceCharge),
+        discount: sanitizeNumber(customValues.discount),
+        customerEmail: customValues.customerEmail,
+        customerPhone: customValues.customerPhone,
+        sendToEmail: customValues.sendToEmail,
+        sendToPhone: customValues.sendToPhone,
+      });
+
+      const updatedBill = response?.bill || response;
+
+      setBills((prev) =>
+        prev.map((bill) =>
+          bill._id === updatedBill._id ? updatedBill : bill
+        )
+      );
+
+      setSelectedBill(updatedBill);
+      await downloadBillPdf(updatedBill._id);
+
+      if (response?.deliveryMessage) {
+        alert(response.deliveryMessage);
+      }
+    } catch (err) {
+      console.error("GENERATE BILL ERROR:", err);
+      alert("Failed to generate bill");
+    } finally {
+      setSavingBill(false);
+    }
+  };
+
   const payBill = async (bill) => {
     try {
       const method = paymentMethod[bill._id] || "CASH";
 
-      // 1️⃣ Existing logic
       await markBillPaid(bill._id, method);
-
-      // 2️⃣ 🔥 IMPORTANT FIX (Mark Order as PAID)
-      if (bill.order?._id) {
-        await axios.put(
-          `http://localhost:5000/api/order/${bill.order._id}/paid`,
-          {},
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-          }
-        );
-      }
-
-      // 3️⃣ Existing logic
-      fetchBills();
-
+      await fetchBills();
       await downloadBillPdf(bill._id);
-
     } catch (err) {
       console.error("PAY BILL ERROR:", err);
       alert("Payment failed");
     }
   };
 
-  /* ================= SEARCH FILTER ================= */
   const filteredBills = Array.isArray(bills)
-    ? bills.filter((b) =>
-        `${b.order?.orderNo || ""} ${
-          b.order?.table?.tableNumber || ""
+    ? bills.filter((bill) =>
+        `${bill.billNo || ""} ${bill.order?.orderNo || ""} ${
+          bill.order?.table?.tableNumber || ""
         }`
           .toLowerCase()
           .includes(search.toLowerCase())
       )
     : [];
 
+  const selectedTotals = selectedBill
+    ? buildTotals(selectedBill.itemsTotal, customValues)
+    : null;
+
   return (
-    <div className="p-6">
-      <div className="flex items-center gap-3 mb-4">
-        <FaCashRegister className="text-2xl text-green-700" />
-        <h1 className="text-2xl font-bold">
-          Accountant – Billing
-        </h1>
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setTab("INBOX")}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  tab === "INBOX"
+                    ? "bg-emerald-600 text-white shadow"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                Pending Bills
+              </button>
+
+              <button
+                onClick={() => setTab("HISTORY")}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  tab === "HISTORY"
+                    ? "bg-slate-900 text-white shadow"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                Paid History
+              </button>
+            </div>
+
+            <div className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 lg:max-w-md">
+              <FaSearch className="text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search bill no, order no or table..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
+          <div className="overflow-x-auto">
+            <table className="min-w-[980px] w-full text-sm">
+              <thead className="bg-slate-900 text-left text-xs uppercase tracking-[0.2em] text-slate-200">
+                <tr>
+                  <th className="px-5 py-4">Bill</th>
+                  <th className="px-5 py-4">Order</th>
+                  <th className="px-5 py-4">Table</th>
+                  <th className="px-5 py-4">Items Total</th>
+                  <th className="px-5 py-4">Grand Total</th>
+                  <th className="px-5 py-4">
+                    {tab === "INBOX" ? "Payment" : "Status"}
+                  </th>
+                  <th className="px-5 py-4">Action</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {loading && (
+                  <tr>
+                    <td colSpan="7" className="px-5 py-10 text-center text-slate-500">
+                      Loading bills...
+                    </td>
+                  </tr>
+                )}
+
+                {!loading && filteredBills.length === 0 && (
+                  <tr>
+                    <td colSpan="7" className="px-5 py-10 text-center text-slate-500">
+                      No bills found for this view.
+                    </td>
+                  </tr>
+                )}
+
+                {!loading &&
+                  filteredBills.map((bill) => (
+                    <tr key={bill._id} className="border-t border-slate-100">
+                      <td className="px-5 py-4">
+                        <div className="font-semibold text-slate-800">
+                          {bill.billNo || bill._id.slice(-6)}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {new Date(
+                            bill.updatedAt || bill.createdAt
+                          ).toLocaleString("en-IN")}
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4 font-medium text-slate-700">
+                        {bill.order?.orderNo || "N/A"}
+                      </td>
+
+                      <td className="px-5 py-4 text-slate-700">
+                        Table {bill.order?.table?.tableNumber || "N/A"}
+                      </td>
+
+                      <td className="px-5 py-4 font-semibold text-slate-700">
+                        {formatCurrency(bill.itemsTotal)}
+                      </td>
+
+                      <td className="px-5 py-4 font-bold text-emerald-700">
+                        {formatCurrency(bill.totalAmount)}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        {tab === "INBOX" ? (
+                          <select
+                            value={paymentMethod[bill._id] || "CASH"}
+                            onChange={(e) =>
+                              setPaymentMethod((prev) => ({
+                                ...prev,
+                                [bill._id]: e.target.value,
+                              }))
+                            }
+                            className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400"
+                          >
+                            <option value="CASH">Cash</option>
+                            <option value="UPI">UPI</option>
+                            <option value="CARD">Card</option>
+                          </select>
+                        ) : (
+                          <div className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                            {bill.paymentMethod || "Paid"}
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          {tab === "INBOX" && (
+                            <>
+                              <button
+                                onClick={() => openBillModal(bill)}
+                                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                              >
+                                <FaReceipt />
+                                Generate Bill
+                              </button>
+
+                              <button
+                                onClick={() => payBill(bill)}
+                                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700"
+                              >
+                                <FaCheck />
+                                Pay
+                              </button>
+                            </>
+                          )}
+
+                          <button
+                            onClick={() => downloadBillPdf(bill._id)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                          >
+                            <FaFilePdf />
+                            PDF
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
-      {/* TABS */}
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => setTab("INBOX")}
-          className={`px-4 py-2 rounded ${
-            tab === "INBOX"
-              ? "bg-green-600 text-white"
-              : "bg-gray-200"
-          }`}
-        >
-          Pending Bills
-        </button>
+      {selectedBill && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 bg-slate-900 px-6 py-5 text-white">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-300">
+                  Bill Preview
+                </p>
+                <h2 className="mt-2 text-2xl font-bold">
+                  {selectedBill.billNo || selectedBill._id.slice(-6)}
+                </h2>
+                <p className="mt-1 text-sm text-slate-300">
+                  Order {selectedBill.order?.orderNo || "N/A"} for Table{" "}
+                  {selectedBill.order?.table?.tableNumber || "N/A"}
+                </p>
+              </div>
 
-        <button
-          onClick={() => setTab("HISTORY")}
-          className={`px-4 py-2 rounded ${
-            tab === "HISTORY"
-              ? "bg-blue-600 text-white"
-              : "bg-gray-200"
-          }`}
-        >
-          Paid History
-        </button>
-      </div>
+              <button
+                onClick={closeBillModal}
+                className="rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20"
+              >
+                <FaTimes />
+              </button>
+            </div>
 
-      {/* SEARCH */}
-      <div className="mb-4 flex items-center gap-2">
-        <FaSearch className="opacity-60" />
-        <input
-          type="text"
-          placeholder="Search table / order..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="border px-3 py-2 rounded w-64"
-        />
-      </div>
+            <div className="grid max-h-[calc(92vh-92px)] gap-0 overflow-y-auto lg:grid-cols-[1.15fr_0.85fr]">
+              <div className="border-b border-slate-200 p-6 lg:border-b-0 lg:border-r">
+                <div className="mb-5 flex items-center gap-2 text-slate-800">
+                  <FaReceipt className="text-emerald-600" />
+                  <h3 className="text-lg font-semibold">Bill Items</h3>
+                </div>
 
-      {/* TABLE */}
-      <div className="bg-white shadow rounded overflow-x-auto">
-        <table className="min-w-[720px] w-full text-sm">
-          <thead className="bg-green-100">
-            <tr>
-              <th className="p-3 text-left">Order</th>
-              <th className="p-3 text-left">Table</th>
-              <th className="p-3 text-left">Amount</th>
-              <th className="p-3 text-left">
-                {tab === "INBOX" ? "Payment" : "Method"}
-              </th>
-              <th className="p-3 text-left">Action</th>
-            </tr>
-          </thead>
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-100 text-slate-600">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Item</th>
+                        <th className="px-4 py-3 text-right">Qty</th>
+                        <th className="px-4 py-3 text-right">Rate</th>
+                        <th className="px-4 py-3 text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedBill.order?.items?.map((item, index) => {
+                        const price = Number(
+                          item.price ?? item.menuItem?.price ?? 0
+                        );
+                        const quantity = Number(item.quantity || 0);
+                        return (
+                          <tr
+                            key={`${item.menuItem?._id || index}-${index}`}
+                            className="border-t border-slate-100"
+                          >
+                            <td className="px-4 py-3 font-medium text-slate-700">
+                              {item.menuItem?.name || "Menu Item"}
+                            </td>
+                            <td className="px-4 py-3 text-right text-slate-600">
+                              {quantity}
+                            </td>
+                            <td className="px-4 py-3 text-right text-slate-600">
+                              {formatCurrency(price)}
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                              {formatCurrency(price * quantity)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan="5" className="p-4 text-center">
-                  Loading...
-                </td>
-              </tr>
-            )}
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-emerald-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-700">
+                      Table
+                    </p>
+                    <p className="mt-2 text-lg font-bold text-slate-800">
+                      {selectedBill.order?.table?.tableNumber || "N/A"}
+                    </p>
+                  </div>
 
-            {!loading && filteredBills.length === 0 && (
-              <tr>
-                <td colSpan="5" className="p-4 text-center">
-                  No bills found
-                </td>
-              </tr>
-            )}
+                  <div className="rounded-2xl bg-slate-100 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+                      Items Total
+                    </p>
+                    <p className="mt-2 text-lg font-bold text-slate-800">
+                      {formatCurrency(selectedBill.itemsTotal)}
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-            {filteredBills.map((b) => (
-              <tr key={b._id} className="border-t">
-                <td className="p-3 font-semibold">
-                  {b.order?.orderNo || b._id.slice(-6)}
-                </td>
+              <div className="bg-slate-50 p-6">
+                <div className="mb-5 flex items-center gap-2 text-slate-800">
+                  <FaMoneyBillWave className="text-emerald-600" />
+                  <h3 className="text-lg font-semibold">Charges & Totals</h3>
+                </div>
 
-                <td className="p-3">
-                  Table {b.order?.table?.tableNumber}
-                </td>
-
-                <td className="p-3 font-bold">
-                  ₹{b.totalAmount}
-                </td>
-
-                <td className="p-3">
-                  {tab === "INBOX" ? (
-                    <select
-                      value={paymentMethod[b._id] || "CASH"}
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      CGST (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={customValues.cgstRate}
                       onChange={(e) =>
-                        setPaymentMethod((prev) => ({
-                          ...prev,
-                          [b._id]: e.target.value,
-                        }))
+                        handleCustomValueChange("cgstRate", e.target.value)
                       }
-                      className="border rounded px-2 py-1"
-                    >
-                      <option value="CASH">Cash</option>
-                      <option value="UPI">UPI</option>
-                      <option value="CARD">Card</option>
-                    </select>
-                  ) : (
-                    <span className="font-semibold">
-                      {b.paymentMethod}
-                    </span>
-                  )}
-                </td>
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400"
+                    />
+                  </div>
 
-                <td className="p-3 flex gap-2">
-                  {tab === "INBOX" && (
-                    <button
-                      onClick={() => payBill(b)}
-                      className="px-3 py-1 rounded bg-green-600 text-white"
-                    >
-                      <FaCheck /> Pay
-                    </button>
-                  )}
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      SGST (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={customValues.sgstRate}
+                      onChange={(e) =>
+                        handleCustomValueChange("sgstRate", e.target.value)
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Other Service Charge
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={customValues.serviceCharge}
+                      onChange={(e) =>
+                        handleCustomValueChange(
+                          "serviceCharge",
+                          e.target.value
+                        )
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Discount
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={customValues.discount}
+                      onChange={(e) =>
+                        handleCustomValueChange("discount", e.target.value)
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p className="mb-4 text-sm font-semibold text-slate-800">
+                      Customer Contact Details
+                    </p>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          placeholder="customer@example.com"
+                          value={customValues.customerEmail}
+                          onChange={(e) =>
+                            handleCustomValueChange(
+                              "customerEmail",
+                              e.target.value
+                            )
+                          }
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Phone Number
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="+91 9876543210"
+                          value={customValues.customerPhone}
+                          onChange={(e) =>
+                            handleCustomValueChange(
+                              "customerPhone",
+                              e.target.value
+                            )
+                          }
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400"
+                        />
+                      </div>
+
+                      <label className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={customValues.sendToEmail}
+                          onChange={(e) =>
+                            handleCustomValueChange(
+                              "sendToEmail",
+                              e.target.checked
+                            )
+                          }
+                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        Send bill to this email
+                      </label>
+
+                      <label className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={customValues.sendToPhone}
+                          onChange={(e) =>
+                            handleCustomValueChange(
+                              "sendToPhone",
+                              e.target.checked
+                            )
+                          }
+                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        Send bill to this phone
+                      </label>
+
+                      {(customValues.sendToEmail || customValues.sendToPhone) && (
+                        <p className="rounded-2xl bg-amber-50 px-4 py-3 text-xs text-amber-700">
+                          Contact sending is optional and the details are saved now.
+                          Automatic delivery will work once email or SMS gateway
+                          settings are added on the server.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {selectedTotals && (
+                  <div className="mt-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+                      Bill Summary
+                    </p>
+
+                    <div className="mt-4 space-y-3 text-sm">
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>Items Total</span>
+                        <span className="font-semibold text-slate-800">
+                          {formatCurrency(selectedTotals.itemsTotal)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>CGST ({selectedTotals.cgstRate}%)</span>
+                        <span className="font-semibold text-slate-800">
+                          {formatCurrency(selectedTotals.cgst)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>SGST ({selectedTotals.sgstRate}%)</span>
+                        <span className="font-semibold text-slate-800">
+                          {formatCurrency(selectedTotals.sgst)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>Service Charge</span>
+                        <span className="font-semibold text-slate-800">
+                          {formatCurrency(selectedTotals.serviceCharge)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>Discount</span>
+                        <span className="font-semibold text-rose-600">
+                          - {formatCurrency(selectedTotals.discount)}
+                        </span>
+                      </div>
+                      <div className="border-t border-dashed border-slate-200 pt-3">
+                        <div className="flex items-center justify-between text-base font-bold text-slate-900">
+                          <span>Grand Total</span>
+                          <span>{formatCurrency(selectedTotals.totalAmount)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                  <button
+                    onClick={handleGenerateBill}
+                    disabled={savingBill}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <FaReceipt />
+                    {savingBill ? "Generating..." : "Generate Bill"}
+                  </button>
 
                   <button
-                    onClick={() => downloadBillPdf(b._id)}
-                    className="px-3 py-1 rounded bg-red-600 text-white"
+                    onClick={closeBillModal}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
                   >
-                    <FaFilePdf /> Bill
+                    <FaTimes />
+                    Close
                   </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

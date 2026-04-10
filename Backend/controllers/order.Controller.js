@@ -1169,6 +1169,7 @@ export const addItemsToOrder = async (req, res) => {
     const order = await Order.findOne({
       _id: req.params.id,
       restaurant: req.user.restaurant,
+      waiter: req.user.id,
       status: { $ne: "PAID" },
     });
 
@@ -1196,8 +1197,20 @@ export const addItemsToOrder = async (req, res) => {
       }
     }
 
-    if (["READY", "SERVED"].includes(order.status)) {
-      order.status = "ACCEPTED";
+    const shouldRestartFlow = ["ACCEPTED", "PREPARING", "READY", "SERVED"].includes(order.status);
+
+    if (shouldRestartFlow) {
+      order.status = "PENDING";
+      order.chef = null;
+      order.acceptedAt = undefined;
+      order.preparingAt = undefined;
+      order.readyAt = undefined;
+      order.servedAt = undefined;
+
+      await Bill.deleteMany({
+        order: order._id,
+        paymentStatus: "PENDING",
+      });
     }
 
     await order.save();
@@ -1245,7 +1258,7 @@ export const getChefOrders = async (req, res) => {
 
     const filter = {
       restaurant: req.user.restaurant,
-      status: { $in: ["PENDING", "ACCEPTED", "PREPARING"] },
+      status: { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY"] },
     };
 
     if (type === "mine") {
@@ -1270,11 +1283,17 @@ export const getChefOrders = async (req, res) => {
 
 export const getWaiterOrders = async (req, res) => {
   try {
+    const { type = "active" } = req.query;
     const filter = {
       restaurant: req.user.restaurant,
       waiter: req.user.id,
-      status: { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY"] },
     };
+
+    if (type === "all") {
+      filter.status = { $ne: "PAID" };
+    } else {
+      filter.status = { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY", "SERVED"] };
+    }
 
     const orders = await Order.find(filter)
       .populate("table", "tableNumber")
@@ -1418,9 +1437,10 @@ export const markReady = async (req, res) => {
     const order = await Order.findOne({
       _id: req.params.id,
       restaurant: req.user.restaurant,
+      status: { $in: ["ACCEPTED", "PREPARING"] },
     });
 
-    if (!order) return sendError(res, "Order not found", 404);
+    if (!order) return sendError(res, "Order must be accepted before marking ready", 404);
 
     order.status = "READY";
     order.readyAt = new Date();
@@ -1447,9 +1467,11 @@ export const markServed = async (req, res) => {
     const order = await Order.findOne({
       _id: req.params.id,
       restaurant: req.user.restaurant,
+      waiter: req.user.id,
+      status: "READY",
     });
 
-    if (!order) return sendError(res, "Order not found", 404);
+    if (!order) return sendError(res, "Order must be ready before serving", 404);
 
     order.status = "SERVED";
     order.servedAt = new Date();
@@ -1463,15 +1485,23 @@ export const markServed = async (req, res) => {
     const existingBill = await Bill.findOne({ order: order._id });
 
     if (!existingBill) {
+      const cgstRate = 2.5;
+      const sgstRate = 2.5;
+      const cgst = Math.round(itemsTotal * (cgstRate / 100));
+      const sgst = Math.round(itemsTotal * (sgstRate / 100));
+
       await Bill.create({
         restaurant: order.restaurant,
         order: order._id,
         table: order.table,
         itemsTotal,
-        cgst: Math.round(itemsTotal * 0.025),
-        sgst: Math.round(itemsTotal * 0.025),
+        cgst,
+        cgstRate,
+        sgst,
+        sgstRate,
+        discount: 0,
         totalAmount:
-          itemsTotal + Math.round(itemsTotal * 0.025) * 2,
+          itemsTotal + cgst + sgst,
         paymentStatus: "PENDING",
       });
     }

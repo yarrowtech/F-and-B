@@ -255,3 +255,76 @@ export const getDailySales = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+/* ================= ACCOUNT HISTORY ================= */
+export const getAdminAccountHistory = async (req, res) => {
+  try {
+    const { restaurantId, startDate, endDate } = req.query;
+
+    const restaurantIds = await getAdminRestaurantIds(req.user.id, restaurantId);
+    if (restaurantIds === null) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Access denied to this restaurant" });
+    }
+
+    const paidAtFilter = buildPaidAtFilter({ startDate, endDate });
+
+    const bills = await Bill.find({
+      restaurant: { $in: restaurantIds },
+      paymentStatus: "PAID",
+      ...paidAtFilter,
+    })
+      .populate("restaurant", "name restaurantCode")
+      .populate({
+        path: "order",
+        select: "orderNo table waiter createdAt paidAt",
+        populate: [
+          { path: "table", select: "tableNumber" },
+          { path: "waiter", select: "name" },
+        ],
+      })
+      .populate("accountant", "name employeeId")
+      .sort({ paidAt: -1, createdAt: -1 })
+      .lean();
+
+    const totalRevenue = bills.reduce(
+      (sum, bill) => sum + Number(bill.totalAmount || 0),
+      0
+    );
+
+    const totalOrders = bills.length;
+    const averageBillValue = totalOrders
+      ? Number((totalRevenue / totalOrders).toFixed(2))
+      : 0;
+
+    const today = new Date();
+    const todayStart = new Date(today);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(today);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const todayCollections = bills.filter((bill) => {
+      const paidAt = bill.paidAt ? new Date(bill.paidAt) : null;
+      return paidAt && paidAt >= todayStart && paidAt <= todayEnd;
+    }).length;
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          totalOrders,
+          totalRevenue,
+          averageBillValue,
+          todayCollections,
+          selectedRestaurantCount: restaurantIds.length,
+        },
+        filters: { restaurantId: restaurantId || "", startDate: startDate || "", endDate: endDate || "" },
+        bills,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

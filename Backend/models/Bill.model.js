@@ -122,6 +122,17 @@ const billSchema = new mongoose.Schema(
       default: null,
     },
 
+    generatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employee",
+      default: null,
+    },
+
+    generatedAt: {
+      type: Date,
+      default: null,
+    },
+
     itemsTotal: {
       type: Number,
       required: true,
@@ -132,14 +143,42 @@ const billSchema = new mongoose.Schema(
       default: 0,
     },
 
+    cgstRate: {
+      type: Number,
+      default: 2.5,
+    },
+
     sgst: {
       type: Number,
       default: 0,
     },
 
+    sgstRate: {
+      type: Number,
+      default: 2.5,
+    },
+
     serviceCharge: {
       type: Number,
       default: 0,
+    },
+
+    discount: {
+      type: Number,
+      default: 0,
+    },
+
+    customerEmail: {
+      type: String,
+      default: "",
+      trim: true,
+      lowercase: true,
+    },
+
+    customerPhone: {
+      type: String,
+      default: "",
+      trim: true,
     },
 
     totalAmount: {

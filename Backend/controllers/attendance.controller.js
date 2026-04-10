@@ -3,6 +3,28 @@ import Employee from "../models/Employee.model.js";
 import ExcelJS from "exceljs";
 import mongoose from "mongoose";
 
+const BUSINESS_TIMEZONE = "Asia/Kolkata";
+
+const formatAttendanceDate = (date) => {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BUSINESS_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  return formatter.format(date);
+};
+
+const getAttendanceDayOfMonth = (date) => {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: BUSINESS_TIMEZONE,
+    day: "numeric",
+  });
+
+  return Number(formatter.format(date));
+};
+
 /* =====================================================
    HELPER: Restaurant-Level Filter
 ===================================================== */
@@ -259,7 +281,7 @@ export const getMonthlyChart = async (req, res) => {
       }).sort({ date: 1 });
 
       const data = ownRecords.map((a) => ({
-        date: a.date.toISOString().split("T")[0],
+        date: formatAttendanceDate(a.date),
         status: a.status,
         checkIn: a.checkIn,
         checkOut: a.checkOut,
@@ -294,7 +316,7 @@ export const getMonthlyChart = async (req, res) => {
       attendanceRecords
         .filter((a) => a.employee.toString() === emp._id.toString())
         .forEach((a) => {
-          const day = new Date(a.date).getDate();
+          const day = getAttendanceDayOfMonth(a.date);
 
           days[day] = {
             status: a.status,
@@ -359,7 +381,7 @@ export const exportAttendanceExcel = async (req, res) => {
         name: r.employee?.name,
         department: r.employee?.department,
         role: r.employee?.role,
-        date: r.date.toISOString().split("T")[0],
+        date: formatAttendanceDate(r.date),
         checkIn: r.checkIn
           ? new Date(r.checkIn).toLocaleTimeString()
           : "-",

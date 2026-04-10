@@ -1,671 +1,438 @@
-// import React, { useState, useMemo } from "react";
-// import jsPDF from "jspdf";
-// import autoTable from "jspdf-autotable";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  FaCalendarAlt,
+  FaFilter,
+  FaMoneyBillWave,
+  FaReceipt,
+  FaStore,
+} from "react-icons/fa";
+import { getAdminAccountHistory } from "../../services/adminDashboard.service";
+import { getRestaurants } from "../../services/restaurant.service";
 
-// // ✅ Floating Input Component
-// const FloatingInput = ({ id, label, type = "text", value, onChange, error, maxLength }) => (
-//   <div className="relative w-full">
-//     <input
-//       id={id}
-//       type={type}
-//       value={value}
-//       onChange={onChange}
-//       placeholder=" "
-//       maxLength={maxLength}
-//       className="peer w-full px-4 pt-5 pb-2 bg-white dark:bg-zinc-800 text-black dark:text-white border border-gray-300 dark:border-zinc-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-//     />
-//     <label
-//       htmlFor={id}
-//       className="absolute left-4 top-2 text-sm text-gray-500 dark:text-gray-300 transition-all
-//         peer-placeholder-shown:top-3.5
-//         peer-placeholder-shown:text-base
-//         peer-placeholder-shown:text-gray-400 dark:peer-placeholder-shown:text-gray-500
-//         peer-focus:top-2
-//         peer-focus:text-sm
-//         peer-focus:text-green-600 peer-focus:drop-shadow-sm"
-//     >
-//       {label}
-//     </label>
-//     {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
-//   </div>
-// );
+const formatCurrency = (value) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
 
-// const AdminAccountManager = () => {
-//   const [activeTab, setActiveTab] = useState("employee");
+const formatDate = (value) =>
+  value ? new Date(value).toLocaleString("en-IN") : "-";
 
-//   const [employees, setEmployees] = useState([]);
-//   const [vendors, setVendors] = useState([]);
-//   const [others, setOthers] = useState([]);
-//   const [history, setHistory] = useState([]);
+const toInputDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
-//   const [formData, setFormData] = useState({
-//     employee: { name: "", employeeId: "", salary: "", accountNumber: "", ifsc: "" },
-//     vendor: { companyName: "", vendorname: "", amount: "", accountNumber: "", ifsc: "" },
-//     others: { label: "", balance: "", accountNumber: "", ifsc: "" },
-//   });
+const getPresetRange = (preset) => {
+  const today = new Date();
+  const end = new Date(today);
+  const start = new Date(today);
 
-//   const [errors, setErrors] = useState({});
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
 
-//   const validate = (type) => {
-//     const data = formData[type];
-//     const errs = {};
+  if (preset === "last7days") {
+    start.setDate(start.getDate() - 6);
+  } else if (preset === "last30days") {
+    start.setDate(start.getDate() - 29);
+  }
 
-//     const requiredFields = {
-//       employee: ["name", "employeeId", "salary", "accountNumber", "ifsc"],
-//       vendor: ["companyName", "vendorname", "amount", "accountNumber", "ifsc"],
-//       others: ["label", "balance", "accountNumber", "ifsc"],
-//     };
+  return {
+    startDate: toInputDate(start),
+    endDate: toInputDate(end),
+  };
+};
 
-//     requiredFields[type].forEach((field) => {
-//       if (!data[field]?.trim()) errs[field] = `${field} is required`;
-//     });
+const presetButtons = [
+  { key: "today", label: "Today" },
+  { key: "last7days", label: "Last 7 Days" },
+  { key: "last30days", label: "Last 30 Days" },
+  { key: "custom", label: "Date Wise" },
+];
 
-//     if (!/^\d{9,16}$/.test(data.accountNumber)) errs.accountNumber = "Enter valid A/C (9–16 digits)";
-//     if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(data.ifsc)) errs.ifsc = "Enter valid IFSC";
-
-//     return errs;
-//   };
-
-//   const handleAdd = () => {
-//     const errs = validate(activeTab);
-//     if (Object.keys(errs).length) {
-//       setErrors(errs);
-//       return;
-//     }
-
-//     const updatedData = [...(activeTab === "employee" ? employees : activeTab === "vendor" ? vendors : others)];
-//     const newEntry = formData[activeTab];
-//     const date = new Date().toLocaleString();
-
-//     updatedData.push(newEntry);
-
-//     if (activeTab === "employee") setEmployees(updatedData);
-//     if (activeTab === "vendor") setVendors(updatedData);
-//     if (activeTab === "others") setOthers(updatedData);
-
-//     setHistory([...history, { ...newEntry, type: activeTab, date }]);
-
-//     setFormData({
-//       ...formData,
-//       [activeTab]: Object.fromEntries(Object.keys(formData[activeTab]).map((k) => [k, ""])),
-//     });
-
-//     setErrors({});
-//   };
-
-//   const handleDelete = (type, index) => {
-//     const update = (arr) => arr.filter((_, i) => i !== index);
-//     if (type === "employee") setEmployees(update(employees));
-//     if (type === "vendor") setVendors(update(vendors));
-//     if (type === "others") setOthers(update(others));
-//   };
-
- 
-
-//   const exportPDF = () => {
-//     const doc = new jsPDF();
-//     const table = history.map((item) => Object.values(item));
-//     const headers = history.length ? Object.keys(history[0]) : [];
-
-//     autoTable(doc, {
-//       head: [headers],
-//       body: table,
-//     });
-//     doc.save("account_history.pdf");
-//   };
-
-//   const tabData = useMemo(() => {
-//     const configs = {
-//       employee: {
-//         data: employees,
-//         fields: [
-//           { id: "name", label: "Name" },
-//           { id: "employeeId", label: "Employee ID" },
-//           { id: "salary", label: "Salary", type: "number" },
-//           { id: "accountNumber", label: "Account Number", maxLength: 16 },
-//           { id: "ifsc", label: "IFSC", maxLength: 11 },
-//         ],
-//       },
-//       vendor: {
-//         data: vendors,
-//         fields: [
-//           { id: "companyName", label: "Company Name" },
-//           { id: "vendorname", label: "Vendor Name" },
-//           { id: "amount", label: "Amount", type: "number" },
-//           { id: "accountNumber", label: "Account Number", maxLength: 16 },
-//           { id: "ifsc", label: "IFSC", maxLength: 11 },
-//         ],
-//       },
-//       others: {
-//         data: others,
-//         fields: [
-//           { id: "label", label: "Service Type (e.g. Plumber, Electrician)" },
-//           { id: "balance", label: "Payable Amount", type: "number" },
-//           { id: "accountNumber", label: "Account Number", maxLength: 16 },
-//           { id: "ifsc", label: "IFSC", maxLength: 11 },
-//         ],
-//       },
-//       history: {
-//         data: history,
-//         form: (
-//           <div className="flex gap-4 flex-wrap">
-//             <button
-//               onClick={exportPDF}
-//               className="bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white px-5 py-2 rounded-xl shadow"
-//             >
-//               Export PDF
-//             </button>
-            
-//           </div>
-//         ),
-//       },
-//     };
-
-//     return configs;
-//   }, [employees, vendors, others, history, formData, errors]);
-
-//   const current = tabData[activeTab];
-
-//   return (
-//     <div className="p-6 bg-white/80 dark:bg-zinc-900 dark:text-white backdrop-blur-xl shadow-2xl rounded-2xl border border-gray-200 dark:border-zinc-800 max-w-6xl mx-auto transition-all">
-//       <h2 className="text-3xl font-bold mb-6 text-left text-black-700 dark:text-green-400">
-//             Account Management 
-//           </h2>
-
-//       <div className="flex gap-4 mb-8 justify-center flex-wrap">
-//         {[
-//           { key: "employee", label: "Employee" },
-//           { key: "vendor", label: "Vendor" },
-//           { key: "others", label: "Others" },
-//           { key: "history", label: "History" },
-//         ].map(({ key, label }) => (
-//           <button
-//             key={key}
-//             onClick={() => setActiveTab(key)}
-//             className={`px-5 py-2.5 rounded-full font-medium transition-all duration-300 shadow-sm ${
-//               activeTab === key
-//                 ? "bg-gradient-to-r from-green-500 to-green-700 text-white"
-//                 : "bg-gray-100 dark:bg-zinc-700 hover:bg-gray-200 dark:hover:bg-zinc-600 text-gray-700 dark:text-white"
-//             }`}
-//           >
-//             {label}
-//           </button>
-//         ))}
-//       </div>
-
-//       {activeTab !== "history" ? (
-//         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-//           {current.fields.map(({ id, label, type, maxLength }) => (
-//             <FloatingInput
-//               key={id}
-//               id={id}
-//               label={label}
-//               type={type || "text"}
-//               value={formData[activeTab][id]}
-//               onChange={(e) =>
-//                 setFormData({
-//                   ...formData,
-//                   [activeTab]: {
-//                     ...formData[activeTab],
-//                     [id]:
-//                       id === "accountNumber"
-//                         ? e.target.value.replace(/\D/g, "").slice(0, maxLength || 16)
-//                         : id === "ifsc"
-//                         ? e.target.value.toUpperCase().slice(0, maxLength || 11)
-//                         : e.target.value,
-//                   },
-//                 })
-//               }
-//               error={errors[id]}
-//               maxLength={maxLength}
-//             />
-//           ))}
-//           <div className="md:col-span-2">
-//             <button
-//               onClick={handleAdd}
-//               className="w-full md:w-auto bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white py-2.5 px-6 rounded-xl shadow-md transition-all"
-//             >
-//               Add {activeTab === "others" ? "Other" : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-//             </button>
-//           </div>
-//         </div>
-//       ) : (
-//         <div className="mb-6">{tabData.history.form}</div>
-//       )}
-
-//       <div>
-//         <h3 className="text-lg font-semibold mb-2">Records:</h3>
-//         {current.data.length === 0 ? (
-//           <p className="text-gray-500 dark:text-gray-300">No data available.</p>
-//         ) : (
-//           <div className="overflow-auto rounded-xl border border-gray-200 dark:border-zinc-700">
-//             <table className="w-full table-auto border-collapse text-sm text-black dark:text-white">
-//               <thead>
-//                 <tr className="bg-gray-100 dark:bg-zinc-800 text-left">
-//                   {Object.keys(current.data[0]).map((key) => (
-//                     <th key={key} className="border px-4 py-2 capitalize">
-//                       {key}
-//                     </th>
-//                   ))}
-//                   {activeTab !== "history" && <th className="border px-4 py-2">Action</th>}
-//                 </tr>
-//               </thead>
-//               <tbody>
-//                 {current.data.map((item, idx) => (
-//                   <tr key={idx} className="hover:bg-green-50 dark:hover:bg-zinc-800 transition-colors duration-200">
-//                     {Object.values(item).map((val, i) => (
-//                       <td key={i} className="border px-4 py-2">
-//                         {val}
-//                       </td>
-//                     ))}
-//                     {activeTab !== "history" && (
-//                       <td className="border px-4 py-2 text-center">
-//                         <button
-//                           onClick={() => handleDelete(activeTab, idx)}
-//                           className="text-red-500 hover:underline"
-//                         >
-//                           Delete
-//                         </button>
-//                       </td>
-//                     )}
-//                   </tr>
-//                 ))}
-//               </tbody>
-//             </table>
-//           </div>
-//         )}
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default AdminAccountManager;
-
-
-
-import React, { useState, useMemo } from "react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-
-/* ========================= */
-/* Floating Input Component  */
-/* ========================= */
-const FloatingInput = ({
-  id,
-  label,
-  type = "text",
-  value,
-  onChange,
-  error,
-  maxLength,
-  inputMode,
-}) => (
-  <div className="relative w-full">
-    <input
-      id={id}
-      type={type}
-      value={value}
-      onChange={onChange}
-      placeholder=" "
-      maxLength={maxLength}
-      inputMode={inputMode}
-      className="peer w-full px-4 pt-5 pb-2 bg-white dark:bg-zinc-800 text-black dark:text-white border border-gray-300 dark:border-zinc-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-    />
-    <label
-      htmlFor={id}
-      className="absolute left-4 top-2 text-sm text-gray-500 dark:text-gray-300 transition-all
-        peer-placeholder-shown:top-3.5
-        peer-placeholder-shown:text-base
-        peer-placeholder-shown:text-gray-400 dark:peer-placeholder-shown:text-gray-500
-        peer-focus:top-2
-        peer-focus:text-sm
-        peer-focus:text-green-600 peer-focus:drop-shadow-sm"
-    >
-      {label}
-    </label>
-    {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
-  </div>
-);
-
-const AdminAccountManager = () => {
-  const [activeTab, setActiveTab] = useState("employee");
-
-  const [employees, setEmployees] = useState([]);
-  const [vendors, setVendors] = useState([]);
-  const [others, setOthers] = useState([]);
-  const [history, setHistory] = useState([]);
-
-  const [formData, setFormData] = useState({
-    employee: { name: "", employeeId: "", salary: "", accountNumber: "", ifsc: "" },
-    vendor: { companyName: "", vendorname: "", amount: "", accountNumber: "", ifsc: "" },
-    others: { label: "", balance: "", accountNumber: "", ifsc: "" },
+export default function AdminAccount() {
+  const [restaurants, setRestaurants] = useState([]);
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState("");
+  const [preset, setPreset] = useState("today");
+  const [filters, setFilters] = useState(() => getPresetRange("today"));
+  const [data, setData] = useState({
+    summary: {
+      totalOrders: 0,
+      totalRevenue: 0,
+      averageBillValue: 0,
+      todayCollections: 0,
+      selectedRestaurantCount: 0,
+    },
+    bills: [],
+    filters: {
+      restaurantId: "",
+      startDate: "",
+      endDate: "",
+    },
   });
+  const [loading, setLoading] = useState(true);
 
-  const [errors, setErrors] = useState({});
+  const fetchRestaurants = async () => {
+    try {
+      const result = await getRestaurants();
+      setRestaurants(Array.isArray(result) ? result : []);
 
-  const validate = (type) => {
-    const data = formData[type];
-    const errs = {};
+      if (Array.isArray(result) && result.length > 0) {
+        setSelectedRestaurantId(result[0]._id);
+        return result[0]._id;
+      }
 
-    const requiredFields = {
-      employee: ["name", "employeeId", "salary", "accountNumber", "ifsc"],
-      vendor: ["companyName", "vendorname", "amount", "accountNumber", "ifsc"],
-      others: ["label", "balance", "accountNumber", "ifsc"],
-    };
-
-    requiredFields[type].forEach((field) => {
-      if (!data[field]?.trim()) errs[field] = `${field} is required`;
-    });
-
-    if (!/^\d{9,16}$/.test(data.accountNumber)) errs.accountNumber = "Enter valid A/C (9–16 digits)";
-    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(data.ifsc)) errs.ifsc = "Enter valid IFSC";
-
-    return errs;
+      return "";
+    } catch (error) {
+      console.error("Admin Restaurants Error:", error);
+      setRestaurants([]);
+      return "";
+    }
   };
 
-  const handleAdd = () => {
-    const errs = validate(activeTab);
-    if (Object.keys(errs).length) {
-      setErrors(errs);
+  const fetchHistory = async (restaurantId, activeFilters) => {
+    if (!restaurantId) {
+      setData({
+        summary: {
+          totalOrders: 0,
+          totalRevenue: 0,
+          averageBillValue: 0,
+          todayCollections: 0,
+          selectedRestaurantCount: 0,
+        },
+        bills: [],
+        filters: {
+          restaurantId: "",
+          startDate: activeFilters.startDate || "",
+          endDate: activeFilters.endDate || "",
+        },
+      });
+      setLoading(false);
       return;
     }
 
-    const list =
-      activeTab === "employee" ? employees : activeTab === "vendor" ? vendors : others;
-
-    const newEntry = { ...formData[activeTab] };
-    const date = new Date().toLocaleString();
-
-    const updatedData = [...list, newEntry];
-
-    if (activeTab === "employee") setEmployees(updatedData);
-    if (activeTab === "vendor") setVendors(updatedData);
-    if (activeTab === "others") setOthers(updatedData);
-
-    setHistory([...history, { ...newEntry, type: activeTab, date }]);
-
-    setFormData((prev) => ({
-      ...prev,
-      [activeTab]: Object.fromEntries(Object.keys(prev[activeTab]).map((k) => [k, ""])),
-    }));
-
-    setErrors({});
+    try {
+      setLoading(true);
+      const response = await getAdminAccountHistory({
+        restaurantId,
+        startDate: activeFilters.startDate,
+        endDate: activeFilters.endDate,
+      });
+      setData(response.data?.data || response.data || response);
+    } catch (error) {
+      console.error("Admin Account History Error:", error);
+      setData({
+        summary: {
+          totalOrders: 0,
+          totalRevenue: 0,
+          averageBillValue: 0,
+          todayCollections: 0,
+          selectedRestaurantCount: 0,
+        },
+        bills: [],
+        filters: {
+          restaurantId,
+          startDate: activeFilters.startDate || "",
+          endDate: activeFilters.endDate || "",
+        },
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = (type, index) => {
-    const update = (arr) => arr.filter((_, i) => i !== index);
-    if (type === "employee") setEmployees(update(employees));
-    if (type === "vendor") setVendors(update(vendors));
-    if (type === "others") setOthers(update(others));
-  };
-
-  const exportPDF = () => {
-    const doc = new jsPDF();
-    const table = history.map((item) => Object.values(item));
-    const headers = history.length ? Object.keys(history[0]) : [];
-
-    autoTable(doc, {
-      head: [headers],
-      body: table,
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [34, 197, 94] }, // green-ish header
-    });
-    doc.save("account_history.pdf");
-  };
-
-  const tabData = useMemo(() => {
-    const configs = {
-      employee: {
-        data: employees,
-        fields: [
-          { id: "name", label: "Name" },
-          { id: "employeeId", label: "Employee ID" },
-          { id: "salary", label: "Salary", type: "number", inputMode: "decimal" },
-          { id: "accountNumber", label: "Account Number", maxLength: 16, inputMode: "numeric" },
-          { id: "ifsc", label: "IFSC", maxLength: 11 },
-        ],
-      },
-      vendor: {
-        data: vendors,
-        fields: [
-          { id: "companyName", label: "Company Name" },
-          { id: "vendorname", label: "Vendor Name" },
-          { id: "amount", label: "Amount", type: "number", inputMode: "decimal" },
-          { id: "accountNumber", label: "Account Number", maxLength: 16, inputMode: "numeric" },
-          { id: "ifsc", label: "IFSC", maxLength: 11 },
-        ],
-      },
-      others: {
-        data: others,
-        fields: [
-          { id: "label", label: "Service Type (e.g. Plumber, Electrician)" },
-          { id: "balance", label: "Payable Amount", type: "number", inputMode: "decimal" },
-          { id: "accountNumber", label: "Account Number", maxLength: 16, inputMode: "numeric" },
-          { id: "ifsc", label: "IFSC", maxLength: 11 },
-        ],
-      },
-      history: {
-        data: history,
-        form: (
-          <div className="flex gap-3 flex-wrap">
-            <button
-              onClick={exportPDF}
-              className="bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white px-5 py-2 rounded-xl shadow active:scale-[0.98]"
-            >
-              Export PDF
-            </button>
-          </div>
-        ),
-      },
+  useEffect(() => {
+    const init = async () => {
+      const initialRestaurantId = await fetchRestaurants();
+      if (initialRestaurantId) {
+        await fetchHistory(initialRestaurantId, filters);
+      } else {
+        setLoading(false);
+      }
     };
 
-    return configs;
-  }, [employees, vendors, others, history]);
+    init();
+  }, []);
 
-  const current = tabData[activeTab];
-
-  /* ========= Helpers for mobile card view ========= */
-  const renderMobileCards = (list, type) => {
-    if (!list?.length) {
-      return <p className="text-gray-500 dark:text-gray-300">No data available.</p>;
-    }
-
+  const activeRestaurantName = useMemo(() => {
     return (
-      <div className="space-y-3">
-        {list.map((row, idx) => (
-          <div
-            key={idx}
-            className="rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-4 shadow-sm"
-          >
-            <div className="grid grid-cols-1 gap-2 text-sm">
-              {Object.entries(row).map(([k, v]) => (
-                <div key={k} className="flex justify-between gap-4">
-                  <span className="font-medium text-gray-600 dark:text-gray-300 capitalize">
-                    {k.replace(/([A-Z])/g, " $1")}
-                  </span>
-                  <span className="text-right break-all">{String(v || "")}</span>
-                </div>
-              ))}
-            </div>
-
-            {activeTab !== "history" && (
-              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-zinc-700 flex justify-end">
-                <button
-                  onClick={() => handleDelete(type, idx)}
-                  className="text-red-600 hover:underline text-sm"
-                >
-                  Delete
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+      restaurants.find((restaurant) => restaurant._id === selectedRestaurantId)
+        ?.name || "No restaurant selected"
     );
+  }, [restaurants, selectedRestaurantId]);
+
+  const activeRangeLabel = useMemo(() => {
+    if (preset === "today") return "Today";
+    if (preset === "last7days") return "Last 7 Days";
+    if (preset === "last30days") return "Last 30 Days";
+    return filters.startDate || filters.endDate
+      ? `${filters.startDate || "Beginning"} to ${filters.endDate || "Today"}`
+      : "Custom Range";
+  }, [filters.endDate, filters.startDate, preset]);
+
+  const handlePresetChange = async (nextPreset) => {
+    setPreset(nextPreset);
+
+    const nextFilters =
+      nextPreset === "custom" ? filters : getPresetRange(nextPreset);
+
+    if (nextPreset !== "custom") {
+      setFilters(nextFilters);
+      await fetchHistory(selectedRestaurantId, nextFilters);
+    }
   };
 
-  const renderDesktopTable = (list) => {
-    if (!list?.length) {
-      return <p className="text-gray-500 dark:text-gray-300">No data available.</p>;
-    }
+  const applyCustomFilter = async () => {
+    setPreset("custom");
+    await fetchHistory(selectedRestaurantId, filters);
+  };
 
-    return (
-      <div className="overflow-auto rounded-xl border border-gray-200 dark:border-zinc-700">
-        <table className="min-w-[720px] w-full table-auto border-collapse text-sm text-black dark:text-white">
-          <thead>
-            <tr className="bg-gray-100 dark:bg-zinc-800 text-left">
-              {Object.keys(list[0]).map((key) => (
-                <th key={key} className="border px-4 py-2 capitalize">
-                  {key}
-                </th>
-              ))}
-              {activeTab !== "history" && <th className="border px-4 py-2">Action</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((item, idx) => (
-              <tr
-                key={idx}
-                className="hover:bg-green-50 dark:hover:bg-zinc-800 transition-colors duration-200"
-              >
-                {Object.values(item).map((val, i) => (
-                  <td key={i} className="border px-4 py-2">
-                    {String(val)}
-                  </td>
-                ))}
-                {activeTab !== "history" && (
-                  <td className="border px-4 py-2 text-center">
-                    <button
-                      onClick={() => handleDelete(activeTab, idx)}
-                      className="text-red-500 hover:underline"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
+  const handleRestaurantChange = async (restaurantId) => {
+    setSelectedRestaurantId(restaurantId);
+    await fetchHistory(restaurantId, filters);
   };
 
   return (
-    <div className="p-4 sm:p-6 bg-white/80 dark:bg-zinc-900 dark:text-white backdrop-blur-xl shadow-2xl rounded-2xl border border-gray-200 dark:border-zinc-800 max-w-6xl mx-auto transition-all">
-      <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
-        <h2 className="text-2xl sm:text-3xl font-bold text-black/80 dark:text-green-400">
-          Account Management
-        </h2>
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-emerald-900 to-teal-700 p-6 text-white shadow-xl">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em]">
+                <FaStore />
+                Admin Account
+              </div>
+              <h1 className="text-3xl font-bold">Restaurant Wise Payment History</h1>
+              <p className="mt-2 max-w-2xl text-sm text-emerald-50/90">
+                View paid order history restaurant wise. Choose one restaurant,
+                then filter by today, last 7 days, last 30 days, or a custom date range.
+              </p>
+            </div>
 
-        {/* Sticky mobile action for History export */}
-        {activeTab === "history" && (
-          <div className="hidden sm:block">
-            <button
-              onClick={exportPDF}
-              className="bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white px-4 py-2 rounded-xl shadow"
-            >
-              Export PDF
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Tabs — horizontally scrollable on mobile */}
-      <div className="-mx-2 sm:mx-0 mb-6">
-        <div className="px-2 sm:px-0 flex gap-2 sm:gap-3 overflow-x-auto no-scrollbar">
-          {[
-            { key: "employee", label: "Employee" },
-            { key: "vendor", label: "Vendor" },
-            { key: "others", label: "Others" },
-            { key: "history", label: "History" },
-          ].map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              className={`px-4 sm:px-5 py-2.5 rounded-full whitespace-nowrap font-medium transition-all duration-300 shadow-sm ${
-                activeTab === key
-                  ? "bg-gradient-to-r from-green-500 to-green-700 text-white"
-                  : "bg-gray-100 dark:bg-zinc-700 hover:bg-gray-200 dark:hover:bg-zinc-600 text-gray-700 dark:text-white"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Form (hidden on History tab) */}
-      {activeTab !== "history" ? (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-16 sm:mb-6">
-            {current.fields.map(({ id, label, type, maxLength, inputMode }) => (
-              <FloatingInput
-                key={id}
-                id={id}
-                label={label}
-                type={type || "text"}
-                inputMode={inputMode}
-                value={formData[activeTab][id]}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    [activeTab]: {
-                      ...prev[activeTab],
-                      [id]:
-                        id === "accountNumber"
-                          ? e.target.value.replace(/\D/g, "").slice(0, maxLength || 16)
-                          : id === "ifsc"
-                          ? e.target.value.toUpperCase().slice(0, maxLength || 11)
-                          : e.target.value,
-                    },
-                  }))
-                }
-                error={errors[id]}
-                maxLength={maxLength}
-              />
-            ))}
-          </div>
-
-          {/* Sticky bottom action on mobile, inline on desktop */}
-          <div className="sm:hidden fixed left-0 right-0 bottom-3 z-20 px-4">
-            <div className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-xl rounded-2xl p-3">
-              <button
-                onClick={handleAdd}
-                className="w-full bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white py-3 rounded-xl shadow-md transition-all active:scale-[0.98]"
-              >
-                Add {activeTab === "others" ? "Other" : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-              </button>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-white/10 px-5 py-4 backdrop-blur">
+                <p className="text-xs uppercase tracking-[0.25em] text-emerald-100">
+                  Restaurant
+                </p>
+                <p className="mt-2 text-lg font-semibold">{activeRestaurantName}</p>
+              </div>
+              <div className="rounded-2xl bg-white/10 px-5 py-4 backdrop-blur">
+                <p className="text-xs uppercase tracking-[0.25em] text-emerald-100">
+                  Active Filter
+                </p>
+                <p className="mt-2 text-lg font-semibold">{activeRangeLabel}</p>
+              </div>
             </div>
           </div>
-
-          <div className="hidden sm:block mb-6">
-            <button
-              onClick={handleAdd}
-              className="bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white py-2.5 px-6 rounded-xl shadow-md transition-all active:scale-[0.98]"
-            >
-              Add {activeTab === "others" ? "Other" : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-            </button>
-          </div>
-        </>
-      ) : (
-        <div className="mb-4 sm:mb-6">{tabData.history.form}</div>
-      )}
-
-      {/* Records */}
-      <div className="mt-3">
-        <h3 className="text-base sm:text-lg font-semibold mb-2">Records:</h3>
-
-        {/* Mobile: card list | Desktop: table */}
-        <div className="sm:hidden">
-          {renderMobileCards(current.data, activeTab)}
         </div>
-        <div className="hidden sm:block">
-          {renderDesktopTable(current.data)}
+
+        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <div className="grid gap-4 xl:grid-cols-[260px_1fr]">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-600">
+                Select Restaurant
+              </label>
+              <select
+                value={selectedRestaurantId}
+                onChange={(e) => handleRestaurantChange(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400"
+              >
+                {restaurants.length === 0 && (
+                  <option value="">No restaurants found</option>
+                )}
+                {restaurants.map((restaurant) => (
+                  <option key={restaurant._id} value={restaurant._id}>
+                    {restaurant.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-5 xl:items-end">
+              <div className="flex flex-wrap gap-2">
+                {presetButtons.map((button) => (
+                  <button
+                    key={button.key}
+                    onClick={() => handlePresetChange(button.key)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      preset === button.key
+                        ? "bg-emerald-600 text-white shadow"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {button.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[180px_180px_auto]">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-600">
+                    From Date
+                  </label>
+                  <input
+                    type="date"
+                    value={filters.startDate}
+                    onChange={(e) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        startDate: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-600">
+                    To Date
+                  </label>
+                  <input
+                    type="date"
+                    value={filters.endDate}
+                    onChange={(e) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        endDate: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400"
+                  />
+                </div>
+
+                <button
+                  onClick={applyCustomFilter}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  <FaFilter />
+                  Apply Date Filter
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard
+            icon={<FaReceipt />}
+            label="Paid Orders"
+            value={data.summary.totalOrders}
+          />
+          <SummaryCard
+            icon={<FaMoneyBillWave />}
+            label="Total Revenue"
+            value={formatCurrency(data.summary.totalRevenue)}
+          />
+          <SummaryCard
+            icon={<FaCalendarAlt />}
+            label="Today Collections"
+            value={data.summary.todayCollections}
+          />
+          <SummaryCard
+            icon={<FaMoneyBillWave />}
+            label="Average Bill"
+            value={formatCurrency(data.summary.averageBillValue)}
+          />
+        </div>
+
+        <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <h2 className="text-lg font-semibold text-slate-800">
+              Payment History
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Paid bills for the selected restaurant only.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-[1200px] w-full text-sm">
+              <thead className="bg-slate-900 text-left text-xs uppercase tracking-[0.2em] text-slate-200">
+                <tr>
+                  <th className="px-5 py-4">Restaurant</th>
+                  <th className="px-5 py-4">Bill No</th>
+                  <th className="px-5 py-4">Order No</th>
+                  <th className="px-5 py-4">Table</th>
+                  <th className="px-5 py-4">Waiter</th>
+                  <th className="px-5 py-4">Method</th>
+                  <th className="px-5 py-4">Paid At</th>
+                  <th className="px-5 py-4">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr>
+                    <td colSpan="8" className="px-5 py-10 text-center text-slate-500">
+                      Loading payment history...
+                    </td>
+                  </tr>
+                )}
+
+                {!loading && data.bills.length === 0 && (
+                  <tr>
+                    <td colSpan="8" className="px-5 py-10 text-center text-slate-500">
+                      No payment history found for the selected restaurant and filter.
+                    </td>
+                  </tr>
+                )}
+
+                {!loading &&
+                  data.bills.map((bill) => (
+                    <tr key={bill._id} className="border-t border-slate-100">
+                      <td className="px-5 py-4 font-medium text-slate-700">
+                        {bill.restaurant?.name || "-"}
+                      </td>
+                      <td className="px-5 py-4 font-semibold text-slate-800">
+                        {bill.billNo || "-"}
+                      </td>
+                      <td className="px-5 py-4 text-slate-700">
+                        {bill.order?.orderNo || "-"}
+                      </td>
+                      <td className="px-5 py-4 text-slate-700">
+                        Table {bill.order?.table?.tableNumber || "-"}
+                      </td>
+                      <td className="px-5 py-4 text-slate-700">
+                        {bill.order?.waiter?.name || "-"}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                          {bill.paymentMethod || "Paid"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-slate-600">
+                        {formatDate(bill.paidAt)}
+                      </td>
+                      <td className="px-5 py-4 font-bold text-emerald-700">
+                        {formatCurrency(bill.totalAmount)}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
   );
-};
+}
 
-export default AdminAccountManager;
+function SummaryCard({ icon, label, value }) {
+  return (
+    <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {label}
+          </p>
+          <p className="mt-3 text-2xl font-bold text-slate-900">{value}</p>
+        </div>
+        <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-700">
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}

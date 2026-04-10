@@ -129,9 +129,16 @@ const ManagerEmployeeManagement = () => {
     try {
       setWorkLoading(true);
       const res = await getStaffWorkReport(params);
-      if (res?.success) setWorkData(res.data);
+      if (res?.success) {
+        setWorkData(Array.isArray(res.data) ? res.data : []);
+      } else if (Array.isArray(res)) {
+        setWorkData(res);
+      } else {
+        setWorkData([]);
+      }
     } catch (err) {
       console.error(err);
+      setWorkData([]);
     } finally {
       setWorkLoading(false);
     }
@@ -166,6 +173,7 @@ const ManagerEmployeeManagement = () => {
 
   const maxWaiter = Math.max(...workData.map(e => e.ordersTaken), 1);
   const maxChef   = Math.max(...workData.map(e => e.ordersPrepared), 1);
+  const maxAccountant = Math.max(...workData.map(e => e.billsGenerated), 1);
 
   return (
     <div className="min-h-screen p-4 sm:p-6 bg-gradient-to-br from-slate-100 to-blue-50 dark:from-gray-900 dark:to-gray-800 space-y-5">
@@ -565,17 +573,19 @@ const ManagerEmployeeManagement = () => {
                 <h3 className="text-base sm:text-lg font-semibold text-gray-700 dark:text-white">Staff Work Performance</h3>
                 <p className="text-xs text-gray-400 mt-0.5">
                   <span className="text-sky-600 font-medium">Waiter</span> — orders taken &nbsp;·&nbsp;
-                  <span className="text-orange-500 font-medium">Chef</span> — orders prepared
+                  <span className="text-orange-500 font-medium">Chef</span> — orders prepared &nbsp;·&nbsp;
+                  <span className="text-emerald-600 font-medium">Accountant</span> — bills generated
                 </p>
               </div>
 
               {/* desktop table header */}
-              <div className="hidden sm:grid grid-cols-[40px_2fr_1fr_1fr_1fr_2fr] gap-4 px-6 py-3 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              <div className="hidden sm:grid grid-cols-[40px_2fr_1fr_1fr_1fr_1fr_2fr] gap-4 px-6 py-3 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                 <span>#</span>
                 <span>Staff</span>
                 <span className="text-center">Role</span>
                 <span className="text-center">Orders Taken</span>
                 <span className="text-center">Orders Prepared</span>
+                <span className="text-center">Bills Generated</span>
                 <span>Activity</span>
               </div>
 
@@ -583,15 +593,28 @@ const ManagerEmployeeManagement = () => {
                 {workData.map((emp, idx) => {
                   const isWaiter  = emp.role === "waiter";
                   const isChef    = emp.role === "chef";
-                  const workCount = isWaiter ? emp.ordersTaken : isChef ? emp.ordersPrepared : null;
-                  const maxVal    = isWaiter ? maxWaiter : maxChef;
+                  const isAccountant = emp.role === "accountant";
+                  const workCount = isWaiter
+                    ? emp.ordersTaken
+                    : isChef
+                    ? emp.ordersPrepared
+                    : isAccountant
+                    ? emp.billsGenerated
+                    : null;
+                  const maxVal = isWaiter
+                    ? maxWaiter
+                    : isChef
+                    ? maxChef
+                    : isAccountant
+                    ? maxAccountant
+                    : 1;
                   const roleClass = ROLE_COLOR[emp.role] || "bg-gray-100 text-gray-600";
                   const avColor   = ROLE_AVATAR[emp.role] || "bg-gray-400";
 
                   return (
                     <div key={emp._id}>
                       {/* desktop row */}
-                      <div className="hidden sm:grid grid-cols-[40px_2fr_1fr_1fr_1fr_2fr] gap-4 items-center px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/20 transition-colors">
+                      <div className="hidden sm:grid grid-cols-[40px_2fr_1fr_1fr_1fr_1fr_2fr] gap-4 items-center px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/20 transition-colors">
                         <span className="text-sm text-gray-400 font-medium">{idx + 1}</span>
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={`w-9 h-9 shrink-0 rounded-full ${avColor} text-white font-bold text-sm flex items-center justify-center`}>
@@ -615,12 +638,19 @@ const ManagerEmployeeManagement = () => {
                             ? <span className="text-xl font-extrabold text-orange-500 dark:text-orange-400">{emp.ordersPrepared}</span>
                             : <span className="text-gray-300 dark:text-gray-600 text-lg">—</span>}
                         </div>
+                        <div className="text-center">
+                          {isAccountant
+                            ? <span className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">{emp.billsGenerated}</span>
+                            : <span className="text-gray-300 dark:text-gray-600 text-lg">—</span>}
+                        </div>
                         <div>
                           {workCount !== null ? (
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full ${isWaiter ? "bg-sky-500" : "bg-orange-400"}`}
+                                  className={`h-full rounded-full ${
+                                    isWaiter ? "bg-sky-500" : isChef ? "bg-orange-400" : "bg-emerald-500"
+                                  }`}
                                   style={{ width: `${Math.min(100, (workCount / maxVal) * 100)}%` }}
                                 />
                               </div>
@@ -660,7 +690,13 @@ const ManagerEmployeeManagement = () => {
                               <span className="text-lg font-extrabold text-orange-500 dark:text-orange-400">{emp.ordersPrepared}</span>
                             </div>
                           )}
-                          {!isWaiter && !isChef && (
+                          {isAccountant && (
+                            <div className="flex-1 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl px-3 py-2 flex items-center justify-between">
+                              <span className="text-xs text-emerald-600 font-semibold">Bills Generated</span>
+                              <span className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">{emp.billsGenerated}</span>
+                            </div>
+                          )}
+                          {!isWaiter && !isChef && !isAccountant && (
                             <div className="flex-1 bg-gray-50 dark:bg-gray-700/30 rounded-xl px-3 py-2 flex items-center justify-between">
                               <span className="text-xs text-gray-400">No order metrics</span>
                               <span className="text-gray-300 dark:text-gray-600">—</span>
@@ -671,11 +707,15 @@ const ManagerEmployeeManagement = () => {
                           <div className="mt-2 flex items-center gap-2">
                             <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                               <div
-                                className={`h-full rounded-full ${isWaiter ? "bg-sky-500" : "bg-orange-400"}`}
+                                className={`h-full rounded-full ${
+                                  isWaiter ? "bg-sky-500" : isChef ? "bg-orange-400" : "bg-emerald-500"
+                                }`}
                                 style={{ width: `${Math.min(100, (workCount / maxVal) * 100)}%` }}
                               />
                             </div>
-                            <span className="text-xs text-gray-400 shrink-0">{workCount} orders</span>
+                            <span className="text-xs text-gray-400 shrink-0">
+                              {isAccountant ? `${workCount} bills` : `${workCount} orders`}
+                            </span>
                           </div>
                         )}
                       </div>

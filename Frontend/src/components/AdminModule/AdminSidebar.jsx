@@ -44,13 +44,10 @@ const Sidebar = ({ active, setActive }) => {
     { name: "Dashboard",           icon: FaTachometerAlt, key: "dashboard" },
     { name: "Staff Management",    icon: FaUsers,         key: "staff" },
     { name: "Restaurant Management",icon: FaUtensils,     key: "restaurant" },
-    { name: "Subscription",        icon: FaClipboardList, key: "subscription" },
     { name: "Inventory",           icon: FaBox,           key: "inventory" },
-    { name: "Vendor Management",   icon: FaHandshake,     key: "vendor" },
     { name: "Menu Management",     icon: FaClipboardList, key: "menu" },
     { name: "Table Management",    icon: FaUtensils,      key: "table" },
     { name: "Account",             icon: FaUserCircle,    key: "account" },
-    { name: "Analytics",           icon: FaChartBar,      key: "analytics" },
     { name: "Notes",               icon: FaStickyNote,    key: "notes" },
   ];
 

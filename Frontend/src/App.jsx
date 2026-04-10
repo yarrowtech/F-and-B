@@ -145,6 +145,14 @@ import Cleaner from "./components/CleanerModule/Cleaner";
 
 const App = () => {
   useEffect(() => {
+    const isManagerRoute = window.location.pathname.startsWith("/manager");
+
+    if (isManagerRoute) {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("isDark", "false");
+      return;
+    }
+
     const savedTheme = localStorage.getItem("theme");
     document.documentElement.classList.toggle(
       "dark",

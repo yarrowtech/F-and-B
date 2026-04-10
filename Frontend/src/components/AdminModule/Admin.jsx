@@ -316,13 +316,10 @@ const Dashboard = lazy(() => import("./AdminDashboard"));
 const StaffManagement = lazy(() => import("./AdminStaffManagement"));
 const RestaurantManagement = lazy(() => import("./AdminRestaurantManagement"));
 const RestaurantEmployees = lazy(() => import("./RestaurantEmployees"));
-const RestaurantSubscription = lazy(() => import("./AdminSubscription"));
 const AdminInventory = lazy(() => import("../AdminModule/AdminInventory"));
-const VendorManagement = lazy(() => import("./AdminVendorManagement"));
 const MenuManagement = lazy(() => import("./AdminMenuManagement"));
 const Account = lazy(() => import("./AdminAccount"));
 const Notes = lazy(() => import("./AdminNotes"));
-const Analytics = lazy(() => import("./AdminAnalytics"));
 const Settings = lazy(() => import("./AdminSettings"));
 const Message = lazy(() => import("./AdminMessage"));
 const Notification = lazy(() => import("./AdminNotification"));
@@ -509,20 +506,11 @@ const Admin = () => {
       case "inventory":
         return <AdminInventory />;
 
-      case "vendor":
-        return <VendorManagement />;
-
-      case "subscription":
-        return <RestaurantSubscription />;
-
       case "account":
         return <Account />;
 
       case "notes":
         return <Notes />;
-
-      case "analytics":
-        return <Analytics />;
 
       case "settings":
         return <Settings />;

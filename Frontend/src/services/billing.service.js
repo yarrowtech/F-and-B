@@ -125,6 +125,11 @@ export const markBillPaid = async (
  * 🧾 Download Bill PDF (Secure – Sends Token)
  * GET /api/billing/:id/pdf
  */
+export const customizeBill = async (billId, payload) => {
+  const res = await API.post(`/billing/${billId}/customize`, payload);
+  return res.data.data;
+};
+
 export const downloadBillPdf = async (billId) => {
   try {
     const res = await API.get(

@@ -1,190 +1,110 @@
-import React, { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   FaHome,
   FaTachometerAlt,
   FaClipboardCheck,
-  FaBoxes,
   FaUserTie,
   FaUserCircle,
   FaStickyNote,
-  FaSignOutAlt,
   FaBars,
+  FaTimes,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import {
-  getUser,
-  isAuthenticated,
-  logout,
-} from "../../services/auth.service";
+import { getUser, isAuthenticated, logout } from "../../services/auth.service";
 
-const InventoryManagerSidebar = ({ activeSection, setActiveSection }) => {
+const InventoryManagerSidebar = ({ active, setActive }) => {
+  const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
 
-  /* ================= SAFE ONLINE STATE ================= */
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator !== "undefined" ? navigator.onLine : true
-  );
+  const user = getUser() || {};
+  const businessName = user?.name || "Inventory Manager";
 
-  /* ================= SIDEBAR STATE ================= */
-  const [isOpen, setIsOpen] = useState(true);
-
-  /* ================= USER STATE ================= */
-  const [user, setUser] = useState(() => getUser());
-
-  /* ================= ROLE PROTECTION ================= */
-  useEffect(() => {
-    const currentUser = getUser();
-
-    if (
-      !isAuthenticated() ||
-      !currentUser ||
-      currentUser.role !== "inventory_manager" // ✅ updated
-    ) {
-      logout();
-      navigate("/inventory-manager-login", { replace: true });
-    } else {
-      setUser(currentUser);
-    }
-  }, [navigate]);
-
-  /* ================= ONLINE / OFFLINE ================= */
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
-  /* ================= NAV ITEMS ================= */
-  const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: <FaTachometerAlt /> },
-    { id: "management", label: "Management", icon: <FaUserTie /> },
-    { id: "attendance", label: "Attendance", icon: <FaClipboardCheck /> },
-    { id: "inventory", label: "Inventory", icon: <FaBoxes /> },
-    { id: "profile", label: "Profile", icon: <FaUserCircle /> },
-    { id: "notes", label: "Notes", icon: <FaStickyNote /> },
+  const menuItems = [
+    { name: "Dashboard",  icon: FaTachometerAlt, key: "dashboard" },
+    { name: "Management", icon: FaUserTie,        key: "management" },
+    { name: "Attendance", icon: FaClipboardCheck, key: "attendance" },
+    { name: "Profile",    icon: FaUserCircle,     key: "profile" },
+    { name: "Notes",      icon: FaStickyNote,     key: "notes" },
   ];
 
-  /* ================= LOGOUT ================= */
-  const handleLogout = () => {
+  if (!isAuthenticated() || !user) {
     logout();
     navigate("/inventory-manager-login", { replace: true });
-  };
-
-  /* ================= HOME ================= */
-  const handleHomeClick = () => {
-    navigate("/inventory-manager"); // ✅ correct route
-    if (window.innerWidth < 1024) setIsOpen(false);
-  };
-
-  if (!user) return null;
+    return null;
+  }
 
   return (
     <>
-      {/* ================= MOBILE TOGGLE ================= */}
-      {!isOpen && (
+      {/* MOBILE TOP BAR */}
+      <div className="lg:hidden bg-green-100 dark:bg-gray-800 text-green-800 dark:text-gray-200 flex items-center justify-between px-4 py-3 shadow-md">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => { navigate("/inventory-manager"); setIsOpen(false); }}
+            className="p-2 rounded-full bg-green-600 text-white"
+          >
+            <FaHome size={20} />
+          </button>
+          <h2 className="text-lg font-bold">Inventory Manager</h2>
+        </div>
         <button
-          onClick={() => setIsOpen(true)}
-          className="lg:hidden fixed top-4 left-4 z-[1002] p-2 bg-green-600 dark:bg-gray-800 text-white rounded-full shadow-lg"
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-2 rounded-full bg-green-500 text-white"
         >
-          <FaBars />
+          {isOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
         </button>
-      )}
+      </div>
 
-      {/* ================= MOBILE BACKDROP ================= */}
-      {isOpen && window.innerWidth < 1024 && (
+      {/* SIDEBAR */}
+      <aside
+        className={`fixed top-0 left-0 h-full w-72 bg-green-100 dark:bg-gray-900 shadow-2xl flex flex-col z-50 transition-transform duration-300
+          ${isOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
+      >
+        {/* HEADER */}
+        <div className="hidden lg:flex items-center gap-3 px-5 py-4 border-b border-green-200 dark:border-gray-700">
+          <button
+            onClick={() => navigate("/inventory-manager")}
+            className="p-2 rounded-full bg-green-600 text-white shrink-0"
+          >
+            <FaHome size={18} />
+          </button>
+          <div className="overflow-hidden">
+            <h2 className="text-base font-bold dark:text-white truncate">{businessName}</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Inventory Manager Panel</p>
+          </div>
+        </div>
+
+        {/* NAVIGATION */}
+        <nav className="flex-1 p-4 overflow-y-auto">
+          {menuItems.map(({ name, icon: Icon, key }) => {
+            const isActive = active === key;
+            return (
+              <button
+                key={key}
+                onClick={() => {
+                  setActive(key);
+                  if (window.innerWidth < 1024) setIsOpen(false);
+                }}
+                className={`w-full flex items-center gap-4 px-4 py-3 mb-2 rounded-lg text-sm font-medium border-l-4 transition-all
+                  ${isActive
+                    ? "bg-green-500 text-white border-green-700"
+                    : "bg-white dark:bg-gray-800 text-green-700 dark:text-gray-200 border-transparent hover:bg-green-200 dark:hover:bg-gray-700"
+                  }`}
+              >
+                <Icon className="text-lg" />
+                <span>{name}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
+      {/* MOBILE OVERLAY */}
+      {isOpen && (
         <div
-          className="fixed inset-0 bg-black/30 z-[1000] lg:hidden"
           onClick={() => setIsOpen(false)}
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
         />
       )}
-
-      {/* ================= SIDEBAR ================= */}
-      <aside
-        className={`fixed z-[1001] top-0 left-0 h-full w-72 bg-green-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 shadow-2xl p-6 border-r border-green-300 dark:border-gray-700 rounded-r-2xl transform transition-transform duration-300 ease-in-out ${
-          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
-      >
-        <div className="flex flex-col h-full">
-
-          {/* ================= HEADER ================= */}
-          <div className="mb-6 flex items-center justify-between">
-            <button
-              onClick={handleHomeClick}
-              className="text-green-700 dark:text-green-400 hover:text-green-900 dark:hover:text-green-200 transition text-2xl"
-            >
-              <FaHome />
-            </button>
-
-            <h2 className="text-xl font-bold text-green-800 dark:text-green-300">
-              Inventory Manager Panel
-            </h2>
-          </div>
-
-          {/* ================= NAVIGATION ================= */}
-          <ul className="flex-grow space-y-3 overflow-y-auto">
-            {navItems.map(({ id, label, icon }) => (
-              <li key={id}>
-                <button
-                  onClick={() => {
-                    setActiveSection(id);
-                    if (window.innerWidth < 1024) setIsOpen(false);
-                  }}
-                  className={`flex items-center gap-4 w-full px-5 py-3 rounded-xl transition-all shadow-sm ${
-                    activeSection === id
-                      ? "bg-green-600 text-white border-l-4 border-green-800"
-                      : "bg-white dark:bg-gray-700 hover:bg-green-200 dark:hover:bg-gray-600 text-green-800 dark:text-green-100"
-                  }`}
-                >
-                  <span className="text-lg">{icon}</span>
-                  <span className="text-md font-medium">{label}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-
-          {/* ================= FOOTER ================= */}
-          <div className="pt-6 border-t border-green-300 dark:border-gray-700 text-sm">
-            <div className="flex items-center gap-3 mb-3">
-              <FaUserCircle className="text-3xl text-green-700 dark:text-green-400" />
-
-              <div>
-                <p className="font-semibold text-green-800 dark:text-green-300">
-                  {user.name || "Inventory Manager"}
-                </p>
-
-                <p className="text-xs text-green-600 dark:text-green-400">
-                  ID: {user.employeeId || user.id?.slice(-6) || "N/A"}
-                </p>
-
-                <p className="flex items-center gap-1 text-xs mt-1">
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      isOnline ? "bg-green-500" : "bg-red-500"
-                    }`}
-                  />
-                  {isOnline ? "Online" : "Offline"}
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300 hover:text-green-900 dark:hover:text-green-100 transition"
-            >
-              <FaSignOutAlt />
-              Logout
-            </button>
-          </div>
-
-        </div>
-      </aside>
     </>
   );
 };

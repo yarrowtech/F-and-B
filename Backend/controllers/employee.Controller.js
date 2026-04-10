@@ -703,6 +703,7 @@ import Employee from "../models/Employee.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import Log from "../models/Log.model.js";
 import Order from "../models/Order.model.js";
+import Bill from "../models/Bill.model.js";
 
 /* 🔥 LOGGER */
 import { logAction, logError } from "../utils/logger.js";
@@ -1205,9 +1206,13 @@ const getRestaurantEmployees = async (req, res) => {
 
 const getStaffWorkReport = async (req, res) => {
   try {
-    const restaurantId = req.user.restaurant;
+    const restaurantId = req.user.restaurant?.toString?.() || req.user.restaurant;
     if (!restaurantId) {
       return res.status(400).json({ message: "No restaurant assigned" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+      return res.status(400).json({ message: "Invalid restaurant assigned" });
     }
 
     const { startDate, endDate } = req.query;
@@ -1225,7 +1230,13 @@ const getStaffWorkReport = async (req, res) => {
       .select("name role employeeId")
       .lean();
 
-    const [waiterStats, chefStats] = await Promise.all([
+    const billMatch = {
+      restaurant: new mongoose.Types.ObjectId(restaurantId),
+      accountant: { $ne: null },
+      ...(Object.keys(dateFilter).length ? { createdAt: dateFilter } : {}),
+    };
+
+    const [waiterStats, chefStats, accountantStats] = await Promise.all([
       Order.aggregate([
         { $match: orderMatch },
         { $group: { _id: "$waiter", ordersTaken: { $sum: 1 } } },
@@ -1234,20 +1245,28 @@ const getStaffWorkReport = async (req, res) => {
         { $match: { ...orderMatch, chef: { $ne: null } } },
         { $group: { _id: "$chef", ordersPrepared: { $sum: 1 } } },
       ]),
+      Bill.aggregate([
+        { $match: billMatch },
+        { $group: { _id: "$accountant", billsGenerated: { $sum: 1 } } },
+      ]),
     ]);
 
     const waiterMap  = Object.fromEntries(waiterStats.map(x => [x._id.toString(), x.ordersTaken]));
     const chefMap    = Object.fromEntries(chefStats.map(x  => [x._id.toString(), x.ordersPrepared]));
+    const accountantMap = Object.fromEntries(
+      accountantStats.map((x) => [x._id.toString(), x.billsGenerated])
+    );
 
     const data = employees.map((emp) => {
       const id = emp._id.toString();
       return {
         _id:           emp._id,
         name:          emp.name,
-        role:          emp.role,
+        role:          String(emp.role || "").toLowerCase(),
         employeeId:    emp.employeeId,
         ordersTaken:   waiterMap[id]  || 0,
         ordersPrepared: chefMap[id]   || 0,
+        billsGenerated: accountantMap[id] || 0,
       };
     });
 

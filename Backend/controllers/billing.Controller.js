@@ -1,255 +1,110 @@
-
-// import Bill from "../models/Bill.model.js";
-// import Order from "../models/Order.model.js";
-// import Table from "../models/Table.model.js";
-// import PDFDocument from "pdfkit";
-
-// /* =====================================================
-//    GET UNPAID BILLS (ACCOUNTANT INBOX)
-// ===================================================== */
-// const getInbox = async (_req, res) => {
-//   try {
-//     const bills = await Bill.find({ paymentStatus: "PENDING" })
-//       .populate({
-//         path: "order",
-//         populate: [
-//           { path: "table", select: "tableNumber status" },
-//           { path: "items.menuItem", select: "name price" },
-//         ],
-//       })
-//       .sort({ createdAt: -1 });
-
-//     res.json(bills);
-//   } catch (err) {
-//     console.error("GET INBOX ERROR:", err);
-//     res.status(400).json({ message: err.message });
-//   }
-// };
-
-// /* =====================================================
-//    PAID BILLS HISTORY (ADMIN / ACCOUNTANT)
-// ===================================================== */
-// const getHistory = async (_req, res) => {
-//   try {
-//     const bills = await Bill.find({ paymentStatus: "PAID" })
-//       .populate({
-//         path: "order",
-//         populate: { path: "table", select: "tableNumber status" },
-//       })
-//       .sort({ updatedAt: -1 });
-
-//     res.json(bills);
-//   } catch (err) {
-//     console.error("GET HISTORY ERROR:", err);
-//     res.status(400).json({ message: err.message });
-//   }
-// };
-
-// /* =====================================================
-//    PAY BILL
-// ===================================================== */
-// const markPaid = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { paymentMethod = "CASH" } = req.body;
-
-//     const bill = await Bill.findById(id).populate({
-//       path: "order",
-//       populate: { path: "table" },
-//     });
-
-//     if (!bill) {
-//       return res.status(404).json({ message: "Bill not found" });
-//     }
-
-//     // idempotent protection
-//     if (bill.paymentStatus === "PAID") {
-//       return res.json(bill);
-//     }
-
-//     /* ---------- BILL → PAID ---------- */
-//     bill.paymentStatus = "PAID";
-//     bill.paymentMethod = paymentMethod;
-//     bill.accountant = req.user.id;
-//     bill.paidAt = new Date();
-//     await bill.save();
-
-//     /* ---------- ORDER → PAID ---------- */
-//     if (bill.order) {
-//       bill.order.status = "PAID";
-//       await bill.order.save();
-
-//       /* ---------- TABLE → AVAILABLE ---------- */
-//       if (bill.order.table) {
-//         await Table.findByIdAndUpdate(
-//           bill.order.table._id,
-//           { status: "available" },
-//           { new: true }
-//         );
-//       }
-//     }
-
-//     res.json({
-//       success: true,
-//       message: "Bill paid & table released",
-//     });
-//   } catch (err) {
-//     console.error("PAY BILL ERROR:", err);
-//     res.status(400).json({ message: err.message });
-//   }
-// };
-
-// /* =====================================================
-//    GENERATE BILL PDF (UPDATED STRUCTURE ONLY)
-// ===================================================== */
-// const generateBillPDF = async (req, res) => {
-//   try {
-//     const bill = await Bill.findById(req.params.id).populate({
-//       path: "order",
-//       populate: [
-//         { path: "table", select: "tableNumber" },
-//         { path: "items.menuItem", select: "name price" },
-//       ],
-//     });
-
-//     if (!bill) {
-//       return res.status(404).json({ message: "Bill not found" });
-//     }
-
-//     const doc = new PDFDocument({ margin: 40, size: "A4" });
-
-//     res.setHeader("Content-Type", "application/pdf");
-//     res.setHeader(
-//       "Content-Disposition",
-//       `inline; filename=bill-${bill.billNo}.pdf`
-//     );
-
-//     doc.pipe(res);
-
-//     /* ================= HEADER ================= */
-//     doc
-//       .fontSize(20)
-//       .text("YARROW RESTAURANT", { align: "center" })
-//       .moveDown(0.3);
-
-//     doc
-//       .fontSize(10)
-//       .text("Delicious food, served fresh 🍽️", { align: "center" });
-
-//     doc.moveDown(1);
-//     doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
-//     doc.moveDown(1);
-
-//     /* ================= BILL INFO ================= */
-//     doc.fontSize(11);
-//     doc.text(`Bill No     : ${bill.billNo}`);
-//     doc.text(`Order No    : ${bill.order.orderNo}`);
-//     doc.text(`Table No    : ${bill.order.table.tableNumber}`);
-//     doc.text(
-//       `Bill Date   : ${new Date(bill.createdAt).toLocaleString("en-IN")}`
-//     );
-
-//     if (bill.paymentStatus === "PAID" && bill.paidAt) {
-//       doc.text(
-//         `Paid At     : ${new Date(bill.paidAt).toLocaleString("en-IN")}`
-//       );
-//       doc.text(`Payment     : ${bill.paymentMethod}`);
-//     }
-
-//     doc.moveDown(1);
-
-//     /* ================= ITEMS ================= */
-//     doc.fontSize(13).text("Item Details", { underline: true });
-//     doc.moveDown(0.5);
-
-//     doc.fontSize(11).text(
-//       "Item Name                         Qty        Rate        Amount"
-//     );
-//     doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
-//     doc.moveDown(0.3);
-
-//     bill.order.items.forEach((item) => {
-//       const name = item.menuItem.name.padEnd(30, " ");
-//       const qty = String(item.quantity).padEnd(10, " ");
-//       const rate = `₹${item.menuItem.price}`.padEnd(12, " ");
-//       const total = `₹${item.menuItem.price * item.quantity}`;
-
-//       doc.text(`${name}  ${qty}  ${rate}  ${total}`);
-//     });
-
-//     doc.moveDown(1);
-
-//     /* ================= TOTALS ================= */
-//     doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
-//     doc.moveDown(0.5);
-
-//     doc.fontSize(11);
-//     doc.text(`Subtotal        : ₹${bill.itemsTotal}`, { align: "right" });
-//     doc.text(`CGST (2.5%)     : ₹${bill.cgst}`, { align: "right" });
-//     doc.text(`SGST (2.5%)     : ₹${bill.sgst}`, { align: "right" });
-
-//     if (bill.serviceCharge > 0) {
-//       doc.text(
-//         `Service Charge  : ₹${bill.serviceCharge}`,
-//         { align: "right" }
-//       );
-//     }
-
-//     doc.moveDown(0.5);
-//     doc
-//       .fontSize(14)
-//       .text(`TOTAL AMOUNT : ₹${bill.totalAmount}`, {
-//         align: "right",
-//       });
-
-//     doc.moveDown(1.5);
-
-//     /* ================= FOOTER ================= */
-//     doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
-//     doc.moveDown(0.8);
-
-//     doc
-//       .fontSize(10)
-//       .text(
-//         "Thank you for dining with us 🙏\nPlease visit again!",
-//         { align: "center" }
-//       );
-
-//     doc.end();
-//   } catch (err) {
-//     console.error("PDF GENERATION ERROR:", err);
-//     res.status(500).json({ message: "Failed to generate bill PDF" });
-//   }
-// };
-
-// /* =====================================================
-//    EXPORT
-// ===================================================== */
-// export default {
-//   getInbox,
-//   getHistory,
-//   markPaid,
-//   generateBillPDF,
-// };
-
-
-
-
 import Bill from "../models/Bill.model.js";
 import Order from "../models/Order.model.js";
 import Table from "../models/Table.model.js";
 import PDFDocument from "pdfkit";
 
-/* ===== HELPER ===== */
 const sendSuccess = (res, data, status = 200) =>
   res.status(status).json({ success: true, data });
 
 const sendError = (res, message, status = 400) =>
   res.status(status).json({ success: false, message });
 
-/* =====================================================
-   GET UNPAID BILLS
-===================================================== */
+const asMoney = (value) => Number(value || 0).toFixed(2);
+
+const sanitizeAmount = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+};
+
+const sanitizeRate = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+const sanitizeText = (value) => String(value || "").trim();
+
+const isValidEmail = (email) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sanitizeText(email).toLowerCase());
+
+const isValidPhone = (phone) =>
+  /^[0-9+\-\s()]{7,20}$/.test(sanitizeText(phone));
+
+const calculateBillTotals = ({
+  itemsTotal,
+  cgstRate = 2.5,
+  sgstRate = 2.5,
+  serviceCharge = 0,
+  discount = 0,
+}) => {
+  const normalizedItemsTotal = sanitizeAmount(itemsTotal);
+  const normalizedCgstRate = sanitizeRate(cgstRate, 2.5);
+  const normalizedSgstRate = sanitizeRate(sgstRate, 2.5);
+  const normalizedServiceCharge = sanitizeAmount(serviceCharge);
+  const normalizedDiscount = sanitizeAmount(discount);
+
+  const cgst = Number(
+    (normalizedItemsTotal * (normalizedCgstRate / 100)).toFixed(2)
+  );
+  const sgst = Number(
+    (normalizedItemsTotal * (normalizedSgstRate / 100)).toFixed(2)
+  );
+  const subtotalBeforeDiscount =
+    normalizedItemsTotal + cgst + sgst + normalizedServiceCharge;
+  const appliedDiscount = Math.min(
+    normalizedDiscount,
+    subtotalBeforeDiscount
+  );
+  const totalAmount = Number(
+    (subtotalBeforeDiscount - appliedDiscount).toFixed(2)
+  );
+
+  return {
+    itemsTotal: normalizedItemsTotal,
+    cgstRate: normalizedCgstRate,
+    sgstRate: normalizedSgstRate,
+    cgst,
+    sgst,
+    serviceCharge: normalizedServiceCharge,
+    discount: appliedDiscount,
+    totalAmount,
+  };
+};
+
+const findBillWithOrder = (query) =>
+  Bill.findOne(query)
+    .populate("restaurant")
+    .populate({
+      path: "order",
+      populate: [
+        { path: "table", select: "tableNumber status" },
+        { path: "items.menuItem", select: "name price" },
+      ],
+    });
+
+const drawAmountLine = (doc, label, value, options = {}) => {
+  const {
+    bold = false,
+    y = doc.y,
+    labelX = 340,
+    valueX = 440,
+    labelWidth = 110,
+    valueWidth = 100,
+  } = options;
+
+  doc.font(bold ? "Helvetica-Bold" : "Helvetica");
+  doc.text(label, labelX, y, { width: labelWidth, align: "left" });
+  doc.text(`Rs. ${asMoney(value)}`, valueX, y, {
+    width: valueWidth,
+    align: "right",
+  });
+};
+
+const ensurePageSpace = (doc, requiredHeight = 80) => {
+  if (doc.y + requiredHeight > doc.page.height - doc.page.margins.bottom) {
+    doc.addPage();
+  }
+};
+
 const getInbox = async (req, res) => {
   try {
     const bills = await Bill.find({
@@ -273,9 +128,6 @@ const getInbox = async (req, res) => {
   }
 };
 
-/* =====================================================
-   PAID HISTORY
-===================================================== */
 const getHistory = async (req, res) => {
   try {
     const bills = await Bill.find({
@@ -296,9 +148,77 @@ const getHistory = async (req, res) => {
   }
 };
 
-/* =====================================================
-   PAY BILL
-===================================================== */
+const customizeBill = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const bill = await findBillWithOrder({
+      _id: id,
+      restaurant: req.user.restaurant,
+      paymentStatus: "PENDING",
+    });
+
+    if (!bill) return sendError(res, "Pending bill not found", 404);
+
+    const totals = calculateBillTotals({
+      itemsTotal: bill.itemsTotal,
+      cgstRate: req.body.cgstRate ?? bill.cgstRate ?? 2.5,
+      sgstRate: req.body.sgstRate ?? bill.sgstRate ?? 2.5,
+      serviceCharge: req.body.serviceCharge ?? bill.serviceCharge ?? 0,
+      discount: req.body.discount ?? bill.discount ?? 0,
+    });
+
+    bill.itemsTotal = totals.itemsTotal;
+    bill.cgstRate = totals.cgstRate;
+    bill.sgstRate = totals.sgstRate;
+    bill.cgst = totals.cgst;
+    bill.sgst = totals.sgst;
+    bill.serviceCharge = totals.serviceCharge;
+    bill.discount = totals.discount;
+    bill.totalAmount = totals.totalAmount;
+    bill.customerEmail = sanitizeText(req.body.customerEmail).toLowerCase();
+    bill.customerPhone = sanitizeText(req.body.customerPhone);
+    bill.generatedBy = req.user.id;
+    bill.generatedAt = new Date();
+
+    if (bill.customerEmail && !isValidEmail(bill.customerEmail)) {
+      return sendError(res, "Enter a valid customer email");
+    }
+
+    if (bill.customerPhone && !isValidPhone(bill.customerPhone)) {
+      return sendError(res, "Enter a valid customer phone number");
+    }
+
+    await bill.save();
+
+    const sendToEmail = Boolean(req.body.sendToEmail);
+    const sendToPhone = Boolean(req.body.sendToPhone);
+
+    let deliveryMessage = "";
+
+    if (sendToEmail || sendToPhone) {
+      const pendingChannels = [];
+
+      if (sendToEmail && bill.customerEmail) pendingChannels.push("email");
+      if (sendToPhone && bill.customerPhone) pendingChannels.push("phone");
+
+      if (pendingChannels.length > 0) {
+        deliveryMessage = `Bill contact details saved. Automatic ${pendingChannels.join(
+          " and "
+        )} delivery will work after SMTP or SMS gateway is configured on the server.`;
+      }
+    }
+
+    return sendSuccess(res, {
+      bill,
+      deliveryMessage,
+    });
+  } catch (err) {
+    console.error(err);
+    return sendError(res, err.message);
+  }
+};
+
 const markPaid = async (req, res) => {
   try {
     const { id } = req.params;
@@ -321,16 +241,17 @@ const markPaid = async (req, res) => {
 
     await bill.save();
 
-    /* mark order as PAID too */
     if (bill.order?._id) {
-      await Order.findByIdAndUpdate(bill.order._id, { status: "PAID", paidAt: bill.paidAt });
+      await Order.findByIdAndUpdate(bill.order._id, {
+        status: "PAID",
+        paidAt: bill.paidAt,
+      });
     }
 
     if (bill.order?.table) {
-      await Table.findByIdAndUpdate(
-        bill.order.table._id,
-        { status: "available" }
-      );
+      await Table.findByIdAndUpdate(bill.order.table._id, {
+        status: "available",
+      });
     }
 
     return sendSuccess(res, bill);
@@ -340,27 +261,20 @@ const markPaid = async (req, res) => {
   }
 };
 
-/* =====================================================
-   GENERATE BILL PDF
-===================================================== */
 const generateBillPDF = async (req, res) => {
   try {
-    const bill = await Bill.findOne({
+    const bill = await findBillWithOrder({
       _id: req.params.id,
       restaurant: req.user.restaurant,
-    })
-      .populate("restaurant")
-      .populate({
-        path: "order",
-        populate: [
-          { path: "table", select: "tableNumber" },
-          { path: "items.menuItem", select: "name price" },
-        ],
-      });
+    });
 
     if (!bill) return sendError(res, "Bill not found", 404);
 
-    const doc = new PDFDocument({ margin: 50 });
+    const billDate =
+      bill.paymentStatus === "PAID" && bill.paidAt ? bill.paidAt : bill.updatedAt || bill.createdAt;
+
+    const doc = new PDFDocument({ size: "A4", margin: 40 });
+
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
@@ -369,118 +283,181 @@ const generateBillPDF = async (req, res) => {
 
     doc.pipe(res);
 
-    /* ================= HEADER ================= */
-    doc
-      .fontSize(20)
-      .font("Helvetica-Bold")
-      .text(bill.restaurant?.name || "", { align: "center" });
-
-    doc
-      .fontSize(11)
-      .font("Helvetica")
-      .text(bill.restaurant?.address || "", { align: "center" });
-
-    doc.text(`Phone: ${bill.restaurant?.phone || ""}`, {
-      align: "center",
+    doc.rect(40, 40, 515, 78).fill("#f5f8f2");
+    doc.fillColor("#183153").font("Helvetica-Bold").fontSize(22).text(
+      bill.restaurant?.name || "Restaurant",
+      55,
+      58,
+      { width: 320 }
+    );
+    doc.font("Helvetica").fontSize(10).fillColor("#4b5563");
+    doc.text(bill.restaurant?.address || "Address not available", 55, 88, {
+      width: 320,
+    });
+    doc.text(`Phone: ${bill.restaurant?.phone || "N/A"}`, 55, 103, {
+      width: 220,
     });
 
-    doc.moveDown();
-    doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
-    doc.moveDown();
+    doc
+      .fillColor("#0f172a")
+      .roundedRect(400, 56, 140, 46, 8)
+      .fill("#183153");
+    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(12).text(
+      "TAX INVOICE",
+      400,
+      70,
+      { width: 140, align: "center" }
+    );
 
-    /* ================= BILL INFO ================= */
-    doc.fontSize(11);
-    doc.text(`Bill No: ${bill.billNo}`);
-    doc.text(`Table: ${bill.order?.table?.tableNumber || "N/A"}`);
-    doc.text(`Date: ${new Date().toLocaleString()}`);
-    doc.moveDown();
+    doc.fillColor("#111827");
+    doc.roundedRect(40, 135, 250, 88, 10).stroke("#d1d5db");
+    doc.roundedRect(305, 135, 250, 88, 10).stroke("#d1d5db");
 
-    /* ================= TABLE HEADER ================= */
-    const tableTop = doc.y;
+    doc.font("Helvetica-Bold").fontSize(11).text("Bill Details", 55, 150);
+    doc.font("Helvetica").fontSize(10);
+    doc.text(`Bill No: ${bill.billNo}`, 55, 170);
+    doc.text(`Order No: ${bill.order?.orderNo || "N/A"}`, 55, 186);
+    doc.text(
+      `Bill Date: ${new Date(billDate).toLocaleString("en-IN")}`,
+      55,
+      202
+    );
 
-    doc.font("Helvetica-Bold");
-    doc.text("Item", 50, tableTop);
-    doc.text("Qty", 320, tableTop, { width: 50, align: "right" });
-    doc.text("Price", 380, tableTop, { width: 70, align: "right" });
-    doc.text("Total", 460, tableTop, { width: 80, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(11).text("Order Info", 320, 150);
+    doc.font("Helvetica").fontSize(10);
+    doc.text(
+      `Table: ${bill.order?.table?.tableNumber || "N/A"}`,
+      320,
+      170
+    );
+    doc.text(
+      `Status: ${bill.paymentStatus === "PAID" ? "Paid" : "Pending"}`,
+      320,
+      186
+    );
+    doc.text(
+      `Payment: ${bill.paymentMethod || "Not paid yet"}`,
+      320,
+      202
+    );
 
-    doc.moveDown();
-    doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
-    doc.moveDown();
+    if (bill.customerEmail || bill.customerPhone) {
+      doc.font("Helvetica-Bold").fontSize(11).text("Customer Contact", 55, 228);
+      doc.font("Helvetica").fontSize(10);
+      if (bill.customerEmail) {
+        doc.text(`Email: ${bill.customerEmail}`, 55, 244, {
+          width: 250,
+        });
+      }
+      if (bill.customerPhone) {
+        doc.text(`Phone: ${bill.customerPhone}`, 320, 244, {
+          width: 180,
+        });
+      }
+    }
 
-    /* ================= ITEMS ================= */
-    doc.font("Helvetica");
-    let y = doc.y;
+    let tableTop = bill.customerEmail || bill.customerPhone ? 282 : 250;
+    const columnX = {
+      item: 50,
+      qty: 315,
+      rate: 385,
+      amount: 465,
+    };
 
-    bill.order?.items?.forEach((item) => {
-      const name = item.menuItem?.name || "";
-      const price = Number(item.menuItem?.price || 0);
-      const qty = Number(item.quantity || 0);
-      const total = price * qty;
+    doc.roundedRect(40, tableTop, 515, 28, 6).fill("#183153");
+    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(10);
+    doc.text("Item", columnX.item, tableTop + 9, { width: 230 });
+    doc.text("Qty", columnX.qty, tableTop + 9, {
+      width: 40,
+      align: "right",
+    });
+    doc.text("Rate", columnX.rate, tableTop + 9, {
+      width: 55,
+      align: "right",
+    });
+    doc.text("Amount", columnX.amount, tableTop + 9, {
+      width: 70,
+      align: "right",
+    });
 
-      doc.text(name, 50, y);
-      doc.text(qty.toString(), 320, y, { width: 50, align: "right" });
-      doc.text(price.toFixed(2), 380, y, {
+    let rowY = tableTop + 34;
+    bill.order?.items?.forEach((item, index) => {
+      ensurePageSpace(doc, 32);
+
+      const rowHeight = 24;
+      if (index % 2 === 0) {
+        doc.rect(40, rowY - 4, 515, rowHeight).fill("#f9fafb");
+      }
+
+      const itemName = item.menuItem?.name || "Menu Item";
+      const itemRate = Number(item.price ?? item.menuItem?.price ?? 0);
+      const quantity = Number(item.quantity || 0);
+      const lineTotal = Number((itemRate * quantity).toFixed(2));
+
+      doc.fillColor("#111827").font("Helvetica").fontSize(10);
+      doc.text(itemName, columnX.item, rowY, { width: 230 });
+      doc.text(String(quantity), columnX.qty, rowY, {
+        width: 40,
+        align: "right",
+      });
+      doc.text(asMoney(itemRate), columnX.rate, rowY, {
+        width: 55,
+        align: "right",
+      });
+      doc.text(asMoney(lineTotal), columnX.amount, rowY, {
         width: 70,
         align: "right",
       });
-      doc.text(total.toFixed(2), 460, y, {
-        width: 80,
-        align: "right",
-      });
 
-      y += 20;
+      rowY += 24;
     });
 
-    doc.moveTo(50, y).lineTo(550, y).stroke();
-    doc.moveDown(2);
+    doc.moveTo(40, rowY + 4).lineTo(555, rowY + 4).stroke("#d1d5db");
 
-    /* ================= TOTAL SECTION ================= */
-    const totalsX = 380;
-
-    doc.font("Helvetica");
-    doc.text("Items Total:", totalsX, doc.y, {
-      continued: true,
+    const summaryTop = rowY + 22;
+    drawAmountLine(doc, "Items Total", bill.itemsTotal, { y: summaryTop });
+    drawAmountLine(
+      doc,
+      `CGST (${sanitizeRate(bill.cgstRate, 2.5)}%)`,
+      bill.cgst,
+      { y: summaryTop + 18 }
+    );
+    drawAmountLine(
+      doc,
+      `SGST (${sanitizeRate(bill.sgstRate, 2.5)}%)`,
+      bill.sgst,
+      { y: summaryTop + 36 }
+    );
+    drawAmountLine(doc, "Service Charge", bill.serviceCharge, {
+      y: summaryTop + 54,
     });
-    doc.text(Number(bill.itemsTotal).toFixed(2), {
-      align: "right",
-    });
-
-    doc.text("CGST:", totalsX, doc.y, { continued: true });
-    doc.text(Number(bill.cgst).toFixed(2), {
-      align: "right",
-    });
-
-    doc.text("SGST:", totalsX, doc.y, { continued: true });
-    doc.text(Number(bill.sgst).toFixed(2), {
-      align: "right",
-    });
-
-    doc.text("Service Charge:", totalsX, doc.y, {
-      continued: true,
-    });
-    doc.text(Number(bill.serviceCharge).toFixed(2), {
-      align: "right",
+    drawAmountLine(doc, "Discount", bill.discount || 0, {
+      y: summaryTop + 72,
     });
 
-    doc.moveDown();
-
-    doc.font("Helvetica-Bold").fontSize(13);
-    doc.text("Grand Total:", totalsX, doc.y, {
-      continued: true,
-    });
-    doc.text(Number(bill.totalAmount).toFixed(2), {
-      align: "right",
+    doc.moveTo(340, summaryTop + 96).lineTo(540, summaryTop + 96).stroke("#111827");
+    drawAmountLine(doc, "Grand Total", bill.totalAmount, {
+      y: summaryTop + 104,
+      bold: true,
     });
 
-    doc.moveDown(3);
-
+    const footerTop = summaryTop + 155;
+    ensurePageSpace(doc, 80);
     doc
-      .fontSize(11)
-      .font("Helvetica")
-      .text("Thank you for dining with us!", {
-        align: "center",
-      });
+      .roundedRect(40, footerTop, 515, 56, 10)
+      .fill("#f5f8f2");
+    doc.fillColor("#1f2937").font("Helvetica-Bold").fontSize(11).text(
+      "Thank you for dining with us.",
+      55,
+      footerTop + 14,
+      { width: 220 }
+    );
+    doc.font("Helvetica").fontSize(10).text(
+      "This invoice includes all selected taxes, service charges, and discounts.",
+      55,
+      footerTop + 30,
+      { width: 410 }
+    );
 
     doc.end();
   } catch (err) {
@@ -489,10 +466,10 @@ const generateBillPDF = async (req, res) => {
   }
 };
 
-
 export default {
   getInbox,
   getHistory,
+  customizeBill,
   markPaid,
   generateBillPDF,
 };

@@ -59,8 +59,8 @@ export const getWaiterDashboard = async () => {
 
 /* ================= ACCOUNTANT ================= */
 
-export const getAccountantDashboard = async () => {
-  const res = await API.get("/accountant/dashboard");
+export const getAccountantDashboard = async (params = {}) => {
+  const res = await API.get("/accountant/dashboard", { params });
   return res.data;
 };
 

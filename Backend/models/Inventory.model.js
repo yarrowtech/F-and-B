@@ -21,15 +21,7 @@ const inventorySchema = new mongoose.Schema(
     unit: {
       type: String,
       required: true,
-      enum: [
-        "kg",
-        "gram",
-        "liter",
-        "ml",
-        "piece",
-        "pack",
-        "bottle",
-      ],
+      trim: true,
     },
 
     quantity: {
@@ -37,6 +29,12 @@ const inventorySchema = new mongoose.Schema(
       required: true,
       min: 0,
       default: 0,
+    },
+
+    category: {
+      type: String,
+      trim: true,
+      default: "",
     },
 
     // 🔥 Low stock alert threshold
