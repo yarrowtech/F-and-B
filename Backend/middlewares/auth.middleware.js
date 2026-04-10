@@ -71,6 +71,7 @@ const auth = async (req, res, next) => {
       req.user = {
         id: admin._id.toString(),
         role: "admin",
+        name: admin.businessName || admin.email || "Admin",
         restaurant: admin.restaurant || null,
       };
     } else if (
@@ -96,6 +97,7 @@ const auth = async (req, res, next) => {
       req.user = {
         id: employee._id.toString(),
         role,
+        name: employee.name || employee.email || "Employee",
         employeeId: employee.employeeId,
         restaurant: employee.restaurant,
       };

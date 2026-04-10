@@ -1,286 +1,299 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   checkIn,
   checkOut,
   getTodayAttendance,
   getMonthlyStats,
   getMonthlyChart,
+  exportAttendanceExcel,
 } from "../../services/attendance.service";
 
-const ChiefAttendancePage = () => {
+const STATUS_STYLE = {
+  PRESENT: "bg-emerald-100 text-emerald-700",
+  ABSENT:  "bg-red-100 text-red-600",
+  LEAVE:   "bg-amber-100 text-amber-700",
+};
+
+const ChefAttendancePage = () => {
   const today = new Date();
 
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth());
-  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
+  const [selectedYear,  setSelectedYear]  = useState(today.getFullYear());
 
-  const [todayRecord, setTodayRecord] = useState(null);
+  const [todayRecord,       setTodayRecord]       = useState(null);
   const [attendanceRecords, setAttendanceRecords] = useState({});
-  const [monthlyStats, setMonthlyStats] = useState({});
-
-  /* ================= HELPERS ================= */
+  const [monthlyStats,      setMonthlyStats]      = useState({});
+  const [loading,           setLoading]           = useState(false);
 
   const formatDate = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
   };
 
-  const getMonthString = () => {
-    return `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
-  };
+  const getMonthString = () =>
+    `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
 
-  /* ================= LOAD TODAY ================= */
-
+  /* ── load today ── */
   const loadTodayData = async () => {
     try {
-      const res = await getTodayAttendance();
-
-      if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
-        const record = res.data[0];
-
-        setTodayRecord({
-          status: record.status?.toLowerCase() || null,
-          checkIn: record.checkIn
-            ? new Date(record.checkIn).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : null,
-          checkOut: record.checkOut
-            ? new Date(record.checkOut).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : null,
-        });
+      const res = await getTodayAttendance("own");
+      if (res?.success && res.data.length > 0) {
+        const r = res.data[0];
+        setTodayRecord({ checkIn: r.checkIn || null, checkOut: r.checkOut || null });
       } else {
         setTodayRecord(null);
       }
-    } catch (err) {
-      console.error("Today attendance error:", err);
-    }
+    } catch (err) { console.error(err); }
   };
 
-  /* ================= LOAD MONTH ================= */
-
+  /* ── load month ── */
   const loadMonthlyData = async () => {
     try {
       const monthString = getMonthString();
-
       const [chartRes, statsRes] = await Promise.all([
-        getMonthlyChart(monthString),
-        getMonthlyStats(monthString),
+        getMonthlyChart(monthString, "own"),
+        getMonthlyStats(monthString, "own"),
       ]);
 
-      const recordMap = {};
-
-      if (chartRes?.success && Array.isArray(chartRes.data)) {
-        chartRes.data.forEach((day) => {
-          const key = formatDate(new Date(day.date));
-
-          recordMap[key] = {
-            status: day.status?.toLowerCase() || null,
-            checkInTime: day.checkIn
-              ? new Date(day.checkIn).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-              : null,
-            checkOutTime: day.checkOut
-              ? new Date(day.checkOut).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-              : null,
-          };
+      const map = {};
+      if (chartRes?.success) {
+        chartRes.data.forEach((item) => {
+          const rawDate =
+            typeof item.date === "string" && item.date.length === 10
+              ? item.date + "T00:00:00"
+              : item.date;
+          const key = formatDate(new Date(rawDate));
+          map[key] = { status: item.status, checkIn: item.checkIn, checkOut: item.checkOut };
         });
       }
 
-      setAttendanceRecords(recordMap);
-      setMonthlyStats(statsRes?.data || {});
-    } catch (err) {
-      console.error("Monthly attendance error:", err);
-    }
+      setAttendanceRecords(map);
+      setMonthlyStats(statsRes || {});
+    } catch (err) { console.error(err); }
   };
-
-  /* ================= EFFECT ================= */
 
   useEffect(() => {
     loadTodayData();
     loadMonthlyData();
+    const interval = setInterval(() => {
+      loadTodayData();
+      loadMonthlyData();
+    }, 30000);
+    return () => clearInterval(interval);
   }, [selectedMonth, selectedYear]);
-
-  /* ================= CHECK IN / OUT ================= */
 
   const handleCheckIn = async () => {
     try {
+      setLoading(true);
       await checkIn(0, 0);
       await loadTodayData();
       await loadMonthlyData();
-    } catch (err) {
-      console.error("Check-in error:", err);
-    }
+    } catch (err) { alert(err); }
+    finally { setLoading(false); }
   };
 
   const handleCheckOut = async () => {
     try {
+      setLoading(true);
       await checkOut();
       await loadTodayData();
       await loadMonthlyData();
-    } catch (err) {
-      console.error("Check-out error:", err);
-    }
+    } catch (err) { alert(err); }
+    finally { setLoading(false); }
+  };
+
+  const handleExport = async () => {
+    const month    = selectedMonth + 1;
+    const startDate = `${selectedYear}-${String(month).padStart(2, "0")}-01`;
+    const lastDay   = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+    const endDate   = `${selectedYear}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+    await exportAttendanceExcel(startDate, endDate);
   };
 
   const months = [
     "January","February","March","April","May","June",
-    "July","August","September","October","November","December"
+    "July","August","September","October","November","December",
   ];
-
   const years = [];
-  for (let i = 0; i < 5; i++) {
-    years.push(today.getFullYear() - i);
-  }
+  for (let i = 0; i < 5; i++) years.push(today.getFullYear() - i);
+
+  const sortedKeys = Object.keys(attendanceRecords).sort(
+    (a, b) => new Date(b) - new Date(a)
+  );
 
   return (
-    <div className="min-h-screen p-6 bg-gray-100">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="min-h-screen p-6 bg-gradient-to-br from-slate-100 to-blue-50 dark:from-gray-900 dark:to-gray-800 space-y-6">
 
-        <h2 className="text-3xl font-bold">My Attendance</h2>
+      {/* HEADER */}
+      <div>
+        <h2 className="text-3xl font-bold text-gray-800 dark:text-white">My Attendance</h2>
+        <p className="text-base text-gray-500 dark:text-gray-400 mt-1">Track your check-ins and monthly record</p>
+      </div>
 
-        {/* TODAY SECTION */}
-        <div className="bg-white p-6 rounded-xl shadow space-y-2">
-          <h3 className="text-xl font-semibold">
-            Today ({today.toDateString()})
-          </h3>
+      {/* TODAY CARD */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6 border border-gray-100 dark:border-gray-700">
+        <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">
+          Today — <span className="text-violet-600 dark:text-violet-400">{today.toDateString()}</span>
+        </h3>
 
-          <p>Status: {todayRecord?.status || "Not Marked"}</p>
-          <p>Check-In: {todayRecord?.checkIn || "--"}</p>
-          <p>Check-Out: {todayRecord?.checkOut || "--"}</p>
-
-          <div className="flex gap-3 mt-3">
-            <button
-              onClick={handleCheckIn}
-              disabled={!!todayRecord?.checkIn}
-              className="bg-green-500 text-white px-4 py-2 rounded disabled:opacity-50"
-            >
-              Check In
-            </button>
-
-            <button
-              onClick={handleCheckOut}
-              disabled={!todayRecord?.checkIn || !!todayRecord?.checkOut}
-              className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50"
-            >
-              Check Out
-            </button>
+        <div className="flex flex-wrap gap-6 mb-5">
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Check-In</span>
+            <span className="text-2xl font-bold text-gray-800 dark:text-white">
+              {todayRecord?.checkIn
+                ? new Date(todayRecord.checkIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                : "--:--"}
+            </span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Check-Out</span>
+            <span className="text-2xl font-bold text-gray-800 dark:text-white">
+              {todayRecord?.checkOut
+                ? new Date(todayRecord.checkOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                : "--:--"}
+            </span>
           </div>
         </div>
 
-        {/* FILTER SECTION */}
-        <div className="flex gap-4">
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(Number(e.target.value))}
-            className="p-2 border rounded"
+        <div className="flex gap-3">
+          <button
+            onClick={handleCheckIn}
+            disabled={loading || !!todayRecord?.checkIn}
+            className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-base font-semibold rounded-xl transition-colors shadow-sm"
           >
-            {months.map((m, i) => (
-              <option key={i} value={i}>{m}</option>
-            ))}
-          </select>
-
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="p-2 border rounded"
+            Check In
+          </button>
+          <button
+            onClick={handleCheckOut}
+            disabled={loading || !todayRecord?.checkIn || !!todayRecord?.checkOut}
+            className="px-6 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white text-base font-semibold rounded-xl transition-colors shadow-sm"
           >
-            {years.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+            Check Out
+          </button>
         </div>
+      </div>
 
-        {/* MONTHLY SUMMARY */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white p-5 rounded-xl shadow text-center">
-            <p>Total Days</p>
-            <p className="font-bold text-xl">
-              {monthlyStats.totalDays || 0}
-            </p>
-          </div>
+      {/* FILTER + EXPORT */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-5 border border-gray-100 dark:border-gray-700 flex flex-wrap gap-3 items-center">
+        <select
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(Number(e.target.value))}
+          className="px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 dark:text-white text-base focus:outline-none focus:ring-2 focus:ring-violet-500"
+        >
+          {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
+        </select>
 
-          <div className="bg-white p-5 rounded-xl shadow text-center">
-            <p>Present</p>
-            <p className="font-bold text-xl">
-              {monthlyStats.totalPresent || 0}
-            </p>
-          </div>
+        <select
+          value={selectedYear}
+          onChange={(e) => setSelectedYear(Number(e.target.value))}
+          className="px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 dark:text-white text-base focus:outline-none focus:ring-2 focus:ring-violet-500"
+        >
+          {years.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
 
-          <div className="bg-white p-5 rounded-xl shadow text-center">
-            <p>Attendance %</p>
-            <p className="font-bold text-xl">
-              {monthlyStats.attendancePercent || 0}%
-            </p>
-          </div>
+        <button
+          onClick={handleExport}
+          className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-base font-semibold rounded-xl transition-colors shadow-sm"
+        >
+          Export Excel
+        </button>
+      </div>
+
+      {/* MONTHLY SUMMARY */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-lg">
+          <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-white/10" />
+          <p className="text-sm font-medium text-violet-100 mb-1">Total Days</p>
+          <p className="text-4xl font-extrabold">{monthlyStats.totalDays || 0}</p>
         </div>
+        <div className="relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg">
+          <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-white/10" />
+          <p className="text-sm font-medium text-emerald-100 mb-1">Days Present</p>
+          <p className="text-4xl font-extrabold">{monthlyStats.totalPresent || 0}</p>
+        </div>
+        <div className="relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg">
+          <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-white/10" />
+          <p className="text-sm font-medium text-amber-100 mb-1">Attendance %</p>
+          <p className="text-4xl font-extrabold">{monthlyStats.attendancePercent || 0}%</p>
+        </div>
+      </div>
 
-        {/* MONTHLY LIST */}
-        <div className="bg-white p-6 rounded-xl shadow">
-          <h3 className="text-xl font-semibold mb-4">
-            Monthly Attendance List
+      {/* MONTHLY LIST */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">
+            Monthly Attendance — {months[selectedMonth]} {selectedYear}
           </h3>
+        </div>
 
+        {sortedKeys.length === 0 ? (
+          <p className="text-center text-gray-400 dark:text-gray-500 py-12 text-base">
+            No attendance records for this month.
+          </p>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm text-left">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Check-In</th>
-                  <th className="px-4 py-3">Check-Out</th>
+            <table className="min-w-full">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-gray-700/50 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <th className="px-6 py-3 text-left font-semibold">#</th>
+                  <th className="px-6 py-3 text-left font-semibold">Date</th>
+                  <th className="px-6 py-3 text-left font-semibold">Day</th>
+                  <th className="px-6 py-3 text-left font-semibold">Status</th>
+                  <th className="px-6 py-3 text-left font-semibold">Check-In</th>
+                  <th className="px-6 py-3 text-left font-semibold">Check-Out</th>
+                  <th className="px-6 py-3 text-left font-semibold">Work Hours</th>
                 </tr>
               </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {sortedKeys.map((key, idx) => {
+                  const rec  = attendanceRecords[key];
+                  const d    = new Date(key + "T00:00:00");
+                  const dayName = d.toLocaleDateString("en-IN", { weekday: "short" });
+                  const dateStr = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
-              <tbody>
-                {Object.keys(attendanceRecords).length === 0 ? (
-                  <tr>
-                    <td colSpan="4" className="text-center py-6 text-gray-500">
-                      No records found
-                    </td>
-                  </tr>
-                ) : (
-                  Object.keys(attendanceRecords)
-                    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
-                    .map((dateKey) => {
-                      const record = attendanceRecords[dateKey];
+                  const checkInTime  = rec.checkIn  ? new Date(rec.checkIn)  : null;
+                  const checkOutTime = rec.checkOut ? new Date(rec.checkOut) : null;
 
-                      return (
-                        <tr key={dateKey} className="border-b">
-                          <td className="px-4 py-3">
-                            {new Date(dateKey).toDateString()}
-                          </td>
-                          <td className="px-4 py-3 capitalize">
-                            {record?.status}
-                          </td>
-                          <td className="px-4 py-3">
-                            {record?.checkInTime || "--"}
-                          </td>
-                          <td className="px-4 py-3">
-                            {record?.checkOutTime || "--"}
-                          </td>
-                        </tr>
-                      );
-                    })
-                )}
+                  let workHours = "--";
+                  if (checkInTime && checkOutTime) {
+                    const diff = (checkOutTime - checkInTime) / (1000 * 60 * 60);
+                    workHours  = diff.toFixed(1) + " hrs";
+                  }
+
+                  const statusClass = STATUS_STYLE[rec.status] || "bg-gray-100 text-gray-600";
+
+                  return (
+                    <tr key={key} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                      <td className="px-6 py-4 text-sm text-gray-400 dark:text-gray-500">{idx + 1}</td>
+                      <td className="px-6 py-4 text-base font-semibold text-gray-800 dark:text-white">{dateStr}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{dayName}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusClass}`}>
+                          {rec.status || "PRESENT"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-base text-gray-700 dark:text-gray-300">
+                        {checkInTime ? checkInTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--"}
+                      </td>
+                      <td className="px-6 py-4 text-base text-gray-700 dark:text-gray-300">
+                        {checkOutTime ? checkOutTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--"}
+                      </td>
+                      <td className="px-6 py-4 text-base font-medium text-violet-600 dark:text-violet-400">
+                        {workHours}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        </div>
-
+        )}
       </div>
+
     </div>
   );
 };
 
-export default ChiefAttendancePage;
+export default ChefAttendancePage;

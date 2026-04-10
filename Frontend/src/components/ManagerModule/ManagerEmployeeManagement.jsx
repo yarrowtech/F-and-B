@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { FaFileExport, FaChevronDown, FaChevronUp } from "react-icons/fa";
+import { FaFileExport, FaTimes } from "react-icons/fa";
 import {
   getMonthlyChart,
   exportAttendanceExcel,
@@ -67,7 +67,7 @@ const ManagerEmployeeManagement = () => {
   const [selectedYear,  setSelectedYear]  = useState(today.getFullYear());
   const [groupedData,   setGroupedData]   = useState({});
   const [attLoading,    setAttLoading]    = useState(false);
-  const [expandedEmp,   setExpandedEmp]   = useState(null);
+  const [detailEmp,     setDetailEmp]     = useState(null); // employee shown in popup
 
   /* ── work report state ── */
   const [activePeriod,  setActivePeriod]  = useState("month");
@@ -81,7 +81,7 @@ const ManagerEmployeeManagement = () => {
   const loadMonthly = useCallback(async () => {
     try {
       setAttLoading(true);
-      setExpandedEmp(null);
+      setDetailEmp(null);
       const monthString = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
       const res = await getMonthlyChart(monthString);
       if (res?.success) {
@@ -260,13 +260,13 @@ const ManagerEmployeeManagement = () => {
               </div>
 
               {/* table header — desktop only */}
-              <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_40px] gap-4 px-6 py-3 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_1fr_1.5fr_120px] gap-4 px-6 py-3 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                 <span>Employee</span>
                 <span className="text-center">Present</span>
                 <span className="text-center">Absent</span>
                 <span className="text-center">Rate</span>
                 <span className="text-center">Progress</span>
-                <span />
+                <span className="text-center">Details</span>
               </div>
 
               {/* rows */}
@@ -275,26 +275,74 @@ const ManagerEmployeeManagement = () => {
                   const presentDays = Object.keys(emp.records).length;
                   const absentDays  = daysInMonth - presentDays;
                   const pct         = Math.round((presentDays / daysInMonth) * 100);
-                  const isOpen      = expandedEmp === emp.employeeId;
                   const avatarColor = ROLE_AVATAR[emp.role] || "bg-gray-400";
 
                   return (
-                    <div key={emp.employeeId}>
-                      {/* ── main row ── */}
-                      <button
-                        onClick={() => setExpandedEmp(isOpen ? null : emp.employeeId)}
-                        className="w-full text-left hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                      >
-                        {/* desktop row */}
-                        <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_40px] gap-4 items-center px-6 py-4">
-                          {/* employee */}
+                    <div key={emp.employeeId} className="hover:bg-gray-50 dark:hover:bg-gray-700/20 transition-colors">
+
+                      {/* desktop row */}
+                      <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_1fr_1.5fr_120px] gap-4 items-center px-6 py-4">
+                        {/* employee */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-9 h-9 shrink-0 rounded-full ${avatarColor} text-white font-bold text-sm flex items-center justify-center`}>
+                            {emp.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-800 dark:text-white text-sm truncate">{emp.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-xs text-gray-400">{emp.employeeId}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${ROLE_COLOR[emp.role] || "bg-gray-100 text-gray-600"}`}>
+                                {emp.role}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        {/* present */}
+                        <div className="text-center">
+                          <span className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">{presentDays}</span>
+                          <span className="text-xs text-gray-400 ml-1">days</span>
+                        </div>
+                        {/* absent */}
+                        <div className="text-center">
+                          <span className="text-lg font-extrabold text-red-500 dark:text-red-400">{absentDays}</span>
+                          <span className="text-xs text-gray-400 ml-1">days</span>
+                        </div>
+                        {/* rate */}
+                        <div className="text-center">
+                          <span className={`text-lg font-extrabold ${pct >= 75 ? "text-emerald-600" : pct >= 50 ? "text-amber-500" : "text-red-500"}`}>
+                            {pct}%
+                          </span>
+                        </div>
+                        {/* progress bar */}
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${pct >= 75 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-400"}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                        {/* view details button */}
+                        <div className="flex justify-center">
+                          <button
+                            onClick={() => setDetailEmp({ ...emp, presentDays, absentDays, pct })}
+                            className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                          >
+                            View Details
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* mobile row */}
+                      <div className="sm:hidden px-4 py-4">
+                        <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className={`w-9 h-9 shrink-0 rounded-full ${avatarColor} text-white font-bold text-sm flex items-center justify-center`}>
+                            <div className={`w-10 h-10 shrink-0 rounded-full ${avatarColor} text-white font-bold text-sm flex items-center justify-center`}>
                               {emp.name.charAt(0).toUpperCase()}
                             </div>
                             <div className="min-w-0">
                               <p className="font-semibold text-gray-800 dark:text-white text-sm truncate">{emp.name}</p>
-                              <div className="flex items-center gap-2 mt-0.5">
+                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                 <span className="text-xs text-gray-400">{emp.employeeId}</span>
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${ROLE_COLOR[emp.role] || "bg-gray-100 text-gray-600"}`}>
                                   {emp.role}
@@ -302,161 +350,37 @@ const ManagerEmployeeManagement = () => {
                               </div>
                             </div>
                           </div>
-                          {/* present */}
-                          <div className="text-center">
-                            <span className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">{presentDays}</span>
-                            <span className="text-xs text-gray-400 ml-1">days</span>
-                          </div>
-                          {/* absent */}
-                          <div className="text-center">
-                            <span className="text-lg font-extrabold text-red-500 dark:text-red-400">{absentDays}</span>
-                            <span className="text-xs text-gray-400 ml-1">days</span>
-                          </div>
-                          {/* rate */}
-                          <div className="text-center">
-                            <span className={`text-lg font-extrabold ${pct >= 75 ? "text-emerald-600" : pct >= 50 ? "text-amber-500" : "text-red-500"}`}>
-                              {pct}%
-                            </span>
-                          </div>
-                          {/* progress bar */}
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all ${pct >= 75 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-400"}`}
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                          </div>
-                          {/* expand */}
-                          <div className="flex items-center justify-center text-gray-400">
-                            {isOpen ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
-                          </div>
+                          <button
+                            onClick={() => setDetailEmp({ ...emp, presentDays, absentDays, pct })}
+                            className="shrink-0 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                          >
+                            Details
+                          </button>
                         </div>
-
-                        {/* mobile row */}
-                        <div className="sm:hidden px-4 py-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className={`w-10 h-10 shrink-0 rounded-full ${avatarColor} text-white font-bold text-sm flex items-center justify-center`}>
-                                {emp.name.charAt(0).toUpperCase()}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="font-semibold text-gray-800 dark:text-white text-sm truncate">{emp.name}</p>
-                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                  <span className="text-xs text-gray-400">{emp.employeeId}</span>
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${ROLE_COLOR[emp.role] || "bg-gray-100 text-gray-600"}`}>
-                                    {emp.role}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="shrink-0 text-gray-400">
-                              {isOpen ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
-                            </div>
+                        {/* mobile stats */}
+                        <div className="mt-3 flex items-center gap-4">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                            <span className="text-sm font-bold text-emerald-600">{presentDays}</span>
+                            <span className="text-xs text-gray-400">present</span>
                           </div>
-                          {/* mobile stats */}
-                          <div className="mt-3 flex items-center gap-4">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                              <span className="text-sm font-bold text-emerald-600">{presentDays}</span>
-                              <span className="text-xs text-gray-400">present</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-red-400" />
-                              <span className="text-sm font-bold text-red-500">{absentDays}</span>
-                              <span className="text-xs text-gray-400">absent</span>
-                            </div>
-                            <span className={`ml-auto text-sm font-extrabold ${pct >= 75 ? "text-emerald-600" : pct >= 50 ? "text-amber-500" : "text-red-500"}`}>
-                              {pct}%
-                            </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-red-400" />
+                            <span className="text-sm font-bold text-red-500">{absentDays}</span>
+                            <span className="text-xs text-gray-400">absent</span>
                           </div>
-                          <div className="mt-2 w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${pct >= 75 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-400"}`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
+                          <span className={`ml-auto text-sm font-extrabold ${pct >= 75 ? "text-emerald-600" : pct >= 50 ? "text-amber-500" : "text-red-500"}`}>
+                            {pct}%
+                          </span>
                         </div>
-                      </button>
-
-                      {/* ── expanded: full date-wise table ── */}
-                      {isOpen && (
-                        <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
-                          {/* sub-header */}
-                          <div className="px-4 sm:px-6 py-3 flex items-center justify-between border-b border-gray-100 dark:border-gray-700">
-                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                              Date-wise Log — {months[selectedMonth]} {selectedYear}
-                            </p>
-                            <div className="flex items-center gap-3 text-[10px] font-semibold">
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">{presentDays} Present</span>
-                              <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-500">{absentDays} Absent</span>
-                            </div>
-                          </div>
-
-                          {/* table header */}
-                          <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr] sm:grid-cols-[1fr_1.2fr_1.2fr_1.2fr_1fr] gap-2 px-4 sm:px-6 py-2 bg-gray-100 dark:bg-gray-800/60 text-[10px] sm:text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                            <span>Date</span>
-                            <span>Day</span>
-                            <span className="text-emerald-600">Check In</span>
-                            <span className="text-blue-500">Check Out</span>
-                            <span className="text-right text-violet-600">Hours</span>
-                          </div>
-
-                          {/* all day rows */}
-                          <div className="divide-y divide-gray-100 dark:divide-gray-700/60 max-h-80 overflow-y-auto">
-                            {dateColumns.map((date) => {
-                              const rec   = emp.records[date];
-                              const d     = new Date(date + "T00:00:00");
-                              const inT   = rec?.checkIn  ? new Date(rec.checkIn)  : null;
-                              const outT  = rec?.checkOut ? new Date(rec.checkOut) : null;
-                              const hrs   = inT && outT ? ((outT - inT) / 3600000).toFixed(1) : null;
-
-                              return (
-                                <div
-                                  key={date}
-                                  className={`grid grid-cols-[1fr_1fr_1fr_1fr_1fr] sm:grid-cols-[1fr_1.2fr_1.2fr_1.2fr_1fr] gap-2 items-center px-4 sm:px-6 py-2.5 text-xs sm:text-sm transition-colors
-                                    ${rec
-                                      ? "bg-white dark:bg-gray-800 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"
-                                      : "bg-white/60 dark:bg-gray-800/40 hover:bg-gray-100 dark:hover:bg-gray-700/20"
-                                    }`}
-                                >
-                                  {/* date number */}
-                                  <div className="flex items-center gap-2">
-                                    <span className={`w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-xs font-bold
-                                      ${rec
-                                        ? "bg-emerald-500 text-white"
-                                        : "bg-gray-100 dark:bg-gray-700 text-gray-400"
-                                      }`}
-                                    >
-                                      {d.getDate()}
-                                    </span>
-                                  </div>
-
-                                  {/* day name */}
-                                  <span className="font-medium text-gray-500 dark:text-gray-400">
-                                    {d.toLocaleDateString("en-IN", { weekday: "short" })}
-                                  </span>
-
-                                  {/* check in */}
-                                  <span className={`font-semibold ${inT ? "text-emerald-600 dark:text-emerald-400" : "text-gray-300 dark:text-gray-600"}`}>
-                                    {inT ? inT.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
-                                  </span>
-
-                                  {/* check out */}
-                                  <span className={`font-semibold ${outT ? "text-blue-500 dark:text-blue-400" : "text-gray-300 dark:text-gray-600"}`}>
-                                    {outT ? outT.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
-                                  </span>
-
-                                  {/* hours */}
-                                  <span className={`text-right font-bold ${hrs ? "text-violet-600 dark:text-violet-400" : rec ? "text-amber-500" : "text-gray-300 dark:text-gray-600"}`}>
-                                    {hrs ? `${hrs}h` : rec ? "—" : "Absent"}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
+                        <div className="mt-2 w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${pct >= 75 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-400"}`}
+                            style={{ width: `${pct}%` }}
+                          />
                         </div>
-                      )}
+                      </div>
+
                     </div>
                   );
                 })}
@@ -464,6 +388,119 @@ const ManagerEmployeeManagement = () => {
             </div>
           )}
         </>
+      )}
+
+      {/* ══════════ ATTENDANCE DETAIL POPUP ══════════ */}
+      {detailEmp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setDetailEmp(null)}
+          />
+
+          {/* modal */}
+          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col z-10">
+
+            {/* modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-10 h-10 shrink-0 rounded-full ${ROLE_AVATAR[detailEmp.role] || "bg-gray-400"} text-white font-bold text-sm flex items-center justify-center`}>
+                  {detailEmp.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-bold text-gray-800 dark:text-white text-base truncate">{detailEmp.name}</p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="text-xs text-gray-400">{detailEmp.employeeId}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${ROLE_COLOR[detailEmp.role] || "bg-gray-100 text-gray-600"}`}>
+                      {detailEmp.role}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setDetailEmp(null)}
+                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <FaTimes size={14} />
+              </button>
+            </div>
+
+            {/* month + stats strip */}
+            <div className="flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700 shrink-0">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                {months[selectedMonth]} {selectedYear}
+              </p>
+              <div className="flex items-center gap-3 text-[11px] font-semibold">
+                <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">{detailEmp.presentDays} Present</span>
+                <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-500">{detailEmp.absentDays} Absent</span>
+                <span className={`px-2.5 py-1 rounded-full ${detailEmp.pct >= 75 ? "bg-emerald-100 text-emerald-700" : detailEmp.pct >= 50 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-500"}`}>
+                  {detailEmp.pct}%
+                </span>
+              </div>
+            </div>
+
+            {/* date-wise table header */}
+            <div className="grid grid-cols-[1fr_1fr_1.2fr_1.2fr_1fr] gap-2 px-5 py-2.5 bg-gray-100 dark:bg-gray-800/60 text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide shrink-0">
+              <span>Date</span>
+              <span>Day</span>
+              <span className="text-emerald-600">Check In</span>
+              <span className="text-blue-500">Check Out</span>
+              <span className="text-right text-violet-600">Hours</span>
+            </div>
+
+            {/* scrollable date rows */}
+            <div className="overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700/60">
+              {dateColumns.map((date) => {
+                const rec  = detailEmp.records[date];
+                const d    = new Date(date + "T00:00:00");
+                const inT  = rec?.checkIn  ? new Date(rec.checkIn)  : null;
+                const outT = rec?.checkOut ? new Date(rec.checkOut) : null;
+                const hrs  = inT && outT ? ((outT - inT) / 3600000).toFixed(1) : null;
+
+                return (
+                  <div
+                    key={date}
+                    className={`grid grid-cols-[1fr_1fr_1.2fr_1.2fr_1fr] gap-2 items-center px-5 py-2.5 text-xs sm:text-sm transition-colors
+                      ${rec
+                        ? "bg-white dark:bg-gray-800 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"
+                        : "bg-gray-50/60 dark:bg-gray-800/40"
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-xs font-bold
+                        ${rec ? "bg-emerald-500 text-white" : "bg-gray-100 dark:bg-gray-700 text-gray-400"}`}>
+                        {d.getDate()}
+                      </span>
+                    </div>
+                    <span className="font-medium text-gray-500 dark:text-gray-400">
+                      {d.toLocaleDateString("en-IN", { weekday: "short" })}
+                    </span>
+                    <span className={`font-semibold ${inT ? "text-emerald-600 dark:text-emerald-400" : "text-gray-300 dark:text-gray-600"}`}>
+                      {inT ? inT.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                    </span>
+                    <span className={`font-semibold ${outT ? "text-blue-500 dark:text-blue-400" : "text-gray-300 dark:text-gray-600"}`}>
+                      {outT ? outT.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                    </span>
+                    <span className={`text-right font-bold ${hrs ? "text-violet-600 dark:text-violet-400" : rec ? "text-amber-500" : "text-gray-300 dark:text-gray-600"}`}>
+                      {hrs ? `${hrs}h` : rec ? "—" : "Absent"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* modal footer */}
+            <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 shrink-0 flex justify-end">
+              <button
+                onClick={() => setDetailEmp(null)}
+                className="px-5 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-xl text-sm font-semibold transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ══════════ WORK REPORT TAB ══════════ */}

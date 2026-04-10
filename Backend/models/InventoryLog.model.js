@@ -23,6 +23,11 @@ const inventoryLogSchema = new mongoose.Schema(
       ref: "Employee",
     },
 
+    addedByName: {
+      type: String,
+      default: "",
+    },
+
     action: {
       type: String,
       enum: ["ADD", "UPDATE", "DELETE"],

@@ -236,6 +236,7 @@
 
 
 import Bill from "../models/Bill.model.js";
+import Order from "../models/Order.model.js";
 import Table from "../models/Table.model.js";
 import PDFDocument from "pdfkit";
 
@@ -319,6 +320,11 @@ const markPaid = async (req, res) => {
     bill.paidAt = new Date();
 
     await bill.save();
+
+    /* mark order as PAID too */
+    if (bill.order?._id) {
+      await Order.findByIdAndUpdate(bill.order._id, { status: "PAID", paidAt: bill.paidAt });
+    }
 
     if (bill.order?.table) {
       await Table.findByIdAndUpdate(

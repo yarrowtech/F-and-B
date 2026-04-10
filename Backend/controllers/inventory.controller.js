@@ -37,6 +37,7 @@ export const createInventoryItem = async (req, res) => {
       unit,
       action: "ADD",
       addedBy: req.user.id,
+      addedByName: req.user.name || "",
     });
 
     return sendSuccess(res, item, 201);
@@ -111,6 +112,7 @@ export const updateInventoryItem = async (req, res) => {
         unit: item.unit,
         action: "UPDATE",
         addedBy: req.user.id,
+        addedByName: req.user.name || "",
       });
     }
 
@@ -152,6 +154,7 @@ export const deleteInventoryItem = async (req, res) => {
       unit: item.unit,
       action: "DELETE",
       addedBy: req.user.id,
+      addedByName: req.user.name || "",
     });
 
     return sendSuccess(res, { message: "Deleted successfully" });
@@ -224,6 +227,7 @@ export const addStockToItem = async (req, res) => {
       unit: item.unit,
       action: "ADD",
       addedBy: req.user.id,
+      addedByName: req.user.name || "",
     });
 
     return sendSuccess(res, item);

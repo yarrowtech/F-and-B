@@ -418,7 +418,7 @@ const AdminInventory = () => {
                       </span>
                     </div>
                     <div className="text-right text-sm text-gray-500 dark:text-gray-400 shrink-0">
-                      <p className="font-medium text-gray-700 dark:text-gray-300">{log.addedBy?.name || "Unknown"}</p>
+                      <p className="font-medium text-gray-700 dark:text-gray-300">{log.addedByName || log.addedBy?.name || "Unknown"}</p>
                       <p>{new Date(log.createdAt).toLocaleString()}</p>
                     </div>
                   </div>
