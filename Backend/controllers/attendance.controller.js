@@ -156,7 +156,7 @@ export const getTodayAttendance = async (req, res) => {
 ===================================================== */
 export const getMonthlyAttendanceStats = async (req, res) => {
   try {
-    const { month } = req.query;
+    const { month, type } = req.query;
 
     if (!month) {
       return res.status(400).json({
@@ -165,32 +165,50 @@ export const getMonthlyAttendanceStats = async (req, res) => {
       });
     }
 
-    const startDate = new Date(`${month}-01`);
+    const startDate = new Date(`${month}-01T00:00:00`);
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + 1);
 
-    /* 1️⃣ Get all employees in restaurant */
-    const employees = await Employee.find({
-      restaurant: req.user.restaurant,
-    });
-
-    /* 2️⃣ Get attendance records */
-    const records = await Attendance.find({
-      restaurant: req.user.restaurant,
-      date: { $gte: startDate, $lt: endDate },
-    });
-
-    /* 3️⃣ Calculate days */
     const totalMonthDays = new Date(
       startDate.getFullYear(),
       startDate.getMonth() + 1,
       0
     ).getDate();
 
-    const totalEmployees = employees.length;
+    /* OWN: return stats for the logged-in user only */
+    if (type === "own") {
+      const ownRecords = await Attendance.find({
+        employee: new mongoose.Types.ObjectId(req.user.id),
+        restaurant: new mongoose.Types.ObjectId(req.user.restaurant),
+        date: { $gte: startDate, $lt: endDate },
+      });
 
-    const totalPossibleAttendance =
-      totalEmployees * totalMonthDays;
+      const totalPresent = ownRecords.filter((r) => r.status === "PRESENT").length;
+      const attendancePercent =
+        totalMonthDays === 0
+          ? 0
+          : ((totalPresent / totalMonthDays) * 100).toFixed(2);
+
+      return res.json({
+        success: true,
+        totalDays: totalMonthDays,
+        totalPresent,
+        attendancePercent,
+      });
+    }
+
+    /* TEAM: all employees in restaurant */
+    const employees = await Employee.find({
+      restaurant: req.user.restaurant,
+    });
+
+    const records = await Attendance.find({
+      restaurant: req.user.restaurant,
+      date: { $gte: startDate, $lt: endDate },
+    });
+
+    const totalEmployees = employees.length;
+    const totalPossibleAttendance = totalEmployees * totalMonthDays;
 
     const totalPresent = records.filter(
       (r) => r.status === "PRESENT"
@@ -219,7 +237,7 @@ export const getMonthlyAttendanceStats = async (req, res) => {
 ===================================================== */
 export const getMonthlyChart = async (req, res) => {
   try {
-    const { month } = req.query;
+    const { month, type } = req.query;
 
     if (!month) {
       return res.status(400).json({
@@ -228,22 +246,38 @@ export const getMonthlyChart = async (req, res) => {
       });
     }
 
-    const startDate = new Date(`${month}-01`);
+    const startDate = new Date(`${month}-01T00:00:00`);
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + 1);
 
-    /* 1️⃣ Get all employees in the restaurant */
+    /* OWN: return flat list for the logged-in user */
+    if (type === "own") {
+      const ownRecords = await Attendance.find({
+        employee: new mongoose.Types.ObjectId(req.user.id),
+        restaurant: new mongoose.Types.ObjectId(req.user.restaurant),
+        date: { $gte: startDate, $lt: endDate },
+      }).sort({ date: 1 });
+
+      const data = ownRecords.map((a) => ({
+        date: a.date.toISOString().split("T")[0],
+        status: a.status,
+        checkIn: a.checkIn,
+        checkOut: a.checkOut,
+      }));
+
+      return res.json({ success: true, data });
+    }
+
+    /* TEAM: employee grid for managers */
     const employees = await Employee.find({
       restaurant: req.user.restaurant,
     }).select("name role employeeId");
 
-    /* 2️⃣ Get attendance records for the month */
     const attendanceRecords = await Attendance.find({
       restaurant: req.user.restaurant,
       date: { $gte: startDate, $lt: endDate },
     });
 
-    /* 3️⃣ Prepare monthly grid */
     const daysInMonth = new Date(
       startDate.getFullYear(),
       startDate.getMonth() + 1,
@@ -277,10 +311,7 @@ export const getMonthlyChart = async (req, res) => {
       };
     });
 
-    res.json({
-      success: true,
-      data,
-    });
+    res.json({ success: true, data });
 
   } catch (error) {
     res.status(500).json({ message: error.message });

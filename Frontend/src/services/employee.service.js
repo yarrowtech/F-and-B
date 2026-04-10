@@ -55,3 +55,13 @@ export const resetEmployeePassword = async (employeeId, newPassword) => {
 export const getDeletedEmployeesHistory = async () => {
   return (await api.get("/employees/history/deleted")).data;
 };
+
+/* Get restaurant employees (manager) */
+export const getRestaurantEmployees = async () => {
+  return (await api.get("/employees/restaurant/list")).data;
+};
+
+/* Get staff work report (manager) */
+export const getStaffWorkReport = async (params = {}) => {
+  return (await api.get("/employees/restaurant/work-report", { params })).data;
+};

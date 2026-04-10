@@ -698,9 +698,11 @@
 
 
 import bcrypt from "bcryptjs";
+import mongoose from "mongoose";
 import Employee from "../models/Employee.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import Log from "../models/Log.model.js";
+import Order from "../models/Order.model.js";
 
 /* 🔥 LOGGER */
 import { logAction, logError } from "../utils/logger.js";
@@ -1177,6 +1179,85 @@ const getMyProfile = async (req, res) => {
 };
 
 /* ===============================
+   GET RESTAURANT EMPLOYEES (MANAGER)
+=============================== */
+
+const getRestaurantEmployees = async (req, res) => {
+  try {
+    const restaurantId = req.user.restaurant;
+    if (!restaurantId) {
+      return res.status(400).json({ message: "No restaurant assigned to this manager" });
+    }
+
+    const employees = await Employee.find({ restaurant: restaurantId })
+      .select("name role employeeId phone email")
+      .lean();
+
+    res.json({ success: true, data: employees });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/* ===============================
+   STAFF WORK REPORT (MANAGER)
+=============================== */
+
+const getStaffWorkReport = async (req, res) => {
+  try {
+    const restaurantId = req.user.restaurant;
+    if (!restaurantId) {
+      return res.status(400).json({ message: "No restaurant assigned" });
+    }
+
+    const { startDate, endDate } = req.query;
+
+    const dateFilter = {};
+    if (startDate) dateFilter.$gte = new Date(startDate + "T00:00:00");
+    if (endDate)   dateFilter.$lte = new Date(endDate   + "T23:59:59");
+
+    const orderMatch = {
+      restaurant: new mongoose.Types.ObjectId(restaurantId),
+      ...(Object.keys(dateFilter).length ? { createdAt: dateFilter } : {}),
+    };
+
+    const employees = await Employee.find({ restaurant: restaurantId })
+      .select("name role employeeId")
+      .lean();
+
+    const [waiterStats, chefStats] = await Promise.all([
+      Order.aggregate([
+        { $match: orderMatch },
+        { $group: { _id: "$waiter", ordersTaken: { $sum: 1 } } },
+      ]),
+      Order.aggregate([
+        { $match: { ...orderMatch, chef: { $ne: null } } },
+        { $group: { _id: "$chef", ordersPrepared: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const waiterMap  = Object.fromEntries(waiterStats.map(x => [x._id.toString(), x.ordersTaken]));
+    const chefMap    = Object.fromEntries(chefStats.map(x  => [x._id.toString(), x.ordersPrepared]));
+
+    const data = employees.map((emp) => {
+      const id = emp._id.toString();
+      return {
+        _id:           emp._id,
+        name:          emp.name,
+        role:          emp.role,
+        employeeId:    emp.employeeId,
+        ordersTaken:   waiterMap[id]  || 0,
+        ordersPrepared: chefMap[id]   || 0,
+      };
+    });
+
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/* ===============================
    EXPORT
 =============================== */
 
@@ -1190,4 +1271,6 @@ export default {
   resetEmployeePassword,
   getDeletedEmployeesHistory,
   getMyProfile,
+  getRestaurantEmployees,
+  getStaffWorkReport,
 };

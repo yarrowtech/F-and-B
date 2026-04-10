@@ -101,8 +101,26 @@ router.get(
 router.get(
   "/me",
   auth,
-  apiLimiter, // ⚡ normal
+  apiLimiter,
   employeeController.getMyProfile
+);
+
+/* RESTAURANT EMPLOYEES LIST (MANAGER) */
+router.get(
+  "/restaurant/list",
+  auth,
+  apiLimiter,
+  allowRoles("manager"),
+  employeeController.getRestaurantEmployees
+);
+
+/* STAFF WORK REPORT (MANAGER) */
+router.get(
+  "/restaurant/work-report",
+  auth,
+  apiLimiter,
+  allowRoles("manager"),
+  employeeController.getStaffWorkReport
 );
 
 /* GET SINGLE EMPLOYEE */
