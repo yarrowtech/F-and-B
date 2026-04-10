@@ -83,7 +83,7 @@ export default function Analytics({ mode = "embedded", title = "Analytics" }) {
   return (
     <Wrapper {...wrapperProps}>
       {isPage && (
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white mb-6">
           {title}
         </h1>
       )}

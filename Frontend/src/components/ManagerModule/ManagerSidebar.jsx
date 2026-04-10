@@ -17,7 +17,7 @@ import {
 import { useNavigate } from "react-router-dom";
 
 const ManagerSidebar = ({ activeSection, setActiveSection }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 1024);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const navigate = useNavigate();
@@ -35,7 +35,7 @@ const ManagerSidebar = ({ activeSection, setActiveSection }) => {
     { id: "inventory", label: "Inventory", icon: <FaBoxes /> },
     { id: "vendor-management", label: "Vendor Management", icon: <FaUserTie /> },
     { id: "menu-management", label: "Menu Management", icon: <FaUtensils /> },
-    { id: "account", label: "Account", icon: <FaUserCircle /> },
+    { id: "profile", label: "Profile", icon: <FaUserCircle /> },
     { id: "analytics", label: "Analytics", icon: <FaChartLine /> },
     { id: "notes", label: "Notes", icon: <FaStickyNote /> },
   ];

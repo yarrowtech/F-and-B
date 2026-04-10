@@ -323,7 +323,7 @@ const AdminInventory = () => {
               {inventory.length} item{inventory.length !== 1 ? "s" : ""}
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-lg">
+              <table className="min-w-[760px] w-full text-base sm:text-lg">
                 <thead className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-base uppercase tracking-wide">
                   <tr>
                     <th className="px-5 py-4 text-left font-semibold">#</th>

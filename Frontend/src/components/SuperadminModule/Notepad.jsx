@@ -69,10 +69,10 @@ const Notepad = () => {
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="max-w-3xl mx-auto flex flex-col h-[80vh]"
+        className="max-w-3xl mx-auto flex flex-col h-[calc(100dvh-8rem)] min-h-[520px]"
       >
         {/* Title */}
-        <h2 className="text-3xl font-bold mb-6 text-gray-800 dark:text-white">
+        <h2 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-800 dark:text-white">
           Notes
         </h2>
 
@@ -109,7 +109,7 @@ const Notepad = () => {
             notes.map((note, i) => (
               <div
                 key={i}
-                className="bg-white dark:bg-zinc-800 rounded-lg shadow p-4 flex justify-between items-start"
+                className="bg-white dark:bg-zinc-800 rounded-lg shadow p-4 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3"
               >
                 <div className="flex-1 pr-4">
                   <p className="text-gray-800 dark:text-white break-words mb-2">

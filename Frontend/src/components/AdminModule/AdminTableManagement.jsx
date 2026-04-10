@@ -117,19 +117,19 @@ const handleDelete = async (id) => {
   const selectedRestaurantName = restaurants.find((r) => r._id === selectedRestaurant)?.name || "";
 
   return (
-    <div className="p-6 min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="p-4 sm:p-6 min-h-screen bg-gray-50 dark:bg-gray-900 overflow-x-hidden">
 
       {/* ── HEADER ROW ── */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">
           Table Management
         </h1>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
           <select
             value={selectedRestaurant}
             onChange={(e) => setSelectedRestaurant(e.target.value)}
-            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white px-4 py-3 rounded-lg shadow-sm text-lg font-medium focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full sm:w-auto border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white px-4 py-3 rounded-lg shadow-sm text-base sm:text-lg font-medium focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             <option value="">-- Select Restaurant --</option>
             {restaurants.map((r) => (
@@ -140,7 +140,7 @@ const handleDelete = async (id) => {
           {selectedRestaurant && (
             <button
               onClick={openAddModal}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg shadow-sm text-base font-semibold transition-colors"
+              className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg shadow-sm text-base font-semibold transition-colors"
             >
               <span className="text-xl leading-none">+</span> Add Table
             </button>
@@ -163,7 +163,8 @@ const handleDelete = async (id) => {
             {loadingTables ? "Loading tables…" : `Total tables: ${tables.length}`}
           </div>
 
-          <table className="w-full text-base">
+          <div className="overflow-x-auto">
+          <table className="min-w-[640px] w-full text-base">
             <thead className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 uppercase text-sm tracking-wide">
               <tr>
                 <th className="px-6 py-4 text-left font-semibold">Table No</th>
@@ -221,6 +222,7 @@ const handleDelete = async (id) => {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       ) : (
         <div className="flex items-center justify-center h-48 text-gray-400 dark:text-gray-500 text-base">

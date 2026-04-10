@@ -96,7 +96,7 @@ export default function RestaurantEmployees({ restaurantId, onBack }) {
   if (!restaurant) return <p className="p-6">Loading...</p>;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 overflow-x-hidden">
       {/* ===== BACK ===== */}
       <button
         onClick={onBack}
@@ -120,7 +120,8 @@ export default function RestaurantEmployees({ restaurantId, onBack }) {
         {availableEmployees.length === 0 ? (
           <p className="text-gray-500">No available employees</p>
         ) : (
-          <table className="w-full text-sm border">
+          <div className="overflow-x-auto">
+          <table className="min-w-[520px] w-full text-sm border">
             <thead className="bg-gray-100">
               <tr>
                 <th></th>
@@ -152,6 +153,7 @@ export default function RestaurantEmployees({ restaurantId, onBack }) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         <button
@@ -173,7 +175,8 @@ export default function RestaurantEmployees({ restaurantId, onBack }) {
         {assignedEmployees.length === 0 ? (
           <p className="text-gray-500">No employees assigned</p>
         ) : (
-          <table className="w-full text-sm border">
+          <div className="overflow-x-auto">
+          <table className="min-w-[520px] w-full text-sm border">
             <thead className="bg-gray-100">
               <tr>
                 <th>ID</th>
@@ -200,6 +203,7 @@ export default function RestaurantEmployees({ restaurantId, onBack }) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

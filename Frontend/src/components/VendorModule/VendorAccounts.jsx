@@ -67,9 +67,9 @@ const VendorAccounts = () => {
       </div>
 
       {/* Payments Table */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded shadow overflow-x-auto">
         <h2 className="text-lg font-bold mb-4">Received Payments & Invoices</h2>
-        <table className="w-full">
+        <table className="min-w-[720px] w-full">
           <thead className="bg-gray-200 dark:bg-gray-700">
             <tr>
               <th className="p-2 text-left">Invoice</th>

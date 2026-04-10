@@ -136,7 +136,7 @@ export default function AccountantOrderBilling() {
 
       {/* TABLE */}
       <div className="bg-white shadow rounded overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="min-w-[720px] w-full text-sm">
           <thead className="bg-green-100">
             <tr>
               <th className="p-3 text-left">Order</th>

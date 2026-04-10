@@ -23,8 +23,8 @@ const SettingsPage = () => {
   const [locationAccess, setLocationAccess] = useState(false);
 
   return (
-    <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen text-gray-800 dark:text-gray-200">
-      <h1 className="text-2xl font-bold mb-6">⚙️ Settings</h1>
+    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen text-gray-800 dark:text-gray-200">
+      <h1 className="text-xl sm:text-2xl font-bold mb-6">⚙️ Settings</h1>
 
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Security & Privacy */}
@@ -44,7 +44,7 @@ const SettingsPage = () => {
             <Toggle checked={twoFactorAuth} onChange={() => setTwoFactorAuth(!twoFactorAuth)} />
           </div> */}
 
-          <div classname ="flex item-center justify-between py-2 border  border-gray-200 dark:border-gray-7000">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3 border-b border-gray-200 dark:border-gray-700">
             <div>
               <p>Two-Factor Authentication</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -60,7 +60,7 @@ const SettingsPage = () => {
           </button>
 
           {/* Analytics Tracking */}
-          <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3 border-b border-gray-200 dark:border-gray-700">
             <div>
               <p>Analytics Tracking</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -71,7 +71,7 @@ const SettingsPage = () => {
           </div>
 
           {/* Location Access */}
-          <div className="flex items-center justify-between py-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3">
             <div>
               <p>Location Access</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">

@@ -263,7 +263,8 @@ const handleDelete = async () => {
           {filtered.length} restaurant{filtered.length !== 1 ? "s" : ""}
         </div>
 
-        <table className="w-full text-lg">
+        <div className="overflow-x-auto">
+        <table className="min-w-[900px] w-full text-base sm:text-lg">
           <thead className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-base uppercase tracking-wide">
             <tr>
               <th className="px-5 py-4 text-left font-semibold">#</th>
@@ -319,6 +320,7 @@ const handleDelete = async () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* ════════ ADD MODAL ════════ */}
@@ -358,8 +360,8 @@ const handleDelete = async () => {
               No staff assigned to this restaurant.
             </p>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
-              <table className="w-full text-base">
+            <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+              <table className="min-w-[760px] w-full text-base">
                 <thead className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm uppercase tracking-wide">
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold">#</th>

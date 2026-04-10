@@ -77,7 +77,7 @@ const ManagerPanel = () => {
       case "inventory": return <ManagerInventoryManagement />;
       case "vendor-management": return <ManagerVendorManagement />;
       case "menu-management": return <ManagerMenuManagement />;
-      case "account": return <ManagerAccount />;
+      case "profile": return <ManagerAccount />;
       case "analytics": return <ManagerAnalytics />;
       case "notes": return <ManagerNotes />;
       case "message": return <ManagerMessage />;
@@ -90,18 +90,16 @@ const ManagerPanel = () => {
 
   return (
     <div className="h-screen w-full bg-green-50 dark:bg-neutral-900 text-gray-800 dark:text-gray-200">
-      <div className="flex h-screen gap-6 px-4 py-4 overflow-hidden">
-        <aside className="hidden lg:block w-64 shrink-0">
-          <ManagerSidebar
-            activeSection={active}
-            setActiveSection={handleSetActive}
-          />
-        </aside>
+      <ManagerSidebar
+        activeSection={active}
+        setActiveSection={handleSetActive}
+      />
 
-        <div className="flex-1 flex flex-col gap-6">
+      <div className="flex h-screen gap-6 px-3 sm:px-4 py-3 sm:py-4 pt-16 lg:pt-4 lg:pl-80 overflow-hidden">
+        <div className="flex-1 min-w-0 flex flex-col gap-4 sm:gap-6">
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 rounded-xl shadow p-6"
+            className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-neutral-800 rounded-xl shadow p-4 sm:p-6"
           >
             {renderContent()}
           </main>

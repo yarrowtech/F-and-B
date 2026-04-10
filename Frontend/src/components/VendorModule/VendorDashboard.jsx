@@ -189,7 +189,7 @@ const Dashboard = () => {
       <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow">
         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Recent Orders</h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left text-gray-600 dark:text-gray-300">
+          <table className="min-w-[640px] w-full text-sm text-left text-gray-600 dark:text-gray-300">
             <thead>
               <tr className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
                 <th className="px-4 py-2">Customer</th>

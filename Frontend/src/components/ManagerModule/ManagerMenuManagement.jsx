@@ -76,12 +76,12 @@ const ManagerMenuManagement = () => {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6 overflow-x-hidden">
 
       {/* ================= PAGE HEADER ================= */}
 
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Menu Management</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold">Menu Management</h1>
         <p className="text-gray-500">
           View restaurant menu and order analytics
         </p>
@@ -95,7 +95,8 @@ const ManagerMenuManagement = () => {
           Restaurant Menu
         </div>
 
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="min-w-[640px] w-full">
 
           <thead className="bg-gray-100">
             <tr>
@@ -154,6 +155,7 @@ const ManagerMenuManagement = () => {
           </tbody>
 
         </table>
+        </div>
 
       </div>
 
@@ -200,7 +202,7 @@ const ManagerMenuManagement = () => {
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="border rounded px-3 py-2"
+            className="w-full sm:w-auto border rounded px-3 py-2"
           />
 
           <button
@@ -214,7 +216,8 @@ const ManagerMenuManagement = () => {
 
         {/* ANALYTICS TABLE */}
 
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="min-w-[560px] w-full">
 
           <thead className="bg-gray-100">
 
@@ -264,6 +267,7 @@ const ManagerMenuManagement = () => {
           </tbody>
 
         </table>
+        </div>
 
       </div>
 

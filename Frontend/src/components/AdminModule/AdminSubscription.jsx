@@ -386,7 +386,7 @@ export default function RestaurantSubscription() {
           Desktop Table (md+)
          ========================= */}
       <div className="hidden md:block overflow-x-auto rounded-xl backdrop-blur-md border border-white/20 dark:border-white/10 bg-white/20 dark:bg-white/10 shadow-lg">
-        <table className="w-full text-sm">
+        <table className="min-w-[760px] w-full text-sm">
           <thead className="bg-white/30 dark:bg-white/5 text-gray-700 dark:text-gray-300">
             <tr>
               <th className="p-3 text-left">Restaurant</th>

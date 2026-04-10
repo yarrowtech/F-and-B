@@ -60,13 +60,13 @@ const Notifications = () => {
   };
 
   return (
-    <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen text-gray-800 dark:text-gray-200">
-      <h1 className="text-2xl font-bold mb-6 flex items-center gap-3">
+    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen text-gray-800 dark:text-gray-200">
+      <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-3">
         <FaBell className="text-yellow-500 dark:text-yellow-400" />
         Notifications
       </h1>
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-6 h-[75vh] flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 sm:p-6 max-h-[75dvh] flex flex-col">
         <div className="flex-1 overflow-y-auto space-y-8 pr-2">
           {/* Admin Notifications */}
           <section>
@@ -80,7 +80,7 @@ const Notifications = () => {
                       note.read ? "opacity-50" : "bg-yellow-50 dark:bg-yellow-900/30"
                     }`}
                   >
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                       <div>
                         <p>{note.message}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -116,7 +116,7 @@ const Notifications = () => {
                       note.read ? "opacity-50" : "bg-green-50 dark:bg-green-900/30"
                     }`}
                   >
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                       <div>
                         <p>{note.message}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">

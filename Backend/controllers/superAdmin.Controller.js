@@ -1,79 +1,67 @@
-// const SuperAdmin = require("../models/SuperAdmin");
-// const generateToken = require("../utils/generateToken");
-// const bcrypt = require("bcryptjs");
-
-// // Ensure default super admin exists
-// const ensureSuperAdmin = async () => {
-//   let admin = await SuperAdmin.findOne({ email: "superadmin@fnb.com" });
-//   if (!admin) {
-//     admin = new SuperAdmin({
-//       email: "superadmin@fnb.com",
-//       password: "Super@123",
-//     });
-//     await admin.save();
-//     console.log("✅ Default Super Admin created: superadmin@fnb.com / Super@123");
-//   }
-// };
-
-// // Super Admin Login
-// exports.loginSuperAdmin = async (req, res) => {
-//   const { email, password } = req.body;
-
-//   try {
-//     const admin = await SuperAdmin.findOne({ email });
-//     if (admin && (await admin.matchPassword(password))) {
-//       res.json({
-//         _id: admin._id,
-//         email: admin.email,
-//         token: generateToken(admin._id),
-//       });
-//     } else {
-//       res.status(401).json({ message: "Invalid email or password" });
-//     }
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// // Forgot Password (reset directly for now)
-// exports.forgotPassword = async (req, res) => {
-//   const { email, newPassword } = req.body;
-
-//   try {
-//     const admin = await SuperAdmin.findOne({ email });
-//     if (!admin) {
-//       return res.status(404).json({ message: "Super Admin not found" });
-//     }
-
-//     const salt = await bcrypt.genSalt(10);
-//     admin.password = await bcrypt.hash(newPassword, salt);
-//     await admin.save();
-
-//     res.json({ message: "Password reset successful" });
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-// module.exports.ensureSuperAdmin = ensureSuperAdmin;
-
-
-
-
-
-
-
-
-import SuperAdmin from "../models/superAdmin.js";
-import Admin from "../models/Admin.model.js";
-import Log from "../models/Log.model.js";
-import generateToken from "../utils/generateToken.js";
 import crypto from "crypto";
+import Admin from "../models/Admin.model.js";
+import Employee from "../models/Employee.model.js";
+import Log from "../models/Log.model.js";
+import Restaurant from "../models/Restaurant.model.js";
+import SuperAdmin from "../models/superAdmin.js";
+import Vendor from "../models/Vendor.model.js";
+import generateToken from "../utils/generateToken.js";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_POLICY_REGEX =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
+
+const normalizeEmail = (email = "") => String(email).trim().toLowerCase();
+
+const validateEmail = (email) => EMAIL_REGEX.test(normalizeEmail(email));
+
+const validateStrongPassword = (password = "") =>
+  PASSWORD_POLICY_REGEX.test(String(password));
+
+const getDuplicateKeyField = (error) =>
+  error?.code === 11000 ? Object.keys(error.keyPattern || {})[0] : null;
+
+const respondDuplicateKey = (res, error, fallbackMessage) => {
+  const duplicateField = getDuplicateKeyField(error);
+
+  if (!duplicateField) {
+    return false;
+  }
+
+  const fieldLabels = {
+    email: "Email already exists",
+    adminId: "Admin ID already exists",
+  };
+
+  return res.status(409).json({
+    success: false,
+    message: fieldLabels[duplicateField] || fallbackMessage,
+  });
+};
+
+const logSuperAdminAction = async ({ action, message, userId, meta = {} }) => {
+  await Log.create({
+    type: "ACTION",
+    action,
+    userId: userId || null,
+    role: "super_admin",
+    message,
+    meta,
+  });
+};
 
 /* ================= LOGIN ================= */
 export const loginSuperAdmin = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const password = String(req.body.password || "");
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required",
+      });
+    }
 
     const admin = await SuperAdmin.findOne({ email });
 
@@ -84,50 +72,76 @@ export const loginSuperAdmin = async (req, res) => {
       });
     }
 
-    // ✅ FIXED TOKEN (only change)
     const token = generateToken({
-      id: admin._id, // 🔥 FIXED (_id → id)
-      role: "super_admin", // 🔥 FIXED (consistent role)
+      id: admin._id,
+      role: "super_admin",
     });
 
     res.json({
       success: true,
       message: "Login successful",
-      token, // ✅ FIX: move token outside
+      token,
       user: {
         id: admin._id,
         email: admin.email,
         role: "super_admin",
       },
     });
-
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /* ================= CREATE ANOTHER SUPER ADMIN ================= */
 export const createSuperAdminBySuperAdmin = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const password = String(req.body.password || "");
 
     if (!email || !password) {
-      return res.status(400).json({ success: false, message: "Email and password are required" });
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required",
+      });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ success: false, message: "Password must be at least 8 characters" });
+    if (!validateEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Enter a valid email address",
+      });
     }
 
-    const existing = await SuperAdmin.findOne({ email: email.toLowerCase().trim() });
+    if (!validateStrongPassword(password)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and special character",
+      });
+    }
+
+    const existing = await SuperAdmin.findOne({ email });
     if (existing) {
-      return res.status(400).json({ success: false, message: "Super Admin already exists" });
+      return res.status(409).json({
+        success: false,
+        message: "Super Admin already exists",
+      });
     }
 
     const newSuperAdmin = await SuperAdmin.create({
-      email: email.toLowerCase().trim(),
+      email,
       password,
       role: "super_admin",
+    });
+
+    await logSuperAdminAction({
+      action: "CREATED_SUPER_ADMIN",
+      message: `Super Admin "${newSuperAdmin.email}" was created`,
+      userId: req.user?.id,
+      meta: {
+        createdSuperAdminId: newSuperAdmin._id,
+        email: newSuperAdmin.email,
+      },
     });
 
     res.status(201).json({
@@ -140,29 +154,54 @@ export const createSuperAdminBySuperAdmin = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    if (respondDuplicateKey(res, error, "Super Admin already exists")) {
+      return;
+    }
+
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /* ================= CREATE ADMIN ================= */
 export const createAdminBySuperAdmin = async (req, res) => {
   try {
-    const { businessName, email, mobile, address, panNumber, password } = req.body;
+    const businessName = String(req.body.businessName || "").trim();
+    const email = normalizeEmail(req.body.email);
+    const mobile = String(req.body.mobile || "").trim();
+    const address = String(req.body.address || "").trim();
+    const panNumber = String(req.body.panNumber || "").trim().toUpperCase();
+    const password = String(req.body.password || "");
 
     if (!businessName || !email || !mobile || !address || !panNumber || !password) {
-      return res.status(400).json({ success: false, message: "All fields are required" });
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ success: false, message: "Password must be at least 8 characters" });
+    if (!validateEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Enter a valid email address",
+      });
     }
 
-    const existingAdmin = await Admin.findOne({ email: email.toLowerCase().trim() });
+    if (!validateStrongPassword(password)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and special character",
+      });
+    }
+
+    const existingAdmin = await Admin.findOne({ email });
     if (existingAdmin) {
-      return res.status(400).json({ success: false, message: "Admin already exists" });
+      return res.status(409).json({
+        success: false,
+        message: "Admin already exists",
+      });
     }
 
-    // Generate adminId from business name: e.g. "New Empire" → NEMP-0001
     const prefix = businessName.replace(/\s+/g, "").substring(0, 4).toUpperCase();
     const samePrefix = await Admin.countDocuments({ adminId: new RegExp(`^${prefix}-`) });
     const adminId = `${prefix}-${String(samePrefix + 1).padStart(4, "0")}`;
@@ -170,12 +209,23 @@ export const createAdminBySuperAdmin = async (req, res) => {
     const admin = await Admin.create({
       adminId,
       businessName,
-      email: email.toLowerCase().trim(),
+      email,
       mobile,
       address,
       panNumber,
       password,
       isActive: true,
+    });
+
+    await logSuperAdminAction({
+      action: "CREATED_ADMIN",
+      message: `Admin "${admin.businessName}" (${admin.email}) was created`,
+      userId: req.user?.id,
+      meta: {
+        adminId: admin.adminId,
+        businessName: admin.businessName,
+        email: admin.email,
+      },
     });
 
     res.status(201).json({
@@ -189,20 +239,22 @@ export const createAdminBySuperAdmin = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    if (respondDuplicateKey(res, error, "Admin already exists")) {
+      return;
+    }
+
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /* ================= GET ALL ADMINS ================= */
-export const getAllAdmins = async (req, res) => {
+export const getAllAdmins = async (_req, res) => {
   try {
-    const admins = await Admin.find({})
-      .select("-password")
-      .sort({ createdAt: -1 });
+    const admins = await Admin.find({}).select("-password").sort({ createdAt: -1 });
 
     res.json({
       success: true,
-      admins: admins.map(admin => ({
+      admins: admins.map((admin) => ({
         id: admin._id,
         adminId: admin.adminId,
         businessName: admin.businessName,
@@ -212,10 +264,117 @@ export const getAllAdmins = async (req, res) => {
         panNumber: admin.panNumber,
         isActive: admin.isActive,
         createdAt: admin.createdAt,
-      }))
+      })),
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/* ================= DASHBOARD SUMMARY ================= */
+export const getSuperAdminDashboardSummary = async (_req, res) => {
+  try {
+    const [totalAdmins, totalEmployees, totalVendors] = await Promise.all([
+      Admin.countDocuments({}),
+      Employee.countDocuments({}),
+      Vendor.countDocuments({}),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totalAdmins,
+        totalEmployees,
+        totalVendors,
+        totalUsersExcludingSuperadmin: totalAdmins + totalEmployees + totalVendors,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/* ================= ADMIN MANAGEMENT SUMMARY ================= */
+export const getAdminManagementSummary = async (_req, res) => {
+  try {
+    const admins = await Admin.find({})
+      .select("adminId businessName email mobile address panNumber isActive createdAt")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const adminIds = admins.map((admin) => admin._id);
+
+    const [restaurantCounts, staffRoleCounts] = await Promise.all([
+      Restaurant.aggregate([
+        { $match: { admin: { $in: adminIds } } },
+        {
+          $group: {
+            _id: "$admin",
+            totalRestaurants: { $sum: 1 },
+            restaurantNames: { $push: "$name" },
+          },
+        },
+      ]),
+      Employee.aggregate([
+        { $match: { createdBy: { $in: adminIds } } },
+        {
+          $group: {
+            _id: {
+              admin: "$createdBy",
+              role: "$role",
+            },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    const restaurantMap = Object.fromEntries(
+      restaurantCounts.map((item) => [
+        item._id.toString(),
+        {
+          totalRestaurants: item.totalRestaurants || 0,
+          restaurantNames: item.restaurantNames || [],
+        },
+      ])
+    );
+
+    const staffMap = {};
+    for (const item of staffRoleCounts) {
+      const adminId = item._id.admin.toString();
+      const role = item._id.role;
+
+      if (!staffMap[adminId]) {
+        staffMap[adminId] = {
+          totalStaff: 0,
+          staffByCategory: {},
+        };
+      }
+
+      staffMap[adminId].totalStaff += item.count;
+      staffMap[adminId].staffByCategory[role] = item.count;
+    }
+
+    res.json({
+      success: true,
+      data: admins.map((admin) => ({
+        id: admin._id,
+        adminId: admin.adminId,
+        businessName: admin.businessName,
+        email: admin.email,
+        mobile: admin.mobile,
+        address: admin.address,
+        panNumber: admin.panNumber,
+        isActive: admin.isActive,
+        createdAt: admin.createdAt,
+        totalRestaurants: restaurantMap[admin._id.toString()]?.totalRestaurants || 0,
+        restaurantNames: restaurantMap[admin._id.toString()]?.restaurantNames || [],
+        totalStaff: staffMap[admin._id.toString()]?.totalStaff || 0,
+        staffByCategory: staffMap[admin._id.toString()]?.staffByCategory || {},
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -228,11 +387,10 @@ export const deleteAdmin = async (req, res) => {
       return res.status(404).json({ success: false, message: "Admin not found" });
     }
 
-    await Log.create({
-      type: "ACTION",
+    await logSuperAdminAction({
       action: "DELETED_ADMIN",
-      role: "super_admin",
       message: `Admin "${admin.businessName}" (${admin.email}) was deleted`,
+      userId: req.user?.id,
       meta: {
         name: admin.businessName,
         email: admin.email,
@@ -242,7 +400,7 @@ export const deleteAdmin = async (req, res) => {
 
     res.json({ success: true, message: "Admin deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -260,16 +418,16 @@ export const toggleAdminStatus = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Admin ${admin.isActive ? 'activated' : 'deactivated'} successfully`,
-      isActive: admin.isActive
+      message: `Admin ${admin.isActive ? "activated" : "deactivated"} successfully`,
+      isActive: admin.isActive,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /* ================= GET ALL SUPER ADMINS ================= */
-export const getAllSuperAdmins = async (req, res) => {
+export const getAllSuperAdmins = async (_req, res) => {
   try {
     const superAdmins = await SuperAdmin.find({})
       .select("-password -resetPasswordToken -resetPasswordExpire")
@@ -277,24 +435,26 @@ export const getAllSuperAdmins = async (req, res) => {
 
     res.json({
       success: true,
-      superAdmins: superAdmins.map(sa => ({
+      superAdmins: superAdmins.map((sa) => ({
         id: sa._id,
         email: sa.email,
         role: sa.role,
         createdAt: sa.createdAt,
-      }))
+      })),
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /* ================= DELETE SUPER ADMIN ================= */
 export const deleteSuperAdmin = async (req, res) => {
   try {
-    // Prevent deleting the current super admin
     if (req.params.id === req.user.id) {
-      return res.status(400).json({ success: false, message: "Cannot delete your own account" });
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete your own account",
+      });
     }
 
     const superAdmin = await SuperAdmin.findByIdAndDelete(req.params.id);
@@ -303,26 +463,27 @@ export const deleteSuperAdmin = async (req, res) => {
       return res.status(404).json({ success: false, message: "Super Admin not found" });
     }
 
-    await Log.create({
-      type: "ACTION",
+    await logSuperAdminAction({
       action: "DELETED_SUPER_ADMIN",
-      role: "super_admin",
       message: `Super Admin "${superAdmin.email}" was deleted`,
+      userId: req.user?.id,
       meta: { email: superAdmin.email },
     });
 
     res.json({ success: true, message: "Super Admin deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /* ================= GET HISTORY ================= */
-export const getHistory = async (req, res) => {
+export const getHistory = async (_req, res) => {
   try {
     const logs = await Log.find({
-      action: { $in: ["DELETED_ADMIN", "DELETED_SUPER_ADMIN"] },
-    }).sort({ createdAt: -1 }).limit(100);
+      action: { $in: ["CREATED_ADMIN", "CREATED_SUPER_ADMIN", "DELETED_ADMIN", "DELETED_SUPER_ADMIN"] },
+    })
+      .sort({ createdAt: -1 })
+      .limit(100);
 
     res.json({
       success: true,
@@ -335,15 +496,15 @@ export const getHistory = async (req, res) => {
       })),
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /* ================= CHANGE PASSWORD ================= */
 export const changePassword = async (req, res) => {
   try {
-    const { oldPassword, newPassword } = req.body;
-
+    const oldPassword = String(req.body.oldPassword || "");
+    const newPassword = String(req.body.newPassword || "");
     const admin = await SuperAdmin.findById(req.user.id);
 
     if (!admin) {
@@ -362,10 +523,11 @@ export const changePassword = async (req, res) => {
       });
     }
 
-    if (!newPassword || newPassword.length < 8) {
+    if (!validateStrongPassword(newPassword)) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 8 characters",
+        message:
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and special character",
       });
     }
 
@@ -377,24 +539,35 @@ export const changePassword = async (req, res) => {
       message: "Password updated successfully",
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /* ================= UPDATE ADMIN DETAILS ================= */
 export const updateAdmin = async (req, res) => {
   try {
-    const { businessName, email, mobile, address, panNumber } = req.body;
+    const { businessName, mobile, address } = req.body;
+    const email = req.body.email ? normalizeEmail(req.body.email) : "";
+    const panNumber = req.body.panNumber
+      ? String(req.body.panNumber).trim().toUpperCase()
+      : "";
 
     const admin = await Admin.findById(req.params.id);
     if (!admin) {
       return res.status(404).json({ success: false, message: "Admin not found" });
     }
 
-    if (businessName) admin.businessName = businessName;
-    if (email) admin.email = email.toLowerCase().trim();
-    if (mobile) admin.mobile = mobile;
-    if (address) admin.address = address;
+    if (email && !validateEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Enter a valid email address",
+      });
+    }
+
+    if (businessName) admin.businessName = String(businessName).trim();
+    if (email) admin.email = email;
+    if (mobile) admin.mobile = String(mobile).trim();
+    if (address) admin.address = String(address).trim();
     if (panNumber) admin.panNumber = panNumber;
 
     await admin.save();
@@ -414,19 +587,24 @@ export const updateAdmin = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    if (respondDuplicateKey(res, error, "Admin already exists")) {
+      return;
+    }
+
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /* ================= RESET ADMIN PASSWORD (by Super Admin) ================= */
 export const resetAdminPassword = async (req, res) => {
   try {
-    const { newPassword } = req.body;
+    const newPassword = String(req.body.newPassword || "");
 
-    if (!newPassword || newPassword.length < 8) {
+    if (!validateStrongPassword(newPassword)) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 8 characters",
+        message:
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and special character",
       });
     }
 
@@ -441,51 +619,60 @@ export const resetAdminPassword = async (req, res) => {
 
     res.json({ success: true, message: "Admin password reset successfully" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /* ================= FORGOT PASSWORD ================= */
 export const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const admin = email ? await SuperAdmin.findOne({ email }) : null;
 
-    const admin = await SuperAdmin.findOne({ email });
+    if (admin) {
+      const resetToken = crypto.randomBytes(32).toString("hex");
 
-    if (!admin) {
-      return res.status(404).json({
-        success: false,
-        message: "Super Admin not found",
+      admin.resetPasswordToken = crypto
+        .createHash("sha256")
+        .update(resetToken)
+        .digest("hex");
+
+      admin.resetPasswordExpire = Date.now() + 15 * 60 * 1000;
+      await admin.save();
+
+      const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      const resetUrl = `${appBaseUrl.replace(/\/$/, "")}/reset-password/${resetToken}`;
+
+      await logSuperAdminAction({
+        action: "SUPER_ADMIN_PASSWORD_RESET_REQUESTED",
+        message: `Password reset requested for "${admin.email}"`,
+        userId: admin._id,
+        meta: { email: admin.email, resetUrl },
       });
     }
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
-
-    admin.resetPasswordToken = crypto
-      .createHash("sha256")
-      .update(resetToken)
-      .digest("hex");
-
-    admin.resetPasswordExpire = Date.now() + 15 * 60 * 1000;
-
-    await admin.save();
-
-    const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;
-
-    console.log("🔗 Reset URL:", resetUrl);
-
     res.json({
       success: true,
-      message: "Reset link generated",
+      message: "If the account exists, a reset link has been generated",
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 /* ================= RESET PASSWORD ================= */
 export const resetPassword = async (req, res) => {
   try {
+    const newPassword = String(req.body.password || "");
+
+    if (!validateStrongPassword(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and special character",
+      });
+    }
+
     const hashedToken = crypto
       .createHash("sha256")
       .update(req.params.token)
@@ -503,10 +690,9 @@ export const resetPassword = async (req, res) => {
       });
     }
 
-    admin.password = req.body.password;
+    admin.password = newPassword;
     admin.resetPasswordToken = undefined;
     admin.resetPasswordExpire = undefined;
-
     await admin.save();
 
     res.json({
@@ -514,6 +700,6 @@ export const resetPassword = async (req, res) => {
       message: "Password reset successful",
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };

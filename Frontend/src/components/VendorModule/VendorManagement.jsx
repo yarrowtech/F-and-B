@@ -1216,7 +1216,7 @@ const VendorManagement = () => {
             </select>
           </div>
 
-          <table className="w-full bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <table className="block w-full min-w-[720px] overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow">
             <thead>
               <tr className="bg-gray-100 dark:bg-gray-700 text-left">
                 <th className="p-3">Name</th>
@@ -1578,7 +1578,7 @@ const VendorManagement = () => {
                 <span className="mr-6">Total Paid: <strong>{currency(totalPaid)}</strong></span>
                 <span>Total Due: <strong>{currency(totalDue)}</strong></span>
               </div>
-              <table className="w-full bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <table className="block w-full min-w-[640px] overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow">
                 <thead>
                   <tr className="bg-gray-100 dark:bg-gray-700 text-left">
                     <th className="p-3">Customer</th>
@@ -1627,7 +1627,7 @@ const VendorManagement = () => {
           {history.length === 0 ? (
             <p>No order history yet.</p>
           ) : (
-            <table className="w-full bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            <table className="block w-full min-w-[840px] overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow">
               <thead>
                 <tr className="bg-gray-100 dark:bg-gray-700 text-left">
                   <th className="p-3">Customer</th>

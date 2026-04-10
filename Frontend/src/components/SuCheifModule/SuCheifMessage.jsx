@@ -37,9 +37,9 @@ const SuCheifMessages = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-all duration-300">
+    <div className="flex h-[100dvh] flex-col md:flex-row bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-all duration-300 overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-72 bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col">
+      <aside className="w-full md:w-72 h-52 md:h-auto shrink-0 bg-white dark:bg-gray-800 border-b md:border-b-0 md:border-r dark:border-gray-700 flex flex-col">
         <div className="p-4 border-b dark:border-gray-700">
           <h2 className="text-xl font-bold">SuChef ↔ Manager</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Direct communication</p>
@@ -68,21 +68,21 @@ const SuCheifMessages = () => {
       </aside>
 
       {/* Chat Panel */}
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 min-w-0 min-h-0 flex flex-col">
         {selectedUser ? (
           <>
             {/* Chat Header */}
-            <div className="px-6 py-3 border-b bg-white dark:bg-gray-800 dark:border-gray-700 shadow-sm">
+            <div className="px-4 sm:px-6 py-3 border-b bg-white dark:bg-gray-800 dark:border-gray-700 shadow-sm">
               <h3 className="text-lg font-bold">{selectedUser.name}</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">Manager Chat</p>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 bg-gray-50 dark:bg-gray-900">
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-3 bg-gray-50 dark:bg-gray-900">
               {selectedUser.messages.map((msg, i) => (
                 <div
                   key={i}
-                  className={`max-w-xs sm:max-w-md px-4 py-2 rounded-lg text-sm shadow ${
+                  className={`max-w-[85%] sm:max-w-md px-4 py-2 rounded-lg text-sm shadow break-words ${
                     msg.from === "sucheif"
                       ? "bg-green-600 text-white ml-auto"
                       : "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"

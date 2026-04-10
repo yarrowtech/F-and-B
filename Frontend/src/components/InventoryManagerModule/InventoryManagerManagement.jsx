@@ -150,8 +150,8 @@ export default function InventoryManagement() {
       </h1>
 
       {/* TABLE */}
-      <div className="bg-white p-6 rounded-xl shadow mb-8">
-        <table className="w-full">
+      <div className="bg-white p-4 sm:p-6 rounded-xl shadow mb-8 overflow-x-auto">
+        <table className="min-w-[640px] w-full">
           <thead>
             <tr className="border-b">
               <th className="p-2 text-left">Item</th>

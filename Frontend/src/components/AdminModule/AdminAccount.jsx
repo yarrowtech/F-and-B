@@ -511,7 +511,7 @@ const AdminAccountManager = () => {
 
     return (
       <div className="overflow-auto rounded-xl border border-gray-200 dark:border-zinc-700">
-        <table className="w-full table-auto border-collapse text-sm text-black dark:text-white">
+        <table className="min-w-[720px] w-full table-auto border-collapse text-sm text-black dark:text-white">
           <thead>
             <tr className="bg-gray-100 dark:bg-zinc-800 text-left">
               {Object.keys(list[0]).map((key) => (

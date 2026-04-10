@@ -1,17 +1,11 @@
 import mongoose from "mongoose";
 import Order from "../models/Order.model.js";
+import Bill from "../models/Bill.model.js";
 import Attendance from "../models/Attendance.model.js";
 import Employee from "../models/Employee.model.js";
 
-/* =========================================================
-   📊 MANAGER DASHBOARD CONTROLLER
-   - Only manager's restaurant data
-========================================================= */
 export const getManagerDashboard = async (req, res) => {
   try {
-    /* =========================================================
-       🔐 GET RESTAURANT FROM LOGGED-IN MANAGER
-    ========================================================= */
     const restaurantId = req.user?.restaurant;
 
     if (!restaurantId || !mongoose.Types.ObjectId.isValid(restaurantId)) {
@@ -22,140 +16,131 @@ export const getManagerDashboard = async (req, res) => {
     }
 
     const filter = { restaurant: restaurantId };
+    const now = new Date();
+    const { startDate, endDate } = req.query;
 
-    /* =========================================================
-       📅 TODAY DATE RANGE
-    ========================================================= */
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
 
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
 
-    /* =========================================================
-       📊 BASIC STATS
-    ========================================================= */
+    const lastWeekStart = new Date(todayStart);
+    lastWeekStart.setDate(lastWeekStart.getDate() - 6);
 
-    // Total Orders
-    const totalOrders = await Order.countDocuments(filter);
+    const lastMonthStart = new Date(todayStart);
+    lastMonthStart.setDate(lastMonthStart.getDate() - 29);
 
-    // Total Revenue
-    const totalRevenueAgg = await Order.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$totalAmount" },
-        },
-      },
-    ]);
-    const totalRevenue = totalRevenueAgg[0]?.total || 0;
+    const selectedStart = startDate ? new Date(startDate) : null;
+    const selectedEnd = endDate ? new Date(endDate) : null;
 
-    /* =========================================================
-       📅 TODAY STATS
-    ========================================================= */
+    if (selectedStart && Number.isNaN(selectedStart.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid startDate",
+      });
+    }
 
-    // Today Orders
-    const todayOrders = await Order.countDocuments({
-      ...filter,
-      createdAt: { $gte: start, $lte: end },
-    });
+    if (selectedEnd && Number.isNaN(selectedEnd.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid endDate",
+      });
+    }
 
-    // Today Revenue
-    const todayRevenueAgg = await Order.aggregate([
-      {
-        $match: {
-          ...filter,
-          createdAt: { $gte: start, $lte: end },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$totalAmount" },
-        },
-      },
-    ]);
-    const todayRevenue = todayRevenueAgg[0]?.total || 0;
+    if (selectedStart) {
+      selectedStart.setHours(0, 0, 0, 0);
+    }
 
-    /* =========================================================
-       📈 LAST 7 DAYS (CHART DATA)
-    ========================================================= */
-    const last7Days = await Order.aggregate([
-      {
-        $match: {
-          ...filter,
-          createdAt: {
-            $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+    if (selectedEnd) {
+      selectedEnd.setHours(23, 59, 59, 999);
+    }
+
+    const aggregateRange = async (startDate, endDate) => {
+      const [orderSummary, billSummary] = await Promise.all([
+        Order.aggregate([
+          {
+            $match: {
+              ...filter,
+              createdAt: { $gte: startDate, $lte: endDate },
+            },
           },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%d %b", date: "$createdAt" },
+          {
+            $group: {
+              _id: null,
+              totalOrders: { $sum: 1 },
+            },
           },
-          revenue: { $sum: "$totalAmount" },
-          orders: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
+        ]),
+        Bill.aggregate([
+          {
+            $match: {
+              restaurant: restaurantId,
+              paymentStatus: "PAID",
+              paidAt: { $gte: startDate, $lte: endDate },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalRevenue: { $sum: { $ifNull: ["$totalAmount", 0] } },
+            },
+          },
+        ]),
+      ]);
 
-    /* =========================================================
-       📦 ORDER STATUS DISTRIBUTION
-    ========================================================= */
-    const orderStatusStats = await Order.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: "$status",
-          count: { $sum: 1 },
-        },
-      },
-    ]);
+      return {
+        totalOrders: orderSummary[0]?.totalOrders || 0,
+        totalRevenue: billSummary[0]?.totalRevenue || 0,
+      };
+    };
 
-    /* =========================================================
-       👨‍🍳 STAFF ATTENDANCE (TODAY)
-    ========================================================= */
+    const selectedRangeStats =
+      selectedStart || selectedEnd
+        ? await aggregateRange(
+            selectedStart || new Date(0),
+            selectedEnd || todayEnd
+          )
+        : null;
 
-   // Present Staff Today (FIXED)
-const todayPresentStaff = await Attendance.countDocuments({
-  restaurant: restaurantId,
-  status: "present",
-});
+    const [todayStats, lastWeekStats, lastMonthStats, todayPresentStaff, totalStaff] =
+      await Promise.all([
+        aggregateRange(todayStart, todayEnd),
+        aggregateRange(lastWeekStart, todayEnd),
+        aggregateRange(lastMonthStart, todayEnd),
+        Attendance.countDocuments({
+          restaurant: restaurantId,
+          status: "PRESENT",
+          date: { $gte: todayStart, $lte: todayEnd },
+        }),
+        Employee.countDocuments({
+          restaurant: restaurantId,
+          isActive: true,
+        }),
+      ]);
 
-    // Total Staff (from Employee model)
-    const totalStaff = await Employee.countDocuments({
-      restaurant: restaurantId,
-      // optional: isActive: true
-    });
-
-    // Attendance %
     const attendanceRate = totalStaff
-      ? ((todayPresentStaff / totalStaff) * 100).toFixed(1)
+      ? Number(((todayPresentStaff / totalStaff) * 100).toFixed(1))
       : 0;
 
-    /* =========================================================
-       🚀 FINAL RESPONSE
-    ========================================================= */
     res.status(200).json({
       success: true,
       data: {
-        totalOrders,
-        totalRevenue,
-        todayOrders,
-        todayRevenue,
-        last7Days,
-        orderStatusStats,
-
-        // 👇 STAFF DATA
+        todayOrders: todayStats.totalOrders,
+        todayRevenue: todayStats.totalRevenue,
+        lastWeekOrders: lastWeekStats.totalOrders,
+        lastWeekRevenue: lastWeekStats.totalRevenue,
+        lastMonthOrders: lastMonthStats.totalOrders,
+        lastMonthRevenue: lastMonthStats.totalRevenue,
+        selectedOrders: selectedRangeStats?.totalOrders || 0,
+        selectedRevenue: selectedRangeStats?.totalRevenue || 0,
+        selectedStartDate: startDate || "",
+        selectedEndDate: endDate || "",
         todayPresentStaff,
         totalStaff,
         attendanceRate,
       },
     });
-
   } catch (error) {
     console.error("Manager Dashboard Error:", error);
     res.status(500).json({

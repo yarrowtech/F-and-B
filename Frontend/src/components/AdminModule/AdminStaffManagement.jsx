@@ -1298,7 +1298,7 @@ export default function AdminStaffManagement() {
             )}
 
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="min-w-[720px] w-full text-sm">
                 <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
                   <tr>
                     <th className="px-5 py-3 text-left font-medium">Employee ID</th>

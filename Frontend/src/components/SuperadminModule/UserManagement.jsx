@@ -3,6 +3,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Plus, Users, ShieldCheck, Clock, KeyRound, Eye, EyeOff, Trash2, AlertTriangle } from "lucide-react";
 import API from "../../services/api";
 
+const STRONG_PASSWORD_REGEX =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
+const STRONG_PASSWORD_MESSAGE =
+  "Use 8+ characters with uppercase, lowercase, number, and special character";
+
 /* ── helpers ── */
 const InputField = ({ label, type = "text", value, onChange, placeholder, error, maxLength }) => (
   <div className="flex flex-col gap-1">
@@ -30,7 +35,7 @@ const Modal = ({ title, onClose, onSubmit, children, loading }) => (
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
-      className="bg-white dark:bg-neutral-800 rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 space-y-5"
+      className="bg-white dark:bg-neutral-800 rounded-2xl shadow-xl w-full max-w-md mx-4 p-4 sm:p-6 space-y-5"
     >
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{title}</h2>
@@ -124,8 +129,8 @@ const AdminDetailPanel = ({ admin, onClose, onUpdate, onPasswordReset }) => {
   };
 
   const handleReset = async () => {
-    if (!newPassword || newPassword.length < 8) {
-      setResetErr("Password must be at least 8 characters");
+    if (!STRONG_PASSWORD_REGEX.test(newPassword)) {
+      setResetErr(STRONG_PASSWORD_MESSAGE);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -188,7 +193,7 @@ const AdminDetailPanel = ({ admin, onClose, onUpdate, onPasswordReset }) => {
         </div>
 
         {/* Account Details Section */}
-        <div className="px-6 py-5 space-y-4 border-b border-gray-100 dark:border-neutral-700">
+        <div className="px-4 sm:px-6 py-5 space-y-4 border-b border-gray-100 dark:border-neutral-700">
           <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Profile Info</p>
 
           {updateMsg && (
@@ -202,7 +207,7 @@ const AdminDetailPanel = ({ admin, onClose, onUpdate, onPasswordReset }) => {
             </p>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <InputField label="Business Name" placeholder="e.g. Spice Garden" {...f("businessName")} />
             <InputField label="Email" type="email" placeholder="admin@example.com" {...f("email")} />
             <InputField label="Mobile" placeholder="+91 9876543210" {...f("mobile")} />
@@ -225,7 +230,7 @@ const AdminDetailPanel = ({ admin, onClose, onUpdate, onPasswordReset }) => {
         </div>
 
         {/* Reset Password Section */}
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-4 sm:px-6 py-5 space-y-4">
           <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium">
             <KeyRound size={15} />
             <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Reset Password</span>
@@ -242,12 +247,12 @@ const AdminDetailPanel = ({ admin, onClose, onUpdate, onPasswordReset }) => {
             </p>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <PasswordField
               label="New Password"
               value={newPassword}
               onChange={(e) => { setNewPassword(e.target.value); setResetErr(""); }}
-              placeholder="Min. 8 characters"
+              placeholder="Strong password"
             />
             <PasswordField
               label="Confirm Password"
@@ -280,7 +285,7 @@ const ConfirmDialog = ({ message, onConfirm, onCancel, loading }) => (
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.15 }}
-      className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4"
+      className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-4 sm:p-6 space-y-4"
     >
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
@@ -434,7 +439,7 @@ const UserManagement = () => {
     if (!newAdminData.panNumber.trim()) e.panNumber = "PAN number is required";
     else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(newAdminData.panNumber)) e.panNumber = "Invalid PAN format (e.g. ABCDE1234F)";
     if (!newAdminData.password) e.password = "Password is required";
-    else if (newAdminData.password.length < 8) e.password = "Password must be at least 8 characters";
+    else if (!STRONG_PASSWORD_REGEX.test(newAdminData.password)) e.password = STRONG_PASSWORD_MESSAGE;
     setAdminErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -461,7 +466,7 @@ const UserManagement = () => {
     if (!newSuperAdminData.email.trim()) e.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newSuperAdminData.email)) e.email = "Enter a valid email (must contain @)";
     if (!newSuperAdminData.password) e.password = "Password is required";
-    else if (newSuperAdminData.password.length < 8) e.password = "Password must be at least 8 characters";
+    else if (!STRONG_PASSWORD_REGEX.test(newSuperAdminData.password)) e.password = STRONG_PASSWORD_MESSAGE;
     setSaErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -490,11 +495,11 @@ const UserManagement = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">User Management</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">User Management</h1>
       </div>
 
       {/* Toast */}
@@ -516,12 +521,12 @@ const UserManagement = () => {
       </AnimatePresence>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200 dark:border-neutral-700">
+      <div className="flex gap-2 overflow-x-auto border-b border-gray-200 dark:border-neutral-700">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            className={`flex shrink-0 items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
               activeTab === tab.key
                 ? "bg-white dark:bg-neutral-800 text-green-600 border border-b-white dark:border-neutral-600 dark:border-b-neutral-800 -mb-px"
                 : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
@@ -536,22 +541,22 @@ const UserManagement = () => {
       {/* ── ADMINS ── */}
       {activeTab === "admins" && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex justify-stretch sm:justify-end">
             <button
               onClick={() => setShowAdminForm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg"
+              className="flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg"
             >
               <Plus size={15} /> Add Admin
             </button>
           </div>
 
-          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow overflow-hidden">
+          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow overflow-x-auto">
             {loading ? (
               <p className="p-6 text-sm text-gray-400">Loading...</p>
             ) : admins.length === 0 ? (
               <p className="p-6 text-sm text-gray-400">No admins found.</p>
             ) : (
-              <table className="w-full text-sm">
+              <table className="min-w-[760px] w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-neutral-700 text-gray-500 dark:text-gray-400 uppercase text-xs">
                   <tr>
                     <th className="px-5 py-3 text-left font-medium">Admin ID</th>
@@ -611,22 +616,22 @@ const UserManagement = () => {
       {/* ── SUPER ADMINS ── */}
       {activeTab === "superAdmins" && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex justify-stretch sm:justify-end">
             <button
               onClick={() => setShowSuperAdminForm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg"
+              className="flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg"
             >
               <Plus size={15} /> Add Super Admin
             </button>
           </div>
 
-          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow overflow-hidden">
+          <div className="bg-white dark:bg-neutral-800 rounded-xl shadow overflow-x-auto">
             {loading ? (
               <p className="p-6 text-sm text-gray-400">Loading...</p>
             ) : superAdmins.length === 0 ? (
               <p className="p-6 text-sm text-gray-400">No super admins found.</p>
             ) : (
-              <table className="w-full text-sm">
+              <table className="min-w-[560px] w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-neutral-700 text-gray-500 dark:text-gray-400 uppercase text-xs">
                   <tr>
                     <th className="px-5 py-3 text-left font-medium">#</th>
@@ -680,7 +685,7 @@ const UserManagement = () => {
             ) : (
               <ul className="divide-y divide-gray-100 dark:divide-neutral-700">
                 {history.map((h) => (
-                  <li key={h.id} className="px-5 py-4 flex items-start justify-between gap-4">
+                  <li key={h.id} className="px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
                         <Trash2 size={13} className="text-red-500 dark:text-red-400" />
@@ -786,7 +791,7 @@ const UserManagement = () => {
               label="Password"
               value={newAdminData.password}
               onChange={(e) => { setNewAdminData({ ...newAdminData, password: e.target.value }); setAdminErrors((p) => ({ ...p, password: "" })); }}
-              placeholder="Min. 8 characters"
+              placeholder="Strong password"
               error={adminErrors.password}
             />
           </Modal>
@@ -811,7 +816,7 @@ const UserManagement = () => {
               label="Password"
               value={newSuperAdminData.password}
               onChange={(e) => { setNewSuperAdminData({ ...newSuperAdminData, password: e.target.value }); setSaErrors((p) => ({ ...p, password: "" })); }}
-              placeholder="Min. 8 characters"
+              placeholder="Strong password"
               error={saErrors.password}
             />
           </Modal>

@@ -43,13 +43,13 @@ const ManagerInventory = () => {
 
 
   return (
-    <div className="p-6 bg-gray-100 dark:bg-gray-900 min-h-screen">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800 dark:text-white">
+    <div className="p-4 sm:p-6 bg-gray-100 dark:bg-gray-900 min-h-screen overflow-x-hidden">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-800 dark:text-white">
         Manager Inventory Dashboard
       </h1>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow overflow-x-auto">
-        <table className="w-full text-sm text-left">
+        <table className="min-w-[760px] w-full text-sm text-left">
           <thead className="bg-gray-200 dark:bg-gray-700">
   <tr>
     <th className="p-3">Item Name</th>
@@ -138,7 +138,7 @@ inventory.map((item) => (
       {logs.map((log) => (
         <div
           key={log._id}
-          className="border-b py-2 text-sm flex justify-between"
+          className="border-b py-2 text-sm flex flex-col sm:flex-row sm:justify-between gap-1"
         >
           <span>
             {log.action} {log.quantityAdded} {log.unit}

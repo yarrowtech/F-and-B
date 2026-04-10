@@ -71,12 +71,12 @@ const Message = () => {
   };
 
   return (
-    <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen text-gray-800 dark:text-gray-200">
-      <h1 className="text-2xl font-bold mb-6">💬 Messages</h1>
+    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen text-gray-800 dark:text-gray-200 overflow-hidden">
+      <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">💬 Messages</h1>
 
-      <div className="flex flex-col md:flex-row h-[75vh] bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
+      <div className="flex flex-col md:flex-row h-[calc(100dvh-11rem)] min-h-[520px] bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
         {/* Sidebar */}
-        <aside className="md:w-1/3 w-full border-r border-gray-200 dark:border-gray-700 p-4 overflow-y-auto">
+        <aside className="md:w-1/3 w-full h-44 md:h-auto shrink-0 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700 p-4 overflow-y-auto">
           <h2 className="text-lg font-semibold mb-4">Subscribers</h2>
           {subscribers.map((u) => (
             <button
@@ -95,7 +95,7 @@ const Message = () => {
         </aside>
 
         {/* Chat Area */}
-        <section className="md:w-2/3 w-full flex flex-col">
+        <section className="md:w-2/3 w-full min-h-0 flex flex-col">
           {/* Header */}
           <header className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
             <h3 className="text-lg font-bold">{activeUser.name}</h3>
@@ -110,7 +110,7 @@ const Message = () => {
                 className={`flex ${m.from === "admin" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`px-4 py-2 rounded-lg max-w-xs text-sm break-words ${
+                  className={`px-4 py-2 rounded-lg max-w-[85%] sm:max-w-xs text-sm break-words ${
                     m.from === "admin"
                       ? "bg-blue-500 text-white"
                       : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100"

@@ -1000,7 +1000,7 @@ const VendorInventory = () => {
 
         {/* Product List Table */}
         <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-200 dark:border-gray-800">
-          <table className="w-full text-base">
+          <table className="min-w-[820px] w-full text-base">
             <thead className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
               <tr>
                 <th className="p-4 text-left">Name</th>

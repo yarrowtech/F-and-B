@@ -189,16 +189,6 @@ export default function StaffLogin() {
             {loading ? "Please wait..." : "Login"}
           </button>
 
-          <p className="text-center text-xs text-gray-400 pt-1">
-            Super Admin?{" "}
-            <button
-              type="button"
-              onClick={() => navigate("/superadmin-login")}
-              className="text-green-700 hover:underline font-medium"
-            >
-              Login here
-            </button>
-          </p>
         </form>
       </div>
     </div>

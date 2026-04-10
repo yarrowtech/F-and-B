@@ -20,6 +20,8 @@ import {
   createSuperAdminBySuperAdmin,
   createAdminBySuperAdmin,
   getAllAdmins,
+  getSuperAdminDashboardSummary,
+  getAdminManagementSummary,
   deleteAdmin,
   toggleAdminStatus,
   updateAdmin,
@@ -53,6 +55,20 @@ router.post(
   protect,
   allowRoles("super_admin"),
   createAdminBySuperAdmin
+);
+
+router.get(
+  "/dashboard-summary",
+  protect,
+  allowRoles("super_admin"),
+  getSuperAdminDashboardSummary
+);
+
+router.get(
+  "/admin-management",
+  protect,
+  allowRoles("super_admin"),
+  getAdminManagementSummary
 );
 
 router.get(

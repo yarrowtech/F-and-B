@@ -1,18 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isLoginOpenDesktop, setIsLoginOpenDesktop] = useState(false);
-  const [isLoginOpenMobile, setIsLoginOpenMobile] = useState(false);
   const [user, setUser] = useState(null);
 
   const location = useLocation();
   const navigate = useNavigate();
-  const desktopRef = useRef(null);
-  const mobileRef = useRef(null);
 
   const navLinks = [
     { to: "/", label: "Home" },
@@ -20,11 +16,6 @@ const Header = () => {
     { to: "/subscription", label: "Subscription" },
     { to: "/contact", label: "Contact" },
     { to: "/about", label: "About" },
-  ];
-
-  const loginLinks = [
-    { to: "/superadmin-login", label: "Super Admin" },
-    { to: "/login", label: "Login" },
   ];
 
   const dashboardRoutes = {
@@ -56,16 +47,6 @@ const Header = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Close menus on outside click
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (!desktopRef.current?.contains(e.target)) setIsLoginOpenDesktop(false);
-      if (!mobileRef.current?.contains(e.target)) setIsLoginOpenMobile(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const handleDashboard = () => {
     if (!user || !user.role) return;
 
@@ -92,10 +73,6 @@ const Header = () => {
         {/* Logo */}
         <Link
           to="/"
-          onClick={() => {
-            setIsLoginOpenDesktop(false);
-            setIsLoginOpenMobile(false);
-          }}
           className="flex items-center gap-3 transform transition duration-300 hover:scale-105"
         >
           <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-lime-400 to-green-400 text-white font-bold grid place-items-center shadow-md">
@@ -107,7 +84,7 @@ const Header = () => {
         </Link>
 
         {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-4 font-medium" ref={desktopRef}>
+        <nav className="hidden md:flex items-center gap-4 font-medium">
           {navLinks.map(({ to, label }) => {
             const isActive = location.pathname.startsWith(to) && to !== "/";
             return (
@@ -145,32 +122,12 @@ const Header = () => {
                 </button>
               </div>
             ) : (
-              <>
-                <button
-                  onClick={() => setIsLoginOpenDesktop((prev) => !prev)}
-                  className="ml-4 px-6 py-2 rounded-full text-white font-medium transition-all duration-300 hover:scale-105 bg-gradient-to-r from-lime-400 to-green-400 shadow-md hover:shadow-lg"
-                >
-                  Login
-                </button>
-                <ul
-                  className={`absolute right-0 mt-3 w-56 border border-lime-200 rounded-2xl shadow-lg backdrop-blur-md bg-white/90 text-gray-800 transform transition-all duration-300 ease-out ${isLoginOpenDesktop
-                    ? "scale-100 opacity-100 translate-y-0"
-                    : "scale-95 opacity-0 -translate-y-2 pointer-events-none"
-                    }`}
-                >
-                  {loginLinks.map(({ to, label }) => (
-                    <li key={label}>
-                      <Link
-                        to={to}
-                        onClick={() => setIsLoginOpenDesktop(false)}
-                        className="block px-5 py-2 rounded-full hover:bg-lime-100 transition duration-200 text-center"
-                      >
-                        {label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </>
+              <button
+                onClick={() => navigate("/login")}
+                className="ml-4 px-6 py-2 rounded-full text-white font-medium transition-all duration-300 hover:scale-105 bg-gradient-to-r from-lime-400 to-green-400 shadow-md hover:shadow-lg"
+              >
+                Login
+              </button>
             )}
           </div>
         </nav>
@@ -197,7 +154,6 @@ const Header = () => {
       >
         <nav
           className="bg-white/95 backdrop-blur-md border-t border-lime-200 rounded-b-2xl shadow-md p-6"
-          ref={mobileRef}
         >
           <ul className="flex flex-col gap-3">
             {navLinks.map(({ to, label }) => {
@@ -208,7 +164,6 @@ const Header = () => {
                     to={to}
                     onClick={() => {
                       setIsMenuOpen(false);
-                      setIsLoginOpenMobile(false);
                     }}
                     className={`block px-4 py-2 rounded-full transition-all duration-300 text-center ${isActive
                       ? "bg-lime-400 text-white shadow"
@@ -242,33 +197,15 @@ const Header = () => {
                   </button>
                 </div>
               ) : (
-                <>
-                  <button
-                    onClick={() => setIsLoginOpenMobile((prev) => !prev)}
-                    className="w-full text-left px-5 py-2 rounded-full text-white font-semibold bg-gradient-to-r from-lime-400 to-green-400 shadow-md hover:shadow-lg transition-all duration-300"
-                  >
-                    Login
-                  </button>
-                  <ul
-                    className={`transition-all duration-300 overflow-hidden mt-2 rounded-xl p-3 bg-white/95 shadow-md ${isLoginOpenMobile ? "max-h-96 opacity-100" : "max-h-0 opacity-0 pointer-events-none"
-                      }`}
-                  >
-                    {loginLinks.map(({ to, label }) => (
-                      <li key={label}>
-                        <Link
-                          to={to}
-                          onClick={() => {
-                            setIsMenuOpen(false);
-                            setIsLoginOpenMobile(false);
-                          }}
-                          className="block px-3 py-1 rounded-full hover:bg-lime-100 transition duration-200 text-center"
-                        >
-                          {label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </>
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    navigate("/login");
+                  }}
+                  className="w-full text-left px-5 py-2 rounded-full text-white font-semibold bg-gradient-to-r from-lime-400 to-green-400 shadow-md hover:shadow-lg transition-all duration-300"
+                >
+                  Login
+                </button>
               )}
             </li>
           </ul>

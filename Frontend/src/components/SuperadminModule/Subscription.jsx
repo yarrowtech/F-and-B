@@ -172,7 +172,7 @@ const CombinedSubscriptionPanel = () => {
               className="border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-black dark:text-white rounded-md px-4 py-2 w-full sm:w-96 mb-4 shadow-sm"
             />
             <div className="overflow-x-auto">
-              <table className="w-full text-left border border-gray-200 dark:border-gray-700 rounded-lg table-auto">
+              <table className="min-w-[720px] w-full text-left border border-gray-200 dark:border-gray-700 rounded-lg table-auto">
                 <thead className="bg-green-50 dark:bg-green-900 text-gray-700 dark:text-gray-200">
                   <tr>
                     <th className="p-3">Name</th>
@@ -240,7 +240,7 @@ const CombinedSubscriptionPanel = () => {
             <div className="text-gray-500 italic">No history yet.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border border-gray-200 dark:border-gray-700 rounded-lg table-auto">
+              <table className="min-w-[720px] w-full text-left border border-gray-200 dark:border-gray-700 rounded-lg table-auto">
                 <thead className="bg-green-50 dark:bg-green-900 text-gray-700 dark:text-gray-200">
                   <tr>
                     <th className="p-3">Company</th>
@@ -283,7 +283,7 @@ const CombinedSubscriptionPanel = () => {
             <div className="text-gray-500 italic">No payments recorded yet.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border border-gray-200 dark:border-gray-700 rounded-lg table-auto">
+              <table className="min-w-[720px] w-full text-left border border-gray-200 dark:border-gray-700 rounded-lg table-auto">
                 <thead className="bg-green-50 dark:bg-green-900 text-gray-700 dark:text-gray-200">
                   <tr>
                     <th className="p-3">Company</th>

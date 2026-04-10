@@ -15,7 +15,7 @@ const Alerts = () => {
   return (
     <div className="p-4 bg-white dark:bg-gray-900 min-h-screen overflow-y-auto">
       {/* Heading */}
-      <h1 className="text-3xl font-bold mb-4 text-black dark:text-white flex items-center gap-2">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-black dark:text-white flex items-center gap-2">
         <FaExclamationTriangle className="text-red-600 dark:text-red-400 text-2xl" />
         Alerts & Notifications
       </h1>
@@ -24,7 +24,7 @@ const Alerts = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Admin Alerts */}
         <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-red-200 dark:border-red-500 shadow-inner">
-          <h2 className="text-xl font-semibold mb-3 text-red-700 dark:text-red-400">
+          <h2 className="text-lg sm:text-xl font-semibold mb-3 text-red-700 dark:text-red-400">
             🔐 Admin Alerts
           </h2>
           {adminAlerts.length ? (
@@ -42,7 +42,7 @@ const Alerts = () => {
 
         {/* Vendor Alerts */}
         <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-yellow-200 dark:border-yellow-500 shadow-inner">
-          <h2 className="text-xl font-semibold mb-3 text-yellow-700 dark:text-yellow-400">
+          <h2 className="text-lg sm:text-xl font-semibold mb-3 text-yellow-700 dark:text-yellow-400">
             🏪 Vendor Alerts
           </h2>
           {vendorAlerts.length ? (

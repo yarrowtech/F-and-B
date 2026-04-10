@@ -78,8 +78,8 @@ const AccountantOtherPayments = () => {
   };
 
   return (
-    <div className="p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
-      <div className="flex justify-between items-center mb-4">
+    <div className="p-4 sm:p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Other Payments</h2>
         <button
           onClick={exportCSV}
@@ -95,20 +95,20 @@ const AccountantOtherPayments = () => {
         <input
           type="text"
           placeholder="Item Type"
-          className="p-2 border rounded-md"
+          className="w-full sm:w-auto p-2 border rounded-md"
           value={newPayment.type}
           onChange={(e) => setNewPayment({ ...newPayment, type: e.target.value })}
         />
         <input
           type="number"
           placeholder="Amount"
-          className="p-2 border rounded-md"
+          className="w-full sm:w-auto p-2 border rounded-md"
           value={newPayment.amount}
           onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
         />
         <input
           type="date"
-          className="p-2 border rounded-md"
+          className="w-full sm:w-auto p-2 border rounded-md"
           value={newPayment.date}
           onChange={(e) => setNewPayment({ ...newPayment, date: e.target.value })}
         />
@@ -120,7 +120,8 @@ const AccountantOtherPayments = () => {
         </button>
       </form>
 
-      <table className="w-full text-left border-collapse mb-6">
+      <div className="mb-6 overflow-x-auto">
+      <table className="min-w-[560px] w-full text-left border-collapse">
         <thead>
           <tr className="bg-gray-100 dark:bg-gray-700">
             <th className="p-2">Item</th>
@@ -162,6 +163,7 @@ const AccountantOtherPayments = () => {
           )}
         </tbody>
       </table>
+      </div>
 
       {/* --- History Section --- */}
       <div>
