@@ -1158,7 +1158,7 @@ app.use("/api/inventory-dashboard", inventoryDashboardRoutes);
 
 /* ================= HEALTH ================= */
 app.get("/", (req, res) => {
-  res.send("✅ F&B ERP Backend is running");
+  res.send("✅ EF&B-M Backend is running");
 });
 
 /* ================= 404 ================= */

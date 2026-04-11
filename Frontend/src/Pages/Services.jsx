@@ -1,67 +1,102 @@
-import React from 'react';
+import React from "react";
+import { motion } from "framer-motion";
 import {
-  FaUsers,
-  FaUtensils,
   FaBoxes,
-  FaTruckLoading,
-  FaTasks,
+  FaChartBar,
   FaCheckCircle,
   FaMoneyBillWave,
-  FaChartBar,
   FaPlug,
-} from 'react-icons/fa';
-import { AiOutlineHome } from 'react-icons/ai';
-import { Link } from 'react-router-dom';
+  FaTasks,
+  FaTruckLoading,
+  FaUsers,
+  FaUtensils,
+} from "react-icons/fa";
+import PublicPageShell from "../components/PublicPageShell";
+
+const services = [
+  { icon: <FaUsers />, title: "User management", description: "Role-based access and multi-location structure for operational control." },
+  { icon: <FaUtensils />, title: "Menu and recipe flow", description: "Keep recipes, item costs, and updates visible in one place." },
+  { icon: <FaBoxes />, title: "Inventory control", description: "Monitor stock, prevent shortages, and act before waste grows." },
+  { icon: <FaTruckLoading />, title: "Vendor tracking", description: "Coordinate suppliers, procurement, and incoming stock with less friction." },
+  { icon: <FaTasks />, title: "Kitchen execution", description: "Turn orders into clear prep workflows and team coordination." },
+  { icon: <FaCheckCircle />, title: "Quality checks", description: "Support safer operations with repeatable checks and visibility." },
+  { icon: <FaMoneyBillWave />, title: "Billing and finance", description: "Track payments, cost movement, and financial activity more clearly." },
+  { icon: <FaChartBar />, title: "Analytics", description: "See trends across operations, performance, and business outcomes." },
+  { icon: <FaPlug />, title: "Platform integration", description: "Extend the system with connected tools and service integrations." },
+];
+
+const processSteps = [
+  "Capture operations across departments",
+  "Organize the workflow with shared visibility",
+  "Turn daily activity into decisions with analytics",
+];
 
 const Services = () => {
-  const services = [
-    { icon: <FaUsers />, title: "Multi-Tenant User Management", description: "Role-based access and tenant-specific configurations for scalable management" },
-    { icon: <FaUtensils />, title: "Dynamic Menu & Recipe Management", description: "Real-time updates and cost-effective recipe configurations" },
-    { icon: <FaBoxes />, title: "Intelligent Inventory Control", description: "AI-based tracking, restocking alerts, and loss prevention" },
-    { icon: <FaTruckLoading />, title: "Vendor & Supply Chain Management", description: "Integrated supplier network and seamless procurement" },
-    { icon: <FaTasks />, title: "Production Planning & Kitchen Operations", description: "Optimized scheduling and resource allocation for kitchen efficiency" },
-    { icon: <FaCheckCircle />, title: "Quality Control & Food Safety", description: "Regulatory compliance with automated checks and reports" },
-    { icon: <FaMoneyBillWave />, title: "Financial Management & Accounting", description: "Streamlined financials, invoicing, and cost management" },
-    { icon: <FaChartBar />, title: "Business Intelligence & Analytics", description: "Data-driven dashboards for smarter business decisions" },
-    { icon: <FaPlug />, title: "System Integration & API", description: "Seamless integrations with third-party platforms and services" },
-  ];
-
   return (
-    <section id="services" className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-100 py-24 relative overflow-hidden">
-      
-      <div className="absolute top-6 left-6 z-10">
-        <Link
-          to="/"
-          className="inline-flex items-center justify-center w-12 h-12 border-2 border-green-600 text-green-700 rounded-full hover:bg-green-600 hover:text-white transition-colors duration-300"
-        >
-          <AiOutlineHome className="text-2xl" />
-        </Link>
-      </div>
-
-      <div className="container mx-auto px-6">
-        <h2 className="text-5xl md:text-6xl font-extrabold text-center text-green-800 mb-6">
-          Our Services
-        </h2>
-        <p className="text-gray-600 text-center max-w-2xl mx-auto mb-16 text-lg">
-          Empowering the food and beverage industry with intelligent, scalable ERP services.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
-          {services.map((service, index) => (
-            <div
-              key={index}
-              className="group bg-white/70 backdrop-blur-lg rounded-3xl p-10 text-center shadow-lg hover:shadow-2xl transform hover:-translate-y-2 transition-all duration-300 border border-gray-100 hover:border-green-500"
+    <PublicPageShell
+      eyebrow="Services"
+      title="A service stack built around restaurant momentum"
+      description="The UI is updated to feel more premium and structured, while keeping the same familiar green identity across the landing pages."
+    >
+      <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3 lg:col-span-1">
+          {services.map(({ icon, title, description }, index) => (
+            <motion.article
+              key={title}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.15 }}
+              transition={{ duration: 0.45, delay: index * 0.05 }}
+              whileHover={{ y: -10, scale: 1.02 }}
+              className="group rounded-[2rem] border border-green-100 bg-[linear-gradient(165deg,_rgba(255,255,255,0.95),_rgba(240,253,244,0.92))] p-6 shadow-lg backdrop-blur transition hover:shadow-[0_22px_60px_-28px_rgba(21,128,61,0.5)]"
             >
-              <div className="mx-auto w-20 h-20 flex items-center justify-center rounded-full bg-gradient-to-br from-green-100 to-green-200 text-green-700 text-4xl mb-6 group-hover:scale-110 transition-transform duration-300 shadow-inner">
-                {service.icon}
+              <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-lime-300 via-green-400 to-green-600 text-2xl text-green-950 shadow-lg shadow-lime-100 transition duration-300 group-hover:scale-110 group-hover:rotate-3">
+                {icon}
               </div>
-              <h3 className="text-2xl font-semibold text-gray-800 mb-3">{service.title}</h3>
-              <p className="text-gray-600 text-base leading-relaxed">{service.description}</p>
-            </div>
+              <h3 className="text-xl font-bold text-green-950">{title}</h3>
+              <p className="mt-3 text-sm leading-6 text-gray-600">{description}</p>
+            </motion.article>
           ))}
         </div>
-      </div>
-    </section>
+
+        <motion.aside
+          initial={{ opacity: 0, x: 28 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true, amount: 0.25 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="rounded-[2rem] border border-green-100 bg-[linear-gradient(180deg,_#052e16_0%,_#14532d_100%)] p-8 text-white shadow-2xl"
+        >
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-100/70">
+            Flow
+          </p>
+          <h3 className="mt-4 text-3xl font-bold leading-tight">
+            From service floor to reporting, every layer stays connected
+          </h3>
+          <p className="mt-5 text-base leading-7 text-white/80">
+            The refreshed UI makes the service story easier to scan. Users can understand the platform at a glance without losing the brand color language.
+          </p>
+
+          <div className="mt-8 space-y-4">
+            {processSteps.map((step, index) => (
+              <motion.div
+                key={step}
+                initial={{ opacity: 0, x: 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: 0.15 + index * 0.08 }}
+                whileHover={{ x: 8 }}
+                className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-lime-300 text-sm font-bold text-green-950">
+                  0{index + 1}
+                </div>
+                <p className="pt-1 text-sm leading-6 text-white/85">{step}</p>
+              </motion.div>
+            ))}
+          </div>
+        </motion.aside>
+      </section>
+    </PublicPageShell>
   );
 };
 

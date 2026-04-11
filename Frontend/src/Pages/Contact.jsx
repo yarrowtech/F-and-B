@@ -1,189 +1,174 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { AiOutlineHome } from 'react-icons/ai';
+import React, { useState } from "react";
+import { FaEnvelope, FaMapMarkerAlt, FaPhoneAlt } from "react-icons/fa";
+import { motion } from "framer-motion";
+import PublicPageShell from "../components/PublicPageShell";
+
+const contactCards = [
+  { title: "Email", value: "info@fnb-solutions.com", icon: <FaEnvelope /> },
+  { title: "Phone", value: "+91 98305 90929", icon: <FaPhoneAlt /> },
+  { title: "Location", value: "3A, Bertram Street, Esplanade, Kolkata 700087", icon: <FaMapMarkerAlt /> },
+];
 
 const Contact = () => {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    company: '',
-    message: ''
+    name: "",
+    email: "",
+    company: "",
+    message: "",
   });
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = (event) => {
+    event.preventDefault();
     setIsSubmitting(true);
 
-    // Simulate form submission
-    setTimeout(() => {
+    window.setTimeout(() => {
       setIsSubmitting(false);
       setSubmitSuccess(true);
-      setFormData({ name: '', email: '', company: '', message: '' });
-
-      // Reset success message after 5 seconds
-      setTimeout(() => setSubmitSuccess(false), 5000);
+      setFormData({ name: "", email: "", company: "", message: "" });
+      window.setTimeout(() => setSubmitSuccess(false), 5000);
     }, 1500);
   };
 
   return (
-    <section id="contact" className="relative py-16 bg-white">
-      {/* Home Icon fixed at top-left */}
-      <div className="fixed top-6 left-6 z-50">
-        <Link
-          to="/"
-          className="text-green-700 hover:text-green-800 text-2xl"
-          title="Back to Home"
-        >
-          <AiOutlineHome />
-        </Link>
-      </div>
+    <PublicPageShell
+      eyebrow="Contact"
+      title="A calmer contact page with clearer next steps"
+      description="The layout now follows the same visual system as the rest of the landing experience while keeping the same green brand family."
+    >
+      <section className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="space-y-6">
+          <motion.div
+            initial={{ opacity: 0, x: -24 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, amount: 0.25 }}
+            transition={{ duration: 0.55 }}
+            className="rounded-[2rem] bg-[linear-gradient(180deg,_#052e16_0%,_#166534_100%)] p-8 text-white shadow-2xl"
+          >
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-green-100/70">
+              Reach out
+            </p>
+            <h3 className="mt-4 text-3xl font-bold">Tell us what your team needs</h3>
+            <p className="mt-4 text-base leading-7 text-white/80">
+              Whether you need a product walkthrough, a setup conversation, or a pricing discussion, this page now guides visitors with less clutter.
+            </p>
+          </motion.div>
 
-      <div className="container mx-auto px-4">
-        <h2 className="text-3xl font-bold text-center mb-4">Get Started Today</h2>
-        <p className="text-gray-600 text-center max-w-2xl mx-auto mb-12">
-          Schedule a demo or request more information about our solutions
-        </p>
-
-        <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            {/* LEFT SIDE */}
-            <div>
-              <div className="bg-gradient-to-r from-green-700 to-green-600 rounded-2xl p-8 text-white mb-8">
-                <h3 className="text-2xl font-bold mb-4">Subscription Plans</h3>
-                <ul className="space-y-4">
-                  {['Basic', 'Professional', 'Enterprise'].map((plan, i) => (
-                    <li className="flex items-start" key={i}>
-                      <svg className="w-5 h-5 text-yellow-50 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                      </svg>
-                      <div>
-                        <h4 className="font-bold">{plan}</h4>
-                        <p>
-                          {plan === 'Basic' && 'Inventory + Order Management'}
-                          {plan === 'Professional' && 'Full ERP Suite'}
-                          {plan === 'Enterprise' && 'Custom Solutions'}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="bg-gray-50 rounded-2xl p-8">
-                <h3 className="text-xl font-bold mb-4">Contact Information</h3>
-                <ul className="space-y-3">
-                  <li className="flex items-start">
-                    <svg className="w-5 h-5 text-green-700 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    <span>info@fnb-solutions.com</span>
-                  </li>
-                  <li className="flex items-start">
-                    <svg className="w-5 h-5 text-green-700 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                    <span>+1 (800) 123-4567</span>
-                  </li>
-                  <li className="flex items-start">
-                    <svg className="w-5 h-5 text-green-700 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span>1, हुमायूँ प्लेस, कोलकाता-700087, 3A, Bertram St, Esplanade, Dharmatala, Kolkata</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            {/* RIGHT SIDE */}
-            <div>
-              <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
-                <h3 className="text-2xl font-bold mb-6">Contact Us</h3>
-
-                {submitSuccess && (
-                  <div className="bg-green-50 text-green-700 p-4 rounded-lg mb-6 flex items-center">
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Thank you! Your request has been submitted. We'll contact you shortly.
-                  </div>
-                )}
-
-                <form onSubmit={handleSubmit}>
-                  <div className="mb-4">
-                    <label htmlFor="name" className="block text-gray-700 mb-2">Name</label>
-                    <input
-                      type="text"
-                      id="name"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent"
-                      required
-                    />
-                  </div>
-
-                  <div className="mb-4">
-                    <label htmlFor="email" className="block text-gray-700 mb-2">Email</label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent"
-                      required
-                    />
-                  </div>
-
-                  <div className="mb-4">
-                    <label htmlFor="company" className="block text-gray-700 mb-2">Company</label>
-                    <input
-                      type="text"
-                      id="company"
-                      name="company"
-                      value={formData.company}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent"
-                      required
-                    />
-                  </div>
-
-                  <div className="mb-6">
-                    <label htmlFor="message" className="block text-gray-700 mb-2">Message</label>
-                    <textarea
-                      id="message"
-                      name="message"
-                      value={formData.message}
-                      onChange={handleChange}
-                      rows="4"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent"
-                      required
-                    ></textarea>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className={`w-full bg-green-700 hover:bg-green-800 text-white font-bold py-3 px-4 rounded-lg transition-colors ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
-                  >
-                    {isSubmitting ? 'Submitting...' : 'Send Message'}
-                  </button>
-                </form>
-              </div>
-            </div>
+          <div className="grid gap-4">
+            {contactCards.map(({ title, value, icon }, index) => (
+              <motion.article
+                key={title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: index * 0.08 }}
+                whileHover={{ y: -8, scale: 1.01 }}
+                className="flex items-start gap-4 rounded-[1.75rem] border border-green-100 bg-[linear-gradient(150deg,_rgba(255,255,255,0.96),_rgba(240,253,244,0.94))] p-5 shadow-lg backdrop-blur"
+              >
+                <div className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-lime-200 to-green-200 text-green-800 shadow-md">
+                  {icon}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-700/70">
+                    {title}
+                  </p>
+                  <p className="mt-2 text-base leading-7 text-gray-700">{value}</p>
+                </div>
+              </motion.article>
+            ))}
           </div>
         </div>
-      </div>
-    </section>
+
+        <motion.div
+          initial={{ opacity: 0, x: 28 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{ duration: 0.6 }}
+          className="rounded-[2rem] border border-green-100 bg-white/85 p-8 shadow-2xl backdrop-blur md:p-10"
+        >
+          <h3 className="text-3xl font-bold text-green-950">Contact Us</h3>
+          <p className="mt-3 text-gray-600">
+            Send a message and we will get back to you shortly.
+          </p>
+
+          {submitSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800"
+            >
+              Thank you. Your request has been submitted successfully.
+            </motion.div>
+          )}
+
+          <form onSubmit={handleSubmit} className="mt-8 grid gap-5">
+            <label className="grid gap-2">
+              <span className="text-sm font-medium text-gray-700">Name</span>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                className="rounded-2xl border border-green-100 bg-white px-4 py-3 outline-none transition focus:border-green-500 focus:shadow-[0_0_0_4px_rgba(134,239,172,0.35)]"
+                required
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-medium text-gray-700">Email</span>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="rounded-2xl border border-green-100 bg-white px-4 py-3 outline-none transition focus:border-green-500 focus:shadow-[0_0_0_4px_rgba(134,239,172,0.35)]"
+                required
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-medium text-gray-700">Company</span>
+              <input
+                type="text"
+                name="company"
+                value={formData.company}
+                onChange={handleChange}
+                className="rounded-2xl border border-green-100 bg-white px-4 py-3 outline-none transition focus:border-green-500 focus:shadow-[0_0_0_4px_rgba(134,239,172,0.35)]"
+                required
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-medium text-gray-700">Message</span>
+              <textarea
+                name="message"
+                rows="5"
+                value={formData.message}
+                onChange={handleChange}
+                className="rounded-2xl border border-green-100 bg-white px-4 py-3 outline-none transition focus:border-green-500 focus:shadow-[0_0_0_4px_rgba(134,239,172,0.35)]"
+                required
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`rounded-full bg-green-900 px-6 py-3 font-semibold text-white transition hover:-translate-y-1 hover:bg-green-800 ${
+                isSubmitting ? "cursor-not-allowed opacity-70" : ""
+              }`}
+            >
+              {isSubmitting ? "Submitting..." : "Send Message"}
+            </button>
+          </form>
+        </motion.div>
+      </section>
+    </PublicPageShell>
   );
 };
 

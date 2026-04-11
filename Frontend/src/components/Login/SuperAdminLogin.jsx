@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { FaHome, FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaArrowLeft, FaEye, FaEyeSlash, FaLock, FaUserShield } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { login } from "../../services/auth.service";
 
@@ -25,10 +25,10 @@ export default function SuperAdminLogin() {
   }, [activePage]);
 
   const inputClass =
-    "w-full px-4 py-2 bg-white/90 border border-green-200 focus:ring-2 focus:ring-green-400 outline-none transition duration-200 shadow-sm rounded-lg";
+    "w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-lime-300/50 focus:bg-white/8";
 
   const buttonClass =
-    "w-full py-2 mt-2 text-white font-semibold bg-gradient-to-r from-lime-400 to-green-400 hover:from-lime-500 hover:to-green-500 transition-all duration-300 hover:scale-105 shadow-lg rounded-lg disabled:opacity-60";
+    "w-full rounded-full bg-gradient-to-r from-lime-300 to-green-500 px-6 py-3 font-bold text-[#140d09] shadow-[0_18px_35px_-20px_rgba(132,204,22,0.85)] transition hover:-translate-y-1 disabled:cursor-not-allowed disabled:opacity-60";
 
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -37,13 +37,12 @@ export default function SuperAdminLogin() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  /* ================= LOGIN ================= */
   const handleLogin = async (e) => {
     e.preventDefault();
 
     if (!formData.email || !formData.password) {
       setIsError(true);
-      setMessage("Please enter email and password ❌");
+      setMessage("Please enter email and password");
       return;
     }
 
@@ -57,28 +56,25 @@ export default function SuperAdminLogin() {
       });
 
       setIsError(false);
-      setMessage("Login Successful ✅");
+      setMessage("Login successful");
 
       setTimeout(() => navigate("/superadmin"), 800);
     } catch (error) {
       setIsError(true);
       setMessage(
-        error?.response?.data?.message ||
-          error.message ||
-          "Login failed ❌"
+        error?.response?.data?.message || error.message || "Login failed"
       );
     } finally {
       setLoading(false);
     }
   };
 
-  /* ================= FORGOT PASSWORD ================= */
   const handleForgot = async (e) => {
     e.preventDefault();
 
     if (!formData.resetEmail) {
       setIsError(true);
-      setMessage("Please enter your registered email ❌");
+      setMessage("Please enter your registered email");
       return;
     }
 
@@ -86,136 +82,205 @@ export default function SuperAdminLogin() {
       setLoading(true);
       setMessage("");
 
-      const res = await fetch(
-        `${API_BASE}/api/super_admin/forgot-password`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: formData.resetEmail }),
-        }
-      );
+      const res = await fetch(`${API_BASE}/api/super_admin/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formData.resetEmail }),
+      });
 
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.message);
 
       setIsError(false);
-      setMessage("Reset link sent successfully ✅");
+      setMessage("Reset link sent successfully");
     } catch (error) {
       setIsError(true);
-      setMessage(error.message || "Something went wrong ❌");
+      setMessage(error.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-lime-100 via-green-100 to-lime-200 flex items-center justify-center px-4">
-      <div className="relative w-full max-w-md p-8 backdrop-blur-xl bg-white/40 border border-white/50 rounded-3xl shadow-2xl">
+    <div className="relative min-h-screen overflow-hidden bg-[#120c09] px-4 py-8 text-white">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(132,204,22,0.1),_transparent_24%),radial-gradient(circle_at_bottom_right,_rgba(74,222,128,0.12),_transparent_26%)]" />
 
-        {/* HOME BUTTON */}
-        <div className="absolute top-4 left-4">
-          <button
-            onClick={() => navigate("/")}
-            className="text-green-700 hover:text-green-900"
-          >
-            <FaHome className="text-xl" />
-          </button>
-        </div>
-
-        <h2 className="text-2xl font-bold text-center text-green-900 mb-4 mt-2">
-          Super Admin {activePage === "login" ? "Login" : "Reset Password"}
-        </h2>
-
-        {/* MESSAGE */}
-        {message && (
-          <div
-            className={`mb-4 text-center text-sm font-medium py-2 rounded-lg ${
-              isError
-                ? "bg-red-100 text-red-700"
-                : "bg-green-100 text-green-700"
-            }`}
-          >
-            {message}
-          </div>
-        )}
-
-        {/* LOGIN */}
-        {activePage === "login" && (
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input
-              ref={firstInputRef}
-              type="email"
-              name="email"
-              placeholder="Super Admin Email"
-              value={formData.email}
-              onChange={handleChange}
-              className={inputClass}
-              required
-            />
+      <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center justify-center">
+        <div className="grid w-full overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#17100d]/92 shadow-[0_28px_80px_-35px_rgba(0,0,0,0.9)] backdrop-blur lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="relative hidden flex-col justify-between overflow-hidden border-r border-white/8 bg-[linear-gradient(180deg,_rgba(132,204,22,0.18)_0%,_rgba(23,16,13,0.25)_100%)] p-10 lg:flex">
+            <div className="absolute -left-14 bottom-0 h-56 w-56 rounded-full bg-lime-400/20 blur-3xl" />
+            <div className="absolute right-6 top-6 h-40 w-40 rounded-full bg-green-300/10 blur-3xl" />
 
             <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                name="password"
-                placeholder="Password"
-                value={formData.password}
-                onChange={handleChange}
-                className={inputClass}
-                required
-              />
               <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-2 text-xl text-gray-600"
+                onClick={() => navigate("/")}
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm font-medium text-white/80 transition hover:text-lime-300"
               >
-                {showPassword ? <FaEyeSlash /> : <FaEye />}
+                <FaArrowLeft className="text-xs" />
+                Back Home
               </button>
             </div>
 
-            <div className="text-right text-sm">
-              <button
-                type="button"
-                className="text-green-700 hover:underline"
-                onClick={() => setActivePage("forgot")}
-              >
-                Forgot password?
-              </button>
+            <div className="relative">
+              <p className="text-sm uppercase tracking-[0.28em] text-lime-300">
+                EF&amp;B-M
+              </p>
+              <h1 className="mt-5 text-5xl font-black leading-tight text-white">
+                Super admin control with a cleaner access screen
+              </h1>
+              <p className="mt-6 max-w-md text-base leading-8 text-white/70">
+                Secure access for platform administration, management controls, and account recovery from one refined login flow.
+              </p>
             </div>
 
-            <button type="submit" className={buttonClass} disabled={loading}>
-              {loading ? "Please wait..." : "Login"}
-            </button>
-          </form>
-        )}
+            <div className="rounded-[1.8rem] border border-white/10 bg-black/20 p-5 backdrop-blur">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/45">
+                Recovery
+              </p>
+              <p className="mt-3 text-sm leading-7 text-white/72">
+                Forgot password is built into the same screen so reset access stays simple and visible.
+              </p>
+            </div>
+          </div>
 
-        {/* FORGOT PASSWORD */}
-        {activePage === "forgot" && (
-          <form onSubmit={handleForgot} className="space-y-4">
-            <input
-              ref={firstInputRef}
-              type="email"
-              name="resetEmail"
-              placeholder="Registered Email"
-              value={formData.resetEmail}
-              onChange={handleChange}
-              className={inputClass}
-              required
-            />
+          <div className="p-6 sm:p-8 md:p-10 lg:p-12">
+            <div className="mb-8 flex items-center justify-between lg:hidden">
+              <button
+                onClick={() => navigate("/")}
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm font-medium text-white/80 transition hover:text-lime-300"
+              >
+                <FaArrowLeft className="text-xs" />
+                Back
+              </button>
+              <span className="text-sm font-semibold uppercase tracking-[0.22em] text-lime-300">
+                EF&amp;B-M
+              </span>
+            </div>
 
-            <button type="submit" className={buttonClass} disabled={loading}>
-              {loading ? "Sending..." : "Send Reset Link"}
-            </button>
+            <div className="max-w-md">
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-lime-300">
+                Super Admin
+              </p>
+              <h2 className="mt-4 text-4xl font-black text-white">
+                {activePage === "login" ? "Login to continue" : "Reset your password"}
+              </h2>
+              <p className="mt-3 text-base leading-7 text-white/65">
+                {activePage === "login"
+                  ? "Enter your super admin credentials to access the control center."
+                  : "Enter your registered email to receive a reset link."}
+              </p>
 
-            <button
-              type="button"
-              className="mt-2 text-green-700 hover:underline text-sm"
-              onClick={() => setActivePage("login")}
-            >
-              Back to Login
-            </button>
-          </form>
-        )}
+              {message && (
+                <div
+                  className={`mt-6 rounded-2xl border px-4 py-3 text-sm font-medium ${
+                    isError
+                      ? "border-red-400/35 bg-red-500/10 text-red-200"
+                      : "border-lime-400/25 bg-lime-500/10 text-lime-200"
+                  }`}
+                >
+                  {message}
+                </div>
+              )}
+
+              {activePage === "login" && (
+                <form onSubmit={handleLogin} className="mt-8 space-y-5">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-white/75">
+                      Email
+                    </label>
+                    <div className="relative">
+                      <FaUserShield className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35" />
+                      <input
+                        ref={firstInputRef}
+                        type="email"
+                        name="email"
+                        placeholder="Super admin email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        className={`${inputClass} pl-12`}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-white/75">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <FaLock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        name="password"
+                        placeholder="Password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        className={`${inputClass} pl-12 pr-12`}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-lg text-white/45 transition hover:text-lime-300"
+                      >
+                        {showPassword ? <FaEyeSlash /> : <FaEye />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="text-right text-sm">
+                    <button
+                      type="button"
+                      className="font-medium text-lime-300 transition hover:text-lime-200"
+                      onClick={() => setActivePage("forgot")}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+
+                  <button type="submit" className={buttonClass} disabled={loading}>
+                    {loading ? "Please wait..." : "Login"}
+                  </button>
+                </form>
+              )}
+
+              {activePage === "forgot" && (
+                <form onSubmit={handleForgot} className="mt-8 space-y-5">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-white/75">
+                      Registered Email
+                    </label>
+                    <div className="relative">
+                      <FaUserShield className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35" />
+                      <input
+                        ref={firstInputRef}
+                        type="email"
+                        name="resetEmail"
+                        placeholder="Registered email"
+                        value={formData.resetEmail}
+                        onChange={handleChange}
+                        className={`${inputClass} pl-12`}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <button type="submit" className={buttonClass} disabled={loading}>
+                    {loading ? "Sending..." : "Send Reset Link"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="text-sm font-medium text-lime-300 transition hover:text-lime-200"
+                    onClick={() => setActivePage("login")}
+                  >
+                    Back to Login
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
