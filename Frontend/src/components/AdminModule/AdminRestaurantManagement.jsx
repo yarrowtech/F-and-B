@@ -233,11 +233,11 @@ const handleDelete = async () => {
   if (loading) return <p className="p-6 text-base text-gray-500">Loading restaurants…</p>;
 
   return (
-    <div className="p-6 min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 p-4 dark:bg-gray-900 sm:p-6">
 
       {/* ── HEADER ── */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Restaurant Management</h1>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white sm:text-3xl">Restaurant Management</h1>
         <button
           onClick={() => setShowAdd(true)}
           className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-lg text-lg font-semibold shadow-sm transition-colors"
@@ -264,21 +264,20 @@ const handleDelete = async () => {
         </div>
 
         <div className="overflow-x-auto">
-        <table className="min-w-[900px] w-full text-base sm:text-lg">
+        <table className="min-w-[760px] w-full text-base sm:text-lg">
           <thead className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-base uppercase tracking-wide">
             <tr>
               <th className="px-5 py-4 text-left font-semibold">#</th>
               <th className="px-5 py-4 text-left font-semibold">Name</th>
               <th className="px-5 py-4 text-left font-semibold">Phone</th>
               <th className="px-5 py-4 text-left font-semibold">Address</th>
-              <th className="px-5 py-4 text-left font-semibold">GST</th>
               <th className="px-5 py-4 text-right font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-gray-400 dark:text-gray-500 text-lg">
+                <td colSpan={5} className="px-5 py-10 text-center text-gray-400 dark:text-gray-500 text-lg">
                   No restaurants found
                 </td>
               </tr>
@@ -292,7 +291,6 @@ const handleDelete = async () => {
                   <td className="px-5 py-4 font-semibold text-gray-800 dark:text-gray-100">{r.name}</td>
                   <td className="px-5 py-4 text-gray-600 dark:text-gray-300">{r.phone}</td>
                   <td className="px-5 py-4 text-gray-600 dark:text-gray-300 max-w-xs truncate" title={r.address}>{r.address}</td>
-                  <td className="px-5 py-4 text-gray-500 dark:text-gray-400">{r.gstNo || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
                   <td className="px-5 py-4 text-right">
                     <div className="flex items-center justify-end gap-2 flex-wrap">
                       <button

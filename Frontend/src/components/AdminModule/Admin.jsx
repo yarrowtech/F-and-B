@@ -493,7 +493,7 @@ const Admin = () => {
         return (
           <RestaurantEmployees
             restaurantId={selectedRestaurantId}
-            goBack={() => setActive("restaurant")}
+            onBack={() => setActive("restaurant")}
           />
         );
 
@@ -543,6 +543,14 @@ const Admin = () => {
         </div>
       </div>
 
+      <Sidebar
+        active={active}
+        setActive={handleSetActive}
+        mobileOpen={sidebarOpen}
+        onMobileClose={() => setSidebarOpen(false)}
+        showMobileTopBar={false}
+      />
+
       <div className="flex h-full">
         {/* ===== Sidebar ===== */}
         <aside className="hidden lg:block w-72 shrink-0">
@@ -561,7 +569,7 @@ const Admin = () => {
           {/* ===== Main Content ===== */}
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-6"
+            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-4 sm:p-6"
           >
             {selectedRestaurantId && active === "restaurantEmployees" && (
               <div className="mb-4 text-sm text-green-600 font-semibold">

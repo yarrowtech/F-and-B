@@ -14,9 +14,34 @@ import {
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
-const ManagerSidebar = ({ active, setActive }) => {
-  const [isOpen, setIsOpen] = useState(false);
+const ManagerSidebar = ({
+  active,
+  setActive,
+  mobileOpen,
+  onMobileClose,
+  showMobileTopBar = true,
+}) => {
+  const [internalOpen, setInternalOpen] = useState(false);
   const navigate = useNavigate();
+
+  const isMobileControlled = typeof mobileOpen === "boolean";
+  const isOpen = isMobileControlled ? mobileOpen : internalOpen;
+
+  const toggleOpen = () => {
+    if (isMobileControlled) {
+      if (isOpen) onMobileClose?.();
+      return;
+    }
+    setInternalOpen((prev) => !prev);
+  };
+
+  const closeMobile = () => {
+    if (isMobileControlled) {
+      onMobileClose?.();
+      return;
+    }
+    setInternalOpen(false);
+  };
 
   const user = JSON.parse(localStorage.getItem("user")) || {};
   const businessName = user?.name || "Manager";
@@ -35,27 +60,34 @@ const ManagerSidebar = ({ active, setActive }) => {
   return (
     <>
       {/* MOBILE TOP BAR */}
-      <div className="lg:hidden bg-green-100 dark:bg-gray-800 text-green-800 dark:text-gray-200 flex items-center justify-between px-4 py-3 shadow-md">
-        <div className="flex items-center gap-3">
+      {showMobileTopBar && (
+        <div className="lg:hidden bg-green-100 dark:bg-gray-800 text-green-800 dark:text-gray-200 flex items-center justify-between px-4 py-3 shadow-md">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                navigate("/manager");
+                closeMobile();
+              }}
+              className="p-2 rounded-full bg-green-600 text-white"
+            >
+              <FaHome size={20} />
+            </button>
+            <h2 className="text-lg font-bold">Manager Panel</h2>
+          </div>
           <button
-            onClick={() => { navigate("/manager"); setIsOpen(false); }}
-            className="p-2 rounded-full bg-green-600 text-white"
+            onClick={toggleOpen}
+            className="p-2 rounded-full bg-green-500 text-white"
           >
-            <FaHome size={20} />
+            {isOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
           </button>
-          <h2 className="text-lg font-bold">Manager Panel</h2>
         </div>
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="p-2 rounded-full bg-green-500 text-white"
-        >
-          {isOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
-        </button>
-      </div>
+      )}
 
       {/* SIDEBAR */}
       <aside
-        className={`fixed top-0 left-0 h-full w-72 bg-green-100 dark:bg-gray-900 shadow-2xl flex flex-col z-50 transition-transform duration-300
+        className={`fixed top-0 left-0 h-full w-72 bg-green-100 dark:bg-gray-900 shadow-2xl flex flex-col z-50 transition-transform duration-300 ${
+          isMobileControlled ? "lg:hidden" : ""
+        }
           ${isOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
       >
         {/* HEADER */}
@@ -81,7 +113,7 @@ const ManagerSidebar = ({ active, setActive }) => {
                 key={key}
                 onClick={() => {
                   setActive(key);
-                  if (window.innerWidth < 1024) setIsOpen(false);
+                  if (window.innerWidth < 1024) closeMobile();
                 }}
                 className={`w-full flex items-center gap-4 px-4 py-3 mb-2 rounded-lg text-sm font-medium border-l-4 transition-all
                   ${isActive
@@ -100,7 +132,7 @@ const ManagerSidebar = ({ active, setActive }) => {
       {/* MOBILE OVERLAY */}
       {isOpen && (
         <div
-          onClick={() => setIsOpen(false)}
+          onClick={closeMobile}
           className="fixed inset-0 bg-black/40 z-40 lg:hidden"
         />
       )}

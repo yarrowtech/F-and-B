@@ -36,7 +36,7 @@ function AccountantProfileButton() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    navigate("/accountant-login");
+    navigate("/login");
   };
 
   return (

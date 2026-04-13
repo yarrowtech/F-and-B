@@ -131,11 +131,11 @@ const ManagerAttendancePage = () => {
   );
 
   return (
-    <div className="min-h-screen p-6 bg-gradient-to-br from-slate-100 to-blue-50 dark:from-gray-900 dark:to-gray-800 space-y-6">
+    <div className="min-h-screen space-y-6 bg-gradient-to-br from-slate-100 to-blue-50 p-4 dark:from-gray-900 dark:to-gray-800 sm:p-6">
 
       {/* ── HEADER ── */}
       <div>
-        <h2 className="text-3xl font-bold text-gray-800 dark:text-white">My Attendance</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-white sm:text-3xl">My Attendance</h2>
         <p className="text-base text-gray-500 dark:text-gray-400 mt-1">Track your check-ins and monthly record</p>
       </div>
 
@@ -164,18 +164,18 @@ const ManagerAttendancePage = () => {
           </div>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <button
             onClick={handleCheckIn}
             disabled={loading || !!todayRecord?.checkIn}
-            className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-base font-semibold rounded-xl transition-colors shadow-sm"
+            className="w-full px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-base font-semibold rounded-xl transition-colors shadow-sm sm:w-auto"
           >
             Check In
           </button>
           <button
             onClick={handleCheckOut}
             disabled={loading || !todayRecord?.checkIn || !!todayRecord?.checkOut}
-            className="px-6 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white text-base font-semibold rounded-xl transition-colors shadow-sm"
+            className="w-full px-6 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white text-base font-semibold rounded-xl transition-colors shadow-sm sm:w-auto"
           >
             Check Out
           </button>

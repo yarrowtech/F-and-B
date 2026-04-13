@@ -1117,7 +1117,7 @@ export default function AdminStaffManagement() {
 
       {/* SEARCH */}
 
-      <div className="flex gap-4 mb-4">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row">
 
         <div className="flex items-center bg-white border rounded-full px-4 flex-1">
 
@@ -1135,7 +1135,7 @@ export default function AdminStaffManagement() {
         <select
           value={roleFilter}
           onChange={(e)=>setRoleFilter(e.target.value)}
-          className="border rounded-full px-4 text-lg py-2"
+          className="w-full border rounded-full px-4 py-2 text-lg md:w-auto"
         >
           {ROLE_OPTIONS.map((r)=>(
             <option key={r} value={r}>

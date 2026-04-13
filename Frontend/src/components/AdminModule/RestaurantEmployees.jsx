@@ -159,7 +159,7 @@ export default function RestaurantEmployees({ restaurantId, onBack }) {
         <button
           onClick={assignEmployees}
           disabled={loading}
-          className="mt-3 flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded bg-green-600 px-4 py-2 text-white sm:w-auto"
         >
           <FaPlus />
           {loading ? "Adding..." : "Add Selected Employees"}

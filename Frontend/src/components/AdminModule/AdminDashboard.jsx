@@ -111,11 +111,11 @@ const AdminDashboard = () => {
   const totalRestaurants = summary?.totalRestaurants ?? 0;
 
   return (
-    <div className="p-6 min-h-screen bg-gradient-to-br from-slate-100 to-blue-50 dark:from-gray-900 dark:to-gray-800 space-y-8">
+    <div className="min-h-screen space-y-8 bg-gradient-to-br from-slate-100 to-blue-50 p-4 dark:from-gray-900 dark:to-gray-800 sm:p-6">
 
       {/* ── HEADER ── */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Admin Dashboard</h1>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white sm:text-3xl">Admin Dashboard</h1>
         <p className="text-base text-gray-500 dark:text-gray-400 mt-1">Restaurant performance overview</p>
       </div>
 
@@ -200,7 +200,7 @@ const AdminDashboard = () => {
                 <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white/10" />
                 <div className="absolute -right-2 bottom-2 w-16 h-16 rounded-full bg-white/10" />
                 <p className="text-base font-medium text-violet-100 mb-2">Total Orders</p>
-                <p className="text-5xl font-extrabold">{totalOrders}</p>
+                <p className="text-4xl font-extrabold sm:text-5xl">{totalOrders}</p>
               </div>
 
               {/* Revenue */}
@@ -208,7 +208,7 @@ const AdminDashboard = () => {
                 <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white/10" />
                 <div className="absolute -right-2 bottom-2 w-16 h-16 rounded-full bg-white/10" />
                 <p className="text-base font-medium text-emerald-100 mb-2">Total Revenue</p>
-                <p className="text-4xl font-extrabold">{fmt(totalRevenue)}</p>
+                <p className="text-3xl font-extrabold sm:text-4xl">{fmt(totalRevenue)}</p>
               </div>
 
               {/* Restaurants */}
@@ -216,7 +216,7 @@ const AdminDashboard = () => {
                 <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white/10" />
                 <div className="absolute -right-2 bottom-2 w-16 h-16 rounded-full bg-white/10" />
                 <p className="text-base font-medium text-amber-100 mb-2">Total Restaurants</p>
-                <p className="text-5xl font-extrabold">{totalRestaurants}</p>
+                <p className="text-4xl font-extrabold sm:text-5xl">{totalRestaurants}</p>
               </div>
 
             </div>
@@ -237,7 +237,7 @@ const AdminDashboard = () => {
                   return (
                     <div
                       key={r._id}
-                      className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-shadow px-6 py-5 flex items-center justify-between gap-4 ${color}`}
+                      className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-shadow px-6 py-5 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between ${color}`}
                     >
                       {/* left */}
                       <div className="flex items-center gap-4 min-w-0">
@@ -248,7 +248,7 @@ const AdminDashboard = () => {
                       </div>
 
                       {/* right stats */}
-                      <div className="flex gap-6 shrink-0 text-right">
+                      <div className="flex w-full justify-between gap-6 text-right sm:w-auto sm:shrink-0 sm:justify-start">
                         <div>
                           <p className="text-xs text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Orders</p>
                           <p className="text-2xl font-extrabold text-violet-600 dark:text-violet-400">{r.totalOrders}</p>

@@ -12,7 +12,7 @@ const floatingTags = [
 const Hero = () => {
   return (
     <section id="hero" className="relative overflow-hidden px-4 pt-28 md:px-8 md:pt-32">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(132,204,22,0.1),_transparent_24%),radial-gradient(circle_at_left_bottom,_rgba(74,222,128,0.14),_transparent_24%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(74,222,128,0.12),_transparent_24%),radial-gradient(circle_at_left_bottom,_rgba(74,222,128,0.16),_transparent_24%)]" />
 
       <div className="relative mx-auto max-w-7xl">
         <div className="relative overflow-hidden rounded-[2.4rem] border border-white/10 bg-[#130d0a] shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_0_55px_rgba(255,255,255,0.18)]">
@@ -22,8 +22,8 @@ const Hero = () => {
           />
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(19,13,10,0.95)_0%,rgba(19,13,10,0.78)_45%,rgba(19,13,10,0.92)_100%)]" />
 
-          <div className="absolute -left-10 bottom-0 h-56 w-56 rounded-full bg-lime-400/15 blur-3xl" />
-          <div className="absolute right-10 top-10 h-48 w-48 rounded-full bg-green-300/12 blur-3xl" />
+          <div className="absolute -left-10 bottom-0 h-56 w-56 rounded-full bg-[#4ade80]/15 blur-3xl" />
+          <div className="absolute right-10 top-10 h-48 w-48 rounded-full bg-[#4ade80]/12 blur-3xl" />
 
           <div className="relative grid min-h-[780px] gap-10 px-8 py-12 lg:grid-cols-[0.92fr_1.08fr] lg:px-16 lg:py-16">
             <div className="flex flex-col justify-center pt-6 lg:pt-14">
@@ -40,7 +40,7 @@ const Hero = () => {
                 initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
-                className="font-serif text-2xl italic text-lime-300 md:text-3xl"
+                className="font-serif text-2xl italic text-[#4ade80] md:text-3xl"
               >
                 Smart ERP Solution
               </motion.p>
@@ -51,7 +51,7 @@ const Hero = () => {
                 transition={{ duration: 0.65, delay: 0.1 }}
                 className="mt-4 max-w-xl text-5xl font-black leading-[0.96] text-white md:text-7xl"
               >
-                <span className="text-lime-300">Streamline</span> Your Restaurant Operations
+                <span className="text-[#4ade80]">Streamline</span> Your Restaurant Operations
               </motion.h1>
 
               <motion.p
@@ -71,14 +71,14 @@ const Hero = () => {
               >
                 <a
                   href="#services"
-                  className="inline-flex items-center justify-center gap-3 rounded-full bg-gradient-to-r from-lime-300 to-green-500 px-8 py-4 text-base font-bold text-[#140d09] shadow-[0_14px_35px_-18px_rgba(132,204,22,0.85)] transition hover:-translate-y-1"
+                  className="inline-flex items-center justify-center gap-3 rounded-full bg-[#4ade80] px-8 py-4 text-base font-bold text-[#140d09] shadow-[0_14px_35px_-18px_rgba(74,222,128,0.65)] transition hover:-translate-y-1 hover:brightness-110"
                 >
                   Explore Services
                   <FaArrowRight className="text-sm" />
                 </a>
                 <a
                   href="#contact"
-                  className="inline-flex items-center justify-center gap-3 rounded-full border border-white/12 bg-white/6 px-8 py-4 text-base font-semibold text-white/90 backdrop-blur transition hover:border-lime-300/40 hover:text-lime-300"
+                  className="inline-flex items-center justify-center gap-3 rounded-full border border-white/12 bg-white/6 px-8 py-4 text-base font-semibold text-white/90 backdrop-blur transition hover:border-[#4ade80]/40 hover:text-[#4ade80]"
                 >
                   <FaPlay className="text-xs" />
                   Contact Us
@@ -93,8 +93,8 @@ const Hero = () => {
                   transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
                   className="absolute h-[430px] w-[430px] rounded-full border border-white/35"
                 >
-                  <span className="absolute left-6 top-24 h-4 w-4 rounded-full bg-lime-300 shadow-[0_0_25px_rgba(132,204,22,0.85)]" />
-                  <span className="absolute bottom-16 right-14 h-3 w-3 rounded-full bg-lime-300 shadow-[0_0_25px_rgba(132,204,22,0.85)]" />
+                  <span className="absolute left-6 top-24 h-4 w-4 rounded-full bg-[#4ade80] shadow-[0_0_25px_rgba(74,222,128,0.85)]" />
+                  <span className="absolute bottom-16 right-14 h-3 w-3 rounded-full bg-[#4ade80] shadow-[0_0_25px_rgba(74,222,128,0.85)]" />
                 </motion.div>
 
                 <motion.div
@@ -102,8 +102,8 @@ const Hero = () => {
                   transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
                   className="relative z-10"
                 >
-                  <div className="absolute -bottom-7 left-12 h-40 w-40 rounded-[50%] bg-lime-400/60 blur-2xl" />
-                  <div className="absolute -bottom-3 right-8 h-32 w-32 rounded-[50%] bg-lime-300/45 blur-2xl" />
+                  <div className="absolute -bottom-7 left-12 h-40 w-40 rounded-[50%] bg-[#4ade80]/60 blur-2xl" />
+                  <div className="absolute -bottom-3 right-8 h-32 w-32 rounded-[50%] bg-[#4ade80]/45 blur-2xl" />
                   <img
                     src={tableImage}
                     alt="Food presentation"
@@ -114,7 +114,7 @@ const Hero = () => {
                 {floatingTags.map((tag) => (
                   <div
                     key={tag.label}
-                    className="absolute rounded-full border border-white/12 bg-[#1f1713]/80 px-4 py-2 text-sm font-semibold tracking-[0.2em] text-lime-300 backdrop-blur"
+                    className="absolute rounded-full border border-white/12 bg-[#1f1713]/80 px-4 py-2 text-sm font-semibold tracking-[0.2em] text-[#4ade80] backdrop-blur"
                     style={tag}
                   >
                     {tag.label}

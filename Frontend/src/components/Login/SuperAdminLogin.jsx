@@ -25,10 +25,10 @@ export default function SuperAdminLogin() {
   }, [activePage]);
 
   const inputClass =
-    "w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-lime-300/50 focus:bg-white/8";
+    "w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-[#4ade80]/50 focus:bg-white/8";
 
   const buttonClass =
-    "w-full rounded-full bg-gradient-to-r from-lime-300 to-green-500 px-6 py-3 font-bold text-[#140d09] shadow-[0_18px_35px_-20px_rgba(132,204,22,0.85)] transition hover:-translate-y-1 disabled:cursor-not-allowed disabled:opacity-60";
+    "w-full rounded-full bg-[#4ade80] px-6 py-3 font-bold text-[#140d09] shadow-[0_18px_35px_-20px_rgba(74,222,128,0.85)] transition hover:-translate-y-1 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60";
 
   const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -103,18 +103,18 @@ export default function SuperAdminLogin() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#120c09] px-4 py-8 text-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(132,204,22,0.1),_transparent_24%),radial-gradient(circle_at_bottom_right,_rgba(74,222,128,0.12),_transparent_26%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(74,222,128,0.12),_transparent_24%),radial-gradient(circle_at_bottom_right,_rgba(74,222,128,0.14),_transparent_26%)]" />
 
       <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center justify-center">
         <div className="grid w-full overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#17100d]/92 shadow-[0_28px_80px_-35px_rgba(0,0,0,0.9)] backdrop-blur lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="relative hidden flex-col justify-between overflow-hidden border-r border-white/8 bg-[linear-gradient(180deg,_rgba(132,204,22,0.18)_0%,_rgba(23,16,13,0.25)_100%)] p-10 lg:flex">
-            <div className="absolute -left-14 bottom-0 h-56 w-56 rounded-full bg-lime-400/20 blur-3xl" />
-            <div className="absolute right-6 top-6 h-40 w-40 rounded-full bg-green-300/10 blur-3xl" />
+          <div className="relative hidden flex-col justify-between overflow-hidden border-r border-white/8 bg-[linear-gradient(180deg,_rgba(74,222,128,0.18)_0%,_rgba(23,16,13,0.25)_100%)] p-10 lg:flex">
+            <div className="absolute -left-14 bottom-0 h-56 w-56 rounded-full bg-[#4ade80]/20 blur-3xl" />
+            <div className="absolute right-6 top-6 h-40 w-40 rounded-full bg-[#4ade80]/10 blur-3xl" />
 
             <div className="relative">
               <button
                 onClick={() => navigate("/")}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm font-medium text-white/80 transition hover:text-lime-300"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm font-medium text-white/80 transition hover:text-[#4ade80]"
               >
                 <FaArrowLeft className="text-xs" />
                 Back Home
@@ -122,7 +122,7 @@ export default function SuperAdminLogin() {
             </div>
 
             <div className="relative">
-              <p className="text-sm uppercase tracking-[0.28em] text-lime-300">
+              <p className="text-sm uppercase tracking-[0.28em] text-[#4ade80]">
                 EF&amp;B-M
               </p>
               <h1 className="mt-5 text-5xl font-black leading-tight text-white">
@@ -147,18 +147,18 @@ export default function SuperAdminLogin() {
             <div className="mb-8 flex items-center justify-between lg:hidden">
               <button
                 onClick={() => navigate("/")}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm font-medium text-white/80 transition hover:text-lime-300"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm font-medium text-white/80 transition hover:text-[#4ade80]"
               >
                 <FaArrowLeft className="text-xs" />
                 Back
               </button>
-              <span className="text-sm font-semibold uppercase tracking-[0.22em] text-lime-300">
+              <span className="text-sm font-semibold uppercase tracking-[0.22em] text-[#4ade80]">
                 EF&amp;B-M
               </span>
             </div>
 
             <div className="max-w-md">
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-lime-300">
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#4ade80]">
                 Super Admin
               </p>
               <h2 className="mt-4 text-4xl font-black text-white">
@@ -175,7 +175,7 @@ export default function SuperAdminLogin() {
                   className={`mt-6 rounded-2xl border px-4 py-3 text-sm font-medium ${
                     isError
                       ? "border-red-400/35 bg-red-500/10 text-red-200"
-                      : "border-lime-400/25 bg-lime-500/10 text-lime-200"
+                      : "border-[#4ade80]/25 bg-[#4ade80]/10 text-[#bbf7d0]"
                   }`}
                 >
                   {message}
@@ -221,7 +221,7 @@ export default function SuperAdminLogin() {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-lg text-white/45 transition hover:text-lime-300"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-lg text-white/45 transition hover:text-[#4ade80]"
                       >
                         {showPassword ? <FaEyeSlash /> : <FaEye />}
                       </button>
@@ -231,7 +231,7 @@ export default function SuperAdminLogin() {
                   <div className="text-right text-sm">
                     <button
                       type="button"
-                      className="font-medium text-lime-300 transition hover:text-lime-200"
+                      className="font-medium text-[#4ade80] transition hover:text-[#86efac]"
                       onClick={() => setActivePage("forgot")}
                     >
                       Forgot password?
@@ -271,7 +271,7 @@ export default function SuperAdminLogin() {
 
                   <button
                     type="button"
-                    className="text-sm font-medium text-lime-300 transition hover:text-lime-200"
+                    className="text-sm font-medium text-[#4ade80] transition hover:text-[#86efac]"
                     onClick={() => setActivePage("login")}
                   >
                     Back to Login

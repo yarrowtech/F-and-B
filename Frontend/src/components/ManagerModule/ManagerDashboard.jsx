@@ -190,9 +190,9 @@ const ManagerDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-emerald-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 p-6 space-y-8">
+    <div className="min-h-screen space-y-8 bg-gradient-to-br from-slate-100 via-white to-emerald-50 p-4 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 sm:p-6">
       <div>
-        <h2 className="text-3xl font-bold text-gray-800 dark:text-white">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-white sm:text-3xl">
           Manager Dashboard
         </h2>
         <p className="mt-1 text-gray-500 dark:text-gray-400">

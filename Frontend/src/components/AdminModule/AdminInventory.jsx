@@ -320,19 +320,19 @@ const AdminInventory = () => {
   const categoryOptions = ["all", ...new Set(inventory.map((item) => item.category || "Uncategorized"))];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+    <div className="min-h-screen bg-gray-50 p-4 dark:bg-gray-900 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-5">
 
         {/* HEADER */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Inventory Management</h1>
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white sm:text-3xl">Inventory Management</h1>
             {selectedRestaurantName && <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">{selectedRestaurantName}</p>}
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             {/* restaurant selector */}
             <select value={selectedRestaurant} onChange={(e) => setSelectedRestaurant(e.target.value)}
-              className="px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 transition">
+              className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 transition sm:w-auto">
               <option value="">— Select Restaurant —</option>
               {restaurants.map((r) => <option key={r._id} value={r._id}>{r.name}</option>)}
             </select>
@@ -381,7 +381,7 @@ const AdminInventory = () => {
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
             {/* search bar */}
             <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex flex-wrap items-center gap-3">
-              <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <div className="relative w-full flex-1 min-w-0 sm:min-w-[200px] sm:max-w-sm">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 select-none">🔍</span>
                 <input type="text" placeholder="Search by name or category…" value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -394,7 +394,7 @@ const AdminInventory = () => {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="min-w-[180px] px-4 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+                className="w-full px-4 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 transition sm:w-auto sm:min-w-[180px]"
               >
                 {categoryOptions.map((category) => (
                   <option key={category} value={category}>
@@ -402,7 +402,7 @@ const AdminInventory = () => {
                   </option>
                 ))}
               </select>
-              <span className="text-sm text-gray-400 dark:text-gray-500 font-medium ml-auto">
+              <span className="text-sm text-gray-400 dark:text-gray-500 font-medium md:ml-auto">
                 {loading ? "…" : `${filtered.length} of ${totalItems} item${totalItems !== 1 ? "s" : ""}`}
               </span>
             </div>

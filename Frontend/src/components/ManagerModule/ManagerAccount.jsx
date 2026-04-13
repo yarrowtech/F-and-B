@@ -134,7 +134,7 @@ export default function ManagerAccount() {
                 <FaStore />
                 Manager Account
               </div>
-              <h1 className="text-3xl font-bold">Restaurant Payment History</h1>
+              <h1 className="text-2xl font-bold sm:text-3xl">Restaurant Payment History</h1>
               <p className="mt-2 max-w-2xl text-sm text-emerald-50/90">
                 This section shows only the paid order records for the manager's
                 assigned restaurant, with quick filter options and date-wise history.
@@ -248,7 +248,7 @@ export default function ManagerAccount() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="min-w-[1100px] w-full text-sm">
+            <table className="min-w-[920px] w-full text-sm">
               <thead className="bg-slate-900 text-left text-xs uppercase tracking-[0.2em] text-slate-200">
                 <tr>
                   <th className="px-5 py-4">Bill No</th>

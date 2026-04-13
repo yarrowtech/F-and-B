@@ -101,14 +101,14 @@ API.interceptors.response.use(
        HANDLE 401 (UNAUTHORIZED)
     ======================= */
     if (error.response?.status === 401) {
-      // Clear auth data
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-
-      // ⚠️ DON'T force redirect blindly (fixes your issue)
-      // Let each page handle navigation
-      // OPTIONAL: show message only
-      alert(error.response?.data?.message || "Session expired ❌");
+      // Don't intercept login endpoint errors — let the login form handle them
+      const isLoginRequest = error.config?.url?.includes("/login");
+      if (!isLoginRequest) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        // Redirect to login so the user can re-authenticate
+        window.location.replace("/login");
+      }
     }
 
     return Promise.reject(error);

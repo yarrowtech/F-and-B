@@ -205,7 +205,7 @@ export default function AdminAccount() {
                 <FaStore />
                 Admin Account
               </div>
-              <h1 className="text-3xl font-bold">Restaurant Wise Payment History</h1>
+              <h1 className="text-2xl font-bold sm:text-3xl">Restaurant Wise Payment History</h1>
               <p className="mt-2 max-w-2xl text-sm text-emerald-50/90">
                 View paid order history restaurant wise. Choose one restaurant,
                 then filter by today, last 7 days, last 30 days, or a custom date range.
@@ -349,7 +349,7 @@ export default function AdminAccount() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="min-w-[1200px] w-full text-sm">
+            <table className="min-w-[960px] w-full text-sm">
               <thead className="bg-slate-900 text-left text-xs uppercase tracking-[0.2em] text-slate-200">
                 <tr>
                   <th className="px-5 py-4">Restaurant</th>

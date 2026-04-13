@@ -110,6 +110,7 @@ function ManagerProfileButton() {
 const ManagerPanel = () => {
   const [active, setActive] = useState("dashboard");
   const [darkMode, setDarkMode] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const mainRef = useRef(null);
 
   useLayoutEffect(() => {
@@ -126,7 +127,17 @@ const ManagerPanel = () => {
     if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
   }, [active]);
 
-  const handleSetActive = useCallback((section) => setActive(section), []);
+  useEffect(() => {
+    document.body.style.overflow = sidebarOpen ? "hidden" : "auto";
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, [sidebarOpen]);
+
+  const handleSetActive = useCallback((section) => {
+    setActive(section);
+    setSidebarOpen(false);
+  }, []);
 
   const renderContent = () => {
     switch (active) {
@@ -150,7 +161,9 @@ const ManagerPanel = () => {
       {/* ===== Mobile Header ===== */}
       <div className="lg:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between px-4 py-3">
-          <FaBars className="text-gray-600 dark:text-gray-300" />
+          <button onClick={() => setSidebarOpen(true)}>
+            <FaBars className="text-gray-600 dark:text-gray-300" />
+          </button>
           <div className="flex items-center gap-3">
             <button onClick={() => setDarkMode((v) => !v)}>
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
@@ -159,6 +172,14 @@ const ManagerPanel = () => {
           </div>
         </div>
       </div>
+
+      <ManagerSidebar
+        active={active}
+        setActive={handleSetActive}
+        mobileOpen={sidebarOpen}
+        onMobileClose={() => setSidebarOpen(false)}
+        showMobileTopBar={false}
+      />
 
       <div className="flex h-full">
         {/* ===== Sidebar (desktop) ===== */}
@@ -184,7 +205,7 @@ const ManagerPanel = () => {
           {/* ===== Main Content ===== */}
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-6"
+            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-4 sm:p-6"
           >
             {renderContent()}
           </main>

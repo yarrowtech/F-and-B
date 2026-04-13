@@ -33,12 +33,25 @@ const Header = () => {
     accountant: "/accountant",
   };
 
+  const displayName =
+    user?.name ||
+    user?.fullName ||
+    user?.businessName ||
+    user?.username ||
+    user?.email?.split("@")?.[0] ||
+    "";
+
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (_error) {
+        localStorage.removeItem("user");
+        setUser(null);
+      }
     }
-  }, []);
+  }, [location.pathname]);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -54,6 +67,8 @@ const Header = () => {
 
   const handleLogout = () => {
     localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    localStorage.removeItem("role");
     setUser(null);
     navigate("/");
   };
@@ -78,7 +93,7 @@ const Header = () => {
   };
 
   const shellClass = isScrolled
-    ? "border-lime-400/20 bg-[#17100d]/88 shadow-[0_18px_50px_-24px_rgba(132,204,22,0.3)] backdrop-blur-xl"
+    ? "border-[#4ade80]/20 bg-[#17100d]/88 shadow-[0_18px_50px_-24px_rgba(74,222,128,0.3)] backdrop-blur-xl"
     : "border-white/10 bg-[#120d0b]/72 backdrop-blur-md";
 
   return (
@@ -89,12 +104,12 @@ const Header = () => {
             to="/"
             className="flex items-center gap-3 transition duration-300 hover:scale-[1.02]"
           >
-            <div className="grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-lime-300 via-green-400 to-green-600 font-bold text-[#140d09] shadow-[0_0_35px_rgba(132,204,22,0.35)]">
+            <div className="grid h-11 w-11 place-items-center rounded-full bg-[#4ade80] font-bold text-[#140d09] shadow-[0_0_35px_rgba(74,222,128,0.35)]">
               F
             </div>
             <div className="leading-none">
               <span className="block text-lg font-black tracking-wide text-white">
-                EF<span className="text-lime-300">&amp;</span>B-M
+                EF<span className="text-[#4ade80]">&amp;</span>B-M
               </span>
               <span className="text-[10px] uppercase tracking-[0.28em] text-white/45">
                 Restaurant ERP
@@ -116,8 +131,8 @@ const Header = () => {
                   onClick={(event) => handleNavClick(event, sectionId)}
                   className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
                     isActive
-                      ? "bg-lime-400 text-[#140d09] shadow-[0_0_30px_rgba(132,204,22,0.35)]"
-                      : "text-white/78 hover:bg-white/8 hover:text-lime-300"
+                      ? "bg-[#4ade80] text-[#140d09] shadow-[0_0_30px_rgba(74,222,128,0.35)]"
+                      : "text-white/78 hover:bg-white/8 hover:text-[#4ade80]"
                   }`}
                 >
                   {label}
@@ -127,12 +142,14 @@ const Header = () => {
 
             {user ? (
               <div className="ml-3 flex items-center gap-2">
-                <span className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm font-medium text-white/90">
-                  {user.name}
-                </span>
+                {displayName ? (
+                  <span className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm font-medium text-white/90">
+                    {displayName}
+                  </span>
+                ) : null}
                 <button
                   onClick={handleDashboard}
-                  className="rounded-full bg-gradient-to-r from-lime-300 to-green-500 px-4 py-2 text-sm font-semibold text-[#140d09] transition hover:brightness-110"
+                  className="rounded-full bg-[#4ade80] px-4 py-2 text-sm font-semibold text-[#140d09] transition hover:brightness-110"
                 >
                   Dashboard
                 </button>
@@ -146,7 +163,7 @@ const Header = () => {
             ) : (
               <button
                 onClick={() => navigate("/login")}
-                className="ml-3 rounded-full border border-lime-400/35 bg-lime-400/10 px-5 py-2 text-sm font-semibold text-lime-300 transition hover:bg-lime-400 hover:text-[#140d09]"
+                className="ml-3 rounded-full border border-[#4ade80]/35 bg-[#4ade80]/10 px-5 py-2 text-sm font-semibold text-[#4ade80] transition hover:bg-[#4ade80] hover:text-[#140d09]"
               >
                 Login
               </button>
@@ -155,7 +172,7 @@ const Header = () => {
 
           <button
             onClick={() => setIsMenuOpen((prev) => !prev)}
-            className="text-white transition hover:text-lime-300 md:hidden"
+            className="text-white transition hover:text-[#4ade80] md:hidden"
           >
             <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {isMenuOpen ? (
@@ -179,7 +196,7 @@ const Header = () => {
                   <Link
                     to={to}
                     onClick={(event) => handleNavClick(event, sectionId)}
-                    className="block rounded-full border border-white/8 bg-white/6 px-4 py-2 text-center text-sm text-white/85 transition hover:text-lime-300"
+                    className="block rounded-full border border-white/8 bg-white/6 px-4 py-2 text-center text-sm text-white/85 transition hover:text-[#4ade80]"
                   >
                     {label}
                   </Link>
@@ -188,12 +205,14 @@ const Header = () => {
               <li>
                 {user ? (
                   <div className="flex flex-col gap-2">
-                    <span className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-center text-sm font-medium text-white/90">
-                      {user.name}
-                    </span>
+                    {displayName ? (
+                      <span className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-center text-sm font-medium text-white/90">
+                        {displayName}
+                      </span>
+                    ) : null}
                     <button
                       onClick={handleDashboard}
-                      className="rounded-full bg-gradient-to-r from-lime-300 to-green-500 px-4 py-2 text-sm font-semibold text-[#140d09]"
+                      className="rounded-full bg-[#4ade80] px-4 py-2 text-sm font-semibold text-[#140d09]"
                     >
                       Dashboard
                     </button>
@@ -210,7 +229,7 @@ const Header = () => {
                       setIsMenuOpen(false);
                       navigate("/login");
                     }}
-                    className="w-full rounded-full border border-lime-400/35 bg-lime-400/10 px-5 py-2 text-sm font-semibold text-lime-300"
+                    className="w-full rounded-full border border-[#4ade80]/35 bg-[#4ade80]/10 px-5 py-2 text-sm font-semibold text-[#4ade80]"
                   >
                     Login
                   </button>

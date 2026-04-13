@@ -73,15 +73,15 @@ const ManagerNotes = () => {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
 
-      <h2 className="text-3xl font-bold mb-6">
+      <h2 className="mb-6 text-2xl font-bold sm:text-3xl">
         Manager Personal Notes
       </h2>
 
       {/* ADD NOTE */}
 
-      <div className="flex gap-3 mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row">
 
         <input
           value={noteInput}
@@ -92,7 +92,7 @@ const ManagerNotes = () => {
 
         <button
           onClick={addNote}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 rounded flex items-center"
+          className="flex items-center justify-center rounded bg-green-600 px-4 py-3 text-white hover:bg-green-700 sm:w-auto"
         >
           <FaPlus />
         </button>
@@ -102,7 +102,7 @@ const ManagerNotes = () => {
 
       {/* SEARCH */}
 
-      <div className="flex gap-3 mb-8">
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row">
 
         <input
           placeholder="Search note or date (yyyy-mm-dd)"
@@ -113,7 +113,7 @@ const ManagerNotes = () => {
 
         <button
           onClick={handleSearch}
-          className="bg-blue-600 text-white px-4 rounded"
+          className="rounded bg-blue-600 px-4 py-3 text-white sm:w-auto"
         >
           <FaSearch />
         </button>
@@ -129,7 +129,7 @@ const ManagerNotes = () => {
 
           <div
             key={note._id}
-            className={`group flex justify-between items-start p-4 rounded-lg shadow transition
+            className={`group flex flex-col gap-4 rounded-lg p-4 shadow transition sm:flex-row sm:justify-between sm:items-start
             ${note.isPinned
                 ? "bg-yellow-100 border-l-4 border-yellow-500"
                 : "bg-white dark:bg-neutral-800"
@@ -150,7 +150,7 @@ const ManagerNotes = () => {
 
             {/* ACTIONS */}
 
-            <div className="flex gap-3 opacity-70 group-hover:opacity-100 transition">
+            <div className="flex gap-3 opacity-70 transition group-hover:opacity-100 sm:self-start">
 
               <button
                 onClick={() => togglePin(note._id)}
