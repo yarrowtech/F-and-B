@@ -53,7 +53,7 @@ function ChefProfileButton() {
       {open && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-80 mx-4 p-7 z-10">
+          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-7 z-10">
             <button
               onClick={() => setOpen(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl leading-none"
@@ -173,7 +173,7 @@ const Chef = () => {
           {/* ===== Main Content ===== */}
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-6"
+            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-4 sm:p-6"
           >
             {renderContent()}
           </main>

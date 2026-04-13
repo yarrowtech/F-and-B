@@ -91,27 +91,27 @@ const ChefPersonalNotes = () => {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto bg-gray-50 dark:bg-neutral-900 min-h-screen">
+    <div className="p-4 sm:p-8 max-w-5xl mx-auto bg-gray-50 dark:bg-neutral-900 min-h-screen">
 
-      <h2 className="text-3xl font-semibold text-gray-800 dark:text-gray-100 mb-6">
+      <h2 className="text-2xl sm:text-3xl font-semibold text-gray-800 dark:text-gray-100 mb-4 sm:mb-6">
         Chef Personal Notes
       </h2>
 
       {/* ADD NOTE */}
 
-      <div className="flex gap-3 mb-6">
+      <div className="flex gap-2 sm:gap-3 mb-4 sm:mb-6">
 
         <input
           type="text"
           placeholder="Write a note..."
           value={noteInput}
           onChange={(e) => setNoteInput(e.target.value)}
-          className="flex-1 p-3 border rounded-lg bg-white dark:bg-neutral-800 focus:ring-2 focus:ring-green-500"
+          className="flex-1 p-3 border rounded-lg bg-white dark:bg-neutral-800 focus:ring-2 focus:ring-green-500 text-sm sm:text-base"
         />
 
         <button
           onClick={addNote}
-          className="px-5 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center"
+          className="px-4 sm:px-5 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center shrink-0"
         >
           <FaPlus />
         </button>
@@ -121,18 +121,18 @@ const ChefPersonalNotes = () => {
 
       {/* SEARCH */}
 
-      <div className="flex gap-3 mb-8">
+      <div className="flex gap-2 sm:gap-3 mb-6 sm:mb-8">
 
         <input
           placeholder="Search note or date (yyyy-mm-dd)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 p-3 border rounded-lg"
+          className="flex-1 p-3 border rounded-lg text-sm sm:text-base"
         />
 
         <button
           onClick={handleSearch}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-lg"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-lg shrink-0"
         >
           <FaSearch />
         </button>

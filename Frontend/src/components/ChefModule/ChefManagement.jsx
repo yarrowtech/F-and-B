@@ -95,11 +95,6 @@ export default function ChefManagement() {
     const query = searchTerm.toLowerCase();
 
     return chefScopedOrders.filter((order) => {
-      const isMine =
-        typeof order.chef === "object"
-          ? order.chef?._id === chefId
-          : order.chef === chefId;
-
       const matchesFilter =
         (viewFilter === "pending" && order.status === "PENDING") ||
         (viewFilter === "accepted" && order.status === "ACCEPTED") ||
@@ -183,7 +178,7 @@ export default function ChefManagement() {
             No kitchen orders match the current filter.
           </div>
         ) : (
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-2">
             {filteredOrders.map((order) => {
               const isAccepted = !!order.chef;
               const isMine =

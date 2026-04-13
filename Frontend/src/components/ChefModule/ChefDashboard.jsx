@@ -195,15 +195,15 @@ const ChefDashboard = () => {
   }, [filter, fromDate, toDate]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className="rounded-[28px] bg-gradient-to-r from-slate-900 via-emerald-900 to-lime-800 p-6 text-white shadow-xl">
+        <div className="rounded-[28px] bg-gradient-to-r from-slate-900 via-emerald-900 to-lime-800 p-4 sm:p-6 text-white shadow-xl">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-2xl">
               <div className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-100">
                 Chef Work
               </div>
-              <h1 className="mt-3 text-3xl font-bold">Chef Dashboard</h1>
+              <h1 className="mt-3 text-2xl sm:text-3xl font-bold">Chef Dashboard</h1>
               <p className="mt-2 text-sm text-slate-200">
                 Track the orders accepted by you and the items cooked by you only, with quick filters and detail views.
               </p>
@@ -286,7 +286,7 @@ const ChefDashboard = () => {
 
           <div className="px-6 py-6">
             <div className="overflow-x-auto">
-              <table className="min-w-[860px] w-full text-sm">
+              <table className="min-w-[560px] w-full text-sm">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
                     {["Order No", "Table", "Items", "Status", "Accepted At"].map((head) => (
@@ -336,7 +336,7 @@ const ChefDashboard = () => {
       {modalType === "orders" ? (
         <Modal title="Orders Accepted By You" onClose={() => setModalType("")}>
           <div className="overflow-x-auto">
-            <table className="min-w-[860px] w-full text-sm">
+            <table className="min-w-[560px] w-full text-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
                   {["Order No", "Table", "Items", "Status", "Accepted At"].map((head) => (
@@ -367,7 +367,7 @@ const ChefDashboard = () => {
       {modalType === "items" ? (
         <Modal title="Cooked Items By You" onClose={() => setModalType("")}>
           <div className="overflow-x-auto">
-            <table className="min-w-[860px] w-full text-sm">
+            <table className="min-w-[560px] w-full text-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
                   {["Order No", "Table", "Item", "Quantity", "Status", "Cooked At"].map((head) => (
