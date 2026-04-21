@@ -7,6 +7,7 @@ import {
   searchNotes,
   getNotesByDate,
   togglePin,
+  updateNote,
   deleteNote
 } from "../controllers/note.controller.js";
 
@@ -21,6 +22,8 @@ router.get("/search", auth, searchNotes);
 router.get("/date/:date", auth, getNotesByDate);
 
 router.patch("/pin/:id", auth, togglePin);
+
+router.put("/:id", auth, updateNote);
 
 router.delete("/:id", auth, deleteNote);
 

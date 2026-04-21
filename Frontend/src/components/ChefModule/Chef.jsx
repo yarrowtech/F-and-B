@@ -1,6 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaBars, FaSignOutAlt } from "react-icons/fa";
+import {
+  FaSignOutAlt,
+  FaTachometerAlt,
+  FaUserTie,
+  FaClipboardCheck,
+  FaUserCircle,
+  FaStickyNote,
+} from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import ChefSidebar from "./ChefSidebar";
@@ -15,23 +22,25 @@ import ChefMessage from "./ChefMessage";
 import ChefNotifications from "./ChefNotification";
 import { getUser, logout } from "../../services/auth.service";
 
-/* ─── Profile Popup ─── */
 function ChefProfileButton() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const user = getUser() || {};
-  const name       = user?.name       || "Chef";
+  const name = user?.name || "Chef";
   const employeeId = user?.employeeId || user?.id?.slice(-6) || "N/A";
-  const email      = user?.email      || "";
+  const email = user?.email || "";
 
   useEffect(() => {
-    const on  = () => setIsOnline(true);
+    const on = () => setIsOnline(true);
     const off = () => setIsOnline(false);
-    window.addEventListener("online",  on);
+    window.addEventListener("online", on);
     window.addEventListener("offline", off);
-    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -58,7 +67,7 @@ function ChefProfileButton() {
               onClick={() => setOpen(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl leading-none"
             >
-              ×
+              x
             </button>
 
             <div className="flex flex-col items-center gap-3 mb-6">
@@ -85,7 +94,7 @@ function ChefProfileButton() {
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500 dark:text-gray-400 font-medium">Status</span>
                 <span className={`font-semibold ${isOnline ? "text-green-600" : "text-red-500"}`}>
-                  {isOnline ? "● Online" : "● Offline"}
+                  {isOnline ? "Online" : "Offline"}
                 </span>
               </div>
             </div>
@@ -104,7 +113,14 @@ function ChefProfileButton() {
   );
 }
 
-/* ─── Main Layout ─── */
+const BOTTOM_NAV = [
+  { key: "dashboard", label: "Dashboard", icon: FaTachometerAlt },
+  { key: "management", label: "Orders", icon: FaUserTie },
+  { key: "attendance", label: "Attendance", icon: FaClipboardCheck },
+  { key: "profile", label: "Profile", icon: FaUserCircle },
+  { key: "notes", label: "Notes", icon: FaStickyNote },
+];
+
 const Chef = () => {
   const [active, setActive] = useState("dashboard");
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("isDark") === "true");
@@ -119,29 +135,42 @@ const Chef = () => {
     if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
   }, [active]);
 
+  const handleSetActive = useCallback((section) => setActive(section), []);
+
   const renderContent = () => {
     switch (active) {
-      case "dashboard":   return <ChefDashboard />;
-      case "management":  return <ChefManagement />;
-      case "inventory":   return <ChefInventory />;
-      case "attendance":  return <ChefAttendance />;
-      case "notes":       return <ChefNotes />;
-      case "profile":     return <ChefProfile />;
-      case "settings":    return <ChefSettings />;
-      case "message":     return <ChefMessage />;
-      case "notification":return <ChefNotifications />;
-      default:            return <div className="p-4">Page not found</div>;
+      case "dashboard":
+        return <ChefDashboard />;
+      case "management":
+        return <ChefManagement />;
+      case "inventory":
+        return <ChefInventory />;
+      case "attendance":
+        return <ChefAttendance />;
+      case "notes":
+        return <ChefNotes />;
+      case "profile":
+        return <ChefProfile />;
+      case "settings":
+        return <ChefSettings />;
+      case "message":
+        return <ChefMessage />;
+      case "notification":
+        return <ChefNotifications />;
+      default:
+        return <div className="p-4">Page not found</div>;
     }
   };
 
   return (
     <div className="h-screen w-full bg-green-50 dark:bg-neutral-900">
-      {/* ===== Mobile Header ===== */}
       <div className="lg:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between px-4 py-3">
-          <FaBars className="text-gray-600 dark:text-gray-300" />
+          <span className="text-base font-bold text-green-700 dark:text-green-400 capitalize">
+            {BOTTOM_NAV.find((item) => item.key === active)?.label ?? "Chef"}
+          </span>
           <div className="flex items-center gap-3">
-            <button onClick={() => setDarkMode((v) => !v)}>
+            <button onClick={() => setDarkMode((value) => !value)} className="text-gray-600 dark:text-gray-300">
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <ChefProfileButton />
@@ -150,35 +179,57 @@ const Chef = () => {
       </div>
 
       <div className="flex h-full">
-        {/* ===== Sidebar (desktop) ===== */}
         <aside className="hidden lg:block w-72 shrink-0">
-          <ChefSidebar active={active} setActive={setActive} />
+          <ChefSidebar active={active} setActive={handleSetActive} />
         </aside>
 
-        {/* ===== Right Column ===== */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* ── Top Bar (desktop) ── */}
           <div className="hidden lg:flex items-center justify-between px-6 py-3 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
             <p className="text-sm font-medium text-gray-500 dark:text-gray-400 capitalize">
               {active.replace(/-/g, " ")}
             </p>
             <div className="flex items-center gap-3">
-              <button onClick={() => setDarkMode((v) => !v)}>
+              <button onClick={() => setDarkMode((value) => !value)}>
                 {darkMode ? <Sun size={18} /> : <Moon size={18} />}
               </button>
               <ChefProfileButton />
             </div>
           </div>
 
-          {/* ===== Main Content ===== */}
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-4 sm:p-6"
+            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-6 pb-24 lg:pb-6"
           >
             {renderContent()}
           </main>
         </div>
       </div>
+
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
+        {BOTTOM_NAV.map(({ key, label, icon: Icon }) => {
+          const isActive = active === key;
+          return (
+            <button
+              key={key}
+              onClick={() => handleSetActive(key)}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-semibold transition-colors ${
+                isActive
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-gray-400 dark:text-gray-500 hover:text-green-500 dark:hover:text-green-400"
+              }`}
+            >
+              <span
+                className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
+                  isActive ? "bg-green-100 dark:bg-green-900/40" : ""
+                }`}
+              >
+                <Icon size={18} />
+              </span>
+              {label}
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 };

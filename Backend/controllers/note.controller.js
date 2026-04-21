@@ -92,9 +92,50 @@ export const togglePin = async (req, res) => {
       userId: req.user.id
     });
 
+    if (!note) {
+      return res.status(404).json({ message: "Note not found" });
+    }
+
     note.isPinned = !note.isPinned;
 
     await note.save();
+
+    res.json(note);
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+/* UPDATE NOTE */
+
+export const updateNote = async (req, res) => {
+  try {
+
+    const noteText = String(req.body.note || "").trim();
+
+    if (!noteText) {
+      return res.status(400).json({ message: "Note is required" });
+    }
+
+    const note = await Note.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        userId: req.user.id
+      },
+      {
+        note: noteText
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (!note) {
+      return res.status(404).json({ message: "Note not found" });
+    }
 
     res.json(note);
 
@@ -109,10 +150,14 @@ export const togglePin = async (req, res) => {
 export const deleteNote = async (req, res) => {
   try {
 
-    await Note.findOneAndDelete({
+    const note = await Note.findOneAndDelete({
       _id: req.params.id,
       userId: req.user.id
     });
+
+    if (!note) {
+      return res.status(404).json({ message: "Note not found" });
+    }
 
     res.json({ message: "Note deleted" });
 

@@ -139,6 +139,16 @@ const orderItemSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+
+    isAdditional: {
+      type: Boolean,
+      default: false,
+    },
+
+    addedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

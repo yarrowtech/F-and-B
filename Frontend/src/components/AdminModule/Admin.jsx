@@ -307,7 +307,7 @@
 // export default Admin;
 
 
-import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
+import React, { useState, useEffect, useRef, lazy, Suspense, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./AdminSidebar";
 
@@ -325,7 +325,7 @@ const Message = lazy(() => import("./AdminMessage"));
 const Notification = lazy(() => import("./AdminNotification"));
 const TableManagement = lazy(() => import("./AdminTableManagement"));
 
-import { FaBars, FaSignOutAlt } from "react-icons/fa";
+import { FaBox, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 /* ─── Avatar + Profile Popup ─── */
@@ -425,9 +425,19 @@ function AdminProfileButton() {
   );
 }
 
+const BOTTOM_NAV = [
+  { key: "dashboard",  label: "Dashboard",  icon: FaTachometerAlt },
+  { key: "staff",      label: "Staff",      icon: FaUsers },
+  { key: "restaurant", label: "Restaurant", icon: FaUtensils },
+  { key: "inventory",  label: "Inventory",  icon: FaBox },
+  { key: "menu",       label: "Menu",       icon: FaClipboardList },
+  { key: "table",      label: "Table",      icon: FaUtensils },
+  { key: "account",    label: "Account",    icon: FaUserCircle },
+  { key: "notes",      label: "Notes",      icon: FaStickyNote },
+];
+
 const Admin = () => {
   const [active, setActive] = useState("dashboard");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(
     () => localStorage.getItem("isDark") === "true"
   );
@@ -449,11 +459,6 @@ const Admin = () => {
     }
   }, [active]);
 
-  useEffect(() => {
-    document.body.style.overflow = sidebarOpen ? "hidden" : "auto";
-    return () => (document.body.style.overflow = "auto");
-  }, [sidebarOpen]);
-
   /* ================= HANDLERS ================= */
 
   const handleModeChange = () => {
@@ -462,10 +467,9 @@ const Admin = () => {
     localStorage.setItem("isDark", String(next));
   };
 
-  const handleSetActive = (section) => {
+  const handleSetActive = useCallback((section) => {
     setActive(section);
-    setSidebarOpen(false);
-  };
+  }, []);
 
   /* ================= MAIN SWITCH ================= */
 
@@ -531,25 +535,17 @@ const Admin = () => {
       {/* ===== Mobile Header ===== */}
       <div className="lg:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between px-4 py-3">
-          <button onClick={() => setSidebarOpen(true)}>
-            <FaBars />
-          </button>
+          <span className="text-base font-bold text-green-700 dark:text-green-400 capitalize">
+            {BOTTOM_NAV.find((n) => n.key === active)?.label ?? "Admin"}
+          </span>
           <div className="flex items-center gap-3">
-            <button onClick={handleModeChange}>
+            <button onClick={handleModeChange} className="text-gray-600 dark:text-gray-300">
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <AdminProfileButton />
           </div>
         </div>
       </div>
-
-      <Sidebar
-        active={active}
-        setActive={handleSetActive}
-        mobileOpen={sidebarOpen}
-        onMobileClose={() => setSidebarOpen(false)}
-        showMobileTopBar={false}
-      />
 
       <div className="flex h-full">
         {/* ===== Sidebar ===== */}
@@ -569,7 +565,7 @@ const Admin = () => {
           {/* ===== Main Content ===== */}
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-4 sm:p-6"
+            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-4 sm:p-6 pb-24 lg:pb-6"
           >
             {selectedRestaurantId && active === "restaurantEmployees" && (
               <div className="mb-4 text-sm text-green-600 font-semibold">
@@ -583,6 +579,30 @@ const Admin = () => {
           </main>
         </div>
       </div>
+
+      {/* ===== Bottom Navigation (mobile & tablet only) ===== */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch overflow-x-auto shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
+        {BOTTOM_NAV.map(({ key, label, icon: Icon }) => {
+          const isActive = active === key;
+          return (
+            <button
+              key={key}
+              onClick={() => handleSetActive(key)}
+              className={`min-w-[72px] flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-semibold transition-colors
+                ${isActive
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-gray-400 dark:text-gray-500 hover:text-green-500 dark:hover:text-green-400"
+                }`}
+            >
+              <span className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors
+                ${isActive ? "bg-green-100 dark:bg-green-900/40" : ""}`}>
+                <Icon size={18} />
+              </span>
+              {label}
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 };

@@ -15,7 +15,6 @@ export default function ChefManagement() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [actionLoading, setActionLoading] = useState(null);
-  const [viewFilter, setViewFilter] = useState("pending");
 
   const chefId = (() => {
     try {
@@ -91,17 +90,10 @@ export default function ChefManagement() {
     });
   }, [orders, chefId]);
 
-  const filteredOrders = useMemo(() => {
+  const searchedOrders = useMemo(() => {
     const query = searchTerm.toLowerCase();
 
     return chefScopedOrders.filter((order) => {
-      const matchesFilter =
-        (viewFilter === "pending" && order.status === "PENDING") ||
-        (viewFilter === "accepted" && order.status === "ACCEPTED") ||
-        (viewFilter === "ready" && order.status === "READY");
-
-      if (!matchesFilter) return false;
-
       return (
         order.items?.some((item) =>
           `${item.menuItem?.name || ""}`.toLowerCase().includes(query)
@@ -110,7 +102,11 @@ export default function ChefManagement() {
         `${order.waiter?.name || ""}`.toLowerCase().includes(query)
       );
     });
-  }, [chefScopedOrders, searchTerm, chefId, viewFilter]);
+  }, [chefScopedOrders, searchTerm]);
+
+  const pendingOrders = searchedOrders.filter((order) => order.status === "PENDING");
+  const acceptedOrders = searchedOrders.filter((order) => order.status === "ACCEPTED");
+  const readyOrders = searchedOrders.filter((order) => order.status === "READY");
 
   const totalPending = chefScopedOrders.filter((order) => order.status === "PENDING").length;
   const totalAccepted = chefScopedOrders.filter((order) => order.status === "ACCEPTED").length;
@@ -119,6 +115,161 @@ export default function ChefManagement() {
   if (loading) {
     return <div className="p-10 text-xl">Loading chef panel...</div>;
   }
+
+  const renderOrderCard = (order, compact = false) => {
+    const isAccepted = !!order.chef;
+    const isMine =
+      typeof order.chef === "object"
+        ? order.chef?._id === chefId
+        : order.chef === chefId;
+    const newItems = (order.items || []).filter((item) => item.isAdditional);
+    const previousItems = (order.items || []).filter((item) => !item.isAdditional);
+    const hasNewItems = newItems.length > 0;
+
+    const renderItemRow = (item, isNew = false) => (
+      <div
+        key={item._id}
+        className={`flex items-center justify-between gap-3 rounded-2xl px-3 py-3 ring-1 ${
+          isNew
+            ? "bg-emerald-50 ring-emerald-200"
+            : "bg-white ring-slate-200"
+        }`}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <div className={`rounded-xl p-2 ${isNew ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+            <FaUtensils />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate font-semibold text-slate-900">{item.menuItem?.name || "Menu Item"}</p>
+              {isNew && (
+                <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                  New
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <span className={`shrink-0 text-sm font-bold ${isNew ? "text-emerald-700" : "text-slate-700"}`}>x {item.quantity}</span>
+      </div>
+    );
+
+    return (
+      <div
+        key={order._id}
+        className={`rounded-3xl bg-white ${compact ? "p-4" : "p-5"} shadow-sm ring-1 ring-slate-200 ${isAccepted && !isMine ? "opacity-70" : ""}`}
+      >
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <div className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Order #{order.orderNo || order._id.slice(-4)}
+            </div>
+            <h2 className={`${compact ? "text-xl" : "text-2xl"} mt-3 font-bold text-slate-900`}>Table {order.table?.tableNumber || "N/A"}</h2>
+            <p className="mt-1 text-sm text-slate-500">Waiter: {order.waiter?.name || "N/A"}</p>
+            {hasNewItems && (
+              <div className="mt-3 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+                Updated order - cook new items
+              </div>
+            )}
+          </div>
+          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusStyles[order.status] || "bg-slate-100 text-slate-700"}`}>
+            {order.status}
+          </span>
+        </div>
+
+        <div className="mt-5 rounded-3xl bg-slate-50 p-4">
+          <p className="mb-3 text-sm font-semibold text-slate-700">Order Items</p>
+          <div className="space-y-2">
+            {hasNewItems && (
+              <div className="mb-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3">
+                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-emerald-700">New Added Items</p>
+                <div className="space-y-2">
+                  {newItems.map((item) => renderItemRow(item, true))}
+                </div>
+              </div>
+            )}
+
+            {previousItems.length > 0 && (
+              <div className={hasNewItems ? "rounded-2xl border border-slate-200 bg-white/60 p-3" : "space-y-2"}>
+                {hasNewItems && (
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Previous Items</p>
+                )}
+                <div className="space-y-2">
+                  {previousItems.map((item) => renderItemRow(item))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-3">
+          {!isAccepted && order.status === "PENDING" && (
+            <button
+              disabled={actionLoading === order._id}
+              onClick={() => handleAccept(order._id)}
+              className="inline-flex items-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {actionLoading === order._id ? "Processing..." : "Accept Order"}
+            </button>
+          )}
+
+          {isAccepted && isMine && order.status === "ACCEPTED" && (
+            <button
+              disabled={actionLoading === order._id}
+              onClick={() => handleReady(order._id)}
+              className="inline-flex items-center rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
+              {actionLoading === order._id ? "Updating..." : "Ready"}
+            </button>
+          )}
+
+          {isAccepted && !isMine && (
+            <div className="inline-flex items-center rounded-2xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-600">
+              Accepted by {order.chef?.name || "another chef"}
+            </div>
+          )}
+
+          {order.status === "READY" && (
+            <div className="inline-flex items-center rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+              Ready for waiter
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderOrderSection = (title, subtitle, sectionOrders, tone) => {
+    const toneMap = {
+      pending: "bg-slate-100 text-slate-700",
+      accepted: "bg-amber-100 text-amber-700",
+      ready: "bg-emerald-100 text-emerald-700",
+    };
+
+    return (
+      <section className="flex min-h-0 flex-col rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">{title}</h2>
+            <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+          </div>
+          <span className={`rounded-full px-3 py-1 text-sm font-semibold ${toneMap[tone]}`}>
+            {sectionOrders.length}
+          </span>
+        </div>
+
+        {sectionOrders.length === 0 ? (
+          <div className="flex min-h-[160px] flex-1 items-center justify-center rounded-3xl bg-slate-50 px-4 text-center text-sm text-slate-400">
+            No orders in this section.
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+            {sectionOrders.map((order) => renderOrderCard(order, true))}
+          </div>
+        )}
+      </section>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
@@ -165,102 +316,11 @@ export default function ChefManagement() {
           </div>
         </div>
 
-        <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => setViewFilter("pending")} className={`rounded-full px-4 py-2 text-sm font-semibold ${viewFilter === "pending" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>Pending ({totalPending})</button>
-            <button onClick={() => setViewFilter("accepted")} className={`rounded-full px-4 py-2 text-sm font-semibold ${viewFilter === "accepted" ? "bg-amber-600 text-white" : "bg-amber-50 text-amber-700"}`}>Accepted ({totalAccepted})</button>
-            <button onClick={() => setViewFilter("ready")} className={`rounded-full px-4 py-2 text-sm font-semibold ${viewFilter === "ready" ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700"}`}>Ready ({totalReady})</button>
-          </div>
+        <div className="grid min-h-[620px] gap-5 xl:h-[calc(100vh-18rem)] xl:min-h-0 xl:grid-cols-3">
+          {renderOrderSection("Pending Orders", "Waiting for chef acceptance.", pendingOrders, "pending")}
+          {renderOrderSection("Accepted Orders", "Accepted and cooking.", acceptedOrders, "accepted")}
+          {renderOrderSection("Ready Orders", "Ready for waiter.", readyOrders, "ready")}
         </div>
-
-        {filteredOrders.length === 0 ? (
-          <div className="flex min-h-[280px] items-center justify-center rounded-3xl bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">
-            No kitchen orders match the current filter.
-          </div>
-        ) : (
-          <div className="grid gap-5 md:grid-cols-2">
-            {filteredOrders.map((order) => {
-              const isAccepted = !!order.chef;
-              const isMine =
-                typeof order.chef === "object"
-                  ? order.chef?._id === chefId
-                  : order.chef === chefId;
-
-              return (
-                <div
-                  key={order._id}
-                  className={`rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 ${isAccepted && !isMine ? "opacity-70" : ""}`}
-                >
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <div className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Order #{order.orderNo || order._id.slice(-4)}
-                      </div>
-                      <h2 className="mt-3 text-2xl font-bold text-slate-900">Table {order.table?.tableNumber || "N/A"}</h2>
-                      <p className="mt-1 text-sm text-slate-500">Waiter: {order.waiter?.name || "N/A"}</p>
-                    </div>
-                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusStyles[order.status] || "bg-slate-100 text-slate-700"}`}>
-                      {order.status}
-                    </span>
-                  </div>
-
-                  <div className="mt-5 rounded-3xl bg-slate-50 p-4">
-                    <p className="mb-3 text-sm font-semibold text-slate-700">Order Items</p>
-                    <div className="space-y-2">
-                      {order.items.map((item) => (
-                        <div key={item._id} className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
-                          <div className="flex items-center gap-3">
-                            <div className="rounded-xl bg-slate-100 p-2 text-slate-600">
-                              <FaUtensils />
-                            </div>
-                            <div>
-                              <p className="font-semibold text-slate-900">{item.menuItem?.name || "Menu Item"}</p>
-                            </div>
-                          </div>
-                          <span className="text-sm font-bold text-slate-700">x {item.quantity}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    {!isAccepted && order.status === "PENDING" && (
-                      <button
-                        disabled={actionLoading === order._id}
-                        onClick={() => handleAccept(order._id)}
-                        className="inline-flex items-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-                      >
-                        {actionLoading === order._id ? "Processing..." : "Accept Order"}
-                      </button>
-                    )}
-
-                    {isAccepted && isMine && order.status === "ACCEPTED" && (
-                      <button
-                        disabled={actionLoading === order._id}
-                        onClick={() => handleReady(order._id)}
-                        className="inline-flex items-center rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-                      >
-                        {actionLoading === order._id ? "Updating..." : "Ready"}
-                      </button>
-                    )}
-
-                    {isAccepted && !isMine && (
-                      <div className="inline-flex items-center rounded-2xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-600">
-                        Accepted by {order.chef?.name || "another chef"}
-                      </div>
-                    )}
-
-                    {order.status === "READY" && (
-                      <div className="inline-flex items-center rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                        Ready for waiter
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaBars, FaSignOutAlt } from "react-icons/fa";
+import { FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUtensils } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import AccountantSidebar from "./AccountantSidebar";
@@ -105,19 +105,32 @@ function AccountantProfileButton() {
 }
 
 /* ─── Main Layout ─── */
+const BOTTOM_NAV = [
+  { key: "dashboard",    label: "Dashboard",  icon: FaTachometerAlt },
+  { key: "orderbilling", label: "Billing",    icon: FaUtensils },
+  { key: "attendance",   label: "Attendance", icon: FaClipboardCheck },
+  { key: "profile",      label: "Profile",    icon: FaUserCircle },
+  { key: "notes",        label: "Notes",      icon: FaStickyNote },
+];
+
 const Accountant = () => {
   const [active, setActive] = useState("dashboard");
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("isDark") === "true");
+  const [darkMode, setDarkMode] = useState(false);
   const mainRef = useRef(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
-    localStorage.setItem("isDark", String(darkMode));
+
+    return () => {
+      document.documentElement.classList.remove("dark");
+    };
   }, [darkMode]);
 
   useEffect(() => {
     if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
   }, [active]);
+
+  const handleSetActive = useCallback((section) => setActive(section), []);
 
   const renderContent = () => {
     switch (active) {
@@ -139,9 +152,11 @@ const Accountant = () => {
       {/* ===== Mobile Header ===== */}
       <div className="lg:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between px-4 py-3">
-          <FaBars className="text-gray-600 dark:text-gray-300" />
+          <span className="text-base font-bold text-green-700 dark:text-green-400 capitalize">
+            {BOTTOM_NAV.find((n) => n.key === active)?.label ?? "Accountant"}
+          </span>
           <div className="flex items-center gap-3">
-            <button onClick={() => setDarkMode((v) => !v)}>
+            <button onClick={() => setDarkMode((v) => !v)} className="text-gray-600 dark:text-gray-300">
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <AccountantProfileButton />
@@ -152,7 +167,7 @@ const Accountant = () => {
       <div className="flex h-full">
         {/* ===== Sidebar (desktop) ===== */}
         <aside className="hidden lg:block w-72 shrink-0">
-          <AccountantSidebar active={active} setActive={setActive} />
+          <AccountantSidebar active={active} setActive={handleSetActive} />
         </aside>
 
         {/* ===== Right Column ===== */}
@@ -173,12 +188,36 @@ const Accountant = () => {
           {/* ===== Main Content ===== */}
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-6"
+            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-6 pb-24 lg:pb-6"
           >
             {renderContent()}
           </main>
         </div>
       </div>
+
+      {/* ===== Bottom Navigation (mobile & tablet only) ===== */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
+        {BOTTOM_NAV.map(({ key, label, icon: Icon }) => {
+          const isActive = active === key;
+          return (
+            <button
+              key={key}
+              onClick={() => handleSetActive(key)}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-semibold transition-colors
+                ${isActive
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-gray-400 dark:text-gray-500 hover:text-green-500 dark:hover:text-green-400"
+                }`}
+            >
+              <span className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors
+                ${isActive ? "bg-green-100 dark:bg-green-900/40" : ""}`}>
+                <Icon size={18} />
+              </span>
+              {label}
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 };

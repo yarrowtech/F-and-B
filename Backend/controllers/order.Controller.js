@@ -1176,28 +1176,40 @@ export const addItemsToOrder = async (req, res) => {
     if (!order)
       return sendError(res, "Active order not found", 404);
 
+    const shouldRestartFlow = ["ACCEPTED", "PREPARING", "READY", "SERVED"].includes(order.status);
+    const addedAt = new Date();
+
     for (const newItem of req.body.items) {
       const menu = await Menu.findById(newItem.menuItem);
       if (!menu || !menu.isAvailable)
         throw new Error("Menu item not available");
 
-      const existingItem = order.items.find(
-        (i) => i.menuItem.toString() === newItem.menuItem.toString()
-      );
-
-      if (existingItem) {
-        existingItem.quantity += newItem.quantity;
-      } else {
+      if (shouldRestartFlow) {
         order.items.push({
           menuItem: menu._id,
           quantity: newItem.quantity,
           customization: newItem.customization || [],
           price: menu.price,
+          isAdditional: true,
+          addedAt,
         });
+      } else {
+        const existingItem = order.items.find(
+          (i) => i.menuItem.toString() === newItem.menuItem.toString()
+        );
+
+        if (existingItem) {
+          existingItem.quantity += newItem.quantity;
+        } else {
+          order.items.push({
+            menuItem: menu._id,
+            quantity: newItem.quantity,
+            customization: newItem.customization || [],
+            price: menu.price,
+          });
+        }
       }
     }
-
-    const shouldRestartFlow = ["ACCEPTED", "PREPARING", "READY", "SERVED"].includes(order.status);
 
     if (shouldRestartFlow) {
       order.status = "PENDING";
@@ -1475,6 +1487,10 @@ export const markServed = async (req, res) => {
 
     order.status = "SERVED";
     order.servedAt = new Date();
+    order.items.forEach((item) => {
+      item.isAdditional = false;
+      item.addedAt = null;
+    });
     await order.save();
 
     const itemsTotal = order.items.reduce(

@@ -12,16 +12,16 @@ import { getTables } from "../../services/table.service";
 const REFRESH_INTERVAL = 5000;
 
 const MenuModal = ({ children, onClose }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
     <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" onClick={onClose} />
-    <div className="relative z-10 max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200">
-      <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-        <h2 className="text-2xl font-bold text-slate-900">Take Order</h2>
+    <div className="relative z-10 max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-2xl sm:rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200">
+      <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-6 sm:py-4">
+        <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">Take Order</h2>
         <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
           <FaTimes />
         </button>
       </div>
-      <div className="px-6 py-6">{children}</div>
+      <div className="px-3 py-4 sm:px-6 sm:py-6">{children}</div>
     </div>
   </div>
 );
@@ -276,9 +276,17 @@ export default function WaiterManagement() {
               const order = tableOrders[table._id];
               const isBilled = order ? billedOrderIds.includes(order._id) : false;
               return (
-                <button
+                <div
                   key={table._id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleTableClick(table)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleTableClick(table);
+                    }
+                  }}
                   className={`rounded-3xl border p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${getTableCardStyle(order)}`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -343,7 +351,7 @@ export default function WaiterManagement() {
                       )}
                     </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
@@ -366,7 +374,7 @@ export default function WaiterManagement() {
                 </div>
               </div>
 
-              <div className="grid gap-6 xl:grid-cols-[1.7fr_0.9fr]">
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.9fr)] xl:grid-cols-[1.7fr_0.9fr]">
                 <div className="space-y-4">
                   <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
                     <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -396,7 +404,29 @@ export default function WaiterManagement() {
                     </div>
                   ) : (
                     <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
-                      <div className="overflow-x-auto">
+                      <div className="divide-y divide-slate-100 md:hidden">
+                        {filteredMenuItems.map((item) => (
+                          <div key={item._id} className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-slate-900">{item.name}</p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {[item.cuisine, formatCourseType(item.courseType)].filter(Boolean).join(" - ")}
+                                </p>
+                                <p className="mt-2 text-sm font-semibold text-emerald-700">Rs. {item.price}</p>
+                              </div>
+                              <button
+                                onClick={() => addToCart(item)}
+                                className="shrink-0 rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                              >
+                                Add
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="hidden overflow-x-auto md:block">
                         <table className="min-w-full divide-y divide-slate-200">
                           <thead className="bg-slate-100">
                             <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -428,26 +458,26 @@ export default function WaiterManagement() {
                   )}
                 </div>
 
-                <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+                <div className="sticky bottom-0 z-10 -mx-3 rounded-t-3xl border-t border-slate-200 bg-white p-4 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] ring-1 ring-slate-200 sm:mx-0 sm:rounded-3xl lg:top-24 lg:bottom-auto lg:max-h-[calc(92vh-8rem)] lg:overflow-y-auto lg:border-t-0 lg:p-5 lg:shadow-sm">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xl font-bold text-slate-900">Selected Items</h3>
                     <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">{cartItems.length}</span>
                   </div>
 
                   {cartItems.length === 0 ? (
-                    <div className="mt-6 flex min-h-[220px] items-center justify-center rounded-3xl bg-slate-50 text-sm text-slate-400">
+                    <div className="mt-4 flex min-h-[96px] items-center justify-center rounded-3xl bg-slate-50 px-4 text-center text-sm text-slate-400 lg:mt-6 lg:min-h-[220px]">
                       Add menu items from the list to prepare this order.
                     </div>
                   ) : (
-                    <div className="mt-5 space-y-3">
+                    <div className="mt-4 max-h-[34vh] space-y-3 overflow-y-auto pr-1 lg:mt-5 lg:max-h-none lg:overflow-visible lg:pr-0">
                       {cartItems.map((item) => (
                         <div key={item.menuItem} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <div className="flex items-start justify-between gap-3">
-                            <div>
+                            <div className="min-w-0">
                               <p className="font-semibold text-slate-900">{item.name}</p>
                               <p className="mt-1 text-sm text-slate-500">Rs. {item.price} each</p>
                             </div>
-                            <div className="text-sm font-bold text-emerald-700">Rs. {item.price * item.qty}</div>
+                            <div className="shrink-0 text-sm font-bold text-emerald-700">Rs. {item.price * item.qty}</div>
                           </div>
                           <div className="mt-4 flex items-center gap-2">
                             <button onClick={() => updateQty(item.menuItem, "dec")} className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 text-rose-600 hover:bg-rose-200">
@@ -469,7 +499,7 @@ export default function WaiterManagement() {
                       <span className="text-xl font-bold text-slate-900">Rs. {totalAmount}</span>
                     </div>
 
-                    <div className="mt-4 flex gap-3">
+                    <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                       <button onClick={closeMenuModal} className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                         Cancel
                       </button>
