@@ -120,7 +120,7 @@ const ChefDashboard = () => {
     const loadOrders = async () => {
       try {
         setLoading(true);
-        const data = await getChefOrders("all");
+        const data = await getChefOrders("history");
         setOrders(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Failed to load chef dashboard orders", error);

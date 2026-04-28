@@ -3,6 +3,7 @@ import { FaArrowLeft, FaEye, FaEyeSlash, FaLock, FaUserTie } from "react-icons/f
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { employeeLogin } from "../../services/employeeAuth.service";
+import { startSession } from "../../services/session.service";
 
 const ROLE_ROUTES = {
   admin: "/admin",
@@ -28,6 +29,9 @@ const ROLE_LABELS = {
   cleaner: "Cleaner",
   accountant: "Accountant",
 };
+
+const looksLikeAdminId = (value = "") =>
+  /^[A-Z0-9]{2,10}-\d{4}$/.test(String(value).trim().toUpperCase());
 
 export default function StaffLogin() {
   const navigate = useNavigate();
@@ -77,7 +81,7 @@ export default function StaffLogin() {
       let token;
       let user;
 
-      if (staffId.trim().toUpperCase().startsWith("ADM-")) {
+      if (looksLikeAdminId(staffId)) {
         const res = await axios.post("http://localhost:5000/api/admin/login", {
           adminId: staffId.trim().toUpperCase(),
           password,
@@ -97,6 +101,7 @@ export default function StaffLogin() {
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(normalizedUser));
       localStorage.setItem("role", normalizedRole);
+      startSession();
 
       let route = ROLE_ROUTES[normalizedRole];
       if (!route && normalizedRole === "chef") route = ROLE_ROUTES.cheif;
@@ -202,7 +207,7 @@ export default function StaffLogin() {
                     <input
                       ref={idRef}
                       type="text"
-                      placeholder="ADM-0001 or employee ID"
+                      placeholder="Admin ID or employee ID"
                       value={staffId}
                       onChange={(e) => {
                         setStaffId(e.target.value);

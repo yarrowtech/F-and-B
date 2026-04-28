@@ -196,7 +196,7 @@ export default function AdminAccount() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
+    <div className="admin-dark-scope min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-emerald-900 to-teal-700 p-6 text-white shadow-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">

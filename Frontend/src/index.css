@@ -1,2 +1,181 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
+
+.dark .admin-dark-scope {
+  background-color: #111827 !important;
+  color: #e5e7eb;
+}
+
+.dark .admin-dark-scope .bg-white,
+.dark .admin-dark-scope .bg-gray-50,
+.dark .admin-dark-scope .bg-gray-100,
+.dark .admin-dark-scope .bg-slate-50,
+.dark .admin-dark-scope .bg-slate-100 {
+  background-color: #1f2937 !important;
+}
+
+.dark .admin-dark-scope .bg-slate-900,
+.dark .admin-dark-scope .bg-gray-900 {
+  background-color: #0f172a !important;
+}
+
+.dark .admin-dark-scope .text-gray-800,
+.dark .admin-dark-scope .text-gray-700,
+.dark .admin-dark-scope .text-slate-900,
+.dark .admin-dark-scope .text-slate-800,
+.dark .admin-dark-scope .text-slate-700 {
+  color: #e5e7eb !important;
+}
+
+.dark .admin-dark-scope .text-gray-600,
+.dark .admin-dark-scope .text-gray-500,
+.dark .admin-dark-scope .text-gray-400,
+.dark .admin-dark-scope .text-slate-600,
+.dark .admin-dark-scope .text-slate-500,
+.dark .admin-dark-scope .text-slate-400 {
+  color: #cbd5e1 !important;
+}
+
+.dark .admin-dark-scope .border,
+.dark .admin-dark-scope .border-t,
+.dark .admin-dark-scope .border-b,
+.dark .admin-dark-scope .border-gray-200,
+.dark .admin-dark-scope .border-gray-300,
+.dark .admin-dark-scope .border-slate-100,
+.dark .admin-dark-scope .border-slate-200 {
+  border-color: #374151 !important;
+}
+
+.dark .admin-dark-scope .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark .admin-dark-scope .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #374151 !important;
+}
+
+.dark .admin-dark-scope .ring-slate-200 {
+  --tw-ring-color: #374151 !important;
+}
+
+.dark .admin-dark-scope input,
+.dark .admin-dark-scope select,
+.dark .admin-dark-scope textarea {
+  background-color: #111827 !important;
+  border-color: #374151 !important;
+  color: #f9fafb !important;
+}
+
+.dark .admin-dark-scope input::placeholder,
+.dark .admin-dark-scope textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+.dark .admin-dark-scope option {
+  background-color: #111827;
+  color: #f9fafb;
+}
+
+.dark .admin-dark-scope tr:hover,
+.dark .admin-dark-scope .hover\:bg-gray-50:hover,
+.dark .admin-dark-scope .hover\:bg-slate-50:hover,
+.dark .admin-dark-scope .hover\:bg-slate-50\/80:hover {
+  background-color: #273449 !important;
+}
+
+.dark .admin-dark-scope .bg-emerald-50 {
+  background-color: rgba(6, 78, 59, 0.35) !important;
+}
+
+.dark .admin-dark-scope .bg-emerald-100 {
+  background-color: rgba(6, 95, 70, 0.45) !important;
+}
+
+.dark .admin-dark-scope .bg-rose-50,
+.dark .admin-dark-scope .bg-red-50 {
+  background-color: rgba(127, 29, 29, 0.35) !important;
+}
+
+.dark .admin-dark-scope .bg-blue-50,
+.dark .admin-dark-scope .bg-sky-50 {
+  background-color: rgba(30, 58, 138, 0.35) !important;
+}
+
+.landing-light {
+  background:
+    radial-gradient(circle at top, rgba(74, 222, 128, 0.18), transparent 22%),
+    radial-gradient(circle at bottom left, rgba(20, 184, 166, 0.14), transparent 28%),
+    #f7faf4 !important;
+  color: #172019 !important;
+}
+
+.landing-light [class*="bg-[#120c09]"],
+.landing-light [class*="bg-[#120d0b]"],
+.landing-light [class*="bg-[#130d0a]"],
+.landing-light [class*="bg-[#17100d]"],
+.landing-light [class*="bg-[#18110d]"],
+.landing-light [class*="bg-[#0f0a08]"] {
+  background-color: rgba(255, 255, 255, 0.88) !important;
+}
+
+.landing-light [class*="rgba(19,13,10"] {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.94) 0%,
+      rgba(255, 255, 255, 0.72) 48%,
+      rgba(255, 255, 255, 0.92) 100%
+    ) !important;
+}
+
+.landing-light [class*="from-[#120c09]"] {
+  --tw-gradient-from: rgba(247, 250, 244, 0.96) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(247, 250, 244, 0) var(--tw-gradient-to-position) !important;
+}
+
+.landing-light .text-white,
+.landing-light [class*="text-white/"] {
+  color: #172019 !important;
+}
+
+.landing-light [class*="text-[#4ade80]"] {
+  color: #15803d !important;
+}
+
+.landing-light [class*="border-white/"] {
+  border-color: rgba(22, 101, 52, 0.16) !important;
+}
+
+.landing-light [class*="bg-white/"] {
+  background-color: rgba(255, 255, 255, 0.68) !important;
+}
+
+.landing-light [class*="bg-black/"] {
+  background-color: rgba(255, 255, 255, 0.74) !important;
+}
+
+.landing-light [class*="bg-[#4ade80]/"] {
+  background-color: rgba(34, 197, 94, 0.14) !important;
+}
+
+.landing-light header [class*="bg-[#17100d]"],
+.landing-light header [class*="bg-[#120d0b]"] {
+  background-color: rgba(255, 255, 255, 0.86) !important;
+}
+
+.landing-light header [class*="text-white"] {
+  color: #172019 !important;
+}
+
+.landing-light input,
+.landing-light textarea {
+  background-color: rgba(255, 255, 255, 0.78) !important;
+  border-color: rgba(22, 101, 52, 0.18) !important;
+  color: #172019 !important;
+}
+
+.landing-light input::placeholder,
+.landing-light textarea::placeholder {
+  color: rgba(23, 32, 25, 0.45) !important;
+}
+
+.landing-light iframe {
+  filter: saturate(0.95) brightness(1.02);
+}

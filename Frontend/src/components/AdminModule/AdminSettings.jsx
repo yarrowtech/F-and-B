@@ -83,7 +83,7 @@
 
 
 import { useState } from "react";
-import { ShieldCheck, LockKeyhole } from "lucide-react";
+import { LockKeyhole, Moon, ShieldCheck, Sun } from "lucide-react";
 
 /* ───────────────────────────────────────── */
 /* Reusable Toggle Component */
@@ -101,7 +101,7 @@ const Toggle = ({ checked, onChange }) => (
 );
 /* ───────────────────────────────────────── */
 
-const SettingsPage = () => {
+const SettingsPage = ({ darkMode = false, onThemeChange }) => {
   const [twoFactorAuth, setTwoFactorAuth] = useState(false);
   const [analyticsTracking, setAnalyticsTracking] = useState(true);
   const [locationAccess, setLocationAccess] = useState(false);
@@ -113,6 +113,25 @@ const SettingsPage = () => {
       </h1>
 
       <div className="max-w-4xl mx-auto space-y-6">
+        {/* Appearance */}
+        <section className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow">
+          <h2 className="text-base md:text-lg font-semibold flex items-center gap-2 mb-6">
+            {darkMode ? <Moon size={20} /> : <Sun size={20} />} Appearance
+          </h2>
+
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between py-3">
+            <div className="mb-2 md:mb-0">
+              <p className="font-medium">Dark Mode</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Switch the admin panel between light and dark mode
+              </p>
+            </div>
+            <div className="self-start md:self-auto">
+              <Toggle checked={darkMode} onChange={onThemeChange} />
+            </div>
+          </div>
+        </section>
+
         {/* Security & Privacy */}
         <section className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow">
           <h2 className="text-base md:text-lg font-semibold flex items-center gap-2 mb-6">

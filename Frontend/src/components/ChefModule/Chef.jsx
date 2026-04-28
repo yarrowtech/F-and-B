@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaSignOutAlt,
@@ -121,14 +121,25 @@ const BOTTOM_NAV = [
   { key: "notes", label: "Notes", icon: FaStickyNote },
 ];
 
+const getInitialDarkMode = () => {
+  const savedIsDark = localStorage.getItem("isDark");
+  if (savedIsDark !== null) return savedIsDark === "true";
+
+  const savedTheme = localStorage.getItem("theme");
+  if (savedTheme) return savedTheme === "dark";
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+};
+
 const Chef = () => {
   const [active, setActive] = useState("dashboard");
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("isDark") === "true");
+  const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const mainRef = useRef(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
     localStorage.setItem("isDark", String(darkMode));
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
 
   useEffect(() => {
@@ -170,7 +181,12 @@ const Chef = () => {
             {BOTTOM_NAV.find((item) => item.key === active)?.label ?? "Chef"}
           </span>
           <div className="flex items-center gap-3">
-            <button onClick={() => setDarkMode((value) => !value)} className="text-gray-600 dark:text-gray-300">
+            <button
+              onClick={() => setDarkMode((value) => !value)}
+              className="rounded-lg p-2 text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700"
+              title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              aria-label="Toggle theme"
+            >
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <ChefProfileButton />
@@ -189,7 +205,12 @@ const Chef = () => {
               {active.replace(/-/g, " ")}
             </p>
             <div className="flex items-center gap-3">
-              <button onClick={() => setDarkMode((value) => !value)}>
+              <button
+                onClick={() => setDarkMode((value) => !value)}
+                className="rounded-lg p-2 text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700"
+                title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                aria-label="Toggle theme"
+              >
                 {darkMode ? <Sun size={18} /> : <Moon size={18} />}
               </button>
               <ChefProfileButton />
@@ -223,7 +244,7 @@ const Chef = () => {
                   isActive ? "bg-green-100 dark:bg-green-900/40" : ""
                 }`}
               >
-                <Icon size={18} />
+                {React.createElement(Icon, { size: 18 })}
               </span>
               {label}
             </button>

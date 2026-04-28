@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   FaHome,
   FaTachometerAlt,
@@ -6,6 +6,7 @@ import {
   FaUserTie,
   FaUserCircle,
   FaStickyNote,
+  FaCog,
   FaBars,
   FaTimes,
 } from "react-icons/fa";
@@ -25,6 +26,7 @@ const InventoryManagerSidebar = ({ active, setActive }) => {
     { name: "Attendance", icon: FaClipboardCheck, key: "attendance" },
     { name: "Profile",    icon: FaUserCircle,     key: "profile" },
     { name: "Notes",      icon: FaStickyNote,     key: "notes" },
+    { name: "Settings",   icon: FaCog,            key: "settings" },
   ];
 
   if (!isAuthenticated() || !user) {
@@ -77,6 +79,7 @@ const InventoryManagerSidebar = ({ active, setActive }) => {
         <nav className="flex-1 p-4 overflow-y-auto">
           {menuItems.map(({ name, icon: Icon, key }) => {
             const isActive = active === key;
+            const icon = React.createElement(Icon, { className: "text-lg" });
             return (
               <button
                 key={key}
@@ -90,7 +93,7 @@ const InventoryManagerSidebar = ({ active, setActive }) => {
                     : "bg-white dark:bg-gray-800 text-green-700 dark:text-gray-200 border-transparent hover:bg-green-200 dark:hover:bg-gray-700"
                   }`}
               >
-                <Icon className="text-lg" />
+                {icon}
                 <span>{name}</span>
               </button>
             );

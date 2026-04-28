@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaSignOutAlt, FaTachometerAlt, FaUserTie, FaClipboardCheck, FaUserCircle, FaStickyNote } from "react-icons/fa";
+import { FaSignOutAlt, FaTachometerAlt, FaUserTie, FaClipboardCheck, FaUserCircle, FaStickyNote, FaCog } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import InventoryManagerSidebar from "./InventoryManagerSidebar";
@@ -109,17 +109,23 @@ const BOTTOM_NAV = [
   { key: "attendance", label: "Attendance", icon: FaClipboardCheck },
   { key: "profile",    label: "Profile",    icon: FaUserCircle },
   { key: "notes",      label: "Notes",      icon: FaStickyNote },
+  { key: "settings",   label: "Settings",   icon: FaCog },
 ];
 
 /* ─── Main Layout ─── */
 const InventoryManager = () => {
   const [active, setActive] = useState("dashboard");
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("isDark") === "true");
+  const [darkMode, setDarkMode] = useState(() => {
+    const savedIsDark = localStorage.getItem("isDark");
+    if (savedIsDark !== null) return savedIsDark === "true";
+    return localStorage.getItem("theme") === "dark";
+  });
   const mainRef = useRef(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
     localStorage.setItem("isDark", String(darkMode));
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
 
   useEffect(() => {
@@ -136,7 +142,7 @@ const InventoryManager = () => {
       case "notes":        return <InventoryPersonalNotes />;
       case "profile":      return <InventoryManagerProfile />;
       case "messages":     return <InventoryManagerMessages />;
-      case "settings":     return <SettingsPage />;
+      case "settings":     return <SettingsPage darkMode={darkMode} onThemeChange={() => setDarkMode((v) => !v)} />;
       case "notifications":return <InventoryManagerNotifications />;
       default:             return <div className="p-4">Page not found</div>;
     }
@@ -151,7 +157,12 @@ const InventoryManager = () => {
             {BOTTOM_NAV.find((n) => n.key === active)?.label ?? "Inventory"}
           </span>
           <div className="flex items-center gap-3">
-            <button onClick={() => setDarkMode((v) => !v)} className="text-gray-600 dark:text-gray-300">
+            <button
+              onClick={() => setDarkMode((v) => !v)}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-600 dark:border-gray-700 dark:bg-neutral-700 dark:text-gray-200"
+              title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            >
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <InventoryManagerProfileButton />
@@ -173,8 +184,14 @@ const InventoryManager = () => {
               {active.replace(/-/g, " ")}
             </p>
             <div className="flex items-center gap-3">
-              <button onClick={() => setDarkMode((v) => !v)}>
+              <button
+                onClick={() => setDarkMode((v) => !v)}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-neutral-700 dark:text-gray-200 dark:hover:bg-neutral-600"
+                title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+                aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+              >
                 {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+                <span>{darkMode ? "Light" : "Dark"}</span>
               </button>
               <InventoryManagerProfileButton />
             </div>
@@ -195,6 +212,7 @@ const InventoryManager = () => {
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
         {BOTTOM_NAV.map(({ key, label, icon: Icon }) => {
           const isActive = active === key;
+          const icon = React.createElement(Icon, { size: 18 });
           return (
             <button
               key={key}
@@ -207,7 +225,7 @@ const InventoryManager = () => {
             >
               <span className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors
                 ${isActive ? "bg-green-100 dark:bg-green-900/40" : ""}`}>
-                <Icon size={18} />
+                {icon}
               </span>
               {label}
             </button>

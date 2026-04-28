@@ -1,21 +1,26 @@
 import React, { useEffect, useState } from "react";
+import { FaMoon, FaSun } from "react-icons/fa";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
-const Header = () => {
+const navLinks = [
+  { to: "/", label: "Home", sectionId: "hero" },
+  { to: "/#services", label: "Services", sectionId: "services" },
+  { to: "/#about", label: "About", sectionId: "about" },
+  { to: "/#contact", label: "Contact", sectionId: "contact" },
+];
+
+const Header = ({ landingTheme, onLandingThemeToggle }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [activeSection, setActiveSection] = useState("hero");
   const [user, setUser] = useState(null);
 
   const location = useLocation();
   const navigate = useNavigate();
   const isHomePage = location.pathname === "/";
-
-  const navLinks = [
-    { to: "/", label: "Home", sectionId: "hero" },
-    { to: "/#services", label: "Services", sectionId: "services" },
-    { to: "/#about", label: "About", sectionId: "about" },
-    { to: "/#contact", label: "Contact", sectionId: "contact" },
-  ];
+  const showLandingThemeToggle =
+    isHomePage && landingTheme && onLandingThemeToggle;
+  const isLandingLight = landingTheme === "light";
 
   const dashboardRoutes = {
     admin: "/admin",
@@ -46,7 +51,7 @@ const Header = () => {
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
-      } catch (_error) {
+      } catch {
         localStorage.removeItem("user");
         setUser(null);
       }
@@ -54,10 +59,26 @@ const Header = () => {
   }, [location.pathname]);
 
   useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 20);
+    const sectionIds = navLinks.map((link) => link.sectionId);
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+
+      if (!isHomePage) return;
+
+      const currentSection =
+        sectionIds.findLast((sectionId) => {
+          const section = document.getElementById(sectionId);
+          if (!section) return false;
+          return section.getBoundingClientRect().top <= 130;
+        }) || "hero";
+
+      setActiveSection(currentSection);
+    };
+
+    handleScroll();
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [isHomePage]);
 
   const handleDashboard = () => {
     if (!user || !user.role) return;
@@ -73,20 +94,35 @@ const Header = () => {
     navigate("/");
   };
 
+  const scrollToSection = (sectionId) => {
+    const target = document.getElementById(sectionId);
+    if (!target) return false;
+
+    const headerOffset = 96;
+    const targetTop =
+      target.getBoundingClientRect().top + window.scrollY - headerOffset;
+
+    window.scrollTo({
+      top: Math.max(targetTop, 0),
+      behavior: "smooth",
+    });
+
+    setActiveSection(sectionId);
+    window.history.pushState(
+      null,
+      "",
+      sectionId === "hero" ? "/" : `/#${sectionId}`
+    );
+
+    return true;
+  };
+
   const handleNavClick = (event, sectionId) => {
     if (!sectionId) return;
 
     if (isHomePage) {
       event.preventDefault();
-      const target = document.getElementById(sectionId);
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-        window.history.replaceState(
-          null,
-          "",
-          sectionId === "hero" ? "/" : `/#${sectionId}`
-        );
-      }
+      scrollToSection(sectionId);
     }
 
     setIsMenuOpen(false);
@@ -119,10 +155,7 @@ const Header = () => {
 
           <nav className="hidden items-center gap-2 md:flex">
             {navLinks.map(({ to, label, sectionId }) => {
-              const isActive =
-                sectionId === "hero"
-                  ? isHomePage && !location.hash
-                  : location.hash === `#${sectionId}`;
+              const isActive = isHomePage && activeSection === sectionId;
 
               return (
                 <Link
@@ -168,6 +201,18 @@ const Header = () => {
                 Login
               </button>
             )}
+
+            {showLandingThemeToggle && (
+              <button
+                type="button"
+                onClick={onLandingThemeToggle}
+                className="ml-1 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/6 text-white/85 transition hover:border-[#4ade80]/35 hover:text-[#4ade80]"
+                title={isLandingLight ? "Switch to dark mode" : "Switch to light mode"}
+                aria-label={isLandingLight ? "Switch to dark mode" : "Switch to light mode"}
+              >
+                {isLandingLight ? <FaMoon /> : <FaSun />}
+              </button>
+            )}
           </nav>
 
           <button
@@ -196,13 +241,30 @@ const Header = () => {
                   <Link
                     to={to}
                     onClick={(event) => handleNavClick(event, sectionId)}
-                    className="block rounded-full border border-white/8 bg-white/6 px-4 py-2 text-center text-sm text-white/85 transition hover:text-[#4ade80]"
+                    className={`block rounded-full border px-4 py-2 text-center text-sm transition ${
+                      isHomePage && activeSection === sectionId
+                        ? "border-[#4ade80]/40 bg-[#4ade80] text-[#140d09]"
+                        : "border-white/8 bg-white/6 text-white/85 hover:text-[#4ade80]"
+                    }`}
                   >
                     {label}
                   </Link>
                 </li>
               ))}
               <li>
+                {showLandingThemeToggle && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onLandingThemeToggle();
+                      setIsMenuOpen(false);
+                    }}
+                    className="mb-3 flex w-full items-center justify-center gap-2 rounded-full border border-white/8 bg-white/6 px-4 py-2 text-center text-sm font-semibold text-white/85"
+                  >
+                    {isLandingLight ? <FaMoon /> : <FaSun />}
+                    {isLandingLight ? "Dark Mode" : "Light Mode"}
+                  </button>
+                )}
                 {user ? (
                   <div className="flex flex-col gap-2">
                     {displayName ? (

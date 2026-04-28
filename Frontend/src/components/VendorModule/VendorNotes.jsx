@@ -5,11 +5,6 @@ const VendorNotes = () => {
   const [notes, setNotes] = useState([]);
   const [input, setInput] = useState("");
   const [editingIndex, setEditingIndex] = useState(null);
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem("isDark");
-    if (saved !== null) return saved === "true";
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
 
   useEffect(() => {
     const savedNotes = JSON.parse(localStorage.getItem("vendorNotes")) || [];
@@ -47,67 +42,80 @@ const VendorNotes = () => {
   };
 
   return (
-    <div className="p-6 bg-gray-100 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors">
-      <h1 className="text-2xl font-bold mb-4">Notes</h1>
+    <div className="min-h-screen bg-gray-50 px-4 py-6 text-gray-800 transition-colors dark:bg-neutral-900 dark:text-gray-100 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-6">
+          <p className="text-sm font-semibold uppercase tracking-wide text-green-600 dark:text-green-400">
+            Notes
+          </p>
+          <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Vendor Personal Notes</h1>
+          <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-300">
+            Save supplier reminders, edit follow-ups, and keep vendor tasks clear in light or dark mode.
+          </p>
+        </div>
 
-      {/* Input */}
-      <div className="flex gap-2 mb-4">
-        <input
-          type="text"
-          placeholder="Write a note..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          className="border p-2 rounded flex-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-        />
-        {editingIndex !== null ? (
-          <button
-            onClick={saveNote}
-            className="bg-blue-500 text-white px-4 py-2 rounded flex items-center gap-2"
-          >
-            <FaSave /> Save
-          </button>
-        ) : (
-          <button
-            onClick={addNote}
-            className="bg-green-500 text-white px-4 py-2 rounded flex items-center gap-2"
-          >
-            <FaPlus /> Add
-          </button>
-        )}
-      </div>
+        <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-neutral-800 sm:flex-row">
+          <input
+            type="text"
+            placeholder="Write a note..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && (editingIndex !== null ? saveNote() : addNote())}
+            className="min-h-11 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-500/30 dark:border-gray-600 dark:bg-neutral-900 dark:text-gray-100 dark:placeholder-gray-400"
+          />
+          {editingIndex !== null ? (
+            <button
+              onClick={saveNote}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700"
+            >
+              <FaSave />
+              Save Note
+            </button>
+          ) : (
+            <button
+              onClick={addNote}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 font-medium text-white transition hover:bg-green-700"
+            >
+              <FaPlus />
+              Add Note
+            </button>
+          )}
+        </div>
 
-      {/* Notes List */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded shadow transition-colors">
-        {notes.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400">No notes yet. Add your first note!</p>
-        ) : (
-          <ul>
-            {notes.map((note, index) => (
-              <li
-                key={index}
-                className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 py-2"
-              >
-                <div>
-                  <p className="font-medium">{note.text}</p>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{note.date}</span>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => editNote(index)}
-                    className="bg-yellow-500 text-white px-2 py-1 rounded flex items-center gap-1"
-                  >
-                    <FaEdit /> Edit
-                  </button>
-                  <button
-                    onClick={() => deleteNote(index)}
-                    className="bg-red-500 text-white px-2 py-1 rounded flex items-center gap-1"
-                  >
-                    <FaTrash /> Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+        <div className="grid gap-4">
+          {notes.map((note, index) => (
+            <div
+              key={`${note.date}-${index}`}
+              className="flex items-start justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-neutral-800"
+            >
+              <div className="min-w-0">
+                <p className="break-words text-base font-medium">{note.text}</p>
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{note.date}</p>
+              </div>
+              <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                <button
+                  onClick={() => editNote(index)}
+                  className="inline-flex items-center gap-2 rounded-lg bg-yellow-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-yellow-600"
+                >
+                  <FaEdit />
+                  Edit
+                </button>
+                <button
+                  onClick={() => deleteNote(index)}
+                  className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-600"
+                >
+                  <FaTrash />
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {notes.length === 0 && (
+          <div className="mt-10 rounded-2xl border border-dashed border-gray-300 bg-white/70 p-8 text-center text-gray-500 dark:border-gray-700 dark:bg-neutral-800/70 dark:text-gray-400">
+            No notes yet. Add your first note.
+          </div>
         )}
       </div>
     </div>

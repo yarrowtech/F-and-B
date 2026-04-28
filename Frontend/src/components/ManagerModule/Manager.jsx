@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaBoxes,
@@ -128,19 +128,25 @@ const BOTTOM_NAV = [
   { key: "notes",            label: "Notes",      icon: FaStickyNote },
 ];
 
+const getInitialDarkMode = () => {
+  const savedIsDark = localStorage.getItem("isDark");
+  if (savedIsDark !== null) return savedIsDark === "true";
+
+  const savedTheme = localStorage.getItem("theme");
+  if (savedTheme) return savedTheme === "dark";
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+};
+
 const ManagerPanel = () => {
   const [active, setActive] = useState("dashboard");
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const mainRef = useRef(null);
-
-  useLayoutEffect(() => {
-    document.documentElement.classList.remove("dark");
-    localStorage.setItem("isDark", "false");
-  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
     localStorage.setItem("isDark", String(darkMode));
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
 
   useEffect(() => {
@@ -177,7 +183,12 @@ const ManagerPanel = () => {
             {BOTTOM_NAV.find((n) => n.key === active)?.label ?? "Manager"}
           </span>
           <div className="flex items-center gap-3">
-            <button onClick={() => setDarkMode((v) => !v)} className="text-gray-600 dark:text-gray-300">
+            <button
+              onClick={() => setDarkMode((v) => !v)}
+              className="rounded-lg p-2 text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700"
+              title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              aria-label="Toggle theme"
+            >
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <ManagerProfileButton />
@@ -199,7 +210,12 @@ const ManagerPanel = () => {
               {active.replace(/-/g, " ")}
             </p>
             <div className="flex items-center gap-3">
-              <button onClick={() => setDarkMode((v) => !v)}>
+              <button
+                onClick={() => setDarkMode((v) => !v)}
+                className="rounded-lg p-2 text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700"
+                title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                aria-label="Toggle theme"
+              >
                 {darkMode ? <Sun size={18} /> : <Moon size={18} />}
               </button>
               <ManagerProfileButton />
@@ -232,7 +248,7 @@ const ManagerPanel = () => {
             >
               <span className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors
                 ${isActive ? "bg-green-100 dark:bg-green-900/40" : ""}`}>
-                <Icon size={18} />
+                {React.createElement(Icon, { size: 18 })}
               </span>
               {label}
             </button>

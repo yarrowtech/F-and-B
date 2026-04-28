@@ -59,6 +59,10 @@
 
 
 import axios from "axios";
+import {
+  clearAuthSession,
+  enforceSession,
+} from "./session.service";
 
 /* ======================
    AXIOS INSTANCE
@@ -68,14 +72,30 @@ const API = axios.create({
   withCredentials: false, // JWT only
 });
 
+const getLoginPath = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+    return user?.role === "super_admin" ? "/superadmin-login" : "/login";
+  } catch {
+    return "/login";
+  }
+};
+
 /* ======================
    REQUEST INTERCEPTOR
 ====================== */
 API.interceptors.request.use(
   (config) => {
+    const isLoginRequest = config.url?.includes("/login");
+    const loginPath = getLoginPath();
+    if (!isLoginRequest && !enforceSession()) {
+      window.location.replace(loginPath);
+      return Promise.reject(new Error("Session expired due to inactivity"));
+    }
+
     const token = localStorage.getItem("token");
 
-    if (token) {
+    if (token && !isLoginRequest) {
       config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -104,10 +124,10 @@ API.interceptors.response.use(
       // Don't intercept login endpoint errors — let the login form handle them
       const isLoginRequest = error.config?.url?.includes("/login");
       if (!isLoginRequest) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
+        const loginPath = getLoginPath();
+        clearAuthSession();
         // Redirect to login so the user can re-authenticate
-        window.location.replace("/login");
+        window.location.replace(loginPath);
       }
     }
 

@@ -117,7 +117,7 @@ const WaiterDashboard = () => {
     const loadOrders = async () => {
       try {
         setLoading(true);
-        const data = await getWaiterOrders("all");
+        const data = await getWaiterOrders("history");
         setOrders(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Failed to load waiter dashboard orders", error);

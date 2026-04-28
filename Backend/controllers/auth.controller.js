@@ -309,7 +309,7 @@ export const login = async (req, res, next) => {
         userType: "EMPLOYEE",
       },
       process.env.JWT_SECRET,
-      { expiresIn: "1d" }
+      { expiresIn: "4d" }
     );
 
     /* =========================

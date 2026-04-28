@@ -25,9 +25,10 @@ const Header = ({ active, darkMode, setDarkMode, messageCount, notificationCount
       </div>
       <div className="flex gap-4 items-center text-gray-600 dark:text-gray-300 text-lg">
         <button
-          onClick={() => setDarkMode(!darkMode)}
-          className="p-2 hover:text-yellow-500 dark:hover:text-yellow-400"
-          title="Toggle Theme"
+          onClick={() => setDarkMode((current) => !current)}
+          className="rounded-lg p-2 transition hover:bg-gray-100 hover:text-yellow-500 dark:hover:bg-neutral-700 dark:hover:text-yellow-400"
+          title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          aria-label="Toggle theme"
         >
           {darkMode ? <FaSun className="text-yellow-400" /> : <FaMoon className="text-gray-600" />}
         </button>
@@ -74,7 +75,15 @@ const Header = ({ active, darkMode, setDarkMode, messageCount, notificationCount
 const VendorPanel = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [active, setActive] = useState("dashboard");
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("theme") === "dark");
+  const [darkMode, setDarkMode] = useState(() => {
+    const savedIsDark = localStorage.getItem("isDark");
+    if (savedIsDark !== null) return savedIsDark === "true";
+
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) return savedTheme === "dark";
+
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
 
   // Real-time counters
   const [messageCount, setMessageCount] = useState(3); // Example: 3 unread messages
@@ -85,6 +94,7 @@ const VendorPanel = () => {
   // Apply dark mode
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
+    localStorage.setItem("isDark", String(darkMode));
     localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
 

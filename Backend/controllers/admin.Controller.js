@@ -119,15 +119,26 @@ export const registerAdmin = async (req, res) => {
 /* ---------- LOGIN ADMIN (by adminId) ---------- */
 export const loginAdmin = async (req, res) => {
   try {
-    const { adminId, password } = req.body;
+    const adminId = String(req.body.adminId || req.body.loginId || "").trim();
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const password = String(req.body.password || "");
 
-    if (!adminId || !password) {
-      return res.status(400).json({ message: "Admin ID and password are required" });
+    if ((!adminId && !email) || !password) {
+      return res.status(400).json({
+        message: "Admin ID or email and password are required",
+      });
     }
 
-    const admin = await Admin.findOne({ adminId: adminId.trim().toUpperCase() });
+    const admin = await Admin.findOne(
+      adminId
+        ? { adminId: adminId.toUpperCase() }
+        : { email }
+    );
+
     if (!admin) {
-      return res.status(401).json({ message: "Invalid Admin ID or password" });
+      return res.status(401).json({
+        message: "Invalid admin credentials",
+      });
     }
 
     if (!admin.isActive) {
@@ -136,13 +147,15 @@ export const loginAdmin = async (req, res) => {
 
     const isMatch = await admin.matchPassword(password);
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid Admin ID or password" });
+      return res.status(401).json({
+        message: "Invalid admin credentials",
+      });
     }
 
     const token = jwt.sign(
       { id: admin._id, role: "admin" },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "4d" }
     );
 
     res.json({

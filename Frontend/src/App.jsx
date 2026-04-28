@@ -116,6 +116,7 @@ import {
 } from "react-router-dom";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
+import { setupSessionActivityTracking } from "./services/session.service";
 
 /* ================= PUBLIC PAGES ================= */
 import Home from "./Pages/Home";
@@ -145,12 +146,13 @@ import Cleaner from "./components/CleanerModule/Cleaner";
 
 const App = () => {
   useEffect(() => {
+    const cleanupSessionTracking = setupSessionActivityTracking();
     const isManagerRoute = window.location.pathname.startsWith("/manager");
 
     if (isManagerRoute) {
       document.documentElement.classList.remove("dark");
       localStorage.setItem("isDark", "false");
-      return;
+      return cleanupSessionTracking;
     }
 
     const savedTheme = localStorage.getItem("theme");
@@ -158,6 +160,8 @@ const App = () => {
       "dark",
       savedTheme === "dark"
     );
+
+    return cleanupSessionTracking;
   }, []);
 
   return (

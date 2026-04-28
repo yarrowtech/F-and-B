@@ -24,8 +24,12 @@ const SuCheif = () => {
   const [active, setActive] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem("theme");
-    if (saved) return saved === "dark";
+    const savedIsDark = localStorage.getItem("isDark");
+    if (savedIsDark !== null) return savedIsDark === "true";
+
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) return savedTheme === "dark";
+
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
   const [unreadNotifications, setUnreadNotifications] = useState(5);
@@ -35,6 +39,7 @@ const SuCheif = () => {
   /* ----------------- THEME HANDLING ----------------- */
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
+    localStorage.setItem("isDark", String(darkMode));
     localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
 
@@ -97,8 +102,9 @@ const SuCheif = () => {
         {/* Dark/Light Mode Toggle */}
         <button
           aria-label="Toggle Dark Mode"
-          onClick={() => setDarkMode(!darkMode)}
-          className="p-2 hover:text-yellow-500 dark:hover:text-yellow-400 transition"
+          onClick={() => setDarkMode((current) => !current)}
+          className="rounded-lg p-2 transition hover:bg-gray-100 hover:text-yellow-500 dark:hover:bg-neutral-700 dark:hover:text-yellow-400"
+          title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
         >
           {darkMode ? <Sun size={18} /> : <Moon size={18} />}
         </button>

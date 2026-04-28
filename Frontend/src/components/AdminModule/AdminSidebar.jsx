@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   FaHome,
   FaTachometerAlt,
@@ -26,10 +26,6 @@ const Sidebar = ({
 
   /* ================= STATE ================= */
   const [internalOpen, setInternalOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(
-    () => localStorage.getItem("theme") === "dark"
-  );
-
   const isMobileControlled = typeof mobileOpen === "boolean";
   const isOpen = isMobileControlled ? mobileOpen : internalOpen;
 
@@ -54,17 +50,6 @@ const Sidebar = ({
   /* ================= GET ADMIN ================= */
   const user = JSON.parse(localStorage.getItem("user")) || {};
   const businessName = user?.businessName || "Admin";
-
-  /* ================= DARK MODE ================= */
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  }, [darkMode]);
 
   /* ================= MENU ITEMS ================= */
   const menuItems = [
@@ -133,6 +118,7 @@ const Sidebar = ({
         <nav className="flex-1 p-4 overflow-y-auto">
           {menuItems.map(({ name, icon: Icon, key }) => {
             const isActive = active === key;
+            const icon = React.createElement(Icon, { className: "text-lg" });
             return (
               <button
                 key={key}
@@ -146,7 +132,7 @@ const Sidebar = ({
                     : "bg-white dark:bg-gray-800 text-green-700 dark:text-gray-200 border-transparent hover:bg-green-200 dark:hover:bg-gray-700"
                   }`}
               >
-                <Icon className="text-lg" />
+                {icon}
                 <span>{name}</span>
               </button>
             );

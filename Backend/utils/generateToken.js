@@ -25,7 +25,7 @@ const generateToken = ({ id, role, subRole = null, adminId = null }) => {
       },
       process.env.JWT_SECRET,
       {
-        expiresIn: "1d",
+        expiresIn: "4d",
       }
     );
   } catch (error) {

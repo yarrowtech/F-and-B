@@ -438,9 +438,11 @@ const BOTTOM_NAV = [
 
 const Admin = () => {
   const [active, setActive] = useState("dashboard");
-  const [darkMode, setDarkMode] = useState(
-    () => localStorage.getItem("isDark") === "true"
-  );
+  const [darkMode, setDarkMode] = useState(() => {
+    const savedIsDark = localStorage.getItem("isDark");
+    if (savedIsDark !== null) return savedIsDark === "true";
+    return localStorage.getItem("theme") === "dark";
+  });
 
   /* ✅ RESTAURANT STATE */
   const [selectedRestaurantId, setSelectedRestaurantId] = useState(null);
@@ -451,6 +453,8 @@ const Admin = () => {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
+    localStorage.setItem("isDark", String(darkMode));
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
 
   useEffect(() => {
@@ -462,9 +466,7 @@ const Admin = () => {
   /* ================= HANDLERS ================= */
 
   const handleModeChange = () => {
-    const next = !darkMode;
-    setDarkMode(next);
-    localStorage.setItem("isDark", String(next));
+    setDarkMode((current) => !current);
   };
 
   const handleSetActive = useCallback((section) => {
@@ -517,7 +519,7 @@ const Admin = () => {
         return <Notes />;
 
       case "settings":
-        return <Settings />;
+        return <Settings darkMode={darkMode} onThemeChange={handleModeChange} />;
 
       case "message":
         return <Message />;
@@ -539,7 +541,12 @@ const Admin = () => {
             {BOTTOM_NAV.find((n) => n.key === active)?.label ?? "Admin"}
           </span>
           <div className="flex items-center gap-3">
-            <button onClick={handleModeChange} className="text-gray-600 dark:text-gray-300">
+            <button
+              onClick={handleModeChange}
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            >
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <AdminProfileButton />
@@ -559,7 +566,17 @@ const Admin = () => {
           {/* ── Top Bar (desktop) ── */}
           <div className="hidden lg:flex items-center justify-between px-6 py-3 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
             <p className="text-sm font-medium text-gray-500 dark:text-gray-400 capitalize">{active.replace(/([A-Z])/g, " $1")}</p>
-            <AdminProfileButton />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleModeChange}
+                className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+                aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+              <AdminProfileButton />
+            </div>
           </div>
 
           {/* ===== Main Content ===== */}
@@ -584,6 +601,7 @@ const Admin = () => {
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch overflow-x-auto shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
         {BOTTOM_NAV.map(({ key, label, icon: Icon }) => {
           const isActive = active === key;
+          const icon = React.createElement(Icon, { size: 18 });
           return (
             <button
               key={key}
@@ -596,7 +614,7 @@ const Admin = () => {
             >
               <span className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors
                 ${isActive ? "bg-green-100 dark:bg-green-900/40" : ""}`}>
-                <Icon size={18} />
+                {icon}
               </span>
               {label}
             </button>

@@ -246,7 +246,6 @@ export default function AdminMenuManagement() {
     }
   };
 
-  const selectedRestaurantName = restaurants.find((r) => r._id === selectedRestaurant)?.name || "";
   const availableCount = menus.filter((m) => m.isAvailable).length;
   const totalOrders = orderAnalytics.reduce((sum, item) => sum + Number(item.totalOrders || 0), 0);
   const renderForm = (onSubmit, submitLabel) => (
@@ -359,7 +358,7 @@ export default function AdminMenuManagement() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
+    <div className="admin-dark-scope min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Total Dishes</p><p className="mt-3 text-2xl font-bold text-slate-900">{menus.length}</p></div><div className="rounded-2xl bg-slate-100 p-3 text-slate-700"><FaUtensils /></div></div></div>

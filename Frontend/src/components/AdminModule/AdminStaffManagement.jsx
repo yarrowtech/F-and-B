@@ -492,7 +492,7 @@ export default function AdminStaffManagement() {
         restaurantId: form.restaurantId,
       };
 
-      const newEmployee = await createEmployee(payload);
+      await createEmployee(payload);
 
       fetchEmployees();
 
@@ -680,7 +680,7 @@ export default function AdminStaffManagement() {
 
   return (
 
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="admin-dark-scope p-6 bg-gray-50 min-h-screen">
 
       {/* HEADER */}
 

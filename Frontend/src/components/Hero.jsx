@@ -15,12 +15,13 @@ const Hero = () => {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(74,222,128,0.12),_transparent_24%),radial-gradient(circle_at_left_bottom,_rgba(74,222,128,0.16),_transparent_24%)]" />
 
       <div className="relative mx-auto max-w-7xl">
-        <div className="relative overflow-hidden rounded-[2.4rem] border border-white/10 bg-[#130d0a] shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_0_55px_rgba(255,255,255,0.18)]">
+        <div className="relative overflow-hidden rounded-[2.4rem] border border-[#4ade80]/18 bg-[#130d0a]">
           <div
-            className="absolute inset-0 bg-cover bg-center opacity-22"
+            className="absolute inset-0 bg-cover bg-center opacity-28"
             style={{ backgroundImage: `url(${tableImage})` }}
           />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(19,13,10,0.95)_0%,rgba(19,13,10,0.78)_45%,rgba(19,13,10,0.92)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(19,13,10,0.96)_0%,rgba(19,13,10,0.72)_45%,rgba(19,13,10,0.9)_100%)]" />
+          <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#4ade80]/60 to-transparent" />
 
           <div className="absolute -left-10 bottom-0 h-56 w-56 rounded-full bg-[#4ade80]/15 blur-3xl" />
           <div className="absolute right-10 top-10 h-48 w-48 rounded-full bg-[#4ade80]/12 blur-3xl" />

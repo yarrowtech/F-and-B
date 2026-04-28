@@ -1076,15 +1076,17 @@ dotenv.config();
 const app = express();
 
 /* ================= CORS (FINAL FIX) ================= */
+const corsOptions = {
+  origin: "http://localhost:5173",
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
 app.use(
-  cors({
-    origin: "http://localhost:5173",
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  cors(corsOptions)
 );
-app.options(/.*/, cors());
+app.options(/.*/, cors(corsOptions));
 
 /* ================= SECURITY ================= */
 // app.use(helmet()); // disabled for now

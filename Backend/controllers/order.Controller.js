@@ -1113,6 +1113,42 @@ const sendSuccess = (res, data, status = 200) =>
 const sendError = (res, message, status = 400) =>
   res.status(status).json({ success: false, message });
 
+const getItemsForInventoryDeduction = (order) => {
+  const additionalItems = (order.items || []).filter((item) => item.isAdditional);
+  return additionalItems.length > 0 ? additionalItems : order.items || [];
+};
+
+const deductInventoryForOrder = async (order, session) => {
+  const itemsToDeduct = getItemsForInventoryDeduction(order);
+
+  for (const item of itemsToDeduct) {
+    if (!item.menuItem || !Array.isArray(item.menuItem.ingredients)) {
+      throw new Error("Menu item ingredients not configured properly");
+    }
+
+    for (const ingredient of item.menuItem.ingredients) {
+      const requiredQty = Number(ingredient.quantity || 0) * Number(item.quantity || 0);
+
+      if (!requiredQty) {
+        continue;
+      }
+
+      const inventory = await Inventory.findById(ingredient.item?._id || ingredient.item).session(session);
+
+      if (!inventory) {
+        throw new Error("Inventory item not found");
+      }
+
+      if (inventory.quantity < requiredQty) {
+        throw new Error(`Insufficient stock for ${inventory.name}`);
+      }
+
+      inventory.quantity -= requiredQty;
+      await inventory.save({ session });
+    }
+  }
+};
+
 /* ================= CREATE ORDER ================= */
 
 export const createOrder = async (req, res) => {
@@ -1270,8 +1306,13 @@ export const getChefOrders = async (req, res) => {
 
     const filter = {
       restaurant: req.user.restaurant,
-      status: { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY"] },
     };
+
+    if (type === "history") {
+      filter.chef = req.user.id;
+    } else {
+      filter.status = { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY"] };
+    }
 
     if (type === "mine") {
       filter.chef = req.user.id;
@@ -1301,7 +1342,9 @@ export const getWaiterOrders = async (req, res) => {
       waiter: req.user.id,
     };
 
-    if (type === "all") {
+    if (type === "history") {
+      // Dashboard history should include completed and paid orders too.
+    } else if (type === "all") {
       filter.status = { $ne: "PAID" };
     } else {
       filter.status = { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY", "SERVED"] };
@@ -1396,27 +1439,7 @@ export const markPreparing = async (req, res) => {
     if (!order)
       throw new Error("Order must be ACCEPTED first");
 
-    for (const item of order.items) {
-      for (const ingredient of item.menuItem.ingredients) {
-        const requiredQty =
-          ingredient.quantity * item.quantity;
-
-        const inventory = await Inventory.findById(
-          ingredient.item._id
-        ).session(session);
-
-        if (!inventory)
-          throw new Error("Inventory item not found");
-
-        if (inventory.quantity < requiredQty)
-          throw new Error(
-            `Insufficient stock for ${inventory.name}`
-          );
-
-        inventory.quantity -= requiredQty;
-        await inventory.save({ session });
-      }
-    }
+    await deductInventoryForOrder(order, session);
 
     order.status = "PREPARING";
     order.preparingAt = new Date();
@@ -1445,18 +1468,36 @@ export const markPreparing = async (req, res) => {
 /* ================= READY ================= */
 
 export const markReady = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const order = await Order.findOne({
       _id: req.params.id,
       restaurant: req.user.restaurant,
       status: { $in: ["ACCEPTED", "PREPARING"] },
-    });
+    })
+      .populate({
+        path: "items.menuItem",
+        populate: { path: "ingredients.item" },
+      })
+      .session(session);
 
     if (!order) return sendError(res, "Order must be accepted before marking ready", 404);
 
+    // The current chef UI moves ACCEPTED -> READY directly, so deduct stock here
+    // if the PREPARING step was skipped. Updated orders only deduct new items.
+    if (order.status === "ACCEPTED" && !order.preparingAt) {
+      await deductInventoryForOrder(order, session);
+      order.preparingAt = new Date();
+    }
+
     order.status = "READY";
     order.readyAt = new Date();
-    await order.save();
+    await order.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
 
     await logAction({
       action: "ORDER_READY",
@@ -1467,6 +1508,9 @@ export const markReady = async (req, res) => {
 
     return sendSuccess(res, order);
   } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+
     await logError(err, "MARK_READY");
     return sendError(res, err.message);
   }

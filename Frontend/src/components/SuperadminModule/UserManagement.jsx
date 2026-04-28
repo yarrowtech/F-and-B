@@ -448,8 +448,13 @@ const UserManagement = () => {
     if (!validateAdmin()) return;
     try {
       setFormLoading(true);
-      await API.post("/super_admin/create-admin", newAdminData);
-      notify("Admin added successfully");
+      const res = await API.post("/super_admin/create-admin", newAdminData);
+      const createdAdminId = res.data?.admin?.adminId;
+      notify(
+        createdAdminId
+          ? `Admin added successfully. Login ID: ${createdAdminId}`
+          : "Admin added successfully"
+      );
       setShowAdminForm(false);
       setAdminErrors({});
       setNewAdminData({ businessName: "", email: "", mobile: "", address: "", panNumber: "", password: "" });
