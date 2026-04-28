@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { getMyProfile } from "../../services/employee.service";
 
 /* ================= HELPERS ================= */
-const cn = (...xs) => xs.filter(Boolean).join(" ");
 const initials = (name = "") =>
   name
     .trim()

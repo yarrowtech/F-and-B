@@ -637,7 +637,7 @@ export const forgotPassword = async (req, res) => {
       admin.resetPasswordExpire = Date.now() + 15 * 60 * 1000;
       await admin.save();
 
-      const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      const appBaseUrl = process.env.FRONTEND_URL || req.get("origin") || "";
       const resetUrl = `${appBaseUrl.replace(/\/$/, "")}/reset-password/${resetToken}`;
 
       await logSuperAdminAction({

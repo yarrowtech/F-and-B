@@ -38,7 +38,7 @@ const SucheifProfile = () => {
         ...p,
         net: p.basic + p.allowances - p.deductions,
       })),
-    [paymentHistory]
+    []
   );
 
   const latestPayment = paymentWithNet[paymentWithNet.length - 1];
@@ -59,7 +59,7 @@ const SucheifProfile = () => {
         }),
         { present: 0, absent: 0, leaves: 0 }
       ),
-    [attendanceData]
+    []
   );
 
   const latestAttendance = attendanceData[attendanceData.length - 1] || { present: 0, absent: 0, leaves: 0 };

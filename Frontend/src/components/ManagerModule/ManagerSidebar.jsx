@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   FaHome,
   FaTachometerAlt,
@@ -121,7 +121,7 @@ const ManagerSidebar = ({
                     : "bg-white dark:bg-gray-800 text-green-700 dark:text-gray-200 border-transparent hover:bg-green-200 dark:hover:bg-gray-700"
                   }`}
               >
-                <Icon className="text-lg" />
+                {React.createElement(Icon, { className: "text-lg" })}
                 <span>{name}</span>
               </button>
             );

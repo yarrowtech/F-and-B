@@ -60,7 +60,7 @@ export default function AccountantVendorBilling() {
     try {
       const raw = localStorage.getItem("accountant_vendor_bills");
       return raw ? JSON.parse(raw) : SAMPLE_DATA;
-    } catch (e) {
+    } catch {
       return SAMPLE_DATA;
     }
   });
@@ -167,7 +167,11 @@ export default function AccountantVendorBilling() {
   }
 
   function handleExportCSV() {
-    const rows = filtered.map(({ id, ...rest }) => rest);
+    const rows = filtered.map((bill) => {
+      const { id: _id, ...rest } = bill;
+      void _id;
+      return rest;
+    });
     exportToCSV(rows, `vendor_billing_${new Date().toISOString().slice(0,10)}.csv`);
   }
 

@@ -3,6 +3,8 @@ import { FaEnvelope, FaMapMarkerAlt, FaPhoneAlt } from "react-icons/fa";
 import { motion } from "framer-motion";
 import PublicPageShell from "../components/PublicPageShell";
 
+void motion;
+
 const contactCards = [
   { title: "Email", value: "info@fnb-solutions.com", icon: <FaEnvelope /> },
   { title: "Phone", value: "+91 98305 90929", icon: <FaPhoneAlt /> },

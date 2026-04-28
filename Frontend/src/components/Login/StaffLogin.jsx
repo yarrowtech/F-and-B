@@ -5,6 +5,8 @@ import axios from "axios";
 import { employeeLogin } from "../../services/employeeAuth.service";
 import { startSession } from "../../services/session.service";
 
+const API_URL = import.meta.env.VITE_API_URL || "/api";
+
 const ROLE_ROUTES = {
   admin: "/admin",
   manager: "/manager",
@@ -82,7 +84,7 @@ export default function StaffLogin() {
       let user;
 
       if (looksLikeAdminId(staffId)) {
-        const res = await axios.post("http://localhost:5000/api/admin/login", {
+        const res = await axios.post(`${API_URL}/admin/login`, {
           adminId: staffId.trim().toUpperCase(),
           password,
         });

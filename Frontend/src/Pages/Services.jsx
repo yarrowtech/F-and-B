@@ -13,6 +13,8 @@ import {
 } from "react-icons/fa";
 import PublicPageShell from "../components/PublicPageShell";
 
+void motion;
+
 const services = [
   { icon: <FaUsers />, title: "User management", description: "Role-based access and multi-location structure for operational control." },
   { icon: <FaUtensils />, title: "Menu and recipe flow", description: "Keep recipes, item costs, and updates visible in one place." },

@@ -8,7 +8,7 @@ const initialNotifications = [
   { id: 5, message: "Login attempt detected: Admin", timestamp: "2025-08-27 08:15 AM", read: false },
 ];
 
-const cheifNotifications = () => {
+const ChefNotifications = () => {
   const [notifications, setNotifications] = useState(
     initialNotifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
   );
@@ -61,4 +61,4 @@ const cheifNotifications = () => {
   );
 };
 
-export default cheifNotifications;
+export default ChefNotifications;

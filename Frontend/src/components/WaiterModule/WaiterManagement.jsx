@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from "react";
 import { FaCheckCircle, FaSearch, FaTable, FaTimes, FaUtensils } from "react-icons/fa";
 import {
@@ -49,11 +50,12 @@ export default function WaiterManagement() {
   const [billedOrderIds, setBilledOrderIds] = useState([]);
   const [billMessage, setBillMessage] = useState("");
 
-  if (!restaurantId) {
-    return <div className="p-10 text-xl text-red-600">No restaurant assigned to this waiter.</div>;
-  }
-
   const load = async () => {
+    if (!restaurantId) {
+      setLoading(false);
+      return;
+    }
+
     try {
       const [tablesRes, menuRes, ordersRes] = await Promise.all([
         getTables(restaurantId),
@@ -110,6 +112,10 @@ export default function WaiterManagement() {
     () => cartItems.reduce((sum, item) => sum + item.price * item.qty, 0),
     [cartItems]
   );
+
+  if (!restaurantId) {
+    return <div className="p-10 text-xl text-red-600">No restaurant assigned to this waiter.</div>;
+  }
 
   const getStatusLabel = (order) => {
     if (!order) return "Available";

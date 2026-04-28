@@ -1,13 +1,7 @@
-import React, { useState, useEffect } from "react";
-import { FaFileInvoice, FaPlus, FaEye, FaDownload } from "react-icons/fa";
+import React, { useState } from "react";
+import { FaPlus, FaEye, FaDownload } from "react-icons/fa";
 
 const VendorAccounts = () => {
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem("isDark");
-    if (saved !== null) return saved === "true";
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
-
   const [payments, setPayments] = useState([
     { id: 1, invoice: "INV101", orderId: "101", customer: "Rahul Sharma", amount: 360, date: "2025-07-20" },
     { id: 2, invoice: "INV102", orderId: "102", customer: "Priya Mehta", amount: 180, date: "2025-07-21" },

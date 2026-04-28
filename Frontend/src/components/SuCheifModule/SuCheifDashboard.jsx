@@ -115,15 +115,6 @@ const SucheifDashboard = () => {
     [dailyAttendance]
   );
 
-  const attendancePie = useMemo(
-    () => [
-      { name: "Present", value: attendanceStats.present },
-      { name: "Absent", value: attendanceStats.absent },
-      { name: "Leave", value: attendanceStats.leave },
-    ],
-    [attendanceStats]
-  );
-
   /* ---------- Orders ---------- */
   const ordersData = useMemo(() => {
     const today = new Date();

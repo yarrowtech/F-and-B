@@ -204,6 +204,37 @@ import {
 
 const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#d0ed57", "#a4de6c"];
 
+const SALES_DATA = [
+  { month: "Jan", sales: 40000 },
+  { month: "Feb", sales: 30000 },
+  { month: "Mar", sales: 50000 },
+  { month: "Apr", sales: 45000 },
+  { month: "May", sales: 60000 },
+];
+
+const EMPLOYEE_DATA = [
+  { name: "Chefs", count: 12 },
+  { name: "Su-chefs", count: 15 },
+  { name: "Waiters", count: 20 },
+  { name: "Cleaners", count: 8 },
+  { name: "Managers", count: 4 },
+  { name: "Inventory", count: 4 },
+];
+
+const MENU_DATA = [
+  { item: "Burger", orders: 240 },
+  { item: "Pizza", orders: 180 },
+  { item: "Pasta", orders: 90 },
+  { item: "Drinks", orders: 150 },
+];
+
+const BRANCH_DATA = [
+  { branch: "Delhi", subs: 120 },
+  { branch: "Mumbai", subs: 200 },
+  { branch: "Bangalore", subs: 150 },
+  { branch: "Kolkata", subs: 100 },
+];
+
 /* Small helper to detect mobile without extra deps */
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = React.useState(() => window.matchMedia("(max-width: 640px)").matches);
@@ -219,36 +250,10 @@ const useIsMobile = () => {
 const AdminAnalytics = () => {
   const isMobile = useIsMobile();
 
-  const salesData = [
-    { month: "Jan", sales: 40000 },
-    { month: "Feb", sales: 30000 },
-    { month: "Mar", sales: 50000 },
-    { month: "Apr", sales: 45000 },
-    { month: "May", sales: 60000 },
-  ];
-
-  const employeeData = [
-    { name: "Chefs", count: 12 },
-    { name: "Su-chefs", count: 15 },
-    { name: "Waiters", count: 20 },
-    { name: "Cleaners", count: 8 },
-    { name: "Managers", count: 4 },
-    { name: "Inventory", count: 4 },
-  ];
-
-  const menuData = [
-    { item: "Burger", orders: 240 },
-    { item: "Pizza", orders: 180 },
-    { item: "Pasta", orders: 90 },
-    { item: "Drinks", orders: 150 },
-  ];
-
-  const branchData = [
-    { branch: "Delhi", subs: 120 },
-    { branch: "Mumbai", subs: 200 },
-    { branch: "Bangalore", subs: 150 },
-    { branch: "Kolkata", subs: 100 },
-  ];
+  const salesData = SALES_DATA;
+  const employeeData = EMPLOYEE_DATA;
+  const menuData = MENU_DATA;
+  const branchData = BRANCH_DATA;
 
   const profitLossData = [
     { month: "Jan", profit: 30000, loss: 5000 },

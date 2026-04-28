@@ -93,13 +93,6 @@ const InventoryManagerMessages = () => {
     autoSize();
   };
 
-  const onKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
   // --- Group by date for separators ---
   const groupedByDate = useMemo(() => {
     if (!current) return [];

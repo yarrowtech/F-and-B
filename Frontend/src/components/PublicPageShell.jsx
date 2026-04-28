@@ -3,6 +3,8 @@ import { AiOutlineHome } from "react-icons/ai";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 
+void motion;
+
 const PublicPageShell = ({ eyebrow, title, description, children }) => {
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(163,230,53,0.16),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(34,197,94,0.16),_transparent_30%),linear-gradient(180deg,_#f7fee7_0%,_#ffffff_42%,_#ecfdf5_100%)] text-gray-900">

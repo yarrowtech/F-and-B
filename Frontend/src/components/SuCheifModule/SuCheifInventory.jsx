@@ -27,7 +27,9 @@ const SucheifInventory = () => {
         const parsed = JSON.parse(raw);
         return parsed.map(computeDerived);
       }
-    } catch {}
+    } catch (error) {
+      console.warn("Failed to load sucheif inventory from storage", error);
+    }
     return initialInventory.map(computeDerived);
   });
 

@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import PublicPageShell from "../components/PublicPageShell";
 import aboutImage from "../assets/Images/about.jpg";
 
+void motion;
+
 const highlights = [
   {
     title: "Operational clarity",

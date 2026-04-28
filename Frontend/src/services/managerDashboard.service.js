@@ -1,7 +1,8 @@
 import axios from "axios";
 
-const BASE_URL = "http://localhost:5000/api/manager/dashboard";
-const ACCOUNT_HISTORY_URL = "http://localhost:5000/api/manager/account-history";
+const API_URL = import.meta.env.VITE_API_URL || "/api";
+const BASE_URL = `${API_URL}/manager/dashboard`;
+const ACCOUNT_HISTORY_URL = `${API_URL}/manager/account-history`;
 
 export const getManagerDashboard = async (params = {}) => {
   const token = localStorage.getItem("token");

@@ -2,6 +2,8 @@ import React from "react";
 import { motion } from "framer-motion";
 import PublicPageShell from "../components/PublicPageShell";
 
+void motion;
+
 const plansAdmin = [
   { name: "Basic", price: "Rs 1499/mo", features: ["Manage menu", "Order tracking", "Basic analytics"] },
   { name: "Pro", price: "Rs 2499/mo", features: ["Advanced reporting", "Inventory management", "Priority support"] },

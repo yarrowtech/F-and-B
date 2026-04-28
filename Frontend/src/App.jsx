@@ -107,7 +107,7 @@
 
 
 
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -119,60 +119,60 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import { setupSessionActivityTracking } from "./services/session.service";
 
 /* ================= PUBLIC PAGES ================= */
-import Home from "./Pages/Home";
-import About from "./Pages/About";
-import Services from "./Pages/Services";
-import Contact from "./Pages/Contact";
-import Subscription from "./Pages/Subscription";
-import Department from "./Pages/Department";
-import KitchenPage from "./Pages/Kitchen";
-import FloorPage from "./Pages/Floor";
+const Home = lazy(() => import("./Pages/Home"));
+const About = lazy(() => import("./Pages/About"));
+const Services = lazy(() => import("./Pages/Services"));
+const Contact = lazy(() => import("./Pages/Contact"));
+const Subscription = lazy(() => import("./Pages/Subscription"));
+const Department = lazy(() => import("./Pages/Department"));
+const KitchenPage = lazy(() => import("./Pages/Kitchen"));
+const FloorPage = lazy(() => import("./Pages/Floor"));
 
 /* ================= LOGIN PAGES ================= */
-import SuperAdminLogin from "./components/Login/SuperAdminLogin";
-import StaffLogin from "./components/Login/StaffLogin";
+const SuperAdminLogin = lazy(() => import("./components/Login/SuperAdminLogin"));
+const StaffLogin = lazy(() => import("./components/Login/StaffLogin"));
 
 /* ================= DASHBOARDS ================= */
-import Superadmin from "./components/SuperadminModule/SuperAdmin";
-import Admin from "./components/AdminModule/Admin";
-import Vendor from "./components/VendorModule/Vendor";
-import Manager from "./components/ManagerModule/Manager";
-import Chef from "./components/ChefModule/Chef";
-import SuCheif from "./components/SuCheifModule/SuCheif";
-import InventoryManager from "./components/InventoryManagerModule/InventoryManager";
-import Accountant from "./components/AccountantModule/Accountant";
-import Waiter from "./components/WaiterModule/Waiter";
-import Cleaner from "./components/CleanerModule/Cleaner";
+const Superadmin = lazy(() => import("./components/SuperadminModule/SuperAdmin"));
+const Admin = lazy(() => import("./components/AdminModule/Admin"));
+const Vendor = lazy(() => import("./components/VendorModule/Vendor"));
+const Manager = lazy(() => import("./components/ManagerModule/Manager"));
+const Chef = lazy(() => import("./components/ChefModule/Chef"));
+const SuCheif = lazy(() => import("./components/SuCheifModule/SuCheif"));
+const InventoryManager = lazy(() => import("./components/InventoryManagerModule/InventoryManager"));
+const Accountant = lazy(() => import("./components/AccountantModule/Accountant"));
+const Waiter = lazy(() => import("./components/WaiterModule/Waiter"));
+const Cleaner = lazy(() => import("./components/CleanerModule/Cleaner"));
+
+const RouteFallback = () => (
+  <div className="flex min-h-screen items-center justify-center bg-white text-sm font-medium text-gray-500 dark:bg-neutral-900 dark:text-gray-300">
+    Loading...
+  </div>
+);
 
 const App = () => {
   useEffect(() => {
     const cleanupSessionTracking = setupSessionActivityTracking();
-    const isManagerRoute = window.location.pathname.startsWith("/manager");
-
-    if (isManagerRoute) {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("isDark", "false");
-      return cleanupSessionTracking;
-    }
-
+    const savedIsDark = localStorage.getItem("isDark");
     const savedTheme = localStorage.getItem("theme");
-    document.documentElement.classList.toggle(
-      "dark",
-      savedTheme === "dark"
-    );
+    const shouldUseDark =
+      savedIsDark !== null ? savedIsDark === "true" : savedTheme === "dark";
+
+    document.documentElement.classList.toggle("dark", shouldUseDark);
 
     return cleanupSessionTracking;
   }, []);
 
   return (
     <Router>
-      <Routes>
-        {/* ===== PUBLIC ===== */}
-        <Route path="/" element={<Home />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/services" element={<Services />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/subscription" element={<Subscription />} />
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          {/* ===== PUBLIC ===== */}
+          <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/services" element={<Services />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/subscription" element={<Subscription />} />
 
         {/* ===== DEPARTMENTS ===== */}
         <Route path="/department" element={<Department />} />
@@ -286,8 +286,9 @@ const App = () => {
         />
 
         {/* ===== FALLBACK ===== */}
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </Suspense>
     </Router>
   );
 };

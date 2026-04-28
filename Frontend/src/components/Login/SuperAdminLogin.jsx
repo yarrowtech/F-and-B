@@ -30,7 +30,7 @@ export default function SuperAdminLogin() {
   const buttonClass =
     "w-full rounded-full bg-[#4ade80] px-6 py-3 font-bold text-[#140d09] shadow-[0_18px_35px_-20px_rgba(74,222,128,0.85)] transition hover:-translate-y-1 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60";
 
-  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const API_URL = import.meta.env.VITE_API_URL || "/api";
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -82,7 +82,7 @@ export default function SuperAdminLogin() {
       setLoading(true);
       setMessage("");
 
-      const res = await fetch(`${API_BASE}/api/super_admin/forgot-password`, {
+      const res = await fetch(`${API_URL}/super_admin/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: formData.resetEmail }),

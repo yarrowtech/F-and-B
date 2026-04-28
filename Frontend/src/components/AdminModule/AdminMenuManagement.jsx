@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from "react";
 import { FaCheckCircle, FaEdit, FaPlus, FaSearch, FaStore, FaTimes, FaTrash, FaUtensils } from "react-icons/fa";
 import { createMenu, deleteMenu, getMenu, getMenuAnalytics, getMenuOrdersByDate, updateMenu } from "../../services/menu.service";

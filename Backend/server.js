@@ -1037,6 +1037,7 @@ import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 import http from "http";
+import helmet from "helmet";
 // import helmet from "helmet"; // ❌ temporarily disabled
 
 import { apiLimiter } from "./middlewares/rateLimit.js";
@@ -1076,8 +1077,20 @@ dotenv.config();
 const app = express();
 
 /* ================= CORS (FINAL FIX) ================= */
+const allowedOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_URL || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const corsOptions = {
-  origin: "http://localhost:5173",
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -1089,7 +1102,7 @@ app.use(
 app.options(/.*/, cors(corsOptions));
 
 /* ================= SECURITY ================= */
-// app.use(helmet()); // disabled for now
+app.use(helmet());
 app.use(apiLimiter);
 
 /* ================= GLOBAL ================= */

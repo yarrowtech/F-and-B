@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import { FaArrowRight, FaPlay } from "react-icons/fa";
 import tableImage from "../assets/Images/resturent.jpg";
 
+void motion;
+
 const floatingTags = [
   { label: "Fresh", top: "10%", left: "12%" },
   { label: "Fast", top: "58%", left: "14%" },

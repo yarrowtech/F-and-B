@@ -2,7 +2,7 @@ import axios from "axios";
 
 const API =
   import.meta.env.VITE_API_URL ||
-  "http://localhost:5000/api";
+  "/api";
 
 const instance = axios.create({
   baseURL: API,
@@ -209,7 +209,7 @@ export const exportFullMonthDetailed = async (
 
     await exportAttendanceExcel(startDate, endDate);
 
-  } catch (error) {
+  } catch {
     throw "Full month export failed";
   }
 };

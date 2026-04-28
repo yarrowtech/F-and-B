@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import API from "../../services/api";
 
+void motion;
+
 const shellCard =
   "rounded-xl border border-white/50 bg-white/80 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.45)] backdrop-blur dark:border-white/10 dark:bg-[#171c25]";
 
@@ -33,7 +35,7 @@ const SummaryCard = ({ title, value, subtext, icon: Icon, accent }) => (
       <div
         className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${accent}`}
       >
-        <Icon size={22} />
+        {React.createElement(Icon, { size: 22 })}
       </div>
     </div>
   </motion.div>

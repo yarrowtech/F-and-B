@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getMyProfile } from "../../services/employee.service";
 
-/* ================= HELPERS ================= */
-const cn = (...xs) => xs.filter(Boolean).join(" ");
-
 const InfoCard = ({ label, value }) => (
   <div className="rounded-xl border bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
     <p className="text-sm text-neutral-500 dark:text-neutral-300">{label}</p>

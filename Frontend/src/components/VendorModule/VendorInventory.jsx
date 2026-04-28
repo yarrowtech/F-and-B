@@ -730,19 +730,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 
 const VendorInventory = () => {
-  /* --------------------------- Theme (Dark/Light) -------------------------- */
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem("isDark");
-    return saved !== null
-      ? saved === "true"
-      : window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
-
-  useEffect(() => {
-    localStorage.setItem("isDark", darkMode);
-    document.documentElement.classList.toggle("dark", darkMode);
-  }, [darkMode]);
-
   /* ---------------------------- Products (store) --------------------------- */
   const [products, setProducts] = useState(() => {
     const saved = localStorage.getItem("products");

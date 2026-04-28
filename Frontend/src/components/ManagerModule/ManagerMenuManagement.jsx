@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from "react";
 import { FaCheckCircle, FaEdit, FaSearch, FaStore, FaTimes, FaUtensils } from "react-icons/fa";
 import { getMenu, getMenuAnalytics, getMenuOrdersByDate, updateMenu } from "../../services/menu.service";
@@ -175,7 +176,7 @@ export default function ManagerMenuManagement() {
                   />
                 </div>
                 <div className="inline-flex items-center rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-                  Restaurant locked for manager
+                  {assignedRestaurantName}
                 </div>
               </div>
             </div>
