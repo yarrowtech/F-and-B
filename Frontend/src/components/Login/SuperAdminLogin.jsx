@@ -123,7 +123,7 @@ export default function SuperAdminLogin() {
 
             <div className="relative">
               <p className="text-sm uppercase tracking-[0.28em] text-[#4ade80]">
-                EF&amp;B-M
+                EFNBMMS
               </p>
               <h1 className="mt-5 text-5xl font-black leading-tight text-white">
                 Super admin control with a cleaner access screen
@@ -153,7 +153,7 @@ export default function SuperAdminLogin() {
                 Back
               </button>
               <span className="text-sm font-semibold uppercase tracking-[0.22em] text-[#4ade80]">
-                EF&amp;B-M
+                EFNBMMS
               </span>
             </div>
 

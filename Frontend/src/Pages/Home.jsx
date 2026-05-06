@@ -129,7 +129,7 @@ const Home = () => {
                 </h2>
               </div>
               <p className="max-w-3xl text-lg leading-8 text-white/66 lg:justify-self-end">
-                EF&B-M brings staff, stock, kitchen, vendor, account, and reporting workflows into a single operating layer so every department sees what matters.
+                EFNBMMS brings staff, stock, kitchen, vendor, account, and reporting workflows into a single operating layer so every department sees what matters.
               </p>
             </div>
 
@@ -281,7 +281,7 @@ const Home = () => {
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
             <h3 className="text-2xl font-black text-white">
-              EF<span className="text-[#4ade80]">&amp;</span>B-M
+              EFNBMMS
             </h3>
             <p className="mt-2 max-w-xl text-sm leading-6 text-white/55">
               A connected restaurant operations platform for teams, inventory, kitchen workflow, and business visibility.
@@ -294,7 +294,7 @@ const Home = () => {
               <p>info@fnb-solutions.com</p>
               <p>+91 98305 90929</p>
               <p>3A, Bertram St, Esplanade, Dharmatala, Taltala, Kolkata, West Bengal 700087</p>
-              <p>(c) 2026 EF&amp;B-M. All rights reserved.</p>
+              <p>(c) 2026 EFNBMMS. All rights reserved.</p>
             </div>
           </div>
 
@@ -306,7 +306,7 @@ const Home = () => {
               </p>
             </div>
             <iframe
-              title="EF&B-M location"
+              title="EFNBMMS location"
               src="https://www.google.com/maps?q=3A,+Bertram+St,+Esplanade,+Dharmatala,+Taltala,+Kolkata,+West+Bengal+700087&output=embed"
               className="h-[260px] w-full rounded-[1.2rem] border-0"
               loading="lazy"

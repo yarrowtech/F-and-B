@@ -115,11 +115,11 @@ import {
   Navigate,
 } from "react-router-dom";
 
+import Home from "./Pages/Home";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { setupSessionActivityTracking } from "./services/session.service";
 
 /* ================= PUBLIC PAGES ================= */
-const Home = lazy(() => import("./Pages/Home"));
 const About = lazy(() => import("./Pages/About"));
 const Services = lazy(() => import("./Pages/Services"));
 const Contact = lazy(() => import("./Pages/Contact"));

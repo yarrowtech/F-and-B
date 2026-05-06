@@ -60,24 +60,41 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
 
   useEffect(() => {
     const sectionIds = navLinks.map((link) => link.sectionId);
+    let animationFrameId = 0;
+
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+      if (animationFrameId) return;
 
-      if (!isHomePage) return;
+      animationFrameId = window.requestAnimationFrame(() => {
+        animationFrameId = 0;
+        const nextIsScrolled = window.scrollY > 20;
+        setIsScrolled((current) =>
+          current === nextIsScrolled ? current : nextIsScrolled
+        );
 
-      const currentSection =
-        sectionIds.findLast((sectionId) => {
-          const section = document.getElementById(sectionId);
-          if (!section) return false;
-          return section.getBoundingClientRect().top <= 130;
-        }) || "hero";
+        if (!isHomePage) return;
 
-      setActiveSection(currentSection);
+        const currentSection =
+          sectionIds.findLast((sectionId) => {
+            const section = document.getElementById(sectionId);
+            if (!section) return false;
+            return section.getBoundingClientRect().top <= 130;
+          }) || "hero";
+
+        setActiveSection((current) =>
+          current === currentSection ? current : currentSection
+        );
+      });
     };
 
     handleScroll();
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (animationFrameId) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, [isHomePage]);
 
   const handleDashboard = () => {
@@ -128,32 +145,30 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
     setIsMenuOpen(false);
   };
 
-  const shellClass = isScrolled
-    ? "border-[#4ade80]/20 bg-[#17100d]/88 shadow-[0_18px_50px_-24px_rgba(74,222,128,0.3)] backdrop-blur-xl"
-    : "border-white/10 bg-[#120d0b]/72 backdrop-blur-md";
+  const navShellClass = isLandingLight
+    ? "border-emerald-900/10 bg-white/82 text-emerald-950 shadow-[0_18px_48px_-28px_rgba(20,83,45,0.45)]"
+    : "border-[#6fbd58]/32 bg-[#174914]/88 text-white shadow-[0_18px_48px_-28px_rgba(74,222,128,0.45)]";
+  const loginButtonClass = isLandingLight
+    ? "bg-emerald-950 text-white hover:bg-[#39a84a]"
+    : "bg-white/74 text-[#174914] hover:bg-white";
+  const headerTextClass = isLandingLight ? "text-emerald-950" : "text-white";
 
   return (
-    <header className="fixed top-0 z-50 w-full px-4 pt-4 md:px-8">
-      <div className={`mx-auto max-w-7xl rounded-full border ${shellClass} transition-all duration-300`}>
-        <div className="flex h-16 items-center justify-between px-5 md:px-7">
+    <header className={`fixed top-0 z-50 w-full px-4 pt-3 transition-all duration-300 md:px-8 lg:pt-4 ${isScrolled ? "backdrop-blur-sm" : ""}`}>
+      <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-4">
           <Link
             to="/"
-            className="flex items-center gap-3 transition duration-300 hover:scale-[1.02]"
+            className="flex min-w-[96px] flex-col items-center transition duration-300 hover:scale-[1.02] md:min-w-[128px]"
           >
-            <div className="grid h-11 w-11 place-items-center rounded-full bg-[#4ade80] font-bold text-[#140d09] shadow-[0_0_35px_rgba(74,222,128,0.35)]">
-              F
-            </div>
-            <div className="leading-none">
-              <span className="block text-lg font-black tracking-wide text-white">
-                EF<span className="text-[#4ade80]">&amp;</span>B-M
+            <span className="mb-1 h-9 w-9 rounded-full bg-[#6fbd58] shadow-[0_0_30px_rgba(111,189,88,0.3)] md:h-11 md:w-11" />
+            <span className="leading-none">
+              <span className="block text-xl font-black tracking-wide text-[#7fc84f] md:text-2xl">
+                EFNBM
               </span>
-              <span className="text-[10px] uppercase tracking-[0.28em] text-white/45">
-                Restaurant ERP
-              </span>
-            </div>
+            </span>
           </Link>
 
-          <nav className="hidden items-center gap-2 md:flex">
+          <nav className={`absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 rounded-full border px-4 py-2.5 backdrop-blur-xl md:flex lg:gap-2 lg:px-6 ${navShellClass}`}>
             {navLinks.map(({ to, label, sectionId }) => {
               const isActive = isHomePage && activeSection === sectionId;
 
@@ -162,33 +177,35 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
                   key={label}
                   to={to}
                   onClick={(event) => handleNavClick(event, sectionId)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
+                  className={`rounded-full px-2.5 py-1 text-base font-semibold transition-all duration-300 lg:px-3 lg:text-lg ${
                     isActive
-                      ? "bg-[#4ade80] text-[#140d09] shadow-[0_0_30px_rgba(74,222,128,0.35)]"
-                      : "text-white/78 hover:bg-white/8 hover:text-[#4ade80]"
+                      ? "text-[#93d36c]"
+                      : `${headerTextClass} hover:text-[#93d36c]`
                   }`}
                 >
                   {label}
                 </Link>
               );
             })}
+          </nav>
 
+          <div className="hidden items-center gap-3 md:flex">
             {user ? (
-              <div className="ml-3 flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 {displayName ? (
-                  <span className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm font-medium text-white/90">
+                  <span className={`rounded-full border px-4 py-3 text-sm font-medium ${isLandingLight ? "border-emerald-900/10 bg-white/75 text-emerald-950" : "border-white/10 bg-white/6 text-white/90"}`}>
                     {displayName}
                   </span>
                 ) : null}
                 <button
                   onClick={handleDashboard}
-                  className="rounded-full bg-[#4ade80] px-4 py-2 text-sm font-semibold text-[#140d09] transition hover:brightness-110"
+                  className="rounded-full bg-[#4ade80] px-5 py-3 text-sm font-semibold text-[#140d09] transition hover:brightness-110"
                 >
                   Dashboard
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="rounded-full border border-red-400/25 bg-red-500/12 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/20"
+                  className="rounded-full border border-red-400/25 bg-red-500/12 px-5 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/20"
                 >
                   Logout
                 </button>
@@ -196,7 +213,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
             ) : (
               <button
                 onClick={() => navigate("/login")}
-                className="ml-3 rounded-full border border-[#4ade80]/35 bg-[#4ade80]/10 px-5 py-2 text-sm font-semibold text-[#4ade80] transition hover:bg-[#4ade80] hover:text-[#140d09]"
+                className={`rounded-full px-7 py-3 text-lg font-semibold uppercase tracking-wide transition lg:px-8 lg:text-xl ${loginButtonClass}`}
               >
                 Login
               </button>
@@ -206,20 +223,29 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
               <button
                 type="button"
                 onClick={onLandingThemeToggle}
-                className="ml-1 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/6 text-white/85 transition hover:border-[#4ade80]/35 hover:text-[#4ade80]"
+                className={`inline-flex h-11 w-11 items-center justify-center rounded-full border text-base transition lg:h-12 lg:w-12 ${
+                  isLandingLight
+                    ? "border-emerald-900/10 bg-white/82 text-emerald-950 hover:bg-emerald-950 hover:text-white"
+                    : "border-white/10 bg-white/12 text-white/85 hover:border-[#4ade80]/35 hover:text-[#4ade80]"
+                }`}
                 title={isLandingLight ? "Switch to dark mode" : "Switch to light mode"}
                 aria-label={isLandingLight ? "Switch to dark mode" : "Switch to light mode"}
               >
                 {isLandingLight ? <FaMoon /> : <FaSun />}
               </button>
             )}
-          </nav>
+          </div>
 
           <button
             onClick={() => setIsMenuOpen((prev) => !prev)}
-            className="text-white transition hover:text-[#4ade80] md:hidden"
+            className={`rounded-full border p-2.5 transition hover:text-[#4ade80] md:hidden ${
+              isLandingLight
+                ? "border-emerald-900/10 bg-white/80 text-emerald-950"
+                : "border-white/10 bg-black/30 text-white"
+            }`}
+            aria-label="Toggle navigation"
           >
-            <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {isMenuOpen ? (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               ) : (
@@ -227,14 +253,13 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
               )}
             </svg>
           </button>
-        </div>
 
         <div
-          className={`overflow-hidden transition-all duration-500 md:hidden ${
+          className={`absolute left-4 right-4 top-20 overflow-hidden rounded-3xl border backdrop-blur-xl transition-all duration-500 md:hidden ${
             isMenuOpen ? "max-h-screen opacity-100" : "max-h-0 opacity-0"
-          }`}
+          } ${isLandingLight ? "border-emerald-900/10 bg-white/90" : "border-white/10 bg-[#174914]/92"}`}
         >
-          <nav className="border-t border-white/10 px-5 py-5">
+          <nav className="px-5 py-5">
             <ul className="flex flex-col gap-3">
               {navLinks.map(({ to, label, sectionId }) => (
                 <li key={label}>
@@ -244,7 +269,9 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
                     className={`block rounded-full border px-4 py-2 text-center text-sm transition ${
                       isHomePage && activeSection === sectionId
                         ? "border-[#4ade80]/40 bg-[#4ade80] text-[#140d09]"
-                        : "border-white/8 bg-white/6 text-white/85 hover:text-[#4ade80]"
+                        : isLandingLight
+                          ? "border-emerald-900/10 bg-white/60 text-emerald-950 hover:text-[#39a84a]"
+                          : "border-white/8 bg-white/6 text-white/85 hover:text-[#4ade80]"
                     }`}
                   >
                     {label}
@@ -259,7 +286,11 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
                       onLandingThemeToggle();
                       setIsMenuOpen(false);
                     }}
-                    className="mb-3 flex w-full items-center justify-center gap-2 rounded-full border border-white/8 bg-white/6 px-4 py-2 text-center text-sm font-semibold text-white/85"
+                    className={`mb-3 flex w-full items-center justify-center gap-2 rounded-full border px-4 py-2 text-center text-sm font-semibold ${
+                      isLandingLight
+                        ? "border-emerald-900/10 bg-white/60 text-emerald-950"
+                        : "border-white/8 bg-white/6 text-white/85"
+                    }`}
                   >
                     {isLandingLight ? <FaMoon /> : <FaSun />}
                     {isLandingLight ? "Dark Mode" : "Light Mode"}
@@ -291,7 +322,11 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
                       setIsMenuOpen(false);
                       navigate("/login");
                     }}
-                    className="w-full rounded-full border border-[#4ade80]/35 bg-[#4ade80]/10 px-5 py-2 text-sm font-semibold text-[#4ade80]"
+                    className={`w-full rounded-full px-5 py-3 text-sm font-semibold uppercase ${
+                      isLandingLight
+                        ? "bg-emerald-950 text-white"
+                        : "bg-white/80 text-[#174914]"
+                    }`}
                   >
                     Login
                   </button>

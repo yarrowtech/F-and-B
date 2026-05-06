@@ -1,6 +1,111 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+@keyframes hero-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes hero-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+.hero-reveal {
+  animation: hero-reveal 520ms ease both;
+  will-change: opacity, transform;
+}
+
+.hero-orbit {
+  animation: hero-orbit 28s linear infinite;
+  will-change: transform;
+}
+
+.hero-float {
+  animation: hero-float 5.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+.landing-light .hero-image-overlay {
+  background:
+    radial-gradient(circle at 66% 42%, rgba(84, 166, 52, 0.22), transparent 34%),
+    linear-gradient(
+      90deg,
+      rgba(247, 250, 244, 0.96) 0%,
+      rgba(247, 250, 244, 0.8) 39%,
+      rgba(247, 250, 244, 0.2) 72%,
+      rgba(247, 250, 244, 0.82) 100%
+    ) !important;
+}
+
+.landing-light .hero-bottom-shade {
+  background: linear-gradient(to top, rgba(247, 250, 244, 0.98), rgba(247, 250, 244, 0.7), transparent) !important;
+}
+
+.landing-light .hero-kicker,
+.landing-light .hero-copy,
+.landing-light .hero-stat-label {
+  color: #172019 !important;
+}
+
+.landing-light .hero-title {
+  color: #2f7d2f !important;
+}
+
+.landing-light .hero-stat-value {
+  color: rgba(23, 32, 25, 0.72) !important;
+}
+
+.landing-light .hero-cta {
+  background-color: #2f9e44 !important;
+  color: #071307 !important;
+}
+
+.hero-image-overlay {
+  background:
+    radial-gradient(circle at 66% 42%, rgba(78, 180, 54, 0.24), transparent 34%),
+    linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.96) 0%,
+      rgba(0, 0, 0, 0.75) 40%,
+      rgba(0, 0, 0, 0.36) 70%,
+      rgba(0, 0, 0, 0.88) 100%
+    );
+}
+
+.hero-bottom-shade {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.98), rgba(0, 0, 0, 0.72), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-reveal,
+  .hero-orbit,
+  .hero-float {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .dark .admin-dark-scope {
   background-color: #111827 !important;
   color: #e5e7eb;

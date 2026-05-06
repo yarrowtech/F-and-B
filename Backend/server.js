@@ -1171,7 +1171,7 @@ app.use("/api/inventory-dashboard", inventoryDashboardRoutes);
 
 /* ================= HEALTH ================= */
 app.get("/", (req, res) => {
-  res.send("✅ EF&B-M Backend is running");
+  res.send("✅ EFNBMMS Backend is running");
 });
 
 /* ================= 404 ================= */
