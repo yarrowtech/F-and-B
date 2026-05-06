@@ -2,16 +2,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import { FaBars, FaCogs, FaEnvelope, FaBell } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
-import Sidebar from "./SucheifSidebar";
-import SettingsPage from "./SucheifSettings";
+import Sidebar from "./SuCheifSidebar";
+import SettingsPage from "./SuCheifSettings";
 import SucheifNotes from "./SucheifNotes";
-import SucheifProfile from "./SucheifProfile";
-import SucheifAttendance from "./SucheifAttendance";
-import SucheifInventory from "./SucheifInventory";
-import SucheifMessage from "./SucheifMessage";
-import SucheifDashboard from "./SucheifDashboard";
-import SucheifNotification from "./SucheifNotification";
-import SucheifManagement from "./SucheifManagement";
+import SucheifProfile from "./SuCheifProfile";
+import SucheifAttendance from "./SuCheifAttendance";
+import SucheifInventory from "./SuCheifInventory";
+import SucheifMessage from "./SuCheifMessage";
+import SucheifDashboard from "./SuCheifDashboard";
+import SucheifNotification from "./SuCheifNotification";
+import SucheifManagement from "./SuCheifManagement";
 
 const Placeholder = ({ title }) => (
   <div className="p-6 text-green-800 dark:text-green-200">

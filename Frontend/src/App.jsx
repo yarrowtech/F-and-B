@@ -133,7 +133,7 @@ const SuperAdminLogin = lazy(() => import("./components/Login/SuperAdminLogin"))
 const StaffLogin = lazy(() => import("./components/Login/StaffLogin"));
 
 /* ================= DASHBOARDS ================= */
-const Superadmin = lazy(() => import("./components/SuperadminModule/SuperAdmin"));
+const Superadmin = lazy(() => import("./components/SuperadminModule/Superadmin"));
 const Admin = lazy(() => import("./components/AdminModule/Admin"));
 const Vendor = lazy(() => import("./components/VendorModule/Vendor"));
 const Manager = lazy(() => import("./components/ManagerModule/Manager"));
