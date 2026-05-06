@@ -49,7 +49,7 @@
 
 
 import express from "express";
-import tableController from "../controllers/table.controller.js";
+import tableController from "../controllers/table.Controller.js";
 import auth from "../middlewares/auth.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
 
