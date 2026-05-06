@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "server": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "seed": "node seeds.js",
+    "reset:super-admin": "node scripts/resetSuperAdminCredentials.js",
+    "delete:super-admin": "node scripts/deleteSuperAdmin.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

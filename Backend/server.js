@@ -1048,7 +1048,6 @@ import { logAction, logError } from "./utils/logger.js";
 
 /* ================= ROUTES ================= */
 import superAdminRoutes from "./routes/superAdmin.Routes.js";
-import { createSuperAdmin } from "./utils/createSuperAdmin.js";
 
 import adminRoutes from "./routes/admin.Routes.js";
 import vendorRoutes from "./routes/vendor.Routes.js";
@@ -1128,9 +1127,8 @@ app.use(async (req, res, next) => {
 /* ================= MONGODB ================= */
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(async () => {
+  .then(() => {
     console.log("✅ MongoDB connected");
-    await createSuperAdmin();
   })
   .catch((err) => {
     console.error("❌ MongoDB error:", err.message);
