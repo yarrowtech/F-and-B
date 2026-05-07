@@ -118,19 +118,27 @@ const handleDelete = async (id) => {
   const selectedRestaurantName = restaurants.find((r) => r._id === selectedRestaurant)?.name || "";
 
   return (
-    <div className="p-4 sm:p-6 min-h-screen bg-gray-50 dark:bg-gray-900 overflow-x-hidden">
+    <div className="min-h-screen overflow-x-hidden bg-gray-50 p-3 dark:bg-gray-900 sm:p-4 lg:p-6">
 
       {/* ── HEADER ROW ── */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">
-          Table Management
-        </h1>
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-600 dark:text-green-400">
+            Admin
+          </p>
+          <h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
+            Table Management
+          </h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Create and manage dining tables for each restaurant.
+          </p>
+        </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+        <div className="grid w-full gap-3 sm:grid-cols-[1fr_auto] lg:w-auto">
           <select
             value={selectedRestaurant}
             onChange={(e) => setSelectedRestaurant(e.target.value)}
-            className="w-full sm:w-auto border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white px-4 py-3 rounded-lg shadow-sm text-base sm:text-lg font-medium focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="min-h-11 w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white sm:w-auto"
           >
             <option value="">-- Select Restaurant --</option>
             {restaurants.map((r) => (
@@ -141,7 +149,7 @@ const handleDelete = async (id) => {
           {selectedRestaurant && (
             <button
               onClick={openAddModal}
-              className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg shadow-sm text-base font-semibold transition-colors"
+              className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
             >
               <span className="text-xl leading-none">+</span> Add Table
             </button>
@@ -151,7 +159,7 @@ const handleDelete = async (id) => {
 
       {/* ── RESTAURANT LABEL ── */}
       {selectedRestaurantName && (
-        <p className="text-base text-gray-500 dark:text-gray-400 mb-4">
+        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
           Showing tables for{" "}
           <span className="font-semibold text-gray-700 dark:text-gray-200">{selectedRestaurantName}</span>
         </p>
@@ -159,14 +167,48 @@ const handleDelete = async (id) => {
 
       {/* ── TABLE LIST ── */}
       {selectedRestaurant ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-700 text-base text-gray-500 dark:text-gray-400 font-medium">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="border-b border-gray-100 px-4 py-3 text-sm font-medium text-gray-500 dark:border-gray-700 dark:text-gray-400 sm:px-5">
             {loadingTables ? "Loading tables…" : `Total tables: ${tables.length}`}
           </div>
 
-          <div className="overflow-x-auto">
-          <table className="min-w-[640px] w-full text-base">
-            <thead className="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 uppercase text-sm tracking-wide">
+          <div className="grid gap-3 p-3 md:hidden">
+            {tables.length === 0 && !loadingTables ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-400 dark:border-gray-700 dark:text-gray-500">
+                No tables found for this restaurant
+              </div>
+            ) : (
+              tables.map((t) => (
+                <article key={t._id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Table</p>
+                      <h2 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">T{t.tableNumber}</h2>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      t.status === "available"
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                        : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                    }`}>
+                      {t.status === "available" ? "Free" : "Occupied"}
+                    </span>
+                  </div>
+                  <div className="mt-4 rounded-xl bg-gray-50 p-3 dark:bg-gray-900/40">
+                    <p className="text-xs text-gray-400">Capacity</p>
+                    <p className="mt-1 text-base font-semibold text-gray-800 dark:text-gray-100">{t.capacity} seats</p>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button onClick={() => openEditModal(t)} className="rounded-xl bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">Edit</button>
+                    <button onClick={() => setDeleteTarget(t)} className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 dark:bg-red-900/20 dark:text-red-400">Delete</button>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+          <table className="min-w-[640px] w-full text-sm">
+            <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-700 dark:text-gray-300">
               <tr>
                 <th className="px-6 py-4 text-left font-semibold">Table No</th>
                 <th className="px-6 py-4 text-left font-semibold">Capacity</th>
@@ -178,12 +220,12 @@ const handleDelete = async (id) => {
               {tables.map((t) => (
                 <tr
                   key={t._id}
-                  className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+                  className="border-t border-gray-100 transition-colors hover:bg-gray-50 dark:border-gray-700"
                 >
-                  <td className="px-6 py-4 font-bold text-gray-800 dark:text-gray-100 text-lg">
+                  <td className="px-6 py-4 text-base font-bold text-gray-800 dark:text-gray-100">
                     T{t.tableNumber}
                   </td>
-                  <td className="px-6 py-4 text-gray-600 dark:text-gray-300 text-base">
+                  <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
                     {t.capacity}
                   </td>
                   <td className="px-6 py-4">
@@ -197,16 +239,16 @@ const handleDelete = async (id) => {
                       {t.status === "available" ? "Free" : "Occupied"}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right space-x-4">
+                  <td className="space-x-4 px-6 py-4 text-right">
                     <button
                       onClick={() => openEditModal(t)}
-                      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-semibold text-base"
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => setDeleteTarget(t)}
-                      className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-semibold text-base"
+                      className="text-sm font-semibold text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                     >
                       Delete
                     </button>
@@ -274,18 +316,18 @@ const handleDelete = async (id) => {
               </span>
             </div>
 
-            <div className="flex gap-3 pt-1">
+            <div className="grid grid-cols-2 gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="rounded-xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg text-base font-semibold disabled:opacity-60 transition-colors"
+                className="rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-60"
               >
                 {loading ? "Saving…" : "Save"}
               </button>
@@ -328,7 +370,7 @@ const handleDelete = async (id) => {
               <label className="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 Status
               </label>
-              <div className="flex gap-6">
+            <div className="grid gap-3 sm:grid-cols-2">
                 <label className="flex items-center gap-2.5 cursor-pointer">
                   <input
                     type="radio"
@@ -354,18 +396,18 @@ const handleDelete = async (id) => {
               </div>
             </div>
 
-            <div className="flex gap-3 pt-1">
+            <div className="grid grid-cols-2 gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => { setShowEditModal(false); setEditId(null); }}
-                className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="rounded-xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg text-base font-semibold disabled:opacity-60 transition-colors"
+                className="rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-60"
               >
                 {loading ? "Saving…" : "Update"}
               </button>
@@ -399,10 +441,10 @@ const handleDelete = async (id) => {
         This action cannot be undone.
       </p>
 
-      <div className="flex gap-3 pt-3">
+      <div className="grid grid-cols-2 gap-3 pt-3">
         <button
           onClick={() => setDeleteTarget(null)}
-          className="flex-1 py-2 border rounded-lg text-gray-600"
+          className="rounded-xl border py-2 text-sm font-medium text-gray-600"
         >
           Cancel
         </button>
@@ -412,7 +454,7 @@ const handleDelete = async (id) => {
             handleDelete(deleteTarget._id);
             setDeleteTarget(null);
           }}
-          className="flex-1 py-2 bg-red-600 text-white rounded-lg"
+          className="rounded-xl bg-red-600 py-2 text-sm font-semibold text-white"
         >
           Delete
         </button>
@@ -428,14 +470,14 @@ const handleDelete = async (id) => {
 
 /* ══════════════ MODAL WRAPPER ══════════════ */
 const Modal = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center">
+  <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-    <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-7 z-10">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-800 dark:text-white">{title}</h2>
+    <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl dark:bg-gray-800 sm:mx-4 sm:max-w-md sm:rounded-2xl sm:p-7">
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <h2 className="text-lg font-bold text-gray-800 dark:text-white sm:text-xl">{title}</h2>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl leading-none"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-2xl leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
         >
           ×
         </button>

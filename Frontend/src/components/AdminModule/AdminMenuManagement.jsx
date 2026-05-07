@@ -17,16 +17,16 @@ const ORDER_FILTERS = [
 ];
 
 const Modal = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
     <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" onClick={onClose} />
-    <div className="relative z-10 max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200">
-      <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-        <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
+    <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white shadow-2xl ring-1 ring-slate-200 sm:max-w-2xl sm:rounded-3xl">
+      <div className="sticky top-0 flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4 sm:items-center sm:px-6">
+        <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">{title}</h2>
         <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
           <FaTimes />
         </button>
       </div>
-      <div className="px-6 py-6">{children}</div>
+      <div className="px-5 py-5 sm:px-6 sm:py-6">{children}</div>
     </div>
   </div>
 );
@@ -330,7 +330,7 @@ export default function AdminMenuManagement() {
         </div>
         <div className="space-y-3">
           {ingredients.map((ing, idx) => (
-            <div key={idx} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1.4fr_0.7fr_0.35fr_auto]">
+            <div key={idx} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1.4fr_0.7fr] lg:grid-cols-[1.4fr_0.7fr_0.35fr_auto]">
               <select value={ing.itemId} onChange={(e) => updateIngredient(idx, "itemId", e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-400">
                 <option value="">Select ingredient</option>
                 {inventoryItems.map((inv) => <option key={inv._id} value={inv._id}>{inv.name}</option>)}
@@ -347,7 +347,7 @@ export default function AdminMenuManagement() {
         </div>
       </div>
 
-      <div className="flex gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <button type="button" onClick={() => { setShowAddModal(false); setShowEditModal(false); setEditingId(null); }} className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
           Cancel
         </button>
@@ -359,16 +359,16 @@ export default function AdminMenuManagement() {
   );
 
   return (
-    <div className="admin-dark-scope min-h-screen bg-slate-50 p-4 sm:p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="grid gap-4 md:grid-cols-3">
+    <div className="admin-dark-scope min-h-screen bg-slate-50 p-3 sm:p-4 lg:p-6">
+      <div className="mx-auto max-w-7xl space-y-5 sm:space-y-6">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Total Dishes</p><p className="mt-3 text-2xl font-bold text-slate-900">{menus.length}</p></div><div className="rounded-2xl bg-slate-100 p-3 text-slate-700"><FaUtensils /></div></div></div>
           <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Available</p><p className="mt-3 text-2xl font-bold text-slate-900">{availableCount}</p></div><div className="rounded-2xl bg-emerald-50 p-3 text-emerald-700"><FaCheckCircle /></div></div></div>
           <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Unavailable</p><p className="mt-3 text-2xl font-bold text-slate-900">{menus.length - availableCount}</p></div><div className="rounded-2xl bg-slate-100 p-3 text-slate-700"><FaStore /></div></div></div>
         </div>
 
         <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
             <button onClick={() => setViewTab("menu")} className={`rounded-2xl px-5 py-3 text-sm font-semibold ${viewTab === "menu" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>
               Menu List
             </button>
@@ -379,7 +379,7 @@ export default function AdminMenuManagement() {
         </div>
 
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <div className={`grid gap-4 ${viewTab === "menu" ? "xl:grid-cols-[280px_1fr_auto]" : "xl:grid-cols-[280px_1fr]"}`}>
+          <div className={`grid gap-3 ${viewTab === "menu" ? "xl:grid-cols-[280px_1fr_auto]" : "xl:grid-cols-[280px_1fr]"}`}>
             <select value={selectedRestaurant} onChange={(e) => setSelectedRestaurant(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white">
               <option value="">Select Restaurant</option>
               {restaurants.map((r) => <option key={r._id} value={r._id}>{r.name}</option>)}
@@ -405,7 +405,7 @@ export default function AdminMenuManagement() {
 
         {viewTab === "menu" && selectedRestaurant && menus.length > 0 && (
           <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
               <button onClick={() => setActiveTab("all")} className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === "all" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>All ({menus.length})</button>
               {cuisines.map((c) => <button key={c} onClick={() => setActiveTab(`cuisine:${c}`)} className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === `cuisine:${c}` ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700"}`}>{c}</button>)}
               {courseTypes.map((c) => <button key={c} onClick={() => setActiveTab(`course:${c}`)} className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === `course:${c}` ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700"}`}>{c}</button>)}
@@ -424,7 +424,54 @@ export default function AdminMenuManagement() {
           <div className="flex min-h-[260px] items-center justify-center rounded-3xl bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">No menu items match the current filter.</div>
         ) : (
           <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
-            <div className="overflow-x-auto">
+            <div className="grid gap-3 p-3 md:hidden">
+              {filteredMenus.map((item) => (
+                <article key={item._id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="truncate text-base font-semibold text-slate-900">{item.name}</h2>
+                      <p className="mt-1 text-sm font-semibold text-emerald-700">Rs. {item.price}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${item.isAvailable ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}>
+                      {item.isAvailable ? "Available" : "Unavailable"}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{item.cuisine || "-"}</span>
+                    <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">{item.courseType || "-"}</span>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(item.ingredients || []).length > 0 ? (
+                      (item.ingredients || []).slice(0, 2).map((ing, idx) => (
+                        <span key={idx} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                          {ing.item?.name || "Ingredient"} | {ing.quantity}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-sm text-slate-400">No ingredients</span>
+                    )}
+                    {(item.ingredients || []).length > 2 && (
+                      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                        +{item.ingredients.length - 2} more
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button onClick={() => openEditModal(item)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white">
+                      <FaEdit /> Edit
+                    </button>
+                    <button onClick={() => setDeleteTarget(item)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+                      <FaTrash /> Delete
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-100">
                   <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -507,7 +554,7 @@ export default function AdminMenuManagement() {
                     className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
                   />
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                   {ORDER_FILTERS.map((filter) => (
                     <button key={filter.key} onClick={() => setOrdersFilter(filter.key)} className={`rounded-2xl px-4 py-3 text-sm font-semibold ${ordersFilter === filter.key ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600"}`}>
                       {filter.label}
@@ -518,7 +565,7 @@ export default function AdminMenuManagement() {
                       type="date"
                       value={selectedOrderDate}
                       onChange={(e) => setSelectedOrderDate(e.target.value)}
-                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white"
+                      className="col-span-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white sm:col-span-1"
                     />
                   )}
                 </div>
@@ -537,7 +584,23 @@ export default function AdminMenuManagement() {
               <div className="flex min-h-[260px] items-center justify-center rounded-3xl bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">No item orders match the search.</div>
             ) : (
               <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
-                <div className="overflow-x-auto">
+                <div className="grid gap-3 p-3 md:hidden">
+                  {filteredOrderAnalytics.map((item, index) => (
+                    <article key={`${item.name}-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h2 className="truncate text-base font-semibold text-slate-900">{item.name}</h2>
+                          <p className="mt-1 text-sm text-slate-500">{item.cuisine || "-"} · {item.courseType || "-"}</p>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-700">
+                          {item.totalOrders}
+                        </span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
                   <table className="min-w-full divide-y divide-slate-200">
                     <thead className="bg-slate-100">
                       <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -576,7 +639,7 @@ export default function AdminMenuManagement() {
                 <p className="mt-1 text-sm text-slate-600">Cuisine: {deleteTarget.cuisine}</p>
                 <p className="mt-1 text-sm text-slate-600">Course: {deleteTarget.courseType}</p>
               </div>
-              <div className="flex gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <button onClick={() => setDeleteTarget(null)} className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
                 <button onClick={() => { handleDelete(deleteTarget._id); setDeleteTarget(null); }} className="flex-1 rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white hover:bg-rose-700">Delete Item</button>
               </div>

@@ -678,25 +678,35 @@ export default function AdminStaffManagement() {
 
   }, [employees, search, roleFilter]);
 
+  const formatRole = (role) => (role ? String(role).replace(/_/g, " ") : "-");
+
   return (
 
-    <div className="admin-dark-scope p-6 bg-gray-50 min-h-screen">
+    <div className="admin-dark-scope min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6">
 
       {/* HEADER */}
 
-      <div className="flex justify-between mb-6 items-center">
-        <h1 className="text-3xl font-bold">
-          Staff Management
-        </h1>
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-600">
+            Admin
+          </p>
+          <h1 className="mt-1 text-2xl font-bold text-gray-900 sm:text-3xl">
+            Staff Management
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Add, edit, reset passwords, and manage staff accounts.
+          </p>
+        </div>
 
-        <div className="flex items-center gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
           <button
             type="button"
             onClick={() => {
               setHistoryOpen(true);
               fetchDeleteHistory();
             }}
-            className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
           >
             History
           </button>
@@ -704,7 +714,7 @@ export default function AdminStaffManagement() {
           <button
             type="button"
             onClick={() => setShowAddForm(true)}
-            className="bg-green-600 hover:bg-green-700 text-white rounded-lg px-5 py-3 text-base font-medium flex items-center gap-2"
+            className="flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 sm:px-5"
           >
             <FaUserPlus /> Add Employee
           </button>
@@ -715,18 +725,18 @@ export default function AdminStaffManagement() {
 
       {showAddForm && (
         <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
           onClick={handleCancelAdd}
           role="dialog"
           aria-modal="true"
           aria-label="Add staff"
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+            className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:max-w-4xl sm:rounded-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <form onSubmit={handleAddEmployee}>
-              <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white z-10">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-4 py-4 sm:px-6">
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-semibold text-gray-800">
                     Add Employee
@@ -742,7 +752,7 @@ export default function AdminStaffManagement() {
                 </button>
               </div>
 
-              <div className="px-6 py-5">
+              <div className="px-4 py-5 sm:px-6">
                 <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">
                   Profile Info
                 </p>
@@ -753,7 +763,7 @@ export default function AdminStaffManagement() {
                   </p>
                 )}
 
-                <div className="grid md:grid-cols-3 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <input
                     ref={nameInputRef}
                     name="name"
@@ -857,7 +867,7 @@ export default function AdminStaffManagement() {
                   </select>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-5">
+                <div className="grid grid-cols-2 gap-3 pt-5 sm:flex sm:justify-end">
                   <button
                     type="button"
                     onClick={handleCancelAdd}
@@ -883,7 +893,7 @@ export default function AdminStaffManagement() {
       {/* EMPLOYEE DETAILS MODAL */}
       {showEmployeeDetails && editingEmployee && (
         <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
           onClick={() => {
             setShowEmployeeDetails(false);
             setEditingEmployee(null);
@@ -893,16 +903,16 @@ export default function AdminStaffManagement() {
           aria-label="Employee details"
         >
           <div
-            className="bg-white rounded-xl shadow w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+            className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:max-w-4xl sm:rounded-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white z-10">
-              <div className="flex items-center gap-2">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-white px-4 py-4 sm:items-center sm:px-6">
+              <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-gray-800">
                   Employee Details
                 </h2>
                 {editingEmployee.employeeId && (
-                  <span className="px-2 py-0.5 rounded font-mono text-xs font-semibold bg-gray-100 text-gray-600">
+                  <span className="mt-1 inline-flex max-w-full rounded bg-gray-100 px-2 py-0.5 font-mono text-xs font-semibold text-gray-600">
                     {editingEmployee.employeeId}
                   </span>
                 )}
@@ -919,7 +929,7 @@ export default function AdminStaffManagement() {
               </button>
             </div>
 
-            <div className="px-6 py-5">
+            <div className="px-4 py-5 sm:px-6">
               {updateMsg && (
                 <p className="text-xs px-3 py-2 rounded-lg bg-green-50 text-green-700 border border-green-200 mb-4">
                   {updateMsg}
@@ -934,7 +944,7 @@ export default function AdminStaffManagement() {
                 Profile Info
               </p>
 
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
                 <input
                   name="name"
@@ -1011,7 +1021,7 @@ export default function AdminStaffManagement() {
                   </p>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-1">
                     <label className="text-sm font-medium text-gray-600">
                       New Password
@@ -1088,7 +1098,7 @@ export default function AdminStaffManagement() {
               </div>
 
               {/* Footer Actions */}
-              <div className="mt-6 flex justify-end gap-3">
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:flex sm:justify-end">
                 <button
                   type="button"
                   onClick={() => {
@@ -1117,17 +1127,17 @@ export default function AdminStaffManagement() {
 
       {/* SEARCH */}
 
-      <div className="mb-4 flex flex-col gap-3 md:flex-row">
+      <div className="mb-4 grid gap-3 md:grid-cols-[1fr_auto]">
 
-        <div className="flex items-center bg-white border rounded-full px-4 flex-1">
+        <div className="flex min-h-12 items-center rounded-2xl border bg-white px-4 shadow-sm">
 
-          <FaSearch className="mr-2"/>
+          <FaSearch className="mr-2 shrink-0 text-gray-400"/>
 
           <input
             placeholder="Search staff..."
             value={search}
             onChange={(e)=>setSearch(e.target.value)}
-            className="w-full outline-none text-lg"
+            className="w-full bg-transparent text-sm outline-none sm:text-base"
           />
 
         </div>
@@ -1135,7 +1145,7 @@ export default function AdminStaffManagement() {
         <select
           value={roleFilter}
           onChange={(e)=>setRoleFilter(e.target.value)}
-          className="w-full border rounded-full px-4 py-2 text-lg md:w-auto"
+          className="min-h-12 w-full rounded-2xl border bg-white px-4 py-2 text-sm shadow-sm outline-none md:w-56"
         >
           {ROLE_OPTIONS.map((r)=>(
             <option key={r} value={r}>
@@ -1148,11 +1158,84 @@ export default function AdminStaffManagement() {
 
       {/* TABLE */}
 
-      <div className="bg-white rounded-xl shadow overflow-x-auto">
+      <div className="grid gap-3 md:hidden">
+        {filteredEmployees.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
+            No staff found
+          </div>
+        ) : (
+          filteredEmployees.map((emp) => (
+            <article
+              key={emp.id ?? emp._id ?? emp.employeeId}
+              className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(emp)}
+                    className="block max-w-full truncate text-left text-base font-semibold text-gray-900"
+                  >
+                    {emp.name ?? "-"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(emp)}
+                    className="mt-1 block max-w-full truncate font-mono text-xs font-semibold text-blue-600"
+                  >
+                    {emp.employeeId ?? emp._id ?? "-"}
+                  </button>
+                </div>
 
-        <table className="min-w-full text-base">
+                <span className="shrink-0 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold uppercase text-green-700">
+                  {formatRole(emp.role)}
+                </span>
+              </div>
 
-          <thead className="bg-gray-50 text-gray-600 uppercase text-sm">
+              <div className="mt-4 grid gap-2 text-sm text-gray-600">
+                <span className="flex min-w-0 items-center gap-2">
+                  <FaPhone className="shrink-0 text-gray-400" />
+                  <span className="truncate">{emp.phone || "-"}</span>
+                </span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <FaEnvelope className="shrink-0 text-gray-400" />
+                  <span className="truncate">{emp.email || "-"}</span>
+                </span>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => openEditModal(emp)}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700"
+                >
+                  <FaEdit /> Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setConfirmDelete({
+                      id: emp.id ?? emp._id ?? emp.employeeId,
+                      employeeId: emp.employeeId,
+                      name: emp.name,
+                      role: emp.role,
+                    })
+                  }
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700"
+                >
+                  <FaTrash /> Delete
+                </button>
+              </div>
+            </article>
+          ))
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 md:block">
+
+        <table className="min-w-full text-sm">
+
+          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
 
             <tr>
               <th className="px-5 py-3 text-left font-medium">Employee ID</th>
@@ -1179,7 +1262,7 @@ export default function AdminStaffManagement() {
                   key={emp.id ?? emp._id ?? emp.employeeId}
                   className="border-t hover:bg-gray-50 transition-colors"
                 >
-                  <td className="px-5 py-4 text-base">
+                  <td className="px-5 py-4 text-sm">
                     <button
                       type="button"
                       onClick={() => openEditModal(emp)}
@@ -1200,7 +1283,9 @@ export default function AdminStaffManagement() {
                   </td>
 
                   <td className="px-5 py-3 text-gray-700">
-                    {emp.role ? emp.role.replace(/_/g, " ") : "-"}
+                    <span className="inline-flex rounded-full bg-green-50 px-3 py-1 text-xs font-semibold uppercase text-green-700">
+                      {formatRole(emp.role)}
+                    </span>
                   </td>
 
 <td className="px-5 py-3 text-center">
@@ -1248,7 +1333,7 @@ export default function AdminStaffManagement() {
       {/* HISTORY MODAL */}
       {historyOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 backdrop-blur-sm sm:items-center sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Deleted staff history"
@@ -1258,10 +1343,10 @@ export default function AdminStaffManagement() {
           }}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto"
+            className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:mx-4 sm:max-w-4xl sm:rounded-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white z-10">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-white px-4 py-4 sm:items-center sm:px-6">
               <div>
                 <h2 className="text-lg font-semibold text-gray-800">
                   History
@@ -1270,11 +1355,11 @@ export default function AdminStaffManagement() {
                   Recently deleted staff accounts
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                 <button
                   type="button"
                   onClick={fetchDeleteHistory}
-                  className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-60 sm:px-4"
                   disabled={historyLoading}
                 >
                   {historyLoading ? "Loading..." : "Refresh"}
@@ -1353,10 +1438,10 @@ export default function AdminStaffManagement() {
       {/* DELETE CONFIRM MODAL */}
 {/* DELETE CONFIRM MODAL (FULL UPDATED) */}
 {confirmDelete && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+  <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 backdrop-blur-sm sm:items-center sm:p-4">
     
     <div
-      className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-8"
+      className="w-full rounded-t-2xl bg-white p-5 shadow-2xl sm:mx-4 sm:max-w-lg sm:rounded-2xl sm:p-8"
       onClick={(e) => e.stopPropagation()}
     >
 
@@ -1411,7 +1496,7 @@ export default function AdminStaffManagement() {
       </div>
 
       {/* BUTTONS */}
-      <div className="flex gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         <button
           onClick={() => setConfirmDelete(null)}
           disabled={deleteLoading}
