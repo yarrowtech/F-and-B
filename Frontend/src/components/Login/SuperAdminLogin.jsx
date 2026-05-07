@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { FaArrowLeft, FaEye, FaEyeSlash, FaLock, FaUserShield } from "react-icons/fa";
+import { FaArrowLeft, FaEye, FaEyeSlash, FaLock, FaMoon, FaSun, FaUserShield } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { login } from "../../services/auth.service";
 
@@ -17,12 +17,23 @@ export default function SuperAdminLogin() {
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    const savedIsDark = localStorage.getItem("isDark");
+    const savedTheme = localStorage.getItem("theme");
+    return savedIsDark !== null ? savedIsDark === "true" : savedTheme !== "light";
+  });
 
   const firstInputRef = useRef(null);
 
   useEffect(() => {
     firstInputRef.current?.focus();
   }, [activePage]);
+
+  useEffect(() => {
+    localStorage.setItem("isDark", String(isDark));
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+    document.documentElement.classList.toggle("dark", isDark);
+  }, [isDark]);
 
   const inputClass =
     "w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-[#4ade80]/50 focus:bg-white/8";
@@ -102,8 +113,18 @@ export default function SuperAdminLogin() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#120c09] px-4 py-8 text-white">
+    <div className={`login-page-root relative min-h-screen overflow-hidden bg-[#120c09] px-4 py-8 text-white ${isDark ? "" : "login-light"}`}>
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(74,222,128,0.12),_transparent_24%),radial-gradient(circle_at_bottom_right,_rgba(74,222,128,0.14),_transparent_26%)]" />
+
+      <button
+        type="button"
+        onClick={() => setIsDark((current) => !current)}
+        className="login-theme-toggle absolute right-5 top-5 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white/85 backdrop-blur transition hover:border-[#6fbd58]/55 hover:text-[#8bd96f]"
+        aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      >
+        {isDark ? <FaSun /> : <FaMoon />}
+      </button>
 
       <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center justify-center">
         <div className="grid w-full overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#17100d]/92 shadow-[0_28px_80px_-35px_rgba(0,0,0,0.9)] backdrop-blur lg:grid-cols-[0.95fr_1.05fr]">

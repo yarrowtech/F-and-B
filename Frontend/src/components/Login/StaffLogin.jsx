@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { FaArrowLeft, FaEye, FaEyeSlash, FaLock, FaUserTie } from "react-icons/fa";
+import { FaArrowLeft, FaEye, FaEyeSlash, FaLock, FaMoon, FaSun, FaUserTie } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { employeeLogin } from "../../services/employeeAuth.service";
@@ -47,16 +47,27 @@ export default function StaffLogin() {
   const [isError, setIsError] = useState(false);
   const [idError, setIdError] = useState("");
   const [passError, setPassError] = useState("");
+  const [isDark, setIsDark] = useState(() => {
+    const savedIsDark = localStorage.getItem("isDark");
+    const savedTheme = localStorage.getItem("theme");
+    return savedIsDark !== null ? savedIsDark === "true" : savedTheme !== "light";
+  });
 
   useEffect(() => {
     idRef.current?.focus();
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem("isDark", String(isDark));
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+    document.documentElement.classList.toggle("dark", isDark);
+  }, [isDark]);
+
   const inputClass =
-    "w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-[#4ade80]/50 focus:bg-white/8";
+    "w-full rounded-xl border border-white/10 bg-white/[0.07] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#6fbd58]/70 focus:bg-white/[0.1]";
 
   const inputErrorClass =
-    "w-full rounded-2xl border border-red-400/60 bg-red-500/8 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-red-300";
+    "w-full rounded-xl border border-red-400/60 bg-red-500/10 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-red-300";
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -133,57 +144,85 @@ export default function StaffLogin() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#120c09] px-4 py-8 text-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(74,222,128,0.12),_transparent_24%),radial-gradient(circle_at_bottom_right,_rgba(74,222,128,0.14),_transparent_26%)]" />
+    <div className={`login-page-root relative min-h-screen overflow-hidden bg-[#070907] px-4 py-6 text-white sm:px-6 ${isDark ? "" : "login-light"}`}>
+      <img
+        src="/images/cabage.png"
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover object-[72%_center] opacity-35"
+        aria-hidden="true"
+      />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(7,9,7,0.98)_0%,rgba(7,9,7,0.88)_42%,rgba(7,9,7,0.7)_100%),radial-gradient(circle_at_78%_28%,rgba(111,189,88,0.18),transparent_30%)]" />
 
-      <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center justify-center">
-        <div className="grid w-full overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#17100d]/92 shadow-[0_28px_80px_-35px_rgba(0,0,0,0.9)] backdrop-blur lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="relative hidden flex-col justify-between overflow-hidden border-r border-white/8 bg-[linear-gradient(180deg,_rgba(74,222,128,0.18)_0%,_rgba(23,16,13,0.25)_100%)] p-10 lg:flex">
-            <div className="absolute -left-14 bottom-0 h-56 w-56 rounded-full bg-[#4ade80]/20 blur-3xl" />
-            <div className="absolute right-6 top-6 h-40 w-40 rounded-full bg-[#4ade80]/10 blur-3xl" />
+      <button
+        type="button"
+        onClick={() => setIsDark((current) => !current)}
+        className="login-theme-toggle absolute right-5 top-5 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white/85 backdrop-blur transition hover:border-[#6fbd58]/55 hover:text-[#8bd96f]"
+        aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      >
+        {isDark ? <FaSun /> : <FaMoon />}
+      </button>
 
-            <div className="relative">
-              <button
-                onClick={() => navigate("/")}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm font-medium text-white/80 transition hover:text-[#4ade80]"
-              >
-                <FaArrowLeft className="text-xs" />
-                Back Home
-              </button>
-            </div>
+      <div className="relative mx-auto flex min-h-[calc(100vh-3rem)] max-w-6xl items-center justify-center">
+        <div className="grid w-full overflow-hidden rounded-[1.6rem] border border-white/10 bg-[#10170f]/82 shadow-[0_28px_80px_-38px_rgba(0,0,0,0.95)] backdrop-blur-xl lg:grid-cols-[0.92fr_1.08fr]">
+          <div className="relative hidden min-h-[620px] flex-col justify-between overflow-hidden border-r border-white/10 p-9 lg:flex">
+            <img
+              src="/images/cabage.png"
+              alt="Fresh cabbage"
+              className="absolute inset-0 h-full w-full object-cover object-[68%_center] opacity-80"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,10,6,0.42)_0%,rgba(6,10,6,0.82)_100%),linear-gradient(90deg,rgba(6,10,6,0.9)_0%,rgba(6,10,6,0.25)_100%)]" />
 
-            <div className="relative">
-              <p className="text-sm uppercase tracking-[0.28em] text-[#4ade80]">
-                EFNBMMS
+            <button
+              onClick={() => navigate("/")}
+              className="relative inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-black/28 px-4 py-2 text-sm font-medium text-white/82 backdrop-blur transition hover:border-[#6fbd58]/55 hover:text-[#8bd96f]"
+            >
+              <FaArrowLeft className="text-xs" />
+              Back Home
+            </button>
+
+            <div className="relative max-w-sm">
+              <div className="mb-7">
+                <span className="mb-2 block h-12 w-12 rounded-full bg-[#6fbd58]" />
+                <p className="text-3xl font-black tracking-wide text-[#7fc84f]">
+                  EFNBM
+                </p>
+              </div>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#8bd96f]">
+                Restaurant ERP
               </p>
-              <h1 className="mt-5 text-5xl font-black leading-tight text-white">
-                Staff access for every operational role
+              <h1 className="mt-4 text-4xl font-black leading-tight text-white">
+                One access point for every restaurant role
               </h1>
+              <p className="mt-4 text-sm leading-7 text-white/68">
+                Staff, managers, kitchen, inventory, accounts, and service teams continue from the same secure login flow.
+              </p>
             </div>
           </div>
 
-          <div className="p-6 sm:p-8 md:p-10 lg:p-12">
+          <div className="flex items-center justify-center p-5 sm:p-8 lg:p-10">
+            <div className="w-full max-w-md rounded-[1.35rem] border border-white/10 bg-black/22 p-6 shadow-[0_22px_60px_-34px_rgba(0,0,0,0.9)] backdrop-blur md:p-8">
             <div className="mb-8 flex items-center justify-between lg:hidden">
               <button
                 onClick={() => navigate("/")}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm font-medium text-white/80 transition hover:text-[#4ade80]"
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm font-medium text-white/80 transition hover:text-[#8bd96f]"
               >
                 <FaArrowLeft className="text-xs" />
                 Back
               </button>
-              <span className="text-sm font-semibold uppercase tracking-[0.22em] text-[#4ade80]">
-                EFNBMMS
+              <span className="text-sm font-black uppercase tracking-[0.2em] text-[#7fc84f]">
+                EFNBM
               </span>
             </div>
 
-            <div className="max-w-md">
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#4ade80]">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8bd96f]">
                 Staff Login
               </p>
-              <h2 className="mt-4 text-4xl font-black text-white">
+              <h2 className="mt-3 text-3xl font-black text-white">
                 Welcome back
               </h2>
-              <p className="mt-3 text-base leading-7 text-white/65">
+              <p className="mt-3 text-sm leading-6 text-white/62">
                 Enter your staff credentials to continue into your dashboard.
               </p>
 
@@ -199,9 +238,9 @@ export default function StaffLogin() {
                 </div>
               )}
 
-              <form onSubmit={handleLogin} className="mt-8 space-y-5">
+              <form onSubmit={handleLogin} className="mt-7 space-y-5">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-white/75">
+                  <label className="mb-2 block text-sm font-medium text-white/72">
                     Staff ID
                   </label>
                   <div className="relative">
@@ -222,7 +261,7 @@ export default function StaffLogin() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-white/75">
+                  <label className="mb-2 block text-sm font-medium text-white/72">
                     Password
                   </label>
                   <div className="relative">
@@ -240,7 +279,8 @@ export default function StaffLogin() {
                     <button
                       type="button"
                       onClick={() => setShowPass((s) => !s)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-lg text-white/45 transition hover:text-[#4ade80]"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-lg text-white/45 transition hover:text-[#8bd96f]"
+                      aria-label={showPass ? "Hide password" : "Show password"}
                     >
                       {showPass ? <FaEyeSlash /> : <FaEye />}
                     </button>
@@ -251,11 +291,12 @@ export default function StaffLogin() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full rounded-full bg-[#4ade80] px-6 py-3 font-bold text-[#140d09] shadow-[0_18px_35px_-20px_rgba(74,222,128,0.85)] transition hover:-translate-y-1 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-full bg-[#6fbd58] px-6 py-3 text-sm font-bold text-[#061006] shadow-[0_18px_35px_-22px_rgba(111,189,88,0.85)] transition hover:-translate-y-0.5 hover:bg-[#82d06c] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? "Please wait..." : "Login"}
                 </button>
               </form>
+            </div>
             </div>
           </div>
         </div>

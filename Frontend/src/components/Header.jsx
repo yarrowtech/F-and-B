@@ -149,8 +149,8 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
     ? "border-emerald-900/10 bg-white/82 text-emerald-950 shadow-[0_18px_48px_-28px_rgba(20,83,45,0.45)]"
     : "border-[#6fbd58]/32 bg-[#174914]/88 text-white shadow-[0_18px_48px_-28px_rgba(74,222,128,0.45)]";
   const loginButtonClass = isLandingLight
-    ? "bg-emerald-950 text-white hover:bg-[#39a84a]"
-    : "bg-white/74 text-[#174914] hover:bg-white";
+    ? "bg-[#f5b84b] text-[#271600] hover:bg-[#ffcf70]"
+    : "bg-[#f5b84b] text-[#271600] hover:bg-[#ffcf70]";
   const headerTextClass = isLandingLight ? "text-emerald-950" : "text-white";
 
   return (
@@ -213,7 +213,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
             ) : (
               <button
                 onClick={() => navigate("/login")}
-                className={`rounded-full px-7 py-3 text-lg font-semibold uppercase tracking-wide transition lg:px-8 lg:text-xl ${loginButtonClass}`}
+                className={`landing-login-button rounded-full border px-5 py-2.5 text-base font-semibold uppercase tracking-wide transition lg:px-6 lg:text-lg ${loginButtonClass}`}
               >
                 Login
               </button>
@@ -223,7 +223,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
               <button
                 type="button"
                 onClick={onLandingThemeToggle}
-                className={`inline-flex h-11 w-11 items-center justify-center rounded-full border text-base transition lg:h-12 lg:w-12 ${
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-full border text-sm transition lg:h-11 lg:w-11 ${
                   isLandingLight
                     ? "border-emerald-900/10 bg-white/82 text-emerald-950 hover:bg-emerald-950 hover:text-white"
                     : "border-white/10 bg-white/12 text-white/85 hover:border-[#4ade80]/35 hover:text-[#4ade80]"
@@ -322,7 +322,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
                       setIsMenuOpen(false);
                       navigate("/login");
                     }}
-                    className={`w-full rounded-full px-5 py-3 text-sm font-semibold uppercase ${
+                    className={`landing-login-button w-full rounded-full border px-5 py-3 text-sm font-semibold uppercase ${
                       isLandingLight
                         ? "bg-emerald-950 text-white"
                         : "bg-white/80 text-[#174914]"

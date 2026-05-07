@@ -16,7 +16,7 @@ const Hero = () => {
       <img
         src="/images/cabage.png"
         alt="Fresh cabbage"
-        className="absolute inset-0 h-full w-full object-cover object-[62%_center] md:object-center"
+        className="absolute inset-y-0 -right-[10%] h-full w-[92%] -scale-x-100 object-contain object-right opacity-100 sm:-right-[8%] sm:w-[82%] md:-right-[7%] md:w-[72%] lg:-right-[6%] lg:w-[64%] xl:-right-[5%] xl:w-[60%]"
         fetchPriority="high"
         decoding="async"
       />
@@ -42,20 +42,20 @@ const Hero = () => {
           </p>
           <a
             href="#services"
-            className="hero-reveal hero-cta mt-9 inline-flex min-h-[3.25rem] items-center justify-center rounded-full bg-[#39a84a] px-8 text-base font-bold text-black shadow-[0_18px_42px_-24px_rgba(74,222,128,0.9)] transition hover:-translate-y-1 hover:bg-[#55c95e] md:min-h-14 md:px-9 md:text-lg"
+            className="hero-reveal hero-cta mt-8 inline-flex min-h-12 items-center justify-center rounded-full bg-[#f5b84b] px-8 text-base font-bold text-[#271600] shadow-[0_18px_42px_-22px_rgba(245,184,75,0.9)] transition hover:-translate-y-1 hover:bg-[#ffcf70] md:min-h-14 md:px-10 md:text-lg"
             style={{ animationDelay: "200ms" }}
           >
             Explore services
           </a>
         </div>
 
-        <div className="absolute bottom-9 left-0 right-0 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4 md:bottom-12">
+        <div className="absolute bottom-9 left-0 right-0 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4 md:bottom-12">
           {heroStats.map(({ value, label }) => (
             <div key={label} className="min-w-0">
-              <p className="hero-stat-value text-4xl font-black leading-none text-white/82 sm:text-5xl md:text-6xl">
+              <p className="hero-stat-value text-3xl font-black leading-none text-white/82 sm:text-4xl md:text-5xl">
                 {value}
               </p>
-              <p className="hero-stat-label mt-2 text-lg font-bold text-white sm:text-xl md:text-2xl">
+              <p className="hero-stat-label mt-1.5 text-base font-bold text-white sm:text-lg md:text-xl">
                 {label}
               </p>
             </div>

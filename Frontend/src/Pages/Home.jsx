@@ -69,11 +69,20 @@ const platformStats = [
 
 const Home = () => {
   const [landingTheme, setLandingTheme] = useState(
-    () => localStorage.getItem("landingTheme") || "dark"
+    () => {
+      const savedIsDark = localStorage.getItem("isDark");
+      const savedTheme = localStorage.getItem("theme");
+      return savedIsDark !== null
+        ? savedIsDark === "true" ? "dark" : "light"
+        : savedTheme || "dark";
+    }
   );
 
   useEffect(() => {
     localStorage.setItem("landingTheme", landingTheme);
+    localStorage.setItem("theme", landingTheme);
+    localStorage.setItem("isDark", String(landingTheme === "dark"));
+    document.documentElement.classList.toggle("dark", landingTheme === "dark");
   }, [landingTheme]);
 
   useEffect(() => {
