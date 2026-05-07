@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaSignOutAlt, FaTachometerAlt, FaUserTie, FaClipboardCheck, FaUserCircle, FaStickyNote, FaCog } from "react-icons/fa";
+import { FaSignOutAlt, FaTachometerAlt, FaUserTie, FaClipboardCheck, FaUserCircle, FaStickyNote } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import InventoryManagerSidebar from "./InventoryManagerSidebar";
-import SettingsPage from "./InventorymangerSetting";
 import InventoryManagerNotifications from "./InventoryManagerNotification";
 import InventoryManagerMessages from "./InventoryManagerMessage";
 import InventoryManagerProfile from "./InventoryManagerProfile";
@@ -109,7 +108,6 @@ const BOTTOM_NAV = [
   { key: "attendance", label: "Attendance", icon: FaClipboardCheck },
   { key: "profile",    label: "Profile",    icon: FaUserCircle },
   { key: "notes",      label: "Notes",      icon: FaStickyNote },
-  { key: "settings",   label: "Settings",   icon: FaCog },
 ];
 
 /* ─── Main Layout ─── */
@@ -142,7 +140,6 @@ const InventoryManager = () => {
       case "notes":        return <InventoryPersonalNotes />;
       case "profile":      return <InventoryManagerProfile />;
       case "messages":     return <InventoryManagerMessages />;
-      case "settings":     return <SettingsPage darkMode={darkMode} onThemeChange={() => setDarkMode((v) => !v)} />;
       case "notifications":return <InventoryManagerNotifications />;
       default:             return <div className="p-4">Page not found</div>;
     }

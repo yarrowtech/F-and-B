@@ -2,10 +2,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   FaCalendarAlt,
+  FaCreditCard,
   FaFilter,
   FaMoneyBillWave,
   FaReceipt,
   FaStore,
+  FaTable,
+  FaUserTie,
 } from "react-icons/fa";
 import { getManagerAccountHistory } from "../../services/managerDashboard.service";
 
@@ -52,6 +55,81 @@ const presetButtons = [
   { key: "last30days", label: "Last 30 Days" },
   { key: "custom", label: "Date Wise" },
 ];
+
+function SummaryCard({ icon, label, value, tone = "emerald" }) {
+  const tones = {
+    emerald: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+    sky: "bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
+    slate: "bg-slate-100 text-slate-700 dark:bg-neutral-800 dark:text-neutral-200",
+  };
+
+  return (
+    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700 sm:p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">
+            {label}
+          </p>
+          <p className="mt-2 break-words text-2xl font-bold text-slate-900 dark:text-white">
+            {value}
+          </p>
+        </div>
+        <div className={`rounded-xl p-3 ${tones[tone]}`}>{icon}</div>
+      </div>
+    </div>
+  );
+}
+
+const EmptyState = ({ children }) => (
+  <div className="flex min-h-[220px] items-center justify-center rounded-2xl bg-white px-5 text-center text-sm font-medium text-slate-500 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:text-neutral-400 dark:ring-neutral-700">
+    {children}
+  </div>
+);
+
+const BillMobileCard = ({ bill }) => (
+  <article className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700">
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">
+          Bill No
+        </p>
+        <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
+          {bill.billNo || "-"}
+        </p>
+      </div>
+      <div className="rounded-xl bg-emerald-50 px-3 py-2 text-right dark:bg-emerald-950/40">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+          Amount
+        </p>
+        <p className="font-bold text-emerald-700 dark:text-emerald-300">
+          {formatCurrency(bill.totalAmount)}
+        </p>
+      </div>
+    </div>
+
+    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+      <InfoPill icon={<FaReceipt />} label="Order" value={bill.order?.orderNo || "-"} />
+      <InfoPill icon={<FaTable />} label="Table" value={`Table ${bill.order?.table?.tableNumber || "-"}`} />
+      <InfoPill icon={<FaUserTie />} label="Waiter" value={bill.order?.waiter?.name || "-"} />
+      <InfoPill icon={<FaCreditCard />} label="Payment" value={bill.paymentMethod || "Paid"} />
+    </div>
+
+    <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-neutral-800 dark:text-neutral-300">
+      <span className="font-semibold text-slate-800 dark:text-white">Paid At: </span>
+      {formatDate(bill.paidAt)}
+    </div>
+  </article>
+);
+
+const InfoPill = ({ icon, label, value }) => (
+  <div className="rounded-xl bg-slate-50 p-3 dark:bg-neutral-800">
+    <div className="mb-2 flex items-center gap-2 text-slate-400 dark:text-neutral-500">
+      {icon}
+      <span className="text-[11px] font-semibold uppercase tracking-wide">{label}</span>
+    </div>
+    <p className="break-words font-semibold text-slate-800 dark:text-white">{value}</p>
+  </div>
+);
 
 export default function ManagerAccount() {
   const [preset, setPreset] = useState("today");
@@ -126,42 +204,38 @@ export default function ManagerAccount() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-emerald-900 to-teal-700 p-6 text-white shadow-xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+    <div className="min-h-screen bg-slate-50 p-3 dark:bg-neutral-950 sm:p-6">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700 sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em]">
+              <div className="mb-2 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                 <FaStore />
                 Manager Account
               </div>
-              <h1 className="text-2xl font-bold sm:text-3xl">Restaurant Payment History</h1>
-              <p className="mt-2 max-w-2xl text-sm text-emerald-50/90">
-                This section shows only the paid order records for the manager's
-                assigned restaurant, with quick filter options and date-wise history.
-              </p>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">Restaurant Payment History</h1>
             </div>
 
-            <div className="rounded-2xl bg-white/10 px-5 py-4 backdrop-blur">
-              <p className="text-xs uppercase tracking-[0.25em] text-emerald-100">
+            <div className="rounded-xl bg-emerald-50 px-4 py-3 dark:bg-emerald-950/40">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                 Active Filter
               </p>
-              <p className="mt-2 text-lg font-semibold">{activeRangeLabel}</p>
+              <p className="mt-1 text-sm font-bold text-emerald-900 dark:text-emerald-100 sm:text-base">{activeRangeLabel}</p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700 sm:p-5">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1">
               {presetButtons.map((button) => (
                 <button
                   key={button.key}
                   onClick={() => handlePresetChange(button.key)}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${
                     preset === button.key
                       ? "bg-emerald-600 text-white shadow"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
                   }`}
                 >
                   {button.label}
@@ -171,7 +245,7 @@ export default function ManagerAccount() {
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[180px_180px_auto]">
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-600">
+                <label className="mb-2 block text-sm font-medium text-slate-600 dark:text-neutral-300">
                   From Date
                 </label>
                 <input
@@ -183,12 +257,12 @@ export default function ManagerAccount() {
                       startDate: e.target.value,
                     }))
                   }
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-600">
+                <label className="mb-2 block text-sm font-medium text-slate-600 dark:text-neutral-300">
                   To Date
                 </label>
                 <input
@@ -200,13 +274,13 @@ export default function ManagerAccount() {
                       endDate: e.target.value,
                     }))
                   }
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
                 />
               </div>
 
               <button
                 onClick={applyCustomFilter}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 sm:col-span-2 xl:col-span-1"
               >
                 <FaFilter />
                 Apply Date Filter
@@ -220,35 +294,55 @@ export default function ManagerAccount() {
             icon={<FaReceipt />}
             label="Paid Orders"
             value={data.summary.totalOrders}
+            tone="slate"
           />
           <SummaryCard
             icon={<FaMoneyBillWave />}
             label="Total Revenue"
             value={formatCurrency(data.summary.totalRevenue)}
+            tone="emerald"
           />
           <SummaryCard
             icon={<FaCalendarAlt />}
             label="Today Collections"
             value={data.summary.todayCollections}
+            tone="sky"
           />
           <SummaryCard
             icon={<FaMoneyBillWave />}
             label="Average Bill"
             value={formatCurrency(data.summary.averageBillValue)}
+            tone="emerald"
           />
         </div>
 
-        <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
-          <div className="border-b border-slate-200 px-5 py-4">
-            <h2 className="text-lg font-semibold text-slate-800">
+        <div className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700">
+          <div className="border-b border-slate-200 px-4 py-4 dark:border-neutral-700 sm:px-5">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-white">
               Order Payment History
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">
               Paid bill records for the assigned restaurant only.
             </p>
           </div>
 
-          <div className="overflow-x-auto">
+          {loading ? (
+            <div className="p-4">
+              <EmptyState>Loading payment history...</EmptyState>
+            </div>
+          ) : data.bills.length === 0 ? (
+            <div className="p-4">
+              <EmptyState>No payment history found for the selected filter.</EmptyState>
+            </div>
+          ) : (
+            <div className="grid gap-3 p-4 md:hidden">
+              {data.bills.map((bill) => (
+                <BillMobileCard key={bill._id} bill={bill} />
+              ))}
+            </div>
+          )}
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="min-w-[920px] w-full text-sm">
               <thead className="bg-slate-900 text-left text-xs uppercase tracking-[0.2em] text-slate-200">
                 <tr>
@@ -264,7 +358,7 @@ export default function ManagerAccount() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan="7" className="px-5 py-10 text-center text-slate-500">
+                    <td colSpan="7" className="px-5 py-10 text-center text-slate-500 dark:text-neutral-400">
                       Loading payment history...
                     </td>
                   </tr>
@@ -272,7 +366,7 @@ export default function ManagerAccount() {
 
                 {!loading && data.bills.length === 0 && (
                   <tr>
-                    <td colSpan="7" className="px-5 py-10 text-center text-slate-500">
+                    <td colSpan="7" className="px-5 py-10 text-center text-slate-500 dark:text-neutral-400">
                       No payment history found for the selected filter.
                     </td>
                   </tr>
@@ -280,28 +374,28 @@ export default function ManagerAccount() {
 
                 {!loading &&
                   data.bills.map((bill) => (
-                    <tr key={bill._id} className="border-t border-slate-100">
-                      <td className="px-5 py-4 font-semibold text-slate-800">
+                    <tr key={bill._id} className="border-t border-slate-100 dark:border-neutral-800 dark:hover:bg-neutral-800/70">
+                      <td className="px-5 py-4 font-semibold text-slate-800 dark:text-white">
                         {bill.billNo || "-"}
                       </td>
-                      <td className="px-5 py-4 text-slate-700">
+                      <td className="px-5 py-4 text-slate-700 dark:text-neutral-300">
                         {bill.order?.orderNo || "-"}
                       </td>
-                      <td className="px-5 py-4 text-slate-700">
+                      <td className="px-5 py-4 text-slate-700 dark:text-neutral-300">
                         Table {bill.order?.table?.tableNumber || "-"}
                       </td>
-                      <td className="px-5 py-4 text-slate-700">
+                      <td className="px-5 py-4 text-slate-700 dark:text-neutral-300">
                         {bill.order?.waiter?.name || "-"}
                       </td>
                       <td className="px-5 py-4">
-                        <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                        <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                           {bill.paymentMethod || "Paid"}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-slate-600">
+                      <td className="px-5 py-4 text-slate-600 dark:text-neutral-400">
                         {formatDate(bill.paidAt)}
                       </td>
-                      <td className="px-5 py-4 font-bold text-emerald-700">
+                      <td className="px-5 py-4 font-bold text-emerald-700 dark:text-emerald-300">
                         {formatCurrency(bill.totalAmount)}
                       </td>
                     </tr>
@@ -309,24 +403,6 @@ export default function ManagerAccount() {
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SummaryCard({ icon, label, value }) {
-  return (
-    <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {label}
-          </p>
-          <p className="mt-3 text-2xl font-bold text-slate-900">{value}</p>
-        </div>
-        <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-700">
-          {icon}
         </div>
       </div>
     </div>

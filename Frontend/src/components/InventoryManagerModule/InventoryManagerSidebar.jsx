@@ -6,7 +6,6 @@ import {
   FaUserTie,
   FaUserCircle,
   FaStickyNote,
-  FaCog,
   FaBars,
   FaTimes,
 } from "react-icons/fa";
@@ -26,7 +25,6 @@ const InventoryManagerSidebar = ({ active, setActive }) => {
     { name: "Attendance", icon: FaClipboardCheck, key: "attendance" },
     { name: "Profile",    icon: FaUserCircle,     key: "profile" },
     { name: "Notes",      icon: FaStickyNote,     key: "notes" },
-    { name: "Settings",   icon: FaCog,            key: "settings" },
   ];
 
   if (!isAuthenticated() || !user) {

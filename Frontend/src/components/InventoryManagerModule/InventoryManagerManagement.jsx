@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react";
+import { FaBoxOpen, FaEdit, FaHistory, FaPlus, FaSearch, FaStore, FaTrash } from "react-icons/fa";
 import {
   getInventory,
   getItemLogs,
@@ -55,7 +56,7 @@ function CategorySelect({ value, customValue, allCategories, onChange, onCustomC
         <option value="__new__">＋ Add custom category…</option>
       </select>
       {isNew && (
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
           <input
             type="text"
             placeholder="e.g. Frozen Desserts"
@@ -67,7 +68,7 @@ function CategorySelect({ value, customValue, allCategories, onChange, onCustomC
             type="button"
             onClick={onAddCustom}
             disabled={!customValue.trim() || adding}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors shrink-0"
+            className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50 sm:shrink-0"
           >
             {adding ? "…" : "Add"}
           </button>
@@ -104,9 +105,9 @@ function UnitSelect({ value, customValue, onChange, onCustomChange, required }) 
 ───────────────────────────────────── */
 function Modal({ title, accent = "bg-green-600", onClose, children }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg z-10 max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-900 sm:max-w-lg sm:rounded-2xl">
         <div className={`${accent} px-6 py-4 flex items-center justify-between shrink-0`}>
           <h2 className="text-base font-bold text-white">{title}</h2>
           <button onClick={onClose}
@@ -114,7 +115,7 @@ function Modal({ title, accent = "bg-green-600", onClose, children }) {
             ×
           </button>
         </div>
-        <div className="p-6 overflow-y-auto flex-1">{children}</div>
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6">{children}</div>
       </div>
     </div>
   );
@@ -137,9 +138,9 @@ function SkeletonRow() {
 
 function SummaryCard({ label, value, hint, tone = "slate" }) {
   const toneMap = {
-    slate: "border-slate-200 bg-slate-50 text-slate-700",
-    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    rose: "border-rose-200 bg-rose-50 text-rose-700",
+    slate: "border-slate-200 bg-white text-slate-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300",
+    rose: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300",
   };
 
   return (
@@ -148,6 +149,62 @@ function SummaryCard({ label, value, hint, tone = "slate" }) {
       <p className="mt-3 text-2xl font-bold">{value}</p>
       {hint ? <p className="mt-1 text-sm opacity-80">{hint}</p> : null}
     </div>
+  );
+}
+
+function EmptyState({ search }) {
+  return (
+    <div className="flex flex-col items-center justify-center px-5 py-16 text-center">
+      {search ? <FaSearch className="mb-3 text-4xl text-slate-300 dark:text-neutral-600" /> : <FaBoxOpen className="mb-3 text-4xl text-slate-300 dark:text-neutral-600" />}
+      <p className="font-semibold text-gray-500 dark:text-gray-400">
+        {search ? `No items matching "${search}"` : "No inventory items yet"}
+      </p>
+      {!search && (
+        <p className="mt-1 text-sm text-gray-400 dark:text-gray-500">Use Add Item to get started</p>
+      )}
+    </div>
+  );
+}
+
+function InventoryItemCard({ item, onAddStock, onLogs, onEdit, onDelete }) {
+  const isLow = item.quantity <= item.lowStockThreshold;
+
+  return (
+    <article className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="truncate text-base font-bold text-slate-900 dark:text-white">{item.name}</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">{item.category || "Uncategorized"}</p>
+        </div>
+        {isLow ? (
+          <span className="shrink-0 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">Low</span>
+        ) : (
+          <span className="shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">OK</span>
+        )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3 text-center dark:bg-neutral-800">
+        <div>
+          <p className="text-xs text-slate-400 dark:text-neutral-500">Qty</p>
+          <p className={`mt-1 text-sm font-bold ${isLow ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}`}>{item.quantity}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-400 dark:text-neutral-500">Unit</p>
+          <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{item.unit}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-400 dark:text-neutral-500">Alert</p>
+          <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{item.lowStockThreshold}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button onClick={onAddStock} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"><FaPlus /> Stock</button>
+        <button onClick={onLogs} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"><FaHistory /> Logs</button>
+        <button onClick={onEdit} className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-400"><FaEdit /> Edit</button>
+        <button onClick={onDelete} className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 dark:bg-rose-900/20 dark:text-rose-400"><FaTrash /> Delete</button>
+      </div>
+    </article>
   );
 }
 
@@ -356,27 +413,31 @@ const InventoryManagerManagement = () => {
      RENDER
   ══════════════════════════════════ */
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+    <div className="min-h-screen bg-slate-50 p-3 dark:bg-neutral-950 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-5">
 
         {/* ── PAGE HEADER ── */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Inventory Management</h1>
+            <div className="mb-2 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+              <FaStore />
+              Inventory Manager
+            </div>
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white sm:text-3xl">Inventory Management</h1>
             {restaurantName && (
               <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">{restaurantName}</p>
             )}
           </div>
           {restaurantId && (
             <button onClick={openAddModal}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl shadow-md shadow-green-200 dark:shadow-green-900/30 text-sm font-semibold transition-all hover:-translate-y-0.5">
-              <span className="text-lg leading-none">+</span> Add Item
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-700 sm:w-auto">
+              <FaPlus /> Add Item
             </button>
           )}
         </div>
 
         {restaurantId && (
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <SummaryCard label="Assigned Restaurant" value={restaurantName || "Restaurant"} hint="Current inventory workspace" />
             <SummaryCard label="In Stock" value={okCount} hint={`${totalItems} total items`} tone="emerald" />
             <SummaryCard label="Low Stock" value={lowCount} hint="Needs restock attention" tone="rose" />
@@ -385,14 +446,14 @@ const InventoryManagerManagement = () => {
 
         {/* ── STATUS PILLS ── */}
         {restaurantId && !loading && (
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {[
               { key: "all", label: `All Items · ${totalItems}`, active: "bg-gray-800 dark:bg-white text-white dark:text-gray-900 border-transparent shadow", inactive: "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700" },
               { key: "ok",  label: `In Stock · ${okCount}`,     active: "bg-emerald-600 text-white border-transparent shadow",                              inactive: "bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50" },
               { key: "low", label: `Low Stock · ${lowCount}`,   active: "bg-rose-600 text-white border-transparent shadow",                                  inactive: "bg-white dark:bg-gray-800 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50" },
             ].map(({ key, label, active, inactive }) => (
               <button key={key} onClick={() => setStatusFilter(key)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${statusFilter === key ? active : inactive}`}>
+                className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-semibold transition-all ${statusFilter === key ? active : inactive}`}>
                 {label}
               </button>
             ))}
@@ -401,7 +462,7 @@ const InventoryManagerManagement = () => {
 
         {/* ── NO RESTAURANT ── */}
         {!restaurantId && (
-          <div className="flex flex-col items-center justify-center h-52 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600">
+          <div className="flex h-52 flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white dark:border-gray-600 dark:bg-neutral-900">
             <span className="text-4xl mb-3">🏪</span>
             <p className="text-gray-400 dark:text-gray-500 font-medium">No restaurant assigned to your account.</p>
           </div>
@@ -409,15 +470,15 @@ const InventoryManagerManagement = () => {
 
         {/* ── TABLE CARD ── */}
         {restaurantId && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+          <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700">
 
             {/* search bar */}
-            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex flex-wrap items-center gap-3">
-              <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <div className="grid gap-3 border-b border-gray-100 px-4 py-4 dark:border-neutral-700 sm:px-5 lg:grid-cols-[minmax(220px,380px)_220px_1fr] lg:items-center">
+              <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 select-none">🔍</span>
                 <input type="text" placeholder="Search by name or category…" value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-9 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700/60 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition" />
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-9 text-sm placeholder-gray-400 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" />
                 {search && (
                   <button onClick={() => setSearch("")}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none">×</button>
@@ -426,7 +487,7 @@ const InventoryManagerManagement = () => {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="min-w-[180px] px-4 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
               >
                 {categoryOptions.map((category) => (
                   <option key={category} value={category}>
@@ -434,14 +495,27 @@ const InventoryManagerManagement = () => {
                   </option>
                 ))}
               </select>
-              <span className="text-sm text-gray-400 dark:text-gray-500 font-medium ml-auto">
+              <span className="text-sm font-medium text-gray-400 dark:text-gray-500 lg:ml-auto">
                 {loading ? "…" : `${filtered.length} of ${totalItems} item${totalItems !== 1 ? "s" : ""}`}
               </span>
             </div>
 
             {/* table */}
             {loading ? (
-              <div className="overflow-x-auto">
+              <>
+              <div className="grid gap-3 p-4 lg:hidden">
+                {[...Array(3)].map((_, index) => (
+                  <div key={index} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700">
+                    <div className="h-4 w-2/3 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      {[...Array(3)].map((__, cell) => (
+                        <div key={cell} className="h-14 animate-pulse rounded-xl bg-gray-100 dark:bg-neutral-800" />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto lg:block">
                 <table className="min-w-[860px] w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
                     <tr>{["#","Item","Category","Unit","Qty","Low Stock","Status","Actions"].map((h) => (
@@ -451,6 +525,7 @@ const InventoryManagerManagement = () => {
                   <tbody>{[...Array(5)].map((_, i) => <SkeletonRow key={i} />)}</tbody>
                 </table>
               </div>
+              </>
             ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <span className="text-5xl mb-3">{search ? "🔍" : "📦"}</span>
@@ -464,7 +539,20 @@ const InventoryManagerManagement = () => {
                 )}
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="grid gap-3 p-4 lg:hidden">
+                {filtered.map((item) => (
+                  <InventoryItemCard
+                    key={item._id}
+                    item={item}
+                    onAddStock={() => openAddStockModal(item)}
+                    onLogs={() => viewLogs(item)}
+                    onEdit={() => openEditModal(item)}
+                    onDelete={() => setDeleteTarget(item)}
+                  />
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto lg:block">
                 <table className="min-w-[860px] w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
                     <tr>
@@ -524,6 +612,7 @@ const InventoryManagerManagement = () => {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         )}

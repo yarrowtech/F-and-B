@@ -219,7 +219,7 @@ const Chef = () => {
 
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-6 pb-24 lg:pb-6"
+            className="flex-1 overflow-y-auto bg-white p-3 pb-24 dark:bg-neutral-800 sm:p-4 lg:p-6 lg:pb-6"
           >
             {renderContent()}
           </main>

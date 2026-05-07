@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react";
+import { ClipboardList, PackagePlus, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import {
   getInventory,
   getItemLogs,
@@ -26,7 +27,7 @@ const emptyForm = {
   name: "", category: "", unit: "", unitCustom: "", quantity: "", lowStockThreshold: "",
 };
 
-const inputCls = "w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700/60 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition";
+const inputCls = "min-h-11 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500";
 
 /* ─────────────────────────────────────
    FIELD HELPER
@@ -55,11 +56,11 @@ function CategorySelect({ value, customValue, allCategories, onChange, onCustomC
         <option value="__new__">＋ Add custom category…</option>
       </select>
       {isNew && (
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
           <input type="text" placeholder="e.g. Frozen Desserts" value={customValue}
             onChange={(e) => onCustomChange(e.target.value)} className={`flex-1 ${inputCls}`} />
           <button type="button" onClick={onAddCustom} disabled={!customValue.trim() || adding}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors shrink-0">
+            className="min-h-11 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50 sm:shrink-0">
             {adding ? "…" : "Add"}
           </button>
         </div>
@@ -95,15 +96,16 @@ function UnitSelect({ value, customValue, onChange, onCustomChange, required }) 
 ───────────────────────────────────── */
 function Modal({ title, accent = "bg-green-600", onClose, children }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg z-10 max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-900 sm:max-w-lg sm:rounded-2xl">
         <div className={`${accent} px-6 py-4 flex items-center justify-between shrink-0`}>
           <h2 className="text-base font-bold text-white">{title}</h2>
           <button onClick={onClose}
-            className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white text-lg leading-none transition-colors">×</button>
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white/20 text-white text-lg leading-none transition-colors hover:bg-white/30"
+            aria-label="Close modal">×</button>
         </div>
-        <div className="p-6 overflow-y-auto flex-1">{children}</div>
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6">{children}</div>
       </div>
     </div>
   );
@@ -126,13 +128,13 @@ function SkeletonRow() {
 
 function SummaryCard({ label, value, hint, tone = "slate" }) {
   const toneMap = {
-    slate: "border-slate-200 bg-slate-50 text-slate-700",
-    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    rose: "border-rose-200 bg-rose-50 text-rose-700",
+    slate: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300",
+    rose: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300",
   };
 
   return (
-    <div className={`rounded-2xl border p-4 ${toneMap[tone] || toneMap.slate}`}>
+    <div className={`rounded-2xl border p-4 shadow-sm ${toneMap[tone] || toneMap.slate}`}>
       <p className="text-xs font-semibold uppercase tracking-[0.18em]">{label}</p>
       <p className="mt-3 text-2xl font-bold">{value}</p>
       {hint ? <p className="mt-1 text-sm opacity-80">{hint}</p> : null}
@@ -143,6 +145,19 @@ function SummaryCard({ label, value, hint, tone = "slate" }) {
 /* ═════════════════════════════════════
    MAIN COMPONENT
 ═════════════════════════════════════ */
+function InventoryActionButton({ label, icon, onClick, className }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${className}`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
 const ManagerInventory = () => {
   const user           = JSON.parse(localStorage.getItem("user") || "{}");
   const restaurantId   = user?.restaurant || "";
@@ -303,25 +318,25 @@ const ManagerInventory = () => {
   const categoryOptions = ["all", ...new Set(inventory.map((item) => item.category || "Uncategorized"))];
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 dark:bg-gray-900 sm:p-6">
+    <div className="min-h-screen bg-gray-50 p-3 dark:bg-gray-900 sm:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto space-y-5">
 
         {/* HEADER */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100 dark:bg-gray-800 dark:ring-gray-700 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white sm:text-3xl">Inventory Management</h1>
             {restaurantName && <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">{restaurantName}</p>}
           </div>
           {restaurantId && (
             <button onClick={openAddModal}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl shadow-md shadow-green-200 dark:shadow-green-900/30 text-sm font-semibold transition-all hover:-translate-y-0.5">
-              <span className="text-lg leading-none">+</span> Add Item
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-green-200 transition-all hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:shadow-green-900/30 dark:focus:ring-offset-gray-900 sm:w-auto">
+              <Plus size={18} /> Add Item
             </button>
           )}
         </div>
 
         {restaurantId && (
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <SummaryCard label="Assigned Restaurant" value={restaurantName || "Restaurant"} hint="Current inventory workspace" />
             <SummaryCard label="In Stock" value={okCount} hint={`${totalItems} total items`} tone="emerald" />
             <SummaryCard label="Low Stock" value={lowCount} hint="Needs restock attention" tone="rose" />
@@ -330,14 +345,14 @@ const ManagerInventory = () => {
 
         {/* STATUS PILLS */}
         {restaurantId && !loading && (
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {[
               { key: "all", label: `All Items · ${totalItems}`, active: "bg-gray-800 dark:bg-white text-white dark:text-gray-900 border-transparent shadow", inactive: "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700" },
               { key: "ok",  label: `In Stock · ${okCount}`,     active: "bg-emerald-600 text-white border-transparent shadow", inactive: "bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50" },
               { key: "low", label: `Low Stock · ${lowCount}`,   active: "bg-rose-600 text-white border-transparent shadow",    inactive: "bg-white dark:bg-gray-800 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50" },
             ].map(({ key, label, active, inactive }) => (
               <button key={key} onClick={() => setStatusFilter(key)}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all ${statusFilter === key ? active : inactive}`}>
+                className={`min-h-12 rounded-xl border px-4 py-3 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${statusFilter === key ? active : inactive}`}>
                 {label}
               </button>
             ))}
@@ -354,21 +369,22 @@ const ManagerInventory = () => {
         {restaurantId && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
             {/* search bar */}
-            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex flex-wrap items-center gap-3">
-              <div className="relative w-full flex-1 min-w-0 sm:min-w-[200px] sm:max-w-sm">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 select-none">🔍</span>
+            <div className="grid gap-3 border-b border-gray-100 px-4 py-4 dark:border-gray-700 md:flex md:items-center md:px-5">
+              <div className="relative w-full md:max-w-sm md:flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input type="text" placeholder="Search by name or category…" value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-9 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700/60 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition" />
+                  className="min-h-12 w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-10 pr-12 text-sm text-gray-900 placeholder-gray-400 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500" />
                 {search && (
                   <button onClick={() => setSearch("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+                    className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                    aria-label="Clear search">×</button>
                 )}
               </div>
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full px-4 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 transition sm:w-auto sm:min-w-[180px]"
+                className="min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white md:w-auto md:min-w-[180px]"
               >
                 {categoryOptions.map((category) => (
                   <option key={category} value={category}>
@@ -376,13 +392,13 @@ const ManagerInventory = () => {
                   </option>
                 ))}
               </select>
-              <span className="text-sm text-gray-400 dark:text-gray-500 font-medium ml-auto">
+              <span className="text-sm font-medium text-gray-400 dark:text-gray-500 md:ml-auto">
                 {loading ? "…" : `${filtered.length} of ${totalItems} item${totalItems !== 1 ? "s" : ""}`}
               </span>
             </div>
 
             {loading ? (
-              <div className="overflow-x-auto">
+              <div className="hidden overflow-x-auto md:block">
                 <table className="min-w-[860px] w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
                     <tr>{["#","Item","Category","Unit","Qty","Low Stock","Status","Actions"].map((h) => (
@@ -391,6 +407,21 @@ const ManagerInventory = () => {
                   </thead>
                   <tbody>{[...Array(5)].map((_, i) => <SkeletonRow key={i} />)}</tbody>
                 </table>
+              </div>
+            ) : null}
+
+            {loading ? (
+              <div className="grid gap-3 p-3 md:hidden">
+                {[...Array(3)].map((_, index) => (
+                  <div key={index} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <div className="h-4 w-2/3 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      {[...Array(3)].map((__, cell) => (
+                        <div key={cell} className="h-14 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-700/60" />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -401,7 +432,58 @@ const ManagerInventory = () => {
                 {!search && <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Click <span className="font-semibold text-green-600">+ Add Item</span> to get started</p>}
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="grid gap-3 p-3 md:hidden">
+                {filtered.map((item) => {
+                  const isLow = item.quantity <= item.lowStockThreshold;
+                  return (
+                    <article
+                      key={item._id}
+                      className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h2 className="truncate text-base font-semibold text-gray-900 dark:text-white">
+                            {item.name}
+                          </h2>
+                          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            {item.category || "Uncategorized"}
+                          </p>
+                        </div>
+                        {isLow
+                          ? <span className="shrink-0 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">Low</span>
+                          : <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">OK</span>}
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-gray-50 p-3 text-center dark:bg-gray-900/40">
+                        <div>
+                          <p className="text-xs text-gray-400">Qty</p>
+                          <p className={`mt-1 text-sm font-bold ${isLow ? "text-rose-600 dark:text-rose-400" : "text-gray-900 dark:text-white"}`}>
+                            {item.quantity}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400">Unit</p>
+                          <p className="mt-1 text-sm font-bold text-gray-900 dark:text-white">{item.unit}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400">Alert</p>
+                          <p className="mt-1 text-sm font-bold text-gray-900 dark:text-white">{item.lowStockThreshold}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <InventoryActionButton label="Stock" icon={<PackagePlus size={16} />} onClick={() => openAddStockModal(item)} className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/40" />
+                        <InventoryActionButton label="Logs" icon={<ClipboardList size={16} />} onClick={() => viewLogs(item)} className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40" />
+                        <InventoryActionButton label="Edit" icon={<Pencil size={16} />} onClick={() => openEditModal(item)} className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/40" />
+                        <InventoryActionButton label="Delete" icon={<Trash2 size={16} />} onClick={() => setDeleteTarget(item)} className="border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300 dark:hover:bg-rose-900/40" />
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
                 <table className="min-w-[860px] w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
                     <tr>{["#","Item","Category","Unit","Qty","Low Stock","Status","Actions"].map((h) => (
@@ -439,7 +521,7 @@ const ManagerInventory = () => {
                                 { label: "Delete",  fn: () => setDeleteTarget(item),   cls: "bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/40" },
                               ].map(({ label, fn, cls }) => (
                                 <button key={label} onClick={fn}
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${cls}`}>{label}</button>
+                                  className={`min-h-10 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${cls}`}>{label}</button>
                               ))}
                             </div>
                           </td>
@@ -449,6 +531,7 @@ const ManagerInventory = () => {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         )}
@@ -491,12 +574,12 @@ const ManagerInventory = () => {
             <Field label="Item Name"><input type="text" placeholder="e.g. Tomato" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required className={inputCls} /></Field>
             <CategorySelect value={form.category} {...catProps} />
             <UnitSelect value={form.unit} customValue={form.unitCustom} onChange={(v) => setForm({ ...form, unit: v, unitCustom: "" })} onCustomChange={(v) => setForm({ ...form, unitCustom: v })} required />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Initial Quantity"><input type="number" min="0" step="any" placeholder="e.g. 50" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required className={inputCls} /></Field>
               <Field label="Low Stock Alert"><input type="number" min="0" step="any" placeholder="e.g. 10" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} required className={inputCls} /></Field>
             </div>
-            <div className="flex gap-3 pt-2">
-              <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</button>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button type="button" onClick={() => setShowAddModal(false)} className="min-h-11 flex-1 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</button>
               <button type="submit" disabled={submitting} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors">{submitting ? "Saving…" : "Save Item"}</button>
             </div>
           </form>
@@ -510,11 +593,11 @@ const ManagerInventory = () => {
             <Field label="Item Name"><input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required className={inputCls} /></Field>
             <CategorySelect value={form.category} {...catProps} />
             <UnitSelect value={form.unit} customValue={form.unitCustom} onChange={(v) => setForm({ ...form, unit: v, unitCustom: "" })} onCustomChange={(v) => setForm({ ...form, unitCustom: v })} required />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Quantity"><input type="number" min="0" step="any" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required className={inputCls} /></Field>
               <Field label="Low Stock Alert"><input type="number" min="0" step="any" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} required className={inputCls} /></Field>
             </div>
-            <div className="flex gap-3 pt-2">
+            <div className="grid grid-cols-2 gap-3 pt-2">
               <button type="button" onClick={() => { setShowEditModal(false); setEditingId(null); }} className="flex-1 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</button>
               <button type="submit" disabled={submitting} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors">{submitting ? "Saving…" : "Update Item"}</button>
             </div>
@@ -532,7 +615,7 @@ const ManagerInventory = () => {
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Current stock: <span className="font-semibold text-emerald-700 dark:text-emerald-400">{stockTarget.quantity} {stockTarget.unit}</span></p>
             </div>
             <Field label={`Quantity to Add (${stockTarget.unit})`}><input type="number" min="0.01" step="any" placeholder="e.g. 20" value={stockQty} onChange={(e) => setStockQty(e.target.value)} required autoFocus className={inputCls} /></Field>
-            <div className="flex gap-3 pt-2">
+            <div className="grid grid-cols-2 gap-3 pt-2">
               <button type="button" onClick={() => { setShowAddStockModal(false); setStockTarget(null); }} className="flex-1 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</button>
               <button type="submit" disabled={submitting} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors">{submitting ? "Adding…" : "Add Stock"}</button>
             </div>
@@ -555,7 +638,7 @@ const ManagerInventory = () => {
               <div className="flex justify-between text-gray-600 dark:text-gray-300"><span>Low Stock Threshold</span><span className="font-semibold">{deleteTarget.lowStockThreshold}</span></div>
             </div>
             <p className="text-center text-xs text-gray-400 dark:text-gray-500">This action cannot be undone.</p>
-            <div className="flex gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setDeleteTarget(null)} className="flex-1 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</button>
               <button onClick={handleDelete} className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold transition-colors">Delete</button>
             </div>

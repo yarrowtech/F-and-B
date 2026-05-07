@@ -5,10 +5,45 @@ import { acceptOrder, getChefOrders, updateOrderStatusApi } from "../../services
 const REFRESH_INTERVAL = 5000;
 
 const statusStyles = {
-  PENDING: "bg-slate-100 text-slate-700",
-  ACCEPTED: "bg-amber-100 text-amber-700",
-  READY: "bg-emerald-100 text-emerald-700",
+  PENDING: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
+  ACCEPTED: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
+  READY: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200",
 };
+
+const statCards = {
+  pending: {
+    icon: FaClock,
+    iconClass: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
+    title: "Pending Orders",
+  },
+  accepted: {
+    icon: FaUserCheck,
+    iconClass: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200",
+    title: "Accepted",
+  },
+  ready: {
+    icon: FaCheckCircle,
+    iconClass: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200",
+    title: "Ready Today",
+  },
+};
+
+function StatCard({ type, value }) {
+  const meta = statCards[type];
+  const Icon = meta.icon;
+
+  return (
+    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{meta.title}</p>
+          <p className="mt-3 text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
+        </div>
+        <div className={`rounded-xl p-3 ${meta.iconClass}`}><Icon /></div>
+      </div>
+    </div>
+  );
+}
 
 export default function ChefManagement() {
   const [orders, setOrders] = useState([]);
@@ -113,7 +148,7 @@ export default function ChefManagement() {
   const totalReady = chefScopedOrders.filter((order) => order.status === "READY" && isToday(order.readyAt)).length;
 
   if (loading) {
-    return <div className="p-10 text-xl">Loading chef panel...</div>;
+    return <div className="min-h-screen bg-slate-50 p-6 text-lg font-semibold text-slate-600 dark:bg-slate-900 dark:text-slate-300">Loading chef panel...</div>;
   }
 
   const renderOrderCard = (order, compact = false) => {
@@ -131,17 +166,17 @@ export default function ChefManagement() {
         key={item._id}
         className={`flex items-center justify-between gap-3 rounded-2xl px-3 py-3 ring-1 ${
           isNew
-            ? "bg-emerald-50 ring-emerald-200"
-            : "bg-white ring-slate-200"
+            ? "bg-emerald-50 ring-emerald-200 dark:bg-emerald-900/20 dark:ring-emerald-900/50"
+            : "bg-white ring-slate-200 dark:bg-slate-800 dark:ring-slate-700"
         }`}
       >
         <div className="flex min-w-0 items-center gap-3">
-          <div className={`rounded-xl p-2 ${isNew ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+          <div className={`rounded-xl p-2 ${isNew ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200"}`}>
             <FaUtensils />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="truncate font-semibold text-slate-900">{item.menuItem?.name || "Menu Item"}</p>
+              <p className="truncate font-semibold text-slate-900 dark:text-white">{item.menuItem?.name || "Menu Item"}</p>
               {isNew && (
                 <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                   New
@@ -150,24 +185,24 @@ export default function ChefManagement() {
             </div>
           </div>
         </div>
-        <span className={`shrink-0 text-sm font-bold ${isNew ? "text-emerald-700" : "text-slate-700"}`}>x {item.quantity}</span>
+        <span className={`shrink-0 text-sm font-bold ${isNew ? "text-emerald-700 dark:text-emerald-200" : "text-slate-700 dark:text-slate-200"}`}>x {item.quantity}</span>
       </div>
     );
 
     return (
       <div
         key={order._id}
-        className={`rounded-3xl bg-white ${compact ? "p-4" : "p-5"} shadow-sm ring-1 ring-slate-200 ${isAccepted && !isMine ? "opacity-70" : ""}`}
+        className={`rounded-2xl bg-white ${compact ? "p-4" : "p-5"} shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 ${isAccepted && !isMine ? "opacity-70" : ""}`}
       >
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <div className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <div className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:bg-slate-700 dark:text-slate-200">
               Order #{order.orderNo || order._id.slice(-4)}
             </div>
-            <h2 className={`${compact ? "text-xl" : "text-2xl"} mt-3 font-bold text-slate-900`}>Table {order.table?.tableNumber || "N/A"}</h2>
-            <p className="mt-1 text-sm text-slate-500">Waiter: {order.waiter?.name || "N/A"}</p>
+            <h2 className={`${compact ? "text-xl" : "text-2xl"} mt-3 font-bold text-slate-900 dark:text-white`}>Table {order.table?.tableNumber || "N/A"}</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Waiter: {order.waiter?.name || "N/A"}</p>
             {hasNewItems && (
-              <div className="mt-3 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+              <div className="mt-3 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:ring-emerald-900/50">
                 Updated order - cook new items
               </div>
             )}
@@ -177,12 +212,12 @@ export default function ChefManagement() {
           </span>
         </div>
 
-        <div className="mt-5 rounded-3xl bg-slate-50 p-4">
-          <p className="mb-3 text-sm font-semibold text-slate-700">Order Items</p>
+        <div className="mt-5 rounded-2xl bg-slate-50 p-3 dark:bg-slate-900/50 sm:p-4">
+          <p className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Order Items</p>
           <div className="space-y-2">
             {hasNewItems && (
-              <div className="mb-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3">
-                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-emerald-700">New Added Items</p>
+              <div className="mb-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900/50 dark:bg-emerald-900/20">
+                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-200">New Added Items</p>
                 <div className="space-y-2">
                   {newItems.map((item) => renderItemRow(item, true))}
                 </div>
@@ -190,9 +225,9 @@ export default function ChefManagement() {
             )}
 
             {previousItems.length > 0 && (
-              <div className={hasNewItems ? "rounded-2xl border border-slate-200 bg-white/60 p-3" : "space-y-2"}>
+              <div className={hasNewItems ? "rounded-2xl border border-slate-200 bg-white/60 p-3 dark:border-slate-700 dark:bg-slate-800/60" : "space-y-2"}>
                 {hasNewItems && (
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Previous Items</p>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Previous Items</p>
                 )}
                 <div className="space-y-2">
                   {previousItems.map((item) => renderItemRow(item))}
@@ -202,12 +237,12 @@ export default function ChefManagement() {
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-3">
+        <div className="mt-5 grid gap-3 sm:flex sm:flex-wrap">
           {!isAccepted && order.status === "PENDING" && (
             <button
               disabled={actionLoading === order._id}
               onClick={() => handleAccept(order._id)}
-              className="inline-flex items-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 sm:w-auto"
             >
               {actionLoading === order._id ? "Processing..." : "Accept Order"}
             </button>
@@ -217,20 +252,20 @@ export default function ChefManagement() {
             <button
               disabled={actionLoading === order._id}
               onClick={() => handleReady(order._id)}
-              className="inline-flex items-center rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60 sm:w-auto"
             >
               {actionLoading === order._id ? "Updating..." : "Ready"}
             </button>
           )}
 
           {isAccepted && !isMine && (
-            <div className="inline-flex items-center rounded-2xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-600">
+            <div className="inline-flex min-h-12 items-center justify-center rounded-xl bg-slate-100 px-4 py-3 text-center text-sm font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-200">
               Accepted by {order.chef?.name || "another chef"}
             </div>
           )}
 
           {order.status === "READY" && (
-            <div className="inline-flex items-center rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+            <div className="inline-flex min-h-12 items-center justify-center rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200">
               Ready for waiter
             </div>
           )}
@@ -241,17 +276,17 @@ export default function ChefManagement() {
 
   const renderOrderSection = (title, subtitle, sectionOrders, tone) => {
     const toneMap = {
-      pending: "bg-slate-100 text-slate-700",
-      accepted: "bg-amber-100 text-amber-700",
-      ready: "bg-emerald-100 text-emerald-700",
+      pending: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
+      accepted: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
+      ready: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200",
     };
 
     return (
-      <section className="flex min-h-0 flex-col rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+      <section className="flex min-h-0 flex-col rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">{title}</h2>
-            <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">{title}</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
           </div>
           <span className={`rounded-full px-3 py-1 text-sm font-semibold ${toneMap[tone]}`}>
             {sectionOrders.length}
@@ -259,7 +294,7 @@ export default function ChefManagement() {
         </div>
 
         {sectionOrders.length === 0 ? (
-          <div className="flex min-h-[160px] flex-1 items-center justify-center rounded-3xl bg-slate-50 px-4 text-center text-sm text-slate-400">
+          <div className="flex min-h-[160px] flex-1 items-center justify-center rounded-2xl bg-slate-50 px-4 text-center text-sm text-slate-400 dark:bg-slate-900/50 dark:text-slate-500">
             No orders in this section.
           </div>
         ) : (
@@ -272,51 +307,27 @@ export default function ChefManagement() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Pending Orders</p>
-                <p className="mt-3 text-2xl font-bold text-slate-900">{totalPending}</p>
-              </div>
-              <div className="rounded-2xl bg-slate-100 p-3 text-slate-700"><FaClock /></div>
-            </div>
-          </div>
-          <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Accepted</p>
-                <p className="mt-3 text-2xl font-bold text-slate-900">{totalAccepted}</p>
-              </div>
-              <div className="rounded-2xl bg-amber-50 p-3 text-amber-700"><FaUserCheck /></div>
-            </div>
-          </div>
-          <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Ready Today</p>
-                <p className="mt-3 text-2xl font-bold text-slate-900">{totalReady}</p>
-              </div>
-              <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-700"><FaCheckCircle /></div>
-            </div>
-          </div>
+    <div className="min-h-screen bg-slate-50 p-3 dark:bg-slate-900 sm:p-4 lg:p-6">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <StatCard type="pending" value={totalPending} />
+          <StatCard type="accepted" value={totalAccepted} />
+          <StatCard type="ready" value={totalReady} />
         </div>
 
-        <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-          <div className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 md:max-w-sm">
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+          <div className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-600 dark:bg-slate-900 md:max-w-sm">
             <FaSearch className="text-slate-400" />
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by item, table, or waiter..."
-              className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+              className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-slate-500"
             />
           </div>
         </div>
 
-        <div className="grid min-h-[620px] gap-5 xl:h-[calc(100vh-18rem)] xl:min-h-0 xl:grid-cols-3">
+        <div className="grid gap-4 xl:h-[calc(100vh-18rem)] xl:min-h-[620px] xl:grid-cols-3">
           {renderOrderSection("Pending Orders", "Waiting for chef acceptance.", pendingOrders, "pending")}
           {renderOrderSection("Accepted Orders", "Accepted and cooking.", acceptedOrders, "accepted")}
           {renderOrderSection("Ready Orders", "Ready for waiter.", readyOrders, "ready")}
