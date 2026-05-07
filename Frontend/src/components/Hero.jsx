@@ -16,7 +16,7 @@ const Hero = () => {
       <img
         src="/images/cabage.png"
         alt="Fresh cabbage"
-        className="absolute inset-y-0 -right-[10%] h-full w-[92%] -scale-x-100 object-contain object-right opacity-100 sm:-right-[8%] sm:w-[82%] md:-right-[7%] md:w-[72%] lg:-right-[6%] lg:w-[64%] xl:-right-[5%] xl:w-[60%]"
+        className="absolute inset-0 h-full w-full -scale-x-100 object-cover object-center opacity-45 md:opacity-55 lg:inset-y-0 lg:left-auto lg:-right-[6%] lg:w-[64%] lg:object-contain lg:object-right lg:opacity-100 xl:-right-[5%] xl:w-[60%]"
         fetchPriority="high"
         decoding="async"
       />
