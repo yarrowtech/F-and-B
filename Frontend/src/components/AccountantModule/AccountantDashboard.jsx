@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from "react";
+import { FaCreditCard, FaMoneyBillWave, FaReceipt, FaRupeeSign, FaTimes, FaUniversity } from "react-icons/fa";
 import { getAccountantDashboard } from "../../services/dashboard.service";
 
 const formatCurrency = (amount) =>
@@ -9,122 +10,207 @@ const formatCurrency = (amount) =>
 
 const formatDate = (value) => {
   if (!value) return "N/A";
-  return new Date(value).toLocaleString("en-IN");
+  return new Date(value).toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 };
 
-function SummaryCard({ title, value, tone = "slate", onClick }) {
+const getBillId = (bill) => bill.billNo || bill._id?.slice(-6) || "N/A";
+const getBillTable = (bill) => `Table ${bill.order?.table?.tableNumber || "N/A"}`;
+const getStatusClass = (status) =>
+  status === "PAID"
+    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
+    : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200";
+
+function SummaryCard({ title, value, tone = "slate", icon, onClick }) {
   const toneMap = {
     slate: {
-      wrap: "border-slate-200 bg-white text-slate-800",
-      badge: "bg-slate-100 text-slate-600",
-      value: "text-slate-900",
+      wrap: "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900",
+      icon: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+      value: "text-slate-950 dark:text-white",
     },
     emerald: {
-      wrap: "border-emerald-200 bg-emerald-50/60 text-emerald-800",
-      badge: "bg-emerald-100 text-emerald-700",
-      value: "text-emerald-900",
+      wrap: "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/60 dark:bg-emerald-950/30",
+      icon: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200",
+      value: "text-emerald-900 dark:text-emerald-100",
     },
     blue: {
-      wrap: "border-blue-200 bg-blue-50/70 text-blue-800",
-      badge: "bg-blue-100 text-blue-700",
-      value: "text-blue-900",
+      wrap: "border-sky-200 bg-sky-50/70 dark:border-sky-900/60 dark:bg-sky-950/30",
+      icon: "bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-200",
+      value: "text-sky-900 dark:text-sky-100",
     },
     amber: {
-      wrap: "border-amber-200 bg-amber-50/70 text-amber-800",
-      badge: "bg-amber-100 text-amber-700",
-      value: "text-amber-900",
+      wrap: "border-amber-200 bg-amber-50/70 dark:border-amber-900/60 dark:bg-amber-950/30",
+      icon: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200",
+      value: "text-amber-900 dark:text-amber-100",
     },
     rose: {
-      wrap: "border-rose-200 bg-rose-50/70 text-rose-800",
-      badge: "bg-rose-100 text-rose-700",
-      value: "text-rose-900",
+      wrap: "border-rose-200 bg-rose-50/70 dark:border-rose-900/60 dark:bg-rose-950/30",
+      icon: "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-200",
+      value: "text-rose-900 dark:text-rose-100",
     },
   };
 
-  const isInteractive = typeof onClick === "function";
   const palette = toneMap[tone] || toneMap.slate;
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-3xl border p-5 text-left transition ${palette.wrap} ${isInteractive ? "hover:-translate-y-0.5 hover:shadow-md" : "cursor-default"}`}
+      className={`min-h-[132px] rounded-2xl border p-4 text-left shadow-sm transition active:scale-[0.99] hover:shadow-md ${palette.wrap}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${palette.badge}`}>
-            Billing
-          </span>
-          <p className="mt-3 text-sm font-semibold">{title}</p>
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+            {title}
+          </p>
+          <p className={`mt-3 break-words text-2xl font-black leading-tight sm:text-3xl ${palette.value}`}>
+            {value}
+          </p>
         </div>
-        {isInteractive ? <span className="text-xs font-semibold text-slate-400">View</span> : null}
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${palette.icon}`}>
+          {icon}
+        </span>
       </div>
-      <p className={`mt-6 text-4xl font-bold ${palette.value}`}>{value}</p>
-      {isInteractive ? <p className="mt-2 text-sm opacity-75">Click to view bills</p> : null}
+      <p className="mt-4 text-xs font-semibold text-slate-500 dark:text-slate-400">Tap to view details</p>
     </button>
+  );
+}
+
+function BillStatusPill({ status }) {
+  const normalizedStatus = status || "PENDING";
+
+  return (
+    <span className={`inline-flex min-h-8 items-center rounded-full px-3 text-xs font-bold ${getStatusClass(normalizedStatus)}`}>
+      {normalizedStatus}
+    </span>
+  );
+}
+
+function BillCard({ bill, type = "generated" }) {
+  const dateLabel = type === "generated" ? "Generated" : "Paid";
+  const dateValue =
+    type === "generated"
+      ? bill.generatedAt || bill.updatedAt || bill.createdAt
+      : bill.paidAt || bill.updatedAt;
+
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Bill No</p>
+          <h3 className="mt-1 truncate text-lg font-black text-slate-950 dark:text-white">{getBillId(bill)}</h3>
+        </div>
+        <BillStatusPill status={bill.paymentStatus} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+        <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Order</p>
+          <p className="mt-1 font-bold text-slate-800 dark:text-slate-100">{bill.order?.orderNo || "N/A"}</p>
+        </div>
+        <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Table</p>
+          <p className="mt-1 font-bold text-slate-800 dark:text-slate-100">{getBillTable(bill)}</p>
+        </div>
+        <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Payment</p>
+          <p className="mt-1 font-bold text-slate-800 dark:text-slate-100">{bill.paymentMethod || "Pending"}</p>
+        </div>
+        <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Amount</p>
+          <p className="mt-1 font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(bill.totalAmount)}</p>
+        </div>
+      </div>
+
+      <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
+        {dateLabel}: {formatDate(dateValue)}
+      </p>
+    </article>
+  );
+}
+
+function BillsTable({ bills, type = "generated" }) {
+  return (
+    <div className="hidden overflow-x-auto lg:block">
+      <table className="min-w-[900px] w-full text-sm">
+        <thead className="bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+          <tr>
+            {["Bill No", "Order No", "Table", type === "generated" ? "Generated At" : "Paid At", "Status", "Payment", "Amount"].map((head) => (
+              <th key={head} className="px-4 py-3 text-left font-semibold">
+                {head}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+          {bills.map((bill) => (
+            <tr key={bill._id} className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/70">
+              <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-100">{getBillId(bill)}</td>
+              <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{bill.order?.orderNo || "N/A"}</td>
+              <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{getBillTable(bill)}</td>
+              <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                {formatDate(type === "generated" ? bill.generatedAt || bill.updatedAt || bill.createdAt : bill.paidAt || bill.updatedAt)}
+              </td>
+              <td className="px-4 py-3">
+                <BillStatusPill status={bill.paymentStatus} />
+              </td>
+              <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{bill.paymentMethod || "Pending"}</td>
+              <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-100">{formatCurrency(bill.totalAmount)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function EmptyBills({ message }) {
+  return (
+    <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+      {message}
+    </div>
   );
 }
 
 function BillsModal({ title, bills, onClose, type }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative z-10 max-h-[85vh] w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">{title}</h2>
-            <p className="text-sm text-slate-500">{bills.length} bill{bills.length !== 1 ? "s" : ""}</p>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 sm:items-center sm:p-4">
+      <button type="button" aria-label="Close bill details" className="absolute inset-0 h-full w-full cursor-default" onClick={onClose} />
+      <section className="relative z-10 flex h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-slate-50 shadow-2xl dark:bg-slate-950 sm:h-auto sm:max-h-[88vh] sm:rounded-2xl">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900 sm:px-6 sm:py-4">
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-black text-slate-950 dark:text-white sm:text-xl">{title}</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{bills.length} bill{bills.length !== 1 ? "s" : ""}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600 hover:bg-slate-200"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           >
-            Close
+            <FaTimes />
           </button>
-        </div>
+        </header>
 
-        <div className="max-h-[70vh] overflow-auto p-6">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
           {bills.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 px-6 py-12 text-center text-slate-500">
-              No bills found for this filter.
-            </div>
+            <EmptyBills message="No bills found for this filter." />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-[900px] w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500">
-                  <tr>
-                    {["Bill No", "Order No", "Table", type === "generated" ? "Generated At" : "Paid At", "Status", "Payment", "Amount"].map((head) => (
-                      <th key={head} className="px-4 py-3 text-left font-semibold">
-                        {head}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {bills.map((bill) => (
-                    <tr key={bill._id}>
-                      <td className="px-4 py-3 font-semibold text-slate-800">{bill.billNo || bill._id?.slice(-6)}</td>
-                      <td className="px-4 py-3 text-slate-600">{bill.order?.orderNo || "N/A"}</td>
-                      <td className="px-4 py-3 text-slate-600">Table {bill.order?.table?.tableNumber || "N/A"}</td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {formatDate(type === "generated" ? bill.generatedAt || bill.updatedAt || bill.createdAt : bill.paidAt || bill.updatedAt)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${bill.paymentStatus === "PAID" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                          {bill.paymentStatus || "PENDING"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{bill.paymentMethod || "Pending"}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-800">{formatCurrency(bill.totalAmount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="space-y-3 lg:hidden">
+                {bills.map((bill) => (
+                  <BillCard key={bill._id} bill={bill} type={type} />
+                ))}
+              </div>
+              <BillsTable bills={bills} type={type} />
+            </>
           )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }
@@ -219,39 +305,41 @@ const AccountantDashboard = () => {
   }, [filter, fromDate, toDate]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="rounded-[28px] bg-gradient-to-r from-slate-900 via-emerald-900 to-teal-700 p-6 text-white shadow-xl">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="max-w-2xl">
-              <div className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-100">
+    <div className="min-h-screen bg-slate-50 p-3 text-slate-950 dark:bg-neutral-800 dark:text-white sm:p-4 lg:p-6">
+      <div className="mx-auto max-w-7xl space-y-4 sm:space-y-5">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-300">
                 Accountant Billing
-              </div>
-              <h1 className="mt-3 text-3xl font-bold">Accountant Dashboard</h1>
-              <p className="mt-2 text-sm text-emerald-50/90">
-                Track your generated bills, collections, and payment methods with quick date filters and bill-wise drilldowns.
+              </p>
+              <h1 className="mt-2 text-2xl font-black text-slate-950 dark:text-white sm:text-3xl">
+                Dashboard
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+                Track generated bills, collected revenue, and payment methods for the selected date range.
               </p>
             </div>
 
-            <div className="rounded-3xl bg-white/10 px-4 py-3 backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100">Current Range</p>
-              <p className="mt-2 text-lg font-bold text-white">{rangeLabel}</p>
+            <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Current Range</p>
+              <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">{rangeLabel}</p>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="min-w-[130px]">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Filter Billing</p>
-              <p className="mt-1 text-sm text-slate-400">Choose your date range</p>
+        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Filter Billing</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Choose your date range</p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="grid gap-2 sm:grid-cols-3 lg:flex lg:items-center">
               <select
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 sm:text-sm lg:w-44"
               >
                 <option value="today">Today</option>
                 <option value="last7days">Last 7 Days</option>
@@ -265,83 +353,62 @@ const AccountantDashboard = () => {
                     type="date"
                     value={fromDate}
                     onChange={(e) => setFromDate(e.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 sm:text-sm"
                   />
                   <input
                     type="date"
                     value={toDate}
                     onChange={(e) => setToDate(e.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 sm:text-sm"
                   />
                 </>
               ) : null}
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <SummaryCard title="Total Bills Generated" value={loading ? "..." : summary.totalBillsGenerated || 0} tone="slate" onClick={() => openModal("totalBillsGenerated")} />
-          <SummaryCard title="Revenue" value={loading ? "..." : formatCurrency(summary.totalRevenue)} tone="emerald" onClick={() => openModal("totalRevenue")} />
-          <SummaryCard title="Cash" value={loading ? "..." : summary.cashCount || 0} tone="amber" onClick={() => openModal("cashCount")} />
-          <SummaryCard title="Card" value={loading ? "..." : summary.cardCount || 0} tone="blue" onClick={() => openModal("cardCount")} />
-          <SummaryCard title="UPI" value={loading ? "..." : summary.upiCount || 0} tone="rose" onClick={() => openModal("upiCount")} />
-        </div>
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <SummaryCard title="Generated Bills" value={loading ? "..." : summary.totalBillsGenerated || 0} tone="slate" icon={<FaReceipt />} onClick={() => openModal("totalBillsGenerated")} />
+          <SummaryCard title="Revenue" value={loading ? "..." : formatCurrency(summary.totalRevenue)} tone="emerald" icon={<FaRupeeSign />} onClick={() => openModal("totalRevenue")} />
+          <SummaryCard title="Cash" value={loading ? "..." : summary.cashCount || 0} tone="amber" icon={<FaMoneyBillWave />} onClick={() => openModal("cashCount")} />
+          <SummaryCard title="Card" value={loading ? "..." : summary.cardCount || 0} tone="blue" icon={<FaCreditCard />} onClick={() => openModal("cardCount")} />
+          <SummaryCard title="UPI" value={loading ? "..." : summary.upiCount || 0} tone="rose" icon={<FaUniversity />} onClick={() => openModal("upiCount")} />
+        </section>
 
-        <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
-          <div className="border-b border-slate-200 bg-slate-50/80 px-6 py-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="border-b border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-700 dark:bg-slate-800 sm:px-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Bill Activity</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Generated bills: {generatedBills.length} | Paid bills: {paidBills.length}
+                <h2 className="text-xl font-black text-slate-950 dark:text-white">Bill Activity</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Generated: {generatedBills.length} | Paid: {paidBills.length}
                 </p>
               </div>
-              <div className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">
-                {generatedBills.length} visible
-              </div>
+              <button
+                type="button"
+                onClick={() => openModal("totalBillsGenerated")}
+                className="min-h-11 rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700 dark:hover:bg-slate-800"
+              >
+                View All
+              </button>
             </div>
           </div>
 
-          <div className="px-6 py-6 overflow-x-auto">
-            <table className="min-w-[900px] w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500">
-                <tr>
-                  {["Bill No", "Order No", "Table", "Generated At", "Paid At", "Status", "Payment", "Amount"].map((head) => (
-                    <th key={head} className="px-4 py-3 text-left font-semibold">
-                      {head}
-                    </th>
+          <div className="p-3 sm:p-5">
+            {generatedBills.length === 0 ? (
+              <EmptyBills message="No generated bills found for this filter." />
+            ) : (
+              <>
+                <div className="space-y-3 lg:hidden">
+                  {generatedBills.slice(0, 8).map((bill) => (
+                    <BillCard key={bill._id} bill={bill} type="generated" />
                   ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {generatedBills.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
-                      No generated bills found for this filter.
-                    </td>
-                  </tr>
-                ) : (
-                  generatedBills.map((bill) => (
-                    <tr key={bill._id} className="transition hover:bg-slate-50/70">
-                      <td className="px-4 py-3 font-semibold text-slate-800">{bill.billNo || bill._id?.slice(-6)}</td>
-                      <td className="px-4 py-3 text-slate-600">{bill.order?.orderNo || "N/A"}</td>
-                      <td className="px-4 py-3 text-slate-600">Table {bill.order?.table?.tableNumber || "N/A"}</td>
-                      <td className="px-4 py-3 text-slate-600">{formatDate(bill.generatedAt || bill.updatedAt || bill.createdAt)}</td>
-                      <td className="px-4 py-3 text-slate-600">{formatDate(bill.paidAt)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${bill.paymentStatus === "PAID" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                          {bill.paymentStatus || "PENDING"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{bill.paymentMethod || "Pending"}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-800">{formatCurrency(bill.totalAmount)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                </div>
+                <BillsTable bills={generatedBills} type="generated" />
+              </>
+            )}
           </div>
-        </div>
+        </section>
       </div>
 
       {modalConfig ? (

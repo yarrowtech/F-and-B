@@ -54,6 +54,127 @@ const buildTotals = (itemsTotal, customValues) => {
   };
 };
 
+const formatDate = (value) => {
+  if (!value) return "N/A";
+  return new Date(value).toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+function BillCard({
+  bill,
+  tab,
+  paymentMethod,
+  setPaymentMethod,
+  openBillModal,
+  payBill,
+}) {
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Bill No</p>
+          <h3 className="mt-1 truncate text-lg font-black text-slate-900 dark:text-white">
+            {bill.billNo || bill._id.slice(-6)}
+          </h3>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {formatDate(bill.updatedAt || bill.createdAt)}
+          </p>
+        </div>
+
+        <span className={`inline-flex min-h-8 shrink-0 items-center rounded-full px-3 text-xs font-bold ${
+          tab === "INBOX"
+            ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
+            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
+        }`}>
+          {tab === "INBOX" ? "Pending" : bill.paymentMethod || "Paid"}
+        </span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Order</p>
+          <p className="mt-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+            {bill.order?.orderNo || "N/A"}
+          </p>
+        </div>
+        <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Table</p>
+          <p className="mt-1 text-sm font-bold text-slate-800 dark:text-slate-100">
+            Table {bill.order?.table?.tableNumber || "N/A"}
+          </p>
+        </div>
+        <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Items</p>
+          <p className="mt-1 text-sm font-bold text-slate-800 dark:text-slate-100">
+            {formatCurrency(bill.itemsTotal)}
+          </p>
+        </div>
+        <div className="rounded-xl bg-emerald-50 p-3 dark:bg-emerald-900/30">
+          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-200">Grand Total</p>
+          <p className="mt-1 text-sm font-black text-emerald-800 dark:text-emerald-100">
+            {formatCurrency(bill.totalAmount)}
+          </p>
+        </div>
+      </div>
+
+      {tab === "INBOX" && (
+        <select
+          value={paymentMethod[bill._id] || "CASH"}
+          onChange={(e) =>
+            setPaymentMethod((prev) => ({
+              ...prev,
+              [bill._id]: e.target.value,
+            }))
+          }
+          className="mt-3 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base font-bold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+        >
+          <option value="CASH">Cash</option>
+          <option value="UPI">UPI</option>
+          <option value="CARD">Card</option>
+        </select>
+      )}
+
+      <div className="mt-3 grid gap-2">
+        {tab === "INBOX" && (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => openBillModal(bill)}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-3 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
+            >
+              <FaReceipt />
+              Generate
+            </button>
+
+            <button
+              type="button"
+              onClick={() => payBill(bill)}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
+            >
+              <FaCheck />
+              Pay
+            </button>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => downloadBillPdf(bill._id)}
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200"
+        >
+          <FaFilePdf />
+          PDF
+        </button>
+      </div>
+    </article>
+  );
+}
+
 export default function AccountantOrderBilling() {
   const [bills, setBills] = useState([]);
   const [search, setSearch] = useState("");
@@ -188,51 +309,108 @@ export default function AccountantOrderBilling() {
     : null;
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-6">
+    <div className="min-h-screen bg-slate-50 p-3 dark:bg-neutral-800 sm:p-4 lg:p-6">
+      <div className="mx-auto max-w-7xl space-y-4 sm:space-y-5">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-300">
+              Accountant Billing
+            </p>
+            <h1 className="mt-2 text-2xl font-black text-slate-900 dark:text-white sm:text-3xl">
+              Order Billing
+            </h1>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Generate bills, collect payments, and download PDFs from one tap-friendly workspace.
+            </p>
+          </div>
+        </section>
+
+        <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1 dark:bg-slate-800 sm:flex sm:w-fit">
               <button
+                type="button"
                 onClick={() => setTab("INBOX")}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                className={`min-h-12 rounded-xl px-4 py-2 text-sm font-bold transition ${
                   tab === "INBOX"
                     ? "bg-emerald-600 text-white shadow"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    : "text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-900"
                 }`}
               >
                 Pending Bills
               </button>
 
               <button
+                type="button"
                 onClick={() => setTab("HISTORY")}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                className={`min-h-12 rounded-xl px-4 py-2 text-sm font-bold transition ${
                   tab === "HISTORY"
                     ? "bg-slate-900 text-white shadow"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    : "text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-900"
                 }`}
               >
                 Paid History
               </button>
             </div>
 
-            <div className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 lg:max-w-md">
+            <div className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 dark:border-slate-700 dark:bg-slate-950 lg:max-w-md">
               <FaSearch className="text-slate-400" />
               <input
                 type="text"
                 placeholder="Search bill no, order no or table..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                className="h-12 w-full bg-transparent text-base text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
               />
             </div>
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
-          <div className="overflow-x-auto">
+        <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                {tab === "INBOX" ? "Pending Bills" : "Paid History"}
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {filteredBills.length} bill{filteredBills.length === 1 ? "" : "s"} visible
+              </p>
+            </div>
+            <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              {loading ? "Loading" : tab}
+            </span>
+          </div>
+
+          <div className="space-y-3 lg:hidden">
+            {loading && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+                Loading bills...
+              </div>
+            )}
+
+            {!loading && filteredBills.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+                No bills found for this view.
+              </div>
+            )}
+
+            {!loading &&
+              filteredBills.map((bill) => (
+                <BillCard
+                  key={bill._id}
+                  bill={bill}
+                  tab={tab}
+                  paymentMethod={paymentMethod}
+                  setPaymentMethod={setPaymentMethod}
+                  openBillModal={openBillModal}
+                  payBill={payBill}
+                />
+              ))}
+          </div>
+
+          <div className="hidden overflow-x-auto lg:block">
             <table className="min-w-[980px] w-full text-sm">
-              <thead className="bg-slate-900 text-left text-xs uppercase tracking-[0.2em] text-slate-200">
+              <thead className="bg-slate-900 text-left text-xs uppercase tracking-[0.16em] text-slate-200">
                 <tr>
                   <th className="px-5 py-4">Bill</th>
                   <th className="px-5 py-4">Order</th>
@@ -265,27 +443,25 @@ export default function AccountantOrderBilling() {
 
                 {!loading &&
                   filteredBills.map((bill) => (
-                    <tr key={bill._id} className="border-t border-slate-100">
+                    <tr key={bill._id} className="border-t border-slate-100 dark:border-slate-700">
                       <td className="px-5 py-4">
-                        <div className="font-semibold text-slate-800">
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">
                           {bill.billNo || bill._id.slice(-6)}
                         </div>
-                        <div className="text-xs text-slate-500">
-                          {new Date(
-                            bill.updatedAt || bill.createdAt
-                          ).toLocaleString("en-IN")}
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          {formatDate(bill.updatedAt || bill.createdAt)}
                         </div>
                       </td>
 
-                      <td className="px-5 py-4 font-medium text-slate-700">
+                      <td className="px-5 py-4 font-medium text-slate-700 dark:text-slate-200">
                         {bill.order?.orderNo || "N/A"}
                       </td>
 
-                      <td className="px-5 py-4 text-slate-700">
+                      <td className="px-5 py-4 text-slate-700 dark:text-slate-200">
                         Table {bill.order?.table?.tableNumber || "N/A"}
                       </td>
 
-                      <td className="px-5 py-4 font-semibold text-slate-700">
+                      <td className="px-5 py-4 font-semibold text-slate-700 dark:text-slate-200">
                         {formatCurrency(bill.itemsTotal)}
                       </td>
 
@@ -303,7 +479,7 @@ export default function AccountantOrderBilling() {
                                 [bill._id]: e.target.value,
                               }))
                             }
-                            className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-400"
+                            className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                           >
                             <option value="CASH">Cash</option>
                             <option value="UPI">UPI</option>
@@ -322,7 +498,7 @@ export default function AccountantOrderBilling() {
                             <>
                               <button
                                 onClick={() => openBillModal(bill)}
-                                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                               >
                                 <FaReceipt />
                                 Generate Bill
@@ -330,7 +506,7 @@ export default function AccountantOrderBilling() {
 
                               <button
                                 onClick={() => payBill(bill)}
-                                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700"
+                              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700"
                               >
                                 <FaCheck />
                                 Pay
@@ -340,7 +516,7 @@ export default function AccountantOrderBilling() {
 
                           <button
                             onClick={() => downloadBillPdf(bill._id)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
                           >
                             <FaFilePdf />
                             PDF
@@ -356,14 +532,14 @@ export default function AccountantOrderBilling() {
       </div>
 
       {selectedBill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-          <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between border-b border-slate-200 bg-slate-900 px-6 py-5 text-white">
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-300">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 sm:items-center sm:p-4">
+          <div className="flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden bg-white shadow-2xl dark:bg-slate-900 sm:h-auto sm:max-h-[92vh] sm:rounded-2xl">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 bg-slate-900 px-4 py-4 text-white sm:px-6 sm:py-5">
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
                   Bill Preview
                 </p>
-                <h2 className="mt-2 text-2xl font-bold">
+                <h2 className="mt-2 truncate text-xl font-bold sm:text-2xl">
                   {selectedBill.billNo || selectedBill._id.slice(-6)}
                 </h2>
                 <p className="mt-1 text-sm text-slate-300">
@@ -373,21 +549,49 @@ export default function AccountantOrderBilling() {
               </div>
 
               <button
+                type="button"
                 onClick={closeBillModal}
-                className="rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white transition hover:bg-white/20"
               >
                 <FaTimes />
               </button>
             </div>
 
-            <div className="grid max-h-[calc(92vh-92px)] gap-0 overflow-y-auto lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="border-b border-slate-200 p-6 lg:border-b-0 lg:border-r">
-                <div className="mb-5 flex items-center gap-2 text-slate-800">
+            <div className="grid min-h-0 flex-1 gap-0 overflow-y-auto lg:grid-cols-[1.15fr_0.85fr]">
+              <div className="border-b border-slate-200 p-4 dark:border-slate-700 lg:border-b-0 lg:border-r lg:p-6">
+                <div className="mb-4 flex items-center gap-2 text-slate-800 dark:text-slate-100 lg:mb-5">
                   <FaReceipt className="text-emerald-600" />
                   <h3 className="text-lg font-semibold">Bill Items</h3>
                 </div>
 
-                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                <div className="space-y-2 lg:hidden">
+                  {selectedBill.order?.items?.map((item, index) => {
+                    const price = Number(
+                      item.price ?? item.menuItem?.price ?? 0
+                    );
+                    const quantity = Number(item.quantity || 0);
+                    return (
+                      <div
+                        key={`${item.menuItem?._id || index}-${index}`}
+                        className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                            {item.menuItem?.name || "Menu Item"}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            Qty {quantity} x {formatCurrency(price)}
+                          </p>
+                        </div>
+                        <p className="text-sm font-black text-slate-900 dark:text-white">
+                          {formatCurrency(price * quantity)}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="hidden overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 lg:block">
                   <table className="w-full text-sm">
                     <thead className="bg-slate-100 text-slate-600">
                       <tr>
@@ -408,7 +612,7 @@ export default function AccountantOrderBilling() {
                             key={`${item.menuItem?._id || index}-${index}`}
                             className="border-t border-slate-100"
                           >
-                            <td className="px-4 py-3 font-medium text-slate-700">
+                            <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-100">
                               {item.menuItem?.name || "Menu Item"}
                             </td>
                             <td className="px-4 py-3 text-right text-slate-600">
@@ -427,36 +631,36 @@ export default function AccountantOrderBilling() {
                   </table>
                 </div>
 
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-emerald-50 p-4">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:mt-5 lg:gap-4">
+                  <div className="rounded-2xl bg-emerald-50 p-4 dark:bg-emerald-900/30">
                     <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-700">
                       Table
                     </p>
-                    <p className="mt-2 text-lg font-bold text-slate-800">
+                    <p className="mt-2 text-lg font-bold text-slate-800 dark:text-slate-100">
                       {selectedBill.order?.table?.tableNumber || "N/A"}
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-slate-100 p-4">
+                  <div className="rounded-2xl bg-slate-100 p-4 dark:bg-slate-800">
                     <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
                       Items Total
                     </p>
-                    <p className="mt-2 text-lg font-bold text-slate-800">
+                    <p className="mt-2 text-lg font-bold text-slate-800 dark:text-slate-100">
                       {formatCurrency(selectedBill.itemsTotal)}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-6">
-                <div className="mb-5 flex items-center gap-2 text-slate-800">
+              <div className="bg-slate-50 p-4 dark:bg-slate-950 lg:p-6">
+                <div className="mb-4 flex items-center gap-2 text-slate-800 dark:text-slate-100 lg:mb-5">
                   <FaMoneyBillWave className="text-emerald-600" />
                   <h3 className="text-lg font-semibold">Charges & Totals</h3>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3 lg:space-y-4">
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
                       CGST (%)
                     </label>
                     <input
@@ -467,12 +671,12 @@ export default function AccountantOrderBilling() {
                       onChange={(e) =>
                         handleCustomValueChange("cgstRate", e.target.value)
                       }
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400"
+                      className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:text-sm"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
                       SGST (%)
                     </label>
                     <input
@@ -483,12 +687,12 @@ export default function AccountantOrderBilling() {
                       onChange={(e) =>
                         handleCustomValueChange("sgstRate", e.target.value)
                       }
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400"
+                      className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:text-sm"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
                       Other Service Charge
                     </label>
                     <input
@@ -502,12 +706,12 @@ export default function AccountantOrderBilling() {
                           e.target.value
                         )
                       }
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400"
+                      className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:text-sm"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
                       Discount
                     </label>
                     <input
@@ -518,18 +722,18 @@ export default function AccountantOrderBilling() {
                       onChange={(e) =>
                         handleCustomValueChange("discount", e.target.value)
                       }
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400"
+                      className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:text-sm"
                     />
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="mb-4 text-sm font-semibold text-slate-800">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                    <p className="mb-4 text-sm font-semibold text-slate-800 dark:text-slate-100">
                       Customer Contact Details
                     </p>
 
                     <div className="space-y-4">
                       <div>
-                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                        <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
                           Email
                         </label>
                         <input
@@ -542,12 +746,12 @@ export default function AccountantOrderBilling() {
                               e.target.value
                             )
                           }
-                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400"
+                          className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 sm:text-sm"
                         />
                       </div>
 
                       <div>
-                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                        <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
                           Phone Number
                         </label>
                         <input
@@ -560,11 +764,11 @@ export default function AccountantOrderBilling() {
                               e.target.value
                             )
                           }
-                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-400"
+                          className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 sm:text-sm"
                         />
                       </div>
 
-                      <label className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                      <label className="flex min-h-12 items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                         <input
                           type="checkbox"
                           checked={customValues.sendToEmail}
@@ -574,12 +778,12 @@ export default function AccountantOrderBilling() {
                               e.target.checked
                             )
                           }
-                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                          className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                         />
                         Send bill to this email
                       </label>
 
-                      <label className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                      <label className="flex min-h-12 items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                         <input
                           type="checkbox"
                           checked={customValues.sendToPhone}
@@ -589,7 +793,7 @@ export default function AccountantOrderBilling() {
                               e.target.checked
                             )
                           }
-                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                          className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                         />
                         Send bill to this phone
                       </label>
@@ -652,19 +856,21 @@ export default function AccountantOrderBilling() {
                   </div>
                 )}
 
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <div className="sticky bottom-0 -mx-4 mt-6 grid grid-cols-2 gap-2 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950 lg:-mx-6 lg:px-6">
                   <button
+                    type="button"
                     onClick={handleGenerateBill}
                     disabled={savingBill}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <FaReceipt />
                     {savingBill ? "Generating..." : "Generate Bill"}
                   </button>
 
                   <button
+                    type="button"
                     onClick={closeBillModal}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                   >
                     <FaTimes />
                     Close
