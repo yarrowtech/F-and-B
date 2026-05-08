@@ -154,21 +154,21 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
   const headerTextClass = isLandingLight ? "text-emerald-950" : "text-white";
 
   return (
-    <header className={`fixed top-0 z-50 w-full px-4 pt-3 transition-all duration-300 md:px-8 lg:pt-4 ${isScrolled ? "backdrop-blur-sm" : ""}`}>
+    <header className={`fixed top-0 z-50 w-full px-4 pt-3 transition-all duration-300 md:px-6 lg:px-8 lg:pt-4 ${isScrolled ? "backdrop-blur-sm" : ""}`}>
       <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-4">
           <Link
             to="/"
-            className="flex min-w-[96px] flex-col items-center transition duration-300 hover:scale-[1.02] md:min-w-[128px]"
+            className="flex min-w-[86px] flex-col items-center transition duration-300 hover:scale-[1.02] lg:min-w-[128px]"
           >
-            <span className="mb-1 h-9 w-9 rounded-full bg-[#6fbd58] shadow-[0_0_30px_rgba(111,189,88,0.3)] md:h-11 md:w-11" />
+            <span className="mb-1 h-9 w-9 rounded-full bg-[#6fbd58] shadow-[0_0_30px_rgba(111,189,88,0.3)] lg:h-11 lg:w-11" />
             <span className="leading-none">
-              <span className="block text-xl font-black tracking-wide text-[#7fc84f] md:text-2xl">
+              <span className="block text-xl font-black tracking-wide text-[#7fc84f] lg:text-2xl">
                 EFNBM
               </span>
             </span>
           </Link>
 
-          <nav className={`absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 rounded-full border px-4 py-2.5 backdrop-blur-xl md:flex lg:gap-2 lg:px-6 ${navShellClass}`}>
+          <nav className={`absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 rounded-full border px-4 py-2.5 backdrop-blur-xl lg:flex lg:gap-2 lg:px-6 ${navShellClass}`}>
             {navLinks.map(({ to, label, sectionId }) => {
               const isActive = isHomePage && activeSection === sectionId;
 
@@ -189,23 +189,27 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
             })}
           </nav>
 
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="hidden items-center gap-2 lg:flex xl:gap-3">
             {user ? (
               <div className="flex items-center gap-2">
                 {displayName ? (
-                  <span className={`rounded-full border px-4 py-3 text-sm font-medium ${isLandingLight ? "border-emerald-900/10 bg-white/75 text-emerald-950" : "border-white/10 bg-white/6 text-white/90"}`}>
+                  <span className={`max-w-[150px] truncate rounded-full border px-3 py-2.5 text-sm font-medium xl:max-w-[180px] xl:px-4 xl:py-3 ${isLandingLight ? "border-emerald-900/10 bg-white/75 text-emerald-950" : "border-white/10 bg-white/6 text-white/90"}`}>
                     {displayName}
                   </span>
                 ) : null}
                 <button
                   onClick={handleDashboard}
-                  className="rounded-full bg-[#4ade80] px-5 py-3 text-sm font-semibold text-[#140d09] transition hover:brightness-110"
+                  className="rounded-full bg-[#4ade80] px-4 py-2.5 text-sm font-semibold text-[#140d09] transition hover:brightness-110 xl:px-5 xl:py-3"
                 >
                   Dashboard
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="rounded-full border border-red-400/25 bg-red-500/12 px-5 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/20"
+                  className={`rounded-full border px-4 py-2.5 text-sm font-semibold transition xl:px-5 xl:py-3 ${
+                    isLandingLight
+                      ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                      : "border-red-400/25 bg-red-500/12 text-red-200 hover:bg-red-500/20"
+                  }`}
                 >
                   Logout
                 </button>
@@ -238,7 +242,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
 
           <button
             onClick={() => setIsMenuOpen((prev) => !prev)}
-            className={`rounded-full border p-2.5 transition hover:text-[#4ade80] md:hidden ${
+            className={`rounded-full border p-2.5 transition hover:text-[#4ade80] lg:hidden ${
               isLandingLight
                 ? "border-emerald-900/10 bg-white/80 text-emerald-950"
                 : "border-white/10 bg-black/30 text-white"
@@ -255,7 +259,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
           </button>
 
         <div
-          className={`absolute left-4 right-4 top-20 overflow-hidden rounded-3xl border backdrop-blur-xl transition-all duration-500 md:hidden ${
+          className={`absolute left-4 right-4 top-20 overflow-hidden rounded-3xl border backdrop-blur-xl transition-all duration-500 lg:hidden ${
             isMenuOpen ? "max-h-screen opacity-100" : "max-h-0 opacity-0"
           } ${isLandingLight ? "border-emerald-900/10 bg-white/90" : "border-white/10 bg-[#174914]/92"}`}
         >
@@ -311,7 +315,11 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
                     </button>
                     <button
                       onClick={handleLogout}
-                      className="rounded-full border border-red-400/25 bg-red-500/12 px-4 py-2 text-sm font-semibold text-red-200"
+                      className={`rounded-full border px-4 py-2 text-sm font-semibold ${
+                        isLandingLight
+                          ? "border-red-200 bg-red-50 text-red-700"
+                          : "border-red-400/25 bg-red-500/12 text-red-200"
+                      }`}
                     >
                       Logout
                     </button>
