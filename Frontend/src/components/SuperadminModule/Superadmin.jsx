@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaShieldAlt, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUsers } from "react-icons/fa";
+import { FaShieldAlt, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUsers, FaEnvelope } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import Sidebar from "./Sidebar";
@@ -8,6 +8,7 @@ import Dashboard from "./Dashboard";
 import UserManagement from "./UserManagement";
 import AdminManagement from "./AdminManagement";
 import Notepad from "./Notepad";
+import ContactInquiries from "./ContactInquiries";
 
 /* ─── Profile Popup ─── */
 function SuperAdminProfileButton() {
@@ -104,10 +105,11 @@ function SuperAdminProfileButton() {
 
 /* ─── Main Layout ─── */
 const BOTTOM_NAV = [
-  { key: "dashboard",        label: "Dashboard", icon: FaTachometerAlt },
-  { key: "user-management",  label: "Users",     icon: FaUsers },
-  { key: "admin-management", label: "Admins",    icon: FaShieldAlt },
-  { key: "notepad",          label: "Notes",     icon: FaStickyNote },
+  { key: "dashboard",          label: "Dashboard", icon: FaTachometerAlt },
+  { key: "user-management",    label: "Users",     icon: FaUsers },
+  { key: "admin-management",   label: "Admins",    icon: FaShieldAlt },
+  { key: "contact-inquiries",  label: "Inquiries", icon: FaEnvelope },
+  { key: "notepad",            label: "Notes",     icon: FaStickyNote },
 ];
 
 const getInitialDarkMode = () => {
@@ -151,8 +153,9 @@ const SuperAdmin = () => {
       case "dashboard":        return <Dashboard />;
       case "user-management":  return <UserManagement />;
       case "admin-management": return <AdminManagement />;
-      case "notepad":          return <Notepad />;
-      default:                 return <div className="p-4">Page not found</div>;
+      case "contact-inquiries": return <ContactInquiries />;
+      case "notepad":           return <Notepad />;
+      default:                  return <div className="p-4">Page not found</div>;
     }
   };
 

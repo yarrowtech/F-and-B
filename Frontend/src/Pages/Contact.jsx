@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FaEnvelope, FaMapMarkerAlt, FaPhoneAlt } from "react-icons/fa";
+import { FaEnvelope, FaMapMarkerAlt, FaPhoneAlt, FaCheckCircle, FaTimes } from "react-icons/fa";
 import { motion } from "framer-motion";
 import PublicPageShell from "../components/PublicPageShell";
 
@@ -20,22 +20,54 @@ const Contact = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    setIsSubmitting(true);
+  const validate = () => {
+    if (!formData.name.trim()) return "Please enter your name.";
+    if (!formData.email.trim()) return "Please enter your email.";
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim());
+    if (!emailOk) return "Please enter a valid email address.";
+    if (!formData.message.trim()) return "Please enter your message.";
+    return null;
+  };
 
-    window.setTimeout(() => {
-      setIsSubmitting(false);
-      setSubmitSuccess(true);
+  const handleSubmit = async () => {
+    const validationError = validate();
+    if (validationError) {
+      setSubmitError(validationError);
+      return;
+    }
+    setIsSubmitting(true);
+    setSubmitError("");
+    setSubmitSuccess(false);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          subject: formData.company.trim() || "General Inquiry",
+          message: formData.message.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSubmitError(data.message || "Something went wrong. Please try again.");
+        return;
+      }
       setFormData({ name: "", email: "", company: "", message: "" });
-      window.setTimeout(() => setSubmitSuccess(false), 5000);
-    }, 1500);
+      setSubmitSuccess(true);
+    } catch {
+      setSubmitError("Unable to reach the server. Please try again later.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -89,8 +121,7 @@ const Contact = () => {
 
         <motion.div
           initial={{ opacity: 0, x: 28 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true, amount: 0.2 }}
+          animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6 }}
           className="rounded-[2rem] border border-green-100 bg-white/85 p-8 shadow-2xl backdrop-blur md:p-10"
         >
@@ -99,17 +130,7 @@ const Contact = () => {
             Send a message and we will get back to you shortly.
           </p>
 
-          {submitSuccess && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-6 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800"
-            >
-              Thank you. Your request has been submitted successfully.
-            </motion.div>
-          )}
-
-          <form onSubmit={handleSubmit} className="mt-8 grid gap-5">
+          <div className="mt-8 grid gap-5">
             <label className="grid gap-2">
               <span className="text-sm font-medium text-gray-700">Name</span>
               <input
@@ -118,7 +139,6 @@ const Contact = () => {
                 value={formData.name}
                 onChange={handleChange}
                 className="rounded-2xl border border-green-100 bg-white px-4 py-3 outline-none transition focus:border-green-500 focus:shadow-[0_0_0_4px_rgba(134,239,172,0.35)]"
-                required
               />
             </label>
 
@@ -130,19 +150,20 @@ const Contact = () => {
                 value={formData.email}
                 onChange={handleChange}
                 className="rounded-2xl border border-green-100 bg-white px-4 py-3 outline-none transition focus:border-green-500 focus:shadow-[0_0_0_4px_rgba(134,239,172,0.35)]"
-                required
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-sm font-medium text-gray-700">Company</span>
+              <span className="text-sm font-medium text-gray-700">
+                Company <span className="text-gray-400 font-normal">(optional)</span>
+              </span>
               <input
                 type="text"
                 name="company"
                 value={formData.company}
                 onChange={handleChange}
+                placeholder="Your company name"
                 className="rounded-2xl border border-green-100 bg-white px-4 py-3 outline-none transition focus:border-green-500 focus:shadow-[0_0_0_4px_rgba(134,239,172,0.35)]"
-                required
               />
             </label>
 
@@ -154,12 +175,12 @@ const Contact = () => {
                 value={formData.message}
                 onChange={handleChange}
                 className="rounded-2xl border border-green-100 bg-white px-4 py-3 outline-none transition focus:border-green-500 focus:shadow-[0_0_0_4px_rgba(134,239,172,0.35)]"
-                required
               />
             </label>
 
             <button
-              type="submit"
+              type="button"
+              onClick={handleSubmit}
               disabled={isSubmitting}
               className={`rounded-full bg-green-900 px-6 py-3 font-semibold text-white transition hover:-translate-y-1 hover:bg-green-800 ${
                 isSubmitting ? "cursor-not-allowed opacity-70" : ""
@@ -167,9 +188,60 @@ const Contact = () => {
             >
               {isSubmitting ? "Submitting..." : "Send Message"}
             </button>
-          </form>
+
+            {submitError && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {submitError}
+              </div>
+            )}
+          </div>
         </motion.div>
       </section>
+      {/* ── Success Popup ── */}
+      {submitSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setSubmitSuccess(false)}
+          />
+
+          {/* Modal */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.85, y: 24 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="relative bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm text-center z-10"
+          >
+            {/* Close */}
+            <button
+              onClick={() => setSubmitSuccess(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"
+            >
+              <FaTimes size={16} />
+            </button>
+
+            {/* Icon */}
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+                <FaCheckCircle className="text-green-600 text-3xl" />
+              </div>
+            </div>
+
+            <h3 className="text-xl font-bold text-gray-800 mb-2">Message Sent!</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Thank you for reaching out. We'll get back to you as soon as possible.
+            </p>
+
+            <button
+              onClick={() => setSubmitSuccess(false)}
+              className="w-full rounded-full bg-green-900 py-3 font-semibold text-white hover:bg-green-800 transition"
+            >
+              Done
+            </button>
+          </motion.div>
+        </div>
+      )}
     </PublicPageShell>
   );
 };

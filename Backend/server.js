@@ -1070,6 +1070,7 @@ import waiterDashboardRoutes from "./routes/waiterDashboard.routes.js";
 import accountantDashboardRoutes from "./routes/accountantDashboard.routes.js";
 import chefDashboardRoutes from "./routes/chefDashboard.routes.js";
 import inventoryDashboardRoutes from "./routes/inventoryDashboard.routes.js";
+import contactRoutes from "./routes/contact.routes.js";
 
 dotenv.config();
 
@@ -1101,7 +1102,11 @@ app.use(
 app.options(/.*/, cors(corsOptions));
 
 /* ================= SECURITY ================= */
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 app.use(apiLimiter);
 
 /* ================= GLOBAL ================= */
@@ -1168,6 +1173,9 @@ app.use("/api/waiter", waiterDashboardRoutes);
 app.use("/api/accountant", accountantDashboardRoutes);
 app.use("/api/chef", chefDashboardRoutes);
 app.use("/api/inventory-dashboard", inventoryDashboardRoutes);
+
+// 📬 CONTACT (landing page)
+app.use("/api/contact", contactRoutes);
 
 /* ================= HEALTH ================= */
 app.get("/", (req, res) => {

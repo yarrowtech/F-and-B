@@ -5,6 +5,7 @@ import {
   FaUsers,
   FaShieldAlt,
   FaStickyNote,
+  FaEnvelope,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
@@ -16,10 +17,11 @@ const Sidebar = ({ active, setActive }) => {
     user?.email?.split("@")[0]?.replace(/\./g, " ") || "Super Admin";
 
   const menuItems = [
-    { name: "Dashboard",        icon: FaTachometerAlt, key: "dashboard" },
-    { name: "User Management",  icon: FaUsers,         key: "user-management" },
-    { name: "Admin Management", icon: FaShieldAlt,     key: "admin-management" },
-    { name: "Notes",            icon: FaStickyNote,    key: "notepad" },
+    { name: "Dashboard",          icon: FaTachometerAlt, key: "dashboard" },
+    { name: "User Management",    icon: FaUsers,         key: "user-management" },
+    { name: "Admin Management",   icon: FaShieldAlt,     key: "admin-management" },
+    { name: "Contact Inquiries",  icon: FaEnvelope,      key: "contact-inquiries" },
+    { name: "Notes",              icon: FaStickyNote,    key: "notepad" },
   ];
 
   return (
