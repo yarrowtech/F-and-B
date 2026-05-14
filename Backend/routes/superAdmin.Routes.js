@@ -35,6 +35,7 @@ import {
 } from "../controllers/superAdmin.Controller.js";
 
 import protect from "../middlewares/auth.middleware.js";
+import serviceTokenOrProtect from "../middlewares/serviceTokenOrProtect.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
 
 const router = express.Router();
@@ -66,7 +67,7 @@ router.get(
 
 router.get(
   "/admin-management",
-  protect,
+  serviceTokenOrProtect,
   allowRoles("super_admin"),
   getAdminManagementSummary
 );

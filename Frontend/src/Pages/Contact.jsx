@@ -6,10 +6,13 @@ import PublicPageShell from "../components/PublicPageShell";
 void motion;
 
 const contactCards = [
-  { title: "Email", value: "info@fnb-solutions.com", icon: <FaEnvelope /> },
+  { title: "Email", value: "contact@efnbmmsgmail.com", icon: <FaEnvelope /> },
   { title: "Phone", value: "+91 98305 90929", icon: <FaPhoneAlt /> },
   { title: "Location", value: "3A, Bertram Street, Esplanade, Kolkata 700087", icon: <FaMapMarkerAlt /> },
 ];
+
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
+const CONTACT_API_URL = `${API_BASE_URL}/contact`;
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -36,7 +39,9 @@ const Contact = () => {
     return null;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
     const validationError = validate();
     if (validationError) {
       setSubmitError(validationError);
@@ -46,12 +51,13 @@ const Contact = () => {
     setSubmitError("");
     setSubmitSuccess(false);
     try {
-      const res = await fetch("/api/contact", {
+      const res = await fetch(CONTACT_API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: formData.name.trim(),
           email: formData.email.trim(),
+          company: formData.company.trim(),
           subject: formData.company.trim() || "General Inquiry",
           message: formData.message.trim(),
         }),
@@ -130,7 +136,7 @@ const Contact = () => {
             Send a message and we will get back to you shortly.
           </p>
 
-          <div className="mt-8 grid gap-5">
+          <form className="mt-8 grid gap-5" onSubmit={handleSubmit}>
             <label className="grid gap-2">
               <span className="text-sm font-medium text-gray-700">Name</span>
               <input
@@ -179,14 +185,13 @@ const Contact = () => {
             </label>
 
             <button
-              type="button"
-              onClick={handleSubmit}
+              type="submit"
               disabled={isSubmitting}
               className={`rounded-full bg-green-900 px-6 py-3 font-semibold text-white transition hover:-translate-y-1 hover:bg-green-800 ${
                 isSubmitting ? "cursor-not-allowed opacity-70" : ""
               }`}
             >
-              {isSubmitting ? "Submitting..." : "Send Message"}
+              {isSubmitting ? "Submitting..." : "Submit"}
             </button>
 
             {submitError && (
@@ -194,7 +199,7 @@ const Contact = () => {
                 {submitError}
               </div>
             )}
-          </div>
+          </form>
         </motion.div>
       </section>
       {/* ── Success Popup ── */}
@@ -228,7 +233,9 @@ const Contact = () => {
               </div>
             </div>
 
-            <h3 className="text-xl font-bold text-gray-800 mb-2">Message Sent!</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">
+              Contact form successfully submitted
+            </h3>
             <p className="text-sm text-gray-500 mb-6">
               Thank you for reaching out. We'll get back to you as soon as possible.
             </p>

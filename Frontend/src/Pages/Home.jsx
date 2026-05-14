@@ -3,9 +3,11 @@ import {
   FaBoxes,
   FaCashRegister,
   FaChartLine,
+  FaCheckCircle,
   FaClipboardCheck,
   FaEnvelope,
   FaPhoneAlt,
+  FaTimes,
   FaTruck,
   FaUsers,
 } from "react-icons/fa";
@@ -57,9 +59,12 @@ const storyCards = [
 ];
 
 const contactCards = [
-  { label: "Email", value: "info@fnb-solutions.com", icon: <FaEnvelope /> },
+  { label: "Email", value: "contact@efnbmmsgmail.com", icon: <FaEnvelope /> },
   { label: "Phone", value: "+91 98305 90929", icon: <FaPhoneAlt /> },
 ];
+
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
+const CONTACT_API_URL = `${API_BASE_URL}/contact`;
 
 const platformStats = [
   { value: "9+", label: "Team modules" },
@@ -68,6 +73,15 @@ const platformStats = [
 ];
 
 const Home = () => {
+  const [contactForm, setContactForm] = useState({
+    name: "",
+    email: "",
+    company: "",
+    message: "",
+  });
+  const [contactSubmitting, setContactSubmitting] = useState(false);
+  const [contactSuccess, setContactSuccess] = useState("");
+  const [contactError, setContactError] = useState("");
   const [landingTheme, setLandingTheme] = useState(
     () => {
       const savedIsDark = localStorage.getItem("isDark");
@@ -108,6 +122,63 @@ const Home = () => {
 
     return () => window.clearTimeout(timeoutId);
   }, []);
+
+  const handleContactChange = (event) => {
+    const { name, value } = event.target;
+    setContactForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const validateContactForm = () => {
+    if (!contactForm.name.trim()) return "Please enter your name.";
+    if (!contactForm.email.trim()) return "Please enter your email.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactForm.email.trim())) {
+      return "Please enter a valid email address.";
+    }
+    if (!contactForm.message.trim()) return "Please enter your message.";
+    return "";
+  };
+
+  const handleContactSubmit = async (event) => {
+    event.preventDefault();
+
+    const validationError = validateContactForm();
+    if (validationError) {
+      setContactError(validationError);
+      setContactSuccess("");
+      return;
+    }
+
+    setContactSubmitting(true);
+    setContactError("");
+    setContactSuccess("");
+
+    try {
+      const response = await fetch(CONTACT_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: contactForm.name.trim(),
+          email: contactForm.email.trim(),
+          company: contactForm.company.trim(),
+          subject: contactForm.company.trim() || "General Inquiry",
+          message: contactForm.message.trim(),
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setContactError(data.message || "Message could not be sent. Please try again.");
+        return;
+      }
+
+      setContactForm({ name: "", email: "", company: "", message: "" });
+      setContactSuccess("Contact form successfully submitted");
+    } catch {
+      setContactError("Unable to reach the server. Please try again later.");
+    } finally {
+      setContactSubmitting(false);
+    }
+  };
 
   return (
     <div
@@ -251,34 +322,57 @@ const Home = () => {
                 </div>
               </div>
 
-              <form className="rounded-2xl border border-white/10 bg-[#17100d]/92 p-7 backdrop-blur md:p-8">
+              <form
+                className="rounded-2xl border border-white/10 bg-[#17100d]/92 p-7 backdrop-blur md:p-8"
+                onSubmit={handleContactSubmit}
+              >
                 <div className="grid gap-4 sm:grid-cols-2">
                   <input
                     type="text"
+                    name="name"
+                    value={contactForm.name}
+                    onChange={handleContactChange}
                     placeholder="Your name"
                     className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-[#4ade80]/50"
                   />
                   <input
                     type="email"
+                    name="email"
+                    value={contactForm.email}
+                    onChange={handleContactChange}
                     placeholder="Email address"
                     className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-[#4ade80]/50"
                   />
                   <input
                     type="text"
+                    name="company"
+                    value={contactForm.company}
+                    onChange={handleContactChange}
                     placeholder="Business name"
                     className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-[#4ade80]/50 sm:col-span-2"
                   />
                   <textarea
+                    name="message"
                     rows="5"
+                    value={contactForm.message}
+                    onChange={handleContactChange}
                     placeholder="Tell us what you need"
                     className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-[#4ade80]/50 sm:col-span-2"
                   />
                   <button
-                    type="button"
-                    className="rounded-full bg-[#4ade80] px-6 py-3 font-bold text-[#140d09] transition hover:-translate-y-1 hover:brightness-110 sm:col-span-2"
+                    type="submit"
+                    disabled={contactSubmitting}
+                    className={`rounded-full bg-[#4ade80] px-6 py-3 font-bold text-[#140d09] transition hover:-translate-y-1 hover:brightness-110 sm:col-span-2 ${
+                      contactSubmitting ? "cursor-not-allowed opacity-70" : ""
+                    }`}
                   >
-                    Send Message
+                    {contactSubmitting ? "Submitting..." : "Submit"}
                   </button>
+                  {contactError && (
+                    <p className="rounded-xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200 sm:col-span-2">
+                      {contactError}
+                    </p>
+                  )}
                 </div>
               </form>
             </div>
@@ -300,7 +394,7 @@ const Home = () => {
               <a href="#hero" className="transition hover:text-[#4ade80]">
                 Back to top
               </a>
-              <p>info@fnb-solutions.com</p>
+              <p>contact@efnbmmsgmail.com</p>
               <p>+91 98305 90929</p>
               <p>3A, Bertram St, Esplanade, Dharmatala, Taltala, Kolkata, West Bengal 700087</p>
               <p>(c) 2026 EFNBMMS. All rights reserved.</p>
@@ -324,6 +418,49 @@ const Home = () => {
           </div>
         </div>
       </footer>
+
+      {contactSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setContactSuccess("")}
+            aria-label="Close success popup"
+          />
+
+          <div className="relative z-10 w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setContactSuccess("")}
+              className="absolute right-4 top-4 text-gray-400 transition hover:text-gray-600"
+              aria-label="Close"
+            >
+              <FaTimes size={16} />
+            </button>
+
+            <div className="mb-4 flex justify-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                <FaCheckCircle className="text-3xl text-green-600" />
+              </div>
+            </div>
+
+            <h3 className="mb-2 text-xl font-bold text-gray-800">
+              {contactSuccess}
+            </h3>
+            <p className="mb-6 text-sm text-gray-500">
+              Thank you for reaching out. We'll get back to you as soon as possible.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setContactSuccess("")}
+              className="w-full rounded-full bg-green-900 py-3 font-semibold text-white transition hover:bg-green-800"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
