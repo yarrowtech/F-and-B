@@ -5,6 +5,7 @@ import {
   FaClipboardCheck,
   FaSignOutAlt,
   FaStickyNote,
+  FaTable,
   FaTachometerAlt,
   FaUserCircle,
   FaUsers,
@@ -17,6 +18,7 @@ import ManagerSidebar from "./ManagerSidebar";
 import EmployeeManagement from "./ManagerEmployeeManagement";
 import ManagerInventoryManagement from "./ManagerInventoryManagement";
 import ManagerMenuManagement from "./ManagerMenuManagement";
+import ManagerTableManagement from "./ManagerTableManagement";
 import ManagerProfile from "./ManagerProfile";
 import ManagerAccount from "./ManagerAccount";
 import ManagerMessage from "./ManagerMessage";
@@ -123,6 +125,7 @@ const BOTTOM_NAV = [
   { key: "staff-management", label: "Staff",      icon: FaUsers },
   { key: "inventory",        label: "Inventory",  icon: FaBoxes },
   { key: "menu-management",  label: "Menu",       icon: FaUtensils },
+  { key: "table-management", label: "Tables",     icon: FaTable },
   { key: "account",          label: "Account",    icon: FaWallet },
   { key: "profile",          label: "Profile",    icon: FaUserCircle },
   { key: "notes",            label: "Notes",      icon: FaStickyNote },
@@ -163,6 +166,7 @@ const ManagerPanel = () => {
       case "staff-management": return <EmployeeManagement />;
       case "inventory":        return <ManagerInventoryManagement />;
       case "menu-management":  return <ManagerMenuManagement />;
+      case "table-management": return <ManagerTableManagement />;
       case "account":          return <ManagerAccount />;
       case "profile":          return <ManagerProfile />;
       case "notes":            return <ManagerNotes />;

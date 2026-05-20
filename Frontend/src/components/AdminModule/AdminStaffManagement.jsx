@@ -327,6 +327,16 @@ const ROLE_OPTIONS = [
   "ACCOUNTANT",
 ];
 
+const emptyAddress = {
+  line1: "",
+  line2: "",
+  landmark: "",
+  city: "",
+  state: "",
+  pincode: "",
+  country: "India",
+};
+
 export default function AdminStaffManagement() {
 
   const [employees, setEmployees] = useState([]);
@@ -368,6 +378,7 @@ export default function AdminStaffManagement() {
     mobile: "",
     email: "",
     restaurantId: "",
+    address: { ...emptyAddress },
   });
   const [confirmPassword, setConfirmPassword] = useState("");
   const [addErr, setAddErr] = useState("");
@@ -380,6 +391,7 @@ export default function AdminStaffManagement() {
     phone: "",
     email: "",
     restaurantId: "",
+    address: { ...emptyAddress },
   });
 
   /* =========================
@@ -434,6 +446,21 @@ export default function AdminStaffManagement() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name.startsWith("address.")) {
+      const addressField = name.split(".")[1];
+      const nextValue =
+        addressField === "pincode" ? String(value ?? "").replace(/\D/g, "") : value;
+      setForm({
+        ...form,
+        address: {
+          ...form.address,
+          [addressField]: nextValue,
+        },
+      });
+      setAddErr("");
+      return;
+    }
+
     if (name === "mobile") {
       const onlyDigits = String(value ?? "").replace(/\D/g, "");
       setForm({
@@ -451,9 +478,24 @@ export default function AdminStaffManagement() {
   };
 
   const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    if (name.startsWith("address.")) {
+      const addressField = name.split(".")[1];
+      const nextValue =
+        addressField === "pincode" ? String(value ?? "").replace(/\D/g, "") : value;
+      setEditForm({
+        ...editForm,
+        address: {
+          ...editForm.address,
+          [addressField]: nextValue,
+        },
+      });
+      return;
+    }
+
     setEditForm({
       ...editForm,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
   };
 
@@ -490,6 +532,7 @@ export default function AdminStaffManagement() {
         phone: form.mobile,
         email: form.email,
         restaurantId: form.restaurantId,
+        address: form.address,
       };
 
       await createEmployee(payload);
@@ -503,6 +546,7 @@ export default function AdminStaffManagement() {
         mobile: "",
         email: "",
         restaurantId: "",
+        address: { ...emptyAddress },
       });
       setConfirmPassword("");
 
@@ -524,6 +568,7 @@ export default function AdminStaffManagement() {
       mobile: "",
       email: "",
       restaurantId: "",
+      address: { ...emptyAddress },
     });
     setConfirmPassword("");
     setShowPassword(false);
@@ -605,6 +650,10 @@ export default function AdminStaffManagement() {
         typeof emp.restaurant === "object"
           ? emp.restaurant._id
           : emp.restaurant,
+      address: {
+        ...emptyAddress,
+        ...(emp.address || {}),
+      },
     });
 
     setShowEmployeeDetails(true);
@@ -665,6 +714,18 @@ export default function AdminStaffManagement() {
           .toLowerCase()
           .includes(q) ||
         String(emp.phone ?? "")
+          .toLowerCase()
+          .includes(q) ||
+        String(emp.address?.line1 ?? "")
+          .toLowerCase()
+          .includes(q) ||
+        String(emp.address?.city ?? "")
+          .toLowerCase()
+          .includes(q) ||
+        String(emp.address?.state ?? "")
+          .toLowerCase()
+          .includes(q) ||
+        String(emp.address?.pincode ?? "")
           .toLowerCase()
           .includes(q);
 
@@ -867,6 +928,71 @@ export default function AdminStaffManagement() {
                   </select>
                 </div>
 
+                <p className="mt-6 text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">
+                  Address Details
+                </p>
+
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <input
+                    name="address.line1"
+                    placeholder="Address Line 1"
+                    value={form.address.line1}
+                    onChange={handleChange}
+                    className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500 lg:col-span-2"
+                  />
+
+                  <input
+                    name="address.line2"
+                    placeholder="Address Line 2"
+                    value={form.address.line2}
+                    onChange={handleChange}
+                    className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500"
+                  />
+
+                  <input
+                    name="address.landmark"
+                    placeholder="Landmark"
+                    value={form.address.landmark}
+                    onChange={handleChange}
+                    className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500"
+                  />
+
+                  <input
+                    name="address.city"
+                    placeholder="City"
+                    value={form.address.city}
+                    onChange={handleChange}
+                    className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500"
+                  />
+
+                  <input
+                    name="address.state"
+                    placeholder="State"
+                    value={form.address.state}
+                    onChange={handleChange}
+                    className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500"
+                  />
+
+                  <input
+                    name="address.pincode"
+                    placeholder="PIN Code"
+                    value={form.address.pincode}
+                    onChange={handleChange}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={10}
+                    className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500"
+                  />
+
+                  <input
+                    name="address.country"
+                    placeholder="Country"
+                    value={form.address.country}
+                    onChange={handleChange}
+                    className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500"
+                  />
+                </div>
+
                 <div className="grid grid-cols-2 gap-3 pt-5 sm:flex sm:justify-end">
                   <button
                     type="button"
@@ -999,6 +1125,71 @@ export default function AdminStaffManagement() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <p className="mt-6 text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">
+                Address Details
+              </p>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <input
+                  name="address.line1"
+                  placeholder="Address Line 1"
+                  value={editForm.address.line1}
+                  onChange={handleEditChange}
+                  className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500 lg:col-span-2"
+                />
+
+                <input
+                  name="address.line2"
+                  placeholder="Address Line 2"
+                  value={editForm.address.line2}
+                  onChange={handleEditChange}
+                  className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500"
+                />
+
+                <input
+                  name="address.landmark"
+                  placeholder="Landmark"
+                  value={editForm.address.landmark}
+                  onChange={handleEditChange}
+                  className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500"
+                />
+
+                <input
+                  name="address.city"
+                  placeholder="City"
+                  value={editForm.address.city}
+                  onChange={handleEditChange}
+                  className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500"
+                />
+
+                <input
+                  name="address.state"
+                  placeholder="State"
+                  value={editForm.address.state}
+                  onChange={handleEditChange}
+                  className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500"
+                />
+
+                <input
+                  name="address.pincode"
+                  placeholder="PIN Code"
+                  value={editForm.address.pincode}
+                  onChange={handleEditChange}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={10}
+                  className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500"
+                />
+
+                <input
+                  name="address.country"
+                  placeholder="Country"
+                  value={editForm.address.country}
+                  onChange={handleEditChange}
+                  className="px-3 py-2 rounded-lg border bg-gray-50 text-gray-800 text-sm focus:outline-none focus:ring-2 border-gray-200 focus:ring-green-500"
+                />
               </div>
 
               {/* Reset Password Section */}

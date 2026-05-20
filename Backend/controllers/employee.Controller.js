@@ -803,8 +803,9 @@ const createEmployee = async (req, res) => {
       role: employee.role,
       employeeId: employee.employeeId,
       restaurant: employee.restaurant,
-      phone: employee.phone,   // ✅
-      email: employee.email,   // ✅
+      phone: employee.phone,
+      email: employee.email,
+      address: employee.address,
     });
 
   } catch (err) {
@@ -832,6 +833,7 @@ const getEmployees = async (req, res) => {
       role: emp.role,
       employeeId: emp.employeeId,
       restaurant: emp.restaurant,
+      address: emp.address,
       phone: emp.phone,     // ✅ ADD THIS
       email: emp.email,     // ✅ ADD THI
     }));
@@ -875,6 +877,9 @@ const getEmployeeById = async (req, res) => {
       role: employee.role,
       employeeId: employee.employeeId,
       restaurant: employee.restaurant,
+      phone: employee.phone,
+      email: employee.email,
+      address: employee.address,
     });
 
   } catch (err) {
@@ -899,7 +904,7 @@ const updateEmployee = async (req, res) => {
     }
 
     // 🔐 Whitelist updates
-    const allowedUpdates = ["name", "email", "phone", "role"];
+    const allowedUpdates = ["name", "email", "phone", "role", "address"];
     const updates = {};
 
     allowedUpdates.forEach((field) => {
@@ -950,6 +955,10 @@ const updateEmployee = async (req, res) => {
       name: employee.name,
       role: employee.role,
       employeeId: employee.employeeId,
+      phone: employee.phone,
+      email: employee.email,
+      restaurant: employee.restaurant,
+      address: employee.address,
     });
 
   } catch (err) {

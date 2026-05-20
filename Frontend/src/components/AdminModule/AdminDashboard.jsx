@@ -5,6 +5,13 @@ import { getAdminSummary, getRestaurantBreakdown } from "../../services/adminDas
 const fmt = (v) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
 
+const formatRole = (role = "") =>
+  role
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
 /* ── quick filter presets ── */
 const PRESETS = [
   { label: "All Time",    key: "all" },
@@ -109,6 +116,7 @@ const AdminDashboard = () => {
   const totalOrders      = summary?.totalOrders      ?? 0;
   const totalRevenue     = summary?.totalRevenue     ?? 0;
   const totalRestaurants = summary?.totalRestaurants ?? 0;
+  const totalEmployees   = summary?.totalEmployees   ?? 0;
 
   return (
     <div className="min-h-screen space-y-8 bg-gradient-to-br from-slate-100 to-blue-50 p-4 dark:from-gray-900 dark:to-gray-800 sm:p-6">
@@ -193,7 +201,7 @@ const AdminDashboard = () => {
           {/* ── STAT CARDS ── */}
           <section>
             <h2 className="text-lg font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-4">Overall Summary</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
 
               {/* Orders */}
               <div className="relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-lg shadow-violet-200 dark:shadow-violet-900">
@@ -219,6 +227,14 @@ const AdminDashboard = () => {
                 <p className="text-4xl font-extrabold sm:text-5xl">{totalRestaurants}</p>
               </div>
 
+              {/* Employees */}
+              <div className="relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br from-sky-500 to-cyan-600 text-white shadow-lg shadow-sky-200 dark:shadow-sky-900">
+                <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white/10" />
+                <div className="absolute -right-2 bottom-2 w-16 h-16 rounded-full bg-white/10" />
+                <p className="text-base font-medium text-sky-100 mb-2">Total Employees</p>
+                <p className="text-4xl font-extrabold sm:text-5xl">{totalEmployees}</p>
+              </div>
+
             </div>
           </section>
 
@@ -231,31 +247,78 @@ const AdminDashboard = () => {
                 No data for this period.
               </p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {breakdown.map((r, idx) => {
                   const color = ROW_COLORS[idx % ROW_COLORS.length];
                   return (
                     <div
                       key={r._id}
-                      className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-shadow px-6 py-5 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between ${color}`}
+                      className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-shadow px-6 py-5 space-y-5 ${color}`}
                     >
-                      {/* left */}
-                      <div className="flex items-center gap-4 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 text-white flex items-center justify-center text-base font-bold shrink-0">
-                          {idx + 1}
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-400 to-indigo-500 text-white flex items-center justify-center text-base font-bold shrink-0">
+                            {idx + 1}
+                          </div>
+                          <p className="text-lg font-bold text-gray-800 dark:text-white truncate">{r.name}</p>
                         </div>
-                        <p className="text-lg font-bold text-gray-800 dark:text-white truncate">{r.name}</p>
+
+                        <div className="grid grid-cols-3 gap-4 text-right">
+                          <div>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Orders</p>
+                            <p className="text-2xl font-extrabold text-violet-600 dark:text-violet-400">{r.totalOrders}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Revenue</p>
+                            <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{fmt(r.totalRevenue)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Employees</p>
+                            <p className="text-2xl font-extrabold text-sky-600 dark:text-sky-400">{r.totalEmployees || 0}</p>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* right stats */}
-                      <div className="flex w-full justify-between gap-6 text-right sm:w-auto sm:shrink-0 sm:justify-start">
-                        <div>
-                          <p className="text-xs text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Orders</p>
-                          <p className="text-2xl font-extrabold text-violet-600 dark:text-violet-400">{r.totalOrders}</p>
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        <div className="rounded-xl bg-gray-50 dark:bg-gray-900/40 p-4">
+                          <p className="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide mb-3">Employee Roles</p>
+                          {r.employeeRoles?.length ? (
+                            <div className="flex flex-wrap gap-2">
+                              {r.employeeRoles.map((role) => (
+                                <span
+                                  key={role.role}
+                                  className="rounded-full bg-white dark:bg-gray-800 px-3 py-1 text-sm font-semibold text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700"
+                                >
+                                  {formatRole(role.role)}: {role.count}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400 dark:text-gray-500">No active employees.</p>
+                          )}
                         </div>
-                        <div>
-                          <p className="text-xs text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Revenue</p>
-                          <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{fmt(r.totalRevenue)}</p>
+
+                        <div className="rounded-xl bg-gray-50 dark:bg-gray-900/40 p-4">
+                          <p className="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide mb-3">Top 5 Items</p>
+                          {r.topItems?.length ? (
+                            <div className="space-y-2">
+                              {r.topItems.map((item, itemIdx) => (
+                                <div key={item._id || `${r._id}-${itemIdx}`} className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate">
+                                      {itemIdx + 1}. {item.name}
+                                    </p>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500">{fmt(item.revenue || 0)}</p>
+                                  </div>
+                                  <span className="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-3 py-1 text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                                    {item.totalSold || 0} sold
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400 dark:text-gray-500">No paid item sales yet.</p>
+                          )}
                         </div>
                       </div>
                     </div>

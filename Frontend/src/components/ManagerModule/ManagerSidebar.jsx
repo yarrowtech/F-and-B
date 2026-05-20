@@ -11,6 +11,7 @@ import {
   FaBars,
   FaTimes,
   FaClipboardCheck,
+  FaTable,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
@@ -52,6 +53,7 @@ const ManagerSidebar = ({
     { name: "Staff Management", icon: FaUsers,         key: "staff-management" },
     { name: "Inventory",        icon: FaBoxes,         key: "inventory" },
     { name: "Menu Management",  icon: FaUtensils,      key: "menu-management" },
+    { name: "Table Management", icon: FaTable,         key: "table-management" },
     { name: "Account",          icon: FaWallet,        key: "account" },
     { name: "Profile",          icon: FaUserCircle,    key: "profile" },
     { name: "Notes",            icon: FaStickyNote,    key: "notes" },

@@ -148,7 +148,8 @@ export default function ManagerMenuManagement() {
   const [isAvailable, setIsAvailable] = useState(true);
 
   const [ordersFilter, setOrdersFilter] = useState("today");
-  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedStartDate, setSelectedStartDate] = useState("");
+  const [selectedEndDate, setSelectedEndDate] = useState("");
   const [orderAnalytics, setOrderAnalytics] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersSearch, setOrdersSearch] = useState("");
@@ -165,12 +166,12 @@ export default function ManagerMenuManagement() {
   useEffect(() => {
     if (!assignedRestaurantId) return;
     if (viewTab !== "orders") return;
-    if (ordersFilter === "date" && !selectedDate) {
+    if (ordersFilter === "date" && (!selectedStartDate || !selectedEndDate)) {
       setOrderAnalytics([]);
       return;
     }
     loadOrderAnalytics();
-  }, [assignedRestaurantId, viewTab, ordersFilter, selectedDate]);
+  }, [assignedRestaurantId, viewTab, ordersFilter, selectedStartDate, selectedEndDate]);
 
   const loadMenus = async () => {
     try {
@@ -189,7 +190,10 @@ export default function ManagerMenuManagement() {
       setOrdersLoading(true);
       const data =
         ordersFilter === "date"
-          ? await getMenuOrdersByDate(assignedRestaurantId, selectedDate)
+          ? await getMenuOrdersByDate(assignedRestaurantId, {
+              startDate: selectedStartDate,
+              endDate: selectedEndDate,
+            })
           : await getMenuAnalytics(assignedRestaurantId, ordersFilter);
       setOrderAnalytics(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -385,12 +389,23 @@ export default function ManagerMenuManagement() {
                   </button>
                 ))}
                 {ordersFilter === "date" && (
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
-                  />
+                  <>
+                    <input
+                      type="date"
+                      value={selectedStartDate}
+                      onChange={(e) => setSelectedStartDate(e.target.value)}
+                      className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
+                      aria-label="Start date"
+                    />
+                    <input
+                      type="date"
+                      value={selectedEndDate}
+                      onChange={(e) => setSelectedEndDate(e.target.value)}
+                      min={selectedStartDate || undefined}
+                      className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
+                      aria-label="End date"
+                    />
+                  </>
                 )}
                 </div>
               </div>
@@ -398,8 +413,8 @@ export default function ManagerMenuManagement() {
 
             {!assignedRestaurantId ? (
               <EmptyState>No restaurant is assigned to this manager.</EmptyState>
-            ) : ordersFilter === "date" && !selectedDate ? (
-              <EmptyState>Choose a date to view item-wise order counts.</EmptyState>
+            ) : ordersFilter === "date" && (!selectedStartDate || !selectedEndDate) ? (
+              <EmptyState>Choose start and end dates to view item-wise order counts.</EmptyState>
             ) : ordersLoading ? (
               <EmptyState>Loading item orders...</EmptyState>
             ) : orderAnalytics.length === 0 ? (

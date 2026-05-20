@@ -18,6 +18,20 @@ const formatCategory = (value) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 
+const formatAddress = (address) => {
+  if (typeof address === "string") return address || "N/A";
+  const parts = [
+    address?.line1,
+    address?.line2,
+    address?.landmark,
+    address?.city,
+    address?.state,
+    address?.pincode,
+    address?.country,
+  ].filter(Boolean);
+  return parts.length ? parts.join(", ") : "N/A";
+};
+
 const DetailModal = ({ admin, onClose }) => {
   if (!admin) return null;
 
@@ -63,7 +77,7 @@ const DetailModal = ({ admin, onClose }) => {
                 <span className="font-semibold">Mobile:</span> {admin.mobile}
               </p>
               <p className="text-gray-700 dark:text-gray-300">
-                <span className="font-semibold">Address:</span> {admin.address}
+                <span className="font-semibold">Address:</span> {formatAddress(admin.address)}
               </p>
               <p className="text-gray-700 dark:text-gray-300">
                 <span className="font-semibold">PAN Number:</span> {admin.panNumber || "N/A"}

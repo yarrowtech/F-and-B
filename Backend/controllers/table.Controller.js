@@ -213,6 +213,7 @@
 
 import Table from "../models/Table.model.js";
 import Restaurant from "../models/Restaurant.model.js";
+import Order from "../models/Order.model.js";
 
 /* ===============================
    CREATE TABLE
@@ -304,11 +305,34 @@ const getTables = async (req, res) => {
       restaurant: restaurantId,
     })
       .sort({ tableNumber: 1 })
-      .populate("createdBy", "name email");
+      .populate("createdBy", "name email")
+      .lean();
+
+    const activeOrders = await Order.find({
+      restaurant: restaurantId,
+      status: { $nin: ["PAID", "CANCELLED"] },
+    })
+      .populate("waiter", "name employeeId")
+      .populate("items.menuItem", "name price cuisine courseType")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const activeOrderByTable = new Map();
+    activeOrders.forEach((order) => {
+      const tableId = order.table?.toString();
+      if (tableId && !activeOrderByTable.has(tableId)) {
+        activeOrderByTable.set(tableId, order);
+      }
+    });
+
+    const data = tables.map((table) => ({
+      ...table,
+      activeOrder: activeOrderByTable.get(table._id.toString()) || null,
+    }));
 
     res.json({
       success: true,
-      data: tables,
+      data,
     });
 
   } catch (err) {

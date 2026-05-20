@@ -105,6 +105,11 @@ export const getBillingHistory = async () => {
   return res.data.data;
 };
 
+export const createManualBill = async (payload) => {
+  const res = await API.post("/billing/manual", payload);
+  return res.data.data;
+};
+
 /**
  * 💳 Mark Bill as Paid
  * POST /api/billing/:id/pay

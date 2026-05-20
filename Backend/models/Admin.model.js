@@ -89,8 +89,13 @@ const adminSchema = new mongoose.Schema(
     },
 
     address: {
-      type: String,
-      required: true,
+      line1: { type: String, trim: true, default: "" },
+      line2: { type: String, trim: true, default: "" },
+      landmark: { type: String, trim: true, default: "" },
+      city: { type: String, trim: true, default: "" },
+      state: { type: String, trim: true, default: "" },
+      pincode: { type: String, trim: true, default: "" },
+      country: { type: String, trim: true, default: "India" },
     },
 
     panNumber: {

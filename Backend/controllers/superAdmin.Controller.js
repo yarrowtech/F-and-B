@@ -17,6 +17,33 @@ const validateEmail = (email) => EMAIL_REGEX.test(normalizeEmail(email));
 const validateStrongPassword = (password = "") =>
   PASSWORD_POLICY_REGEX.test(String(password));
 
+const normalizeAddress = (address) => {
+  if (typeof address === "string") {
+    return {
+      line1: address.trim(),
+      line2: "",
+      landmark: "",
+      city: "",
+      state: "",
+      pincode: "",
+      country: "India",
+    };
+  }
+
+  return {
+    line1: String(address?.line1 || "").trim(),
+    line2: String(address?.line2 || "").trim(),
+    landmark: String(address?.landmark || "").trim(),
+    city: String(address?.city || "").trim(),
+    state: String(address?.state || "").trim(),
+    pincode: String(address?.pincode || "").trim(),
+    country: String(address?.country || "India").trim(),
+  };
+};
+
+const hasRequiredAddress = (address) =>
+  Boolean(address.line1 && address.city && address.state && address.pincode);
+
 const getDuplicateKeyField = (error) =>
   error?.code === 11000 ? Object.keys(error.keyPattern || {})[0] : null;
 
@@ -167,14 +194,14 @@ export const createAdminBySuperAdmin = async (req, res) => {
     const businessName = String(req.body.businessName || "").trim();
     const email = normalizeEmail(req.body.email);
     const mobile = String(req.body.mobile || "").trim();
-    const address = String(req.body.address || "").trim();
+    const address = normalizeAddress(req.body.address);
     const panNumber = String(req.body.panNumber || "").trim().toUpperCase();
     const password = String(req.body.password || "");
 
-    if (!businessName || !email || !mobile || !address || !panNumber || !password) {
+    if (!businessName || !email || !mobile || !hasRequiredAddress(address) || !panNumber || !password) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required",
+        message: "Business, contact, address, PAN, and password fields are required",
       });
     }
 
@@ -235,6 +262,7 @@ export const createAdminBySuperAdmin = async (req, res) => {
         adminId: admin.adminId,
         email: admin.email,
         businessName: admin.businessName,
+        address: admin.address,
       },
     });
   } catch (error) {
@@ -564,7 +592,16 @@ export const updateAdmin = async (req, res) => {
     if (businessName) admin.businessName = String(businessName).trim();
     if (email) admin.email = email;
     if (mobile) admin.mobile = String(mobile).trim();
-    if (address) admin.address = String(address).trim();
+    if (address !== undefined) {
+      const nextAddress = normalizeAddress(address);
+      if (!hasRequiredAddress(nextAddress)) {
+        return res.status(400).json({
+          success: false,
+          message: "Address line 1, city, state, and PIN code are required",
+        });
+      }
+      admin.address = nextAddress;
+    }
     if (panNumber) admin.panNumber = panNumber;
 
     await admin.save();

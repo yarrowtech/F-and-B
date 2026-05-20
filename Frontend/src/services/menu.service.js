@@ -62,11 +62,16 @@ export const deleteMenu = async (restaurantId, id) => {
 
 /* ================= ANALYTICS ================= */
 
-/* Date wise analytics (existing) */
-export const getMenuOrdersByDate = async (restaurantId, date) => {
-  const res = await api.get(
-    `/menu/orders-by-date/${restaurantId}?date=${date}`
-  );
+/* Date wise analytics */
+export const getMenuOrdersByDate = async (restaurantId, dateOrRange) => {
+  const params =
+    typeof dateOrRange === "object"
+      ? dateOrRange
+      : { date: dateOrRange };
+
+  const res = await api.get(`/menu/orders-by-date/${restaurantId}`, {
+    params,
+  });
 
   return Array.isArray(res.data) ? res.data : [];
 };

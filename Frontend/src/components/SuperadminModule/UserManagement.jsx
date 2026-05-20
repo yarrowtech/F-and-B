@@ -11,6 +11,23 @@ const STRONG_PASSWORD_REGEX =
 const STRONG_PASSWORD_MESSAGE =
   "Use 8+ characters with uppercase, lowercase, number, and special character";
 
+const emptyAddress = {
+  line1: "",
+  line2: "",
+  landmark: "",
+  city: "",
+  state: "",
+  pincode: "",
+  country: "India",
+};
+
+const normalizeAddress = (address) => {
+  if (typeof address === "string") {
+    return { ...emptyAddress, line1: address };
+  }
+  return { ...emptyAddress, ...(address || {}) };
+};
+
 /* ── helpers ── */
 const InputField = ({ label, type = "text", value, onChange, placeholder, error, maxLength }) => (
   <div className="flex flex-col gap-1">
@@ -31,33 +48,51 @@ const InputField = ({ label, type = "text", value, onChange, placeholder, error,
   </div>
 );
 
-const Modal = ({ title, onClose, onSubmit, children, loading }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+const Modal = ({ title, subtitle, onClose, onSubmit, children, loading, wide = false }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm sm:p-6">
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
-      className="bg-white dark:bg-neutral-800 rounded-2xl shadow-xl w-full max-w-md mx-4 p-4 sm:p-6 space-y-5"
+      className={`max-h-[84vh] w-full overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-neutral-800 ${
+        wide ? "sm:max-w-4xl" : "sm:max-w-md"
+      }`}
     >
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{title}</h2>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+      <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-4 dark:border-neutral-700 sm:px-6">
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="mb-2 text-sm font-semibold text-green-600 hover:text-green-700 dark:text-green-400"
+          >
+            Back
+          </button>
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{title}</h2>
+          {subtitle && <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>}
+        </div>
+        <button
+          onClick={onClose}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-neutral-700 dark:hover:text-gray-200"
+          aria-label="Close"
+        >
           <X size={20} />
         </button>
       </div>
-      <div className="space-y-4">{children}</div>
-      <div className="flex justify-end gap-3 pt-2">
+      <div className="max-h-[calc(84vh-180px)] overflow-y-auto px-4 py-5 sm:px-6">
+        {children}
+      </div>
+      <div className="grid shrink-0 grid-cols-2 gap-3 border-t border-gray-100 bg-white px-4 py-5 shadow-[0_-8px_18px_rgba(15,23,42,0.06)] dark:border-neutral-700 dark:bg-neutral-800 sm:flex sm:justify-end sm:px-6">
         <button
           onClick={onClose}
-          className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-neutral-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-700"
+          className="min-h-11 px-5 py-2.5 text-sm rounded-xl border border-gray-200 bg-white dark:border-neutral-600 dark:bg-neutral-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-700"
         >
-          Cancel
+          Back
         </button>
         <button
           onClick={onSubmit}
           disabled={loading}
-          className="px-4 py-2 text-sm rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium disabled:opacity-60"
+          className="min-h-11 px-5 py-2.5 text-sm rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold disabled:opacity-60"
         >
           {loading ? "Saving..." : "Save"}
         </button>
@@ -97,13 +132,44 @@ const PasswordField = ({ label, value, onChange, placeholder, error }) => {
   );
 };
 
+const AddressFields = ({ value, onChange, errors = {} }) => {
+  const address = normalizeAddress(value);
+  const setField = (field, nextValue) => {
+    const cleanValue =
+      field === "pincode" ? String(nextValue || "").replace(/\D/g, "") : nextValue;
+    onChange({ ...address, [field]: cleanValue }, field);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+          Address Details
+        </p>
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          Use the business billing or operating address.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <InputField label="Address Line 1" value={address.line1} onChange={(e) => setField("line1", e.target.value)} placeholder="Building / street" error={errors.line1} />
+        <InputField label="Address Line 2" value={address.line2} onChange={(e) => setField("line2", e.target.value)} placeholder="Area / locality" />
+        <InputField label="Landmark" value={address.landmark} onChange={(e) => setField("landmark", e.target.value)} placeholder="Nearby landmark" />
+        <InputField label="City" value={address.city} onChange={(e) => setField("city", e.target.value)} placeholder="City" error={errors.city} />
+        <InputField label="State" value={address.state} onChange={(e) => setField("state", e.target.value)} placeholder="State" error={errors.state} />
+        <InputField label="PIN Code" value={address.pincode} onChange={(e) => setField("pincode", e.target.value)} placeholder="PIN code" maxLength={10} error={errors.pincode} />
+        <InputField label="Country" value={address.country} onChange={(e) => setField("country", e.target.value)} placeholder="Country" />
+      </div>
+    </div>
+  );
+};
+
 /* ── Admin Detail Modal (center) ── */
 const AdminDetailPanel = ({ admin, onClose, onUpdate, onPasswordReset }) => {
   const [form, setForm] = useState({
     businessName: admin.name || "",
     email: admin.email || "",
     mobile: admin.mobile || "",
-    address: admin.address || "",
+    address: normalizeAddress(admin.address),
     panNumber: admin.panNumber || "",
   });
   const [updateLoading, setUpdateLoading] = useState(false);
@@ -216,7 +282,13 @@ const AdminDetailPanel = ({ admin, onClose, onUpdate, onPasswordReset }) => {
             <InputField label="Mobile" placeholder="+91 9876543210" {...f("mobile")} />
             <InputField label="PAN Number" placeholder="ABCDE1234F" {...f("panNumber")} />
           </div>
-          <InputField label="Address" placeholder="123, Main Street" {...f("address")} />
+          <AddressFields
+            value={form.address}
+            onChange={(address) => {
+              setForm((p) => ({ ...p, address }));
+              setUpdateErr("");
+            }}
+          />
 
           <div className="flex items-center justify-between pt-1">
             <p className="text-xs text-gray-400 dark:text-gray-500">
@@ -338,7 +410,7 @@ const UserManagement = () => {
     businessName: "",
     email: "",
     mobile: "",
-    address: "",
+    address: { ...emptyAddress },
     panNumber: "",
     password: "",
   });
@@ -408,7 +480,7 @@ const UserManagement = () => {
           name: a.businessName,
           email: a.email,
           mobile: a.mobile,
-          address: a.address,
+          address: normalizeAddress(a.address),
           panNumber: a.panNumber,
           active: a.isActive,
           createdAt: a.createdAt,
@@ -438,7 +510,11 @@ const UserManagement = () => {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newAdminData.email)) e.email = "Enter a valid email (must contain @)";
     if (!newAdminData.mobile.trim()) e.mobile = "Mobile number is required";
     else if (!/^\d{10}$/.test(newAdminData.mobile)) e.mobile = "Mobile must be exactly 10 digits";
-    if (!newAdminData.address.trim()) e.address = "Address is required";
+    const address = normalizeAddress(newAdminData.address);
+    if (!address.line1.trim()) e.addressLine1 = "Address line 1 is required";
+    if (!address.city.trim()) e.addressCity = "City is required";
+    if (!address.state.trim()) e.addressState = "State is required";
+    if (!address.pincode.trim()) e.addressPincode = "PIN code is required";
     if (!newAdminData.panNumber.trim()) e.panNumber = "PAN number is required";
     else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(newAdminData.panNumber)) e.panNumber = "Invalid PAN format (e.g. ABCDE1234F)";
     if (!newAdminData.password) e.password = "Password is required";
@@ -460,7 +536,7 @@ const UserManagement = () => {
       );
       setShowAdminForm(false);
       setAdminErrors({});
-      setNewAdminData({ businessName: "", email: "", mobile: "", address: "", panNumber: "", password: "" });
+      setNewAdminData({ businessName: "", email: "", mobile: "", address: { ...emptyAddress }, panNumber: "", password: "" });
       fetchAdmins();
     } catch (err) {
       notify(err?.response?.data?.message || "Failed to add admin", true);
@@ -745,63 +821,107 @@ const UserManagement = () => {
         {showAdminForm && (
           <Modal
             title="Add New Admin"
+            subtitle="Create an admin account with business, contact, address, and login details."
             onClose={() => { setShowAdminForm(false); setAdminErrors({}); }}
             onSubmit={handleAddAdmin}
             loading={formLoading}
+            wide
           >
-            <InputField
-              label="Business Name"
-              value={newAdminData.businessName}
-              onChange={(e) => { setNewAdminData({ ...newAdminData, businessName: e.target.value }); setAdminErrors((p) => ({ ...p, businessName: "" })); }}
-              placeholder="e.g. Spice Garden"
-              error={adminErrors.businessName}
-            />
-            <InputField
-              label="Email"
-              type="email"
-              value={newAdminData.email}
-              onChange={(e) => { setNewAdminData({ ...newAdminData, email: e.target.value }); setAdminErrors((p) => ({ ...p, email: "" })); }}
-              placeholder="admin@example.com"
-              error={adminErrors.email}
-            />
-            <InputField
-              label="Mobile Number"
-              value={newAdminData.mobile}
-              onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, "");
-                setNewAdminData({ ...newAdminData, mobile: val });
-                setAdminErrors((p) => ({ ...p, mobile: "" }));
-              }}
-              placeholder="10-digit number"
-              maxLength={10}
-              error={adminErrors.mobile}
-            />
-            <InputField
-              label="Address"
-              value={newAdminData.address}
-              onChange={(e) => { setNewAdminData({ ...newAdminData, address: e.target.value }); setAdminErrors((p) => ({ ...p, address: "" })); }}
-              placeholder="123, Main Street"
-              error={adminErrors.address}
-            />
-            <InputField
-              label="PAN Number"
-              value={newAdminData.panNumber}
-              onChange={(e) => {
-                const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-                setNewAdminData({ ...newAdminData, panNumber: val });
-                setAdminErrors((p) => ({ ...p, panNumber: "" }));
-              }}
-              placeholder="ABCDE1234F"
-              maxLength={10}
-              error={adminErrors.panNumber}
-            />
-            <PasswordField
-              label="Password"
-              value={newAdminData.password}
-              onChange={(e) => { setNewAdminData({ ...newAdminData, password: e.target.value }); setAdminErrors((p) => ({ ...p, password: "" })); }}
-              placeholder="Strong password"
-              error={adminErrors.password}
-            />
+            <div className="space-y-6">
+              <section className="space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                    Business & Contact
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    Primary business identity and contact information.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <InputField
+                    label="Business Name"
+                    value={newAdminData.businessName}
+                    onChange={(e) => { setNewAdminData({ ...newAdminData, businessName: e.target.value }); setAdminErrors((p) => ({ ...p, businessName: "" })); }}
+                    placeholder="e.g. Spice Garden"
+                    error={adminErrors.businessName}
+                  />
+                  <InputField
+                    label="Email"
+                    type="email"
+                    value={newAdminData.email}
+                    onChange={(e) => { setNewAdminData({ ...newAdminData, email: e.target.value }); setAdminErrors((p) => ({ ...p, email: "" })); }}
+                    placeholder="admin@example.com"
+                    error={adminErrors.email}
+                  />
+                  <InputField
+                    label="Mobile Number"
+                    value={newAdminData.mobile}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      setNewAdminData({ ...newAdminData, mobile: val });
+                      setAdminErrors((p) => ({ ...p, mobile: "" }));
+                    }}
+                    placeholder="10-digit number"
+                    maxLength={10}
+                    error={adminErrors.mobile}
+                  />
+                  <InputField
+                    label="PAN Number"
+                    value={newAdminData.panNumber}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                      setNewAdminData({ ...newAdminData, panNumber: val });
+                      setAdminErrors((p) => ({ ...p, panNumber: "" }));
+                    }}
+                    placeholder="ABCDE1234F"
+                    maxLength={10}
+                    error={adminErrors.panNumber}
+                  />
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-gray-100 bg-gray-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-900/30">
+                <AddressFields
+                  value={newAdminData.address}
+                  onChange={(address, field) => {
+                    setNewAdminData({ ...newAdminData, address });
+                    const errorKeyByField = {
+                      line1: "addressLine1",
+                      city: "addressCity",
+                      state: "addressState",
+                      pincode: "addressPincode",
+                    };
+                    setAdminErrors((p) => ({ ...p, [errorKeyByField[field]]: "" }));
+                  }}
+                  errors={{
+                    line1: adminErrors.addressLine1,
+                    city: adminErrors.addressCity,
+                    state: adminErrors.addressState,
+                    pincode: adminErrors.addressPincode,
+                  }}
+                />
+              </section>
+
+              <section className="space-y-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                    Login Security
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    This password will be used for the new admin login.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <PasswordField
+                    label="Password"
+                    value={newAdminData.password}
+                    onChange={(e) => { setNewAdminData({ ...newAdminData, password: e.target.value }); setAdminErrors((p) => ({ ...p, password: "" })); }}
+                    placeholder="Strong password"
+                    error={adminErrors.password}
+                  />
+                </div>
+              </section>
+            </div>
           </Modal>
         )}
 

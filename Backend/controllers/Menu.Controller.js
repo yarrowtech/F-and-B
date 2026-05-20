@@ -542,7 +542,7 @@ export const deleteMenuItem = async (req, res) => {
 export const getMenuOrdersByDate = async (req, res) => {
   try {
     const { restaurantId } = req.params;
-    const { date, range } = req.query;
+    const { date, range, startDate, endDate } = req.query;
 
     /* 🔒 Verify employee belongs to restaurant */
     if (req.user.role === "admin") {
@@ -597,7 +597,23 @@ export const getMenuOrdersByDate = async (req, res) => {
       end.setHours(23, 59, 59, 999);
     }
 
-    /* ================= DATE SUPPORT ================= */
+    /* ================= DATE RANGE SUPPORT ================= */
+
+    else if (startDate && endDate) {
+      start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+
+      end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+
+      if (start > end) {
+        return res.status(400).json({
+          message: "Start date cannot be after end date",
+        });
+      }
+    }
+
+    /* ================= SINGLE DATE SUPPORT ================= */
 
     else if (date) {
       start = new Date(date);
@@ -609,7 +625,7 @@ export const getMenuOrdersByDate = async (req, res) => {
 
     else {
       return res.status(400).json({
-        message: "Provide date or range",
+        message: "Provide date, startDate and endDate, or range",
       });
     }
 

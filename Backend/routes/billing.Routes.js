@@ -68,6 +68,13 @@ router.get(
 );
 
 router.post(
+  "/manual",
+  auth,
+  allowRoles("accountant"),
+  billingController.createManualBill
+);
+
+router.post(
   "/:id/customize",
   auth,
   allowRoles("accountant"),

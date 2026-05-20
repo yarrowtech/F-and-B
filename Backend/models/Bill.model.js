@@ -168,6 +168,29 @@ const billSchema = new mongoose.Schema(
       default: 0,
     },
 
+    complimentaryType: {
+      type: String,
+      enum: ["NONE", "ITEMS", "FULL_ORDER"],
+      default: "NONE",
+    },
+
+    complimentaryItems: {
+      type: [mongoose.Schema.Types.ObjectId],
+      default: [],
+    },
+
+    complimentaryAmount: {
+      type: Number,
+      default: 0,
+    },
+
+    complimentaryNote: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 300,
+    },
+
     customerEmail: {
       type: String,
       default: "",

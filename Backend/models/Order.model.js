@@ -168,14 +168,21 @@ const orderSchema = new mongoose.Schema(
     table: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Table",
-      required: true,
+      default: null,
       index: true,
     },
 
     waiter: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",
-      required: true,
+      default: null,
+      index: true,
+    },
+
+    orderType: {
+      type: String,
+      enum: ["DINE_IN", "TAKEAWAY", "ONLINE", "PACKAGING", "OTHER"],
+      default: "DINE_IN",
       index: true,
     },
 

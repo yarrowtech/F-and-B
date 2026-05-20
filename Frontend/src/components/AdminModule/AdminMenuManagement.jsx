@@ -46,7 +46,8 @@ export default function AdminMenuManagement() {
   const [activeTab, setActiveTab] = useState("all");
   const [ordersFilter, setOrdersFilter] = useState("today");
   const [ordersSearch, setOrdersSearch] = useState("");
-  const [selectedOrderDate, setSelectedOrderDate] = useState("");
+  const [selectedOrderStartDate, setSelectedOrderStartDate] = useState("");
+  const [selectedOrderEndDate, setSelectedOrderEndDate] = useState("");
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [orderAnalytics, setOrderAnalytics] = useState([]);
 
@@ -86,12 +87,12 @@ export default function AdminMenuManagement() {
   useEffect(() => {
     if (!selectedRestaurant) return;
     if (viewTab !== "orders") return;
-    if (ordersFilter === "date" && !selectedOrderDate) {
+    if (ordersFilter === "date" && (!selectedOrderStartDate || !selectedOrderEndDate)) {
       setOrderAnalytics([]);
       return;
     }
     loadOrderAnalytics();
-  }, [selectedRestaurant, viewTab, ordersFilter, selectedOrderDate]);
+  }, [selectedRestaurant, viewTab, ordersFilter, selectedOrderStartDate, selectedOrderEndDate]);
 
   const loadMenus = async () => {
     try {
@@ -119,7 +120,10 @@ export default function AdminMenuManagement() {
       setOrdersLoading(true);
       const data =
         ordersFilter === "date"
-          ? await getMenuOrdersByDate(selectedRestaurant, selectedOrderDate)
+          ? await getMenuOrdersByDate(selectedRestaurant, {
+              startDate: selectedOrderStartDate,
+              endDate: selectedOrderEndDate,
+            })
           : await getMenuAnalytics(selectedRestaurant, ordersFilter);
       setOrderAnalytics(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -561,12 +565,23 @@ export default function AdminMenuManagement() {
                     </button>
                   ))}
                   {ordersFilter === "date" && (
-                    <input
-                      type="date"
-                      value={selectedOrderDate}
-                      onChange={(e) => setSelectedOrderDate(e.target.value)}
-                      className="col-span-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white sm:col-span-1"
-                    />
+                    <>
+                      <input
+                        type="date"
+                        value={selectedOrderStartDate}
+                        onChange={(e) => setSelectedOrderStartDate(e.target.value)}
+                        className="col-span-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white sm:col-span-1"
+                        aria-label="Start date"
+                      />
+                      <input
+                        type="date"
+                        value={selectedOrderEndDate}
+                        onChange={(e) => setSelectedOrderEndDate(e.target.value)}
+                        min={selectedOrderStartDate || undefined}
+                        className="col-span-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white sm:col-span-1"
+                        aria-label="End date"
+                      />
+                    </>
                   )}
                 </div>
               </div>
@@ -574,8 +589,8 @@ export default function AdminMenuManagement() {
 
             {!selectedRestaurant ? (
               <div className="flex min-h-[260px] items-center justify-center rounded-3xl bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">Select a restaurant to view item orders.</div>
-            ) : ordersFilter === "date" && !selectedOrderDate ? (
-              <div className="flex min-h-[260px] items-center justify-center rounded-3xl bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">Choose a date to view item-wise order counts.</div>
+            ) : ordersFilter === "date" && (!selectedOrderStartDate || !selectedOrderEndDate) ? (
+              <div className="flex min-h-[260px] items-center justify-center rounded-3xl bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">Choose start and end dates to view item-wise order counts.</div>
             ) : ordersLoading ? (
               <div className="flex min-h-[260px] items-center justify-center rounded-3xl bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">Loading item orders...</div>
             ) : orderAnalytics.length === 0 ? (

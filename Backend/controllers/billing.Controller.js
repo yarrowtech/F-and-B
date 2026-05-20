@@ -1,4 +1,5 @@
 import Bill from "../models/Bill.model.js";
+import Menu from "../models/Menu.model.js";
 import Order from "../models/Order.model.js";
 import Table from "../models/Table.model.js";
 import PDFDocument from "pdfkit";
@@ -23,6 +24,70 @@ const sanitizeRate = (value, fallback = 0) => {
 
 const sanitizeText = (value) => String(value || "").trim();
 
+const normalizeIdList = (value) =>
+  Array.isArray(value)
+    ? value.map((item) => sanitizeText(item)).filter(Boolean)
+    : [];
+
+const getOrderItemAmount = (item) => {
+  const price = Number(item?.price ?? item?.menuItem?.price ?? 0);
+  const quantity = Number(item?.quantity || 0);
+  return Number((price * quantity).toFixed(2));
+};
+
+const resolveComplimentaryDetails = ({
+  order,
+  complimentaryType = "NONE",
+  complimentaryItems = [],
+}) => {
+  const orderItems = Array.isArray(order?.items) ? order.items : [];
+  const normalizedType =
+    complimentaryType === "FULL_ORDER" || complimentaryType === "ITEMS"
+      ? complimentaryType
+      : "NONE";
+
+  if (normalizedType === "FULL_ORDER") {
+    return {
+      complimentaryType: "FULL_ORDER",
+      complimentaryItems: orderItems.map((item) => String(item._id)),
+      complimentaryAmount: orderItems.reduce(
+        (sum, item) => sum + getOrderItemAmount(item),
+        0
+      ),
+    };
+  }
+
+  if (normalizedType === "ITEMS") {
+    const selectedIds = new Set(normalizeIdList(complimentaryItems));
+    const validItems = orderItems.filter((item) =>
+      selectedIds.has(String(item._id))
+    );
+
+    if (validItems.length === 0) {
+      return {
+        complimentaryType: "NONE",
+        complimentaryItems: [],
+        complimentaryAmount: 0,
+      };
+    }
+
+    return {
+      complimentaryType: "ITEMS",
+      complimentaryItems: validItems.map((item) => String(item._id)),
+      complimentaryAmount: validItems.reduce(
+        (sum, item) => sum + getOrderItemAmount(item),
+        0
+      ),
+    };
+  }
+
+  return {
+    complimentaryType: "NONE",
+    complimentaryItems: [],
+    complimentaryAmount: 0,
+  };
+};
+
 const isValidEmail = (email) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sanitizeText(email).toLowerCase());
 
@@ -31,12 +96,16 @@ const isValidPhone = (phone) =>
 
 const calculateBillTotals = ({
   itemsTotal,
+  complimentaryAmount = 0,
   cgstRate = 2.5,
   sgstRate = 2.5,
   serviceCharge = 0,
   discount = 0,
 }) => {
-  const normalizedItemsTotal = sanitizeAmount(itemsTotal);
+  const normalizedItemsTotal = Math.max(
+    sanitizeAmount(itemsTotal) - sanitizeAmount(complimentaryAmount),
+    0
+  );
   const normalizedCgstRate = sanitizeRate(cgstRate, 2.5);
   const normalizedSgstRate = sanitizeRate(sgstRate, 2.5);
   const normalizedServiceCharge = sanitizeAmount(serviceCharge);
@@ -128,6 +197,163 @@ const getInbox = async (req, res) => {
   }
 };
 
+const createManualBill = async (req, res) => {
+  try {
+    const {
+      items = [],
+      orderType = "TAKEAWAY",
+      customerPhone = "",
+      customerEmail = "",
+      cgstRate = 2.5,
+      sgstRate = 2.5,
+      serviceCharge = 0,
+      discount = 0,
+      complimentaryType = "NONE",
+      complimentaryItems = [],
+      complimentaryNote = "",
+    } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return sendError(res, "Select at least one menu item");
+    }
+
+    const normalizedType = [
+      "TAKEAWAY",
+      "ONLINE",
+      "PACKAGING",
+      "OTHER",
+    ].includes(orderType)
+      ? orderType
+      : "TAKEAWAY";
+
+    const itemIds = items.map((item) => sanitizeText(item.menuItem)).filter(Boolean);
+    const menuItems = await Menu.find({
+      _id: { $in: itemIds },
+      restaurant: req.user.restaurant,
+      isAvailable: true,
+    });
+    const menuById = new Map(menuItems.map((item) => [String(item._id), item]));
+
+    const orderItems = items.map((item) => {
+      const menu = menuById.get(sanitizeText(item.menuItem));
+      const quantity = Math.floor(sanitizeAmount(item.quantity));
+
+      if (!menu) {
+        throw new Error("One or more selected menu items are not available");
+      }
+
+      if (quantity < 1) {
+        throw new Error("Quantity must be at least 1");
+      }
+
+      return {
+        menuItem: menu._id,
+        quantity,
+        customization: Array.isArray(item.customization)
+          ? item.customization.map(sanitizeText).filter(Boolean)
+          : [],
+        status: "SERVED",
+        price: menu.price,
+      };
+    });
+
+    const now = new Date();
+    const order = await Order.create({
+      restaurant: req.user.restaurant,
+      table: null,
+      waiter: null,
+      chef: null,
+      orderType: normalizedType,
+      items: orderItems,
+      customerPhone: sanitizeText(customerPhone) || null,
+      status: "SERVED",
+      acceptedAt: now,
+      preparingAt: now,
+      readyAt: now,
+      servedAt: now,
+    });
+
+    const selectedComplimentaryMenuIds = new Set(
+      normalizeIdList(complimentaryItems).map(String)
+    );
+    const normalizedComplimentaryType =
+      complimentaryType === "FULL_ORDER" || complimentaryType === "ITEMS"
+        ? complimentaryType
+        : "NONE";
+    const complimentaryOrderItems =
+      normalizedComplimentaryType === "FULL_ORDER"
+        ? order.items
+        : normalizedComplimentaryType === "ITEMS"
+          ? order.items.filter((item) =>
+              selectedComplimentaryMenuIds.has(String(item.menuItem))
+            )
+          : [];
+    const finalComplimentaryType =
+      complimentaryOrderItems.length > 0 ? normalizedComplimentaryType : "NONE";
+    const complimentaryAmount = complimentaryOrderItems.reduce(
+      (sum, item) => sum + getOrderItemAmount(item),
+      0
+    );
+    const itemsTotal = order.items.reduce(
+      (sum, item) => sum + getOrderItemAmount(item),
+      0
+    );
+
+    const totals = calculateBillTotals({
+      itemsTotal,
+      complimentaryAmount,
+      cgstRate,
+      sgstRate,
+      serviceCharge,
+      discount,
+    });
+
+    const bill = await Bill.create({
+      restaurant: req.user.restaurant,
+      order: order._id,
+      accountant: req.user.id,
+      generatedBy: req.user.id,
+      generatedAt: now,
+      itemsTotal: totals.itemsTotal,
+      cgstRate: totals.cgstRate,
+      sgstRate: totals.sgstRate,
+      cgst: totals.cgst,
+      sgst: totals.sgst,
+      serviceCharge: totals.serviceCharge,
+      discount: totals.discount,
+      complimentaryType: finalComplimentaryType,
+      complimentaryItems: complimentaryOrderItems.map((item) => item._id),
+      complimentaryAmount,
+      complimentaryNote:
+        finalComplimentaryType === "NONE" ? "" : sanitizeText(complimentaryNote),
+      customerEmail: sanitizeText(customerEmail).toLowerCase(),
+      customerPhone: sanitizeText(customerPhone),
+      totalAmount: totals.totalAmount,
+      paymentStatus: "PENDING",
+    });
+
+    if (bill.customerEmail && !isValidEmail(bill.customerEmail)) {
+      await Promise.all([Bill.findByIdAndDelete(bill._id), Order.findByIdAndDelete(order._id)]);
+      return sendError(res, "Enter a valid customer email");
+    }
+
+    if (bill.customerPhone && !isValidPhone(bill.customerPhone)) {
+      await Promise.all([Bill.findByIdAndDelete(bill._id), Order.findByIdAndDelete(order._id)]);
+      return sendError(res, "Enter a valid customer phone number");
+    }
+
+    const populatedBill = await findBillWithOrder({
+      _id: bill._id,
+      restaurant: req.user.restaurant,
+    });
+
+    return sendSuccess(res, populatedBill, 201);
+  } catch (err) {
+    console.error(err);
+    return sendError(res, err.message);
+  }
+};
+
 const getHistory = async (req, res) => {
   try {
     const bills = await Bill.find({
@@ -160,8 +386,21 @@ const customizeBill = async (req, res) => {
 
     if (!bill) return sendError(res, "Pending bill not found", 404);
 
+    const complimentary = resolveComplimentaryDetails({
+      order: bill.order,
+      complimentaryType:
+        req.body.complimentaryType ?? bill.complimentaryType ?? "NONE",
+      complimentaryItems:
+        req.body.complimentaryItems ?? bill.complimentaryItems ?? [],
+    });
+
+    const originalItemsTotal = Array.isArray(bill.order?.items)
+      ? bill.order.items.reduce((sum, item) => sum + getOrderItemAmount(item), 0)
+      : bill.itemsTotal + sanitizeAmount(bill.complimentaryAmount);
+
     const totals = calculateBillTotals({
-      itemsTotal: bill.itemsTotal,
+      itemsTotal: originalItemsTotal,
+      complimentaryAmount: complimentary.complimentaryAmount,
       cgstRate: req.body.cgstRate ?? bill.cgstRate ?? 2.5,
       sgstRate: req.body.sgstRate ?? bill.sgstRate ?? 2.5,
       serviceCharge: req.body.serviceCharge ?? bill.serviceCharge ?? 0,
@@ -169,6 +408,13 @@ const customizeBill = async (req, res) => {
     });
 
     bill.itemsTotal = totals.itemsTotal;
+    bill.complimentaryType = complimentary.complimentaryType;
+    bill.complimentaryItems = complimentary.complimentaryItems;
+    bill.complimentaryAmount = complimentary.complimentaryAmount;
+    bill.complimentaryNote =
+      complimentary.complimentaryType === "NONE"
+        ? ""
+        : sanitizeText(req.body.complimentaryNote ?? bill.complimentaryNote);
     bill.cgstRate = totals.cgstRate;
     bill.sgstRate = totals.sgstRate;
     bill.cgst = totals.cgst;
@@ -326,7 +572,7 @@ const generateBillPDF = async (req, res) => {
     doc.font("Helvetica-Bold").fontSize(11).text("Order Info", 320, 150);
     doc.font("Helvetica").fontSize(10);
     doc.text(
-      `Table: ${bill.order?.table?.tableNumber || "N/A"}`,
+      `Table: ${bill.order?.table?.tableNumber || bill.order?.orderType || "N/A"}`,
       320,
       170
     );
@@ -356,7 +602,18 @@ const generateBillPDF = async (req, res) => {
       }
     }
 
-    let tableTop = bill.customerEmail || bill.customerPhone ? 282 : 250;
+    const complimentaryNote = sanitizeText(bill.complimentaryNote);
+    if (complimentaryNote) {
+      const noteTop = bill.customerEmail || bill.customerPhone ? 270 : 228;
+      doc.font("Helvetica-Bold").fontSize(11).text("Complimentary Reason", 55, noteTop);
+      doc.font("Helvetica").fontSize(10).text(complimentaryNote, 55, noteTop + 16, {
+        width: 470,
+      });
+    }
+
+    let tableTop = 250;
+    if (bill.customerEmail || bill.customerPhone) tableTop = 282;
+    if (complimentaryNote) tableTop += 48;
     const columnX = {
       item: 50,
       qty: 315,
@@ -380,6 +637,11 @@ const generateBillPDF = async (req, res) => {
       align: "right",
     });
 
+    const complimentaryItemIds = new Set(
+      normalizeIdList(bill.complimentaryItems).map(String)
+    );
+    const isFullOrderComplimentary = bill.complimentaryType === "FULL_ORDER";
+
     let rowY = tableTop + 34;
     bill.order?.items?.forEach((item, index) => {
       ensurePageSpace(doc, 32);
@@ -393,9 +655,16 @@ const generateBillPDF = async (req, res) => {
       const itemRate = Number(item.price ?? item.menuItem?.price ?? 0);
       const quantity = Number(item.quantity || 0);
       const lineTotal = Number((itemRate * quantity).toFixed(2));
+      const isComplimentary =
+        isFullOrderComplimentary || complimentaryItemIds.has(String(item._id));
 
       doc.fillColor("#111827").font("Helvetica").fontSize(10);
-      doc.text(itemName, columnX.item, rowY, { width: 230 });
+      doc.text(
+        isComplimentary ? `${itemName} (Complimentary)` : itemName,
+        columnX.item,
+        rowY,
+        { width: 230 }
+      );
       doc.text(String(quantity), columnX.qty, rowY, {
         width: 40,
         align: "right",
@@ -404,7 +673,7 @@ const generateBillPDF = async (req, res) => {
         width: 55,
         align: "right",
       });
-      doc.text(asMoney(lineTotal), columnX.amount, rowY, {
+      doc.text(isComplimentary ? "0.00" : asMoney(lineTotal), columnX.amount, rowY, {
         width: 70,
         align: "right",
       });
@@ -416,32 +685,35 @@ const generateBillPDF = async (req, res) => {
 
     const summaryTop = rowY + 22;
     drawAmountLine(doc, "Items Total", bill.itemsTotal, { y: summaryTop });
+    drawAmountLine(doc, "Complimentary", bill.complimentaryAmount || 0, {
+      y: summaryTop + 18,
+    });
     drawAmountLine(
       doc,
       `CGST (${sanitizeRate(bill.cgstRate, 2.5)}%)`,
       bill.cgst,
-      { y: summaryTop + 18 }
+      { y: summaryTop + 36 }
     );
     drawAmountLine(
       doc,
       `SGST (${sanitizeRate(bill.sgstRate, 2.5)}%)`,
       bill.sgst,
-      { y: summaryTop + 36 }
+      { y: summaryTop + 54 }
     );
     drawAmountLine(doc, "Service Charge", bill.serviceCharge, {
-      y: summaryTop + 54,
-    });
-    drawAmountLine(doc, "Discount", bill.discount || 0, {
       y: summaryTop + 72,
     });
+    drawAmountLine(doc, "Discount", bill.discount || 0, {
+      y: summaryTop + 90,
+    });
 
-    doc.moveTo(340, summaryTop + 96).lineTo(540, summaryTop + 96).stroke("#111827");
+    doc.moveTo(340, summaryTop + 114).lineTo(540, summaryTop + 114).stroke("#111827");
     drawAmountLine(doc, "Grand Total", bill.totalAmount, {
-      y: summaryTop + 104,
+      y: summaryTop + 122,
       bold: true,
     });
 
-    const footerTop = summaryTop + 155;
+    const footerTop = summaryTop + 173;
     ensurePageSpace(doc, 80);
     doc
       .roundedRect(40, footerTop, 515, 56, 10)
@@ -469,6 +741,7 @@ const generateBillPDF = async (req, res) => {
 export default {
   getInbox,
   getHistory,
+  createManualBill,
   customizeBill,
   markPaid,
   generateBillPDF,
