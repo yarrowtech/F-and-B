@@ -289,6 +289,7 @@ export default function AccountantOrderBilling() {
   const [selectedBill, setSelectedBill] = useState(null);
   const [menuItems, setMenuItems] = useState([]);
   const [showMenuPicker, setShowMenuPicker] = useState(false);
+  const [successBill, setSuccessBill] = useState(null);
   const [manualSearch, setManualSearch] = useState("");
   const [creatingManualBill, setCreatingManualBill] = useState(false);
   const [manualBill, setManualBill] = useState({
@@ -602,7 +603,7 @@ export default function AccountantOrderBilling() {
         complimentaryNote: "",
         items: [],
       });
-      openBillModal(bill);
+      setSuccessBill(bill);
     } catch (err) {
       console.error("CREATE MANUAL BILL ERROR:", err);
       alert(err.response?.data?.message || "Failed to create bill");
@@ -1036,7 +1037,7 @@ export default function AccountantOrderBilling() {
                   className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <FaReceipt />
-                  {creatingManualBill ? "Creating..." : "Create Bill"}
+                  {creatingManualBill ? "Generating..." : "Generate Bill"}
                 </button>
               </div>
             </div>
@@ -1911,6 +1912,29 @@ export default function AccountantOrderBilling() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {successBill && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-2xl dark:bg-slate-900">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+              <FaCheck />
+            </div>
+            <h2 className="mt-4 text-xl font-black text-slate-900 dark:text-white">
+              Bill Generated Successfully
+            </h2>
+            <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
+              {successBill.billNo || "New bill"} has been moved to Pending Bills.
+            </p>
+            <button
+              type="button"
+              onClick={() => setSuccessBill(null)}
+              className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
+            >
+              Go to Pending
+            </button>
           </div>
         </div>
       )}

@@ -3,8 +3,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   FaCalendarAlt,
   FaFilter,
+  FaGift,
   FaMoneyBillWave,
   FaReceipt,
+  FaSearch,
   FaStore,
 } from "react-icons/fa";
 import { getAdminAccountHistory } from "../../services/adminDashboard.service";
@@ -19,6 +21,103 @@ const formatCurrency = (value) =>
 
 const formatDate = (value) =>
   value ? new Date(value).toLocaleString("en-IN") : "-";
+
+const getOrderItemId = (item) => String(item?._id || "");
+
+const getItemName = (item) =>
+  item?.menuItem?.name || item?.name || "Dish";
+
+const getComplimentaryItems = (bill) => {
+  const items = bill?.order?.items || [];
+  if (bill?.complimentaryType === "FULL_ORDER") return items;
+  if (bill?.complimentaryType !== "ITEMS") return [];
+
+  const selectedIds = new Set((bill?.complimentaryItems || []).map(String));
+  return items.filter((item) => selectedIds.has(getOrderItemId(item)));
+};
+
+const getComplimentaryStats = (bills = []) =>
+  bills.reduce(
+    (stats, bill) => {
+      const items = getComplimentaryItems(bill);
+      const amount = Number(bill.complimentaryAmount || 0);
+
+      if (bill.complimentaryType !== "NONE" || amount > 0 || items.length > 0) {
+        stats.billCount += 1;
+        stats.amount += amount;
+        stats.itemCount += items.reduce(
+          (sum, item) => sum + Number(item.quantity || 0),
+          0
+        );
+      }
+
+      return stats;
+    },
+    { billCount: 0, itemCount: 0, amount: 0 }
+  );
+
+function ComplimentaryDetails({ bill }) {
+  const items = getComplimentaryItems(bill);
+  const hasComplimentary =
+    bill?.complimentaryType !== "NONE" ||
+    Number(bill?.complimentaryAmount || 0) > 0 ||
+    items.length > 0;
+
+  if (!hasComplimentary) {
+    return <span className="text-slate-400">No complimentary item</span>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-700">
+        {bill.complimentaryType === "FULL_ORDER" ? "Full bill" : "Dish"} free -
+        {" "}{formatCurrency(bill.complimentaryAmount)}
+      </div>
+      {items.length > 0 && (
+        <div className="space-y-1">
+          {items.map((item) => (
+            <p key={item._id} className="text-xs font-semibold text-slate-700">
+              {getItemName(item)} x {item.quantity}
+            </p>
+          ))}
+        </div>
+      )}
+      <p className="max-w-xs text-xs text-slate-500">
+        <span className="font-semibold text-slate-700">Reason:</span>{" "}
+        {bill.complimentaryNote || "Not provided"}
+      </p>
+    </div>
+  );
+}
+
+const getBillSearchText = (bill) => {
+  const complimentaryItems = getComplimentaryItems(bill)
+    .map((item) => `${getItemName(item)} ${item.quantity || ""}`)
+    .join(" ");
+  const complimentarySearchLabel =
+    bill?.complimentaryType === "FULL_ORDER"
+      ? "complimentary complimentry reason reosen reson full order order bill full bill free complimentary order bill"
+      : bill?.complimentaryType === "ITEMS"
+      ? "complimentary complimentry reason reosen reson item complimentary dish free item free dish"
+      : "no complimentary regular bill paid bill";
+
+  return [
+    bill?.restaurant?.name,
+    bill?.billNo,
+    bill?.order?.orderNo,
+    bill?.order?.table?.tableNumber,
+    bill?.order?.waiter?.name,
+    bill?.paymentMethod,
+    bill?.complimentaryType,
+    complimentarySearchLabel,
+    bill?.complimentaryNote,
+    complimentaryItems,
+    bill?.totalAmount,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+};
 
 const toInputDate = (date) => {
   const year = date.getFullYear();
@@ -59,6 +158,7 @@ export default function AdminAccount() {
   const [selectedRestaurantId, setSelectedRestaurantId] = useState("");
   const [preset, setPreset] = useState("today");
   const [filters, setFilters] = useState(() => getPresetRange("today"));
+  const [search, setSearch] = useState("");
   const [data, setData] = useState({
     summary: {
       totalOrders: 0,
@@ -173,6 +273,17 @@ export default function AdminAccount() {
       ? `${filters.startDate || "Beginning"} to ${filters.endDate || "Today"}`
       : "Custom Range";
   }, [filters.endDate, filters.startDate, preset]);
+
+  const complimentaryStats = useMemo(
+    () => getComplimentaryStats(data.bills),
+    [data.bills]
+  );
+
+  const filteredBills = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return data.bills;
+    return data.bills.filter((bill) => getBillSearchText(bill).includes(term));
+  }, [data.bills, search]);
 
   const handlePresetChange = async (nextPreset) => {
     setPreset(nextPreset);
@@ -316,7 +427,7 @@ export default function AdminAccount() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <SummaryCard
             icon={<FaReceipt />}
             label="Paid Orders"
@@ -337,16 +448,36 @@ export default function AdminAccount() {
             label="Average Bill"
             value={formatCurrency(data.summary.averageBillValue)}
           />
+          <SummaryCard
+            icon={<FaGift />}
+            label="Complimentary"
+            value={formatCurrency(complimentaryStats.amount)}
+            helper={`${complimentaryStats.itemCount} dishes in ${complimentaryStats.billCount} bills`}
+          />
         </div>
 
         <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 sm:rounded-3xl">
           <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
-            <h2 className="text-lg font-semibold text-slate-800">
-              Payment History
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Paid bills for the selected restaurant only.
-            </p>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">
+                  Payment History
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {filteredBills.length} of {data.bills.length} paid bills visible.
+                </p>
+              </div>
+              <div className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 lg:max-w-md">
+                <FaSearch className="shrink-0 text-slate-400" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search bill, order, waiter, dish, reason..."
+                  className="h-12 w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-3 p-3 md:hidden">
@@ -356,14 +487,16 @@ export default function AdminAccount() {
               </div>
             )}
 
-            {!loading && data.bills.length === 0 && (
+            {!loading && filteredBills.length === 0 && (
               <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
-                No payment history found for the selected restaurant and filter.
+                {data.bills.length === 0
+                  ? "No payment history found for the selected restaurant and filter."
+                  : "No bills match your search."}
               </div>
             )}
 
             {!loading &&
-              data.bills.map((bill) => (
+              filteredBills.map((bill) => (
                 <article
                   key={bill._id}
                   className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
@@ -405,6 +538,13 @@ export default function AdminAccount() {
                     </p>
                   </div>
 
+                  <div className="mt-4 rounded-xl bg-slate-50 p-3">
+                    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+                      Complimentary
+                    </p>
+                    <ComplimentaryDetails bill={bill} />
+                  </div>
+
                   <span className="mt-4 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
                     {bill.paymentMethod || "Paid"}
                   </span>
@@ -421,6 +561,7 @@ export default function AdminAccount() {
                   <th className="px-5 py-4">Order No</th>
                   <th className="px-5 py-4">Table</th>
                   <th className="px-5 py-4">Waiter</th>
+                  <th className="px-5 py-4">Complimentary</th>
                   <th className="px-5 py-4">Method</th>
                   <th className="px-5 py-4">Paid At</th>
                   <th className="px-5 py-4">Amount</th>
@@ -429,22 +570,24 @@ export default function AdminAccount() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan="8" className="px-5 py-10 text-center text-slate-500">
+                    <td colSpan="9" className="px-5 py-10 text-center text-slate-500">
                       Loading payment history...
                     </td>
                   </tr>
                 )}
 
-                {!loading && data.bills.length === 0 && (
+                {!loading && filteredBills.length === 0 && (
                   <tr>
-                    <td colSpan="8" className="px-5 py-10 text-center text-slate-500">
-                      No payment history found for the selected restaurant and filter.
+                    <td colSpan="9" className="px-5 py-10 text-center text-slate-500">
+                      {data.bills.length === 0
+                        ? "No payment history found for the selected restaurant and filter."
+                        : "No bills match your search."}
                     </td>
                   </tr>
                 )}
 
                 {!loading &&
-                  data.bills.map((bill) => (
+                  filteredBills.map((bill) => (
                     <tr key={bill._id} className="border-t border-slate-100">
                       <td className="px-5 py-4 font-medium text-slate-700">
                         {bill.restaurant?.name || "-"}
@@ -460,6 +603,9 @@ export default function AdminAccount() {
                       </td>
                       <td className="px-5 py-4 text-slate-700">
                         {bill.order?.waiter?.name || "-"}
+                      </td>
+                      <td className="px-5 py-4 align-top">
+                        <ComplimentaryDetails bill={bill} />
                       </td>
                       <td className="px-5 py-4">
                         <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
@@ -483,7 +629,7 @@ export default function AdminAccount() {
   );
 }
 
-function SummaryCard({ icon, label, value }) {
+function SummaryCard({ icon, label, value, helper }) {
   return (
     <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:rounded-3xl sm:p-5">
       <div className="flex items-start justify-between gap-4">
@@ -494,6 +640,11 @@ function SummaryCard({ icon, label, value }) {
           <p className="mt-3 break-words text-xl font-bold text-slate-900 sm:text-2xl">
             {value}
           </p>
+          {helper && (
+            <p className="mt-2 text-xs font-semibold text-slate-500">
+              {helper}
+            </p>
+          )}
         </div>
         <div className="shrink-0 rounded-2xl bg-emerald-50 p-3 text-emerald-700">
           {icon}

@@ -210,10 +210,11 @@ export const getManagerAccountHistory = async (req, res) => {
     const bills = await Bill.find(match)
       .populate({
         path: "order",
-        select: "orderNo table waiter createdAt paidAt",
+        select: "orderNo table waiter createdAt paidAt orderType items",
         populate: [
           { path: "table", select: "tableNumber" },
           { path: "waiter", select: "name" },
+          { path: "items.menuItem", select: "name price cuisine courseType" },
         ],
       })
       .populate("accountant", "name employeeId")
