@@ -153,6 +153,7 @@ import {
   getChefOrders,
   getWaiterOrders,
   getOrderById,
+  changeOrderTable,
   acceptOrder,
   markPreparing,
   markReady,
@@ -171,6 +172,8 @@ router.post("/", auth, allowRoles("waiter"), createOrder);
 router.get("/waiter", auth, allowRoles("waiter"), getWaiterOrders);
 
 router.put("/:id/served", auth, allowRoles("waiter"), markServed);
+
+router.put("/:id/table", auth, allowRoles("waiter", "accountant"), changeOrderTable);
 
 /* ===============================
    CHEF

@@ -1113,9 +1113,99 @@ const sendSuccess = (res, data, status = 200) =>
 const sendError = (res, message, status = 400) =>
   res.status(status).json({ success: false, message });
 
+const ACTIVE_ORDER_STATUSES = [
+  "PENDING",
+  "ACCEPTED",
+  "PREPARING",
+  "READY",
+  "SERVED",
+];
+
+const normalizeCustomization = (value) =>
+  Array.isArray(value)
+    ? value
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .slice(0, 8)
+    : [];
+
+const getCustomizationKey = (value) =>
+  normalizeCustomization(value)
+    .map((item) => item.toLowerCase())
+    .sort()
+    .join("|");
+
 const getItemsForInventoryDeduction = (order) => {
   const additionalItems = (order.items || []).filter((item) => item.isAdditional);
   return additionalItems.length > 0 ? additionalItems : order.items || [];
+};
+
+const getIngredientMultiplier = (ingredientName, customizations = []) => {
+  const name = String(ingredientName || "").toLowerCase();
+  if (!name) return 1;
+  const singularName = name.endsWith("s") ? name.slice(0, -1) : name;
+
+  const notes = normalizeCustomization(customizations).map((item) =>
+    item.toLowerCase()
+  );
+  const mentionsIngredient = (note) =>
+    note.includes(name) || note.includes(singularName);
+
+  if (
+    notes.some(
+      (note) =>
+        mentionsIngredient(note) &&
+        /\b(no|without|remove|skip|less)\b/.test(note)
+    )
+  ) {
+    return 0;
+  }
+
+  if (
+    notes.some(
+      (note) =>
+        mentionsIngredient(note) &&
+        /\b(extra|more|add|double)\b/.test(note)
+    )
+  ) {
+    return 2;
+  }
+
+  return 1;
+};
+
+const populateOrderDetails = (query) =>
+  query
+    .populate("table", "tableNumber")
+    .populate("waiter", "name")
+    .populate("chef", "name")
+    .populate("items.menuItem", "name price")
+    .populate("tableChangeHistory.fromTable", "tableNumber")
+    .populate("tableChangeHistory.toTable", "tableNumber")
+    .populate("tableChangeHistory.changedBy", "name");
+
+const syncTableStatusAfterMove = async ({
+  restaurantId,
+  oldTableId,
+  newTableId,
+  orderId,
+}) => {
+  if (newTableId) {
+    await Table.findByIdAndUpdate(newTableId, { status: "occupied" });
+  }
+
+  if (!oldTableId || String(oldTableId) === String(newTableId)) return;
+
+  const oldTableActiveOrders = await Order.countDocuments({
+    _id: { $ne: orderId },
+    restaurant: restaurantId,
+    table: oldTableId,
+    status: { $in: ACTIVE_ORDER_STATUSES },
+  });
+
+  if (oldTableActiveOrders === 0) {
+    await Table.findByIdAndUpdate(oldTableId, { status: "available" });
+  }
 };
 
 const deductInventoryForOrder = async (order, session) => {
@@ -1127,7 +1217,15 @@ const deductInventoryForOrder = async (order, session) => {
     }
 
     for (const ingredient of item.menuItem.ingredients) {
-      const requiredQty = Number(ingredient.quantity || 0) * Number(item.quantity || 0);
+      const ingredientName = ingredient.item?.name || "";
+      const multiplier = getIngredientMultiplier(
+        ingredientName,
+        item.customization
+      );
+      const requiredQty =
+        Number(ingredient.quantity || 0) *
+        Number(item.quantity || 0) *
+        multiplier;
 
       if (!requiredQty) {
         continue;
@@ -1155,6 +1253,19 @@ export const createOrder = async (req, res) => {
   try {
     const table = await Table.findById(req.body.table);
     if (!table) return sendError(res, "Table not found", 404);
+    if (String(table.restaurant) !== String(req.user.restaurant)) {
+      return sendError(res, "Table does not belong to this restaurant", 403);
+    }
+
+    const existingTableOrder = await Order.findOne({
+      restaurant: req.user.restaurant,
+      table: table._id,
+      status: { $in: ACTIVE_ORDER_STATUSES },
+    });
+
+    if (existingTableOrder) {
+      return sendError(res, "This table already has an active order");
+    }
 
     const itemsWithPrice = [];
 
@@ -1166,7 +1277,7 @@ export const createOrder = async (req, res) => {
       itemsWithPrice.push({
         menuItem: menu._id,
         quantity: item.quantity,
-        customization: item.customization || [],
+        customization: normalizeCustomization(item.customization),
         price: menu.price,
       });
     }
@@ -1224,14 +1335,17 @@ export const addItemsToOrder = async (req, res) => {
         order.items.push({
           menuItem: menu._id,
           quantity: newItem.quantity,
-          customization: newItem.customization || [],
+          customization: normalizeCustomization(newItem.customization),
           price: menu.price,
           isAdditional: true,
           addedAt,
         });
       } else {
         const existingItem = order.items.find(
-          (i) => i.menuItem.toString() === newItem.menuItem.toString()
+          (i) =>
+            i.menuItem.toString() === newItem.menuItem.toString() &&
+            getCustomizationKey(i.customization) ===
+              getCustomizationKey(newItem.customization)
         );
 
         if (existingItem) {
@@ -1240,7 +1354,7 @@ export const addItemsToOrder = async (req, res) => {
           order.items.push({
             menuItem: menu._id,
             quantity: newItem.quantity,
-            customization: newItem.customization || [],
+            customization: normalizeCustomization(newItem.customization),
             price: menu.price,
           });
         }
@@ -1282,14 +1396,11 @@ export const addItemsToOrder = async (req, res) => {
 
 export const getOrders = async (req, res) => {
   try {
-    const orders = await Order.find({
-      restaurant: req.user.restaurant,
-    })
-      .populate("table", "tableNumber")
-      .populate("waiter", "name")
-      .populate("chef", "name")
-      .populate("items.menuItem", "name")
-      .sort({ createdAt: -1 });
+    const orders = await populateOrderDetails(
+      Order.find({
+        restaurant: req.user.restaurant,
+      }).sort({ createdAt: -1 })
+    );
 
     return sendSuccess(res, orders);
   } catch (err) {
@@ -1310,20 +1421,22 @@ export const getChefOrders = async (req, res) => {
 
     if (type === "history") {
       filter.chef = req.user.id;
-    } else {
-      filter.status = { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY"] };
-    }
-
-    if (type === "mine") {
+    } else if (type === "mine") {
       filter.chef = req.user.id;
+      filter.status = { $in: ["ACCEPTED", "PREPARING", "READY"] };
+    } else {
+      filter.$or = [
+        { status: "PENDING", chef: null },
+        {
+          chef: req.user.id,
+          status: { $in: ["ACCEPTED", "PREPARING", "READY"] },
+        },
+      ];
     }
 
-    const orders = await Order.find(filter)
-      .populate("table", "tableNumber")
-      .populate("waiter", "name")
-      .populate("chef", "name")
-      .populate("items.menuItem", "name")
-      .sort({ createdAt: -1 });
+    const orders = await populateOrderDetails(
+      Order.find(filter).sort({ createdAt: -1 })
+    );
 
     return sendSuccess(res, orders);
   } catch (err) {
@@ -1350,12 +1463,9 @@ export const getWaiterOrders = async (req, res) => {
       filter.status = { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY", "SERVED"] };
     }
 
-    const orders = await Order.find(filter)
-      .populate("table", "tableNumber")
-      .populate("waiter", "name")
-      .populate("chef", "name")
-      .populate("items.menuItem", "name")
-      .sort({ createdAt: -1 });
+    const orders = await populateOrderDetails(
+      Order.find(filter).sort({ createdAt: -1 })
+    );
 
     return sendSuccess(res, orders);
   } catch (err) {
@@ -1368,20 +1478,100 @@ export const getWaiterOrders = async (req, res) => {
 
 export const getOrderById = async (req, res) => {
   try {
-    const order = await Order.findOne({
-      _id: req.params.id,
-      restaurant: req.user.restaurant,
-    })
-      .populate("table", "tableNumber")
-      .populate("waiter", "name")
-      .populate("chef", "name")
-      .populate("items.menuItem", "name price");
+    const order = await populateOrderDetails(
+      Order.findOne({
+        _id: req.params.id,
+        restaurant: req.user.restaurant,
+      })
+    );
 
     if (!order) return sendError(res, "Order not found", 404);
 
     return sendSuccess(res, order);
   } catch (err) {
     await logError(err, "GET_ORDER_BY_ID");
+    return sendError(res, err.message);
+  }
+};
+
+/* ================= CHANGE TABLE ================= */
+
+export const changeOrderTable = async (req, res) => {
+  try {
+    const { tableId } = req.body;
+    if (!tableId) return sendError(res, "Select a table");
+
+    const orderFilter = {
+      _id: req.params.id,
+      restaurant: req.user.restaurant,
+      status: { $in: ACTIVE_ORDER_STATUSES },
+    };
+
+    if (req.user.role === "waiter") {
+      orderFilter.waiter = req.user.id;
+    }
+
+    const [order, targetTable] = await Promise.all([
+      Order.findOne(orderFilter),
+      Table.findOne({
+        _id: tableId,
+        restaurant: req.user.restaurant,
+      }),
+    ]);
+
+    if (!order) return sendError(res, "Active order not found", 404);
+    if (!targetTable) return sendError(res, "Target table not found", 404);
+
+    const oldTableId = order.table;
+    if (oldTableId && String(oldTableId) === String(targetTable._id)) {
+      const populatedOrder = await populateOrderDetails(Order.findById(order._id));
+      return sendSuccess(res, populatedOrder);
+    }
+
+    const existingTargetOrder = await Order.findOne({
+      _id: { $ne: order._id },
+      restaurant: req.user.restaurant,
+      table: targetTable._id,
+      status: { $in: ACTIVE_ORDER_STATUSES },
+    });
+
+    if (existingTargetOrder) {
+      return sendError(res, "Selected table already has an active order");
+    }
+
+    order.table = targetTable._id;
+    order.orderType = "DINE_IN";
+    order.tableChangeHistory.push({
+      fromTable: oldTableId || null,
+      toTable: targetTable._id,
+      changedBy: req.user.id,
+      changedByRole: req.user.role,
+      changedAt: new Date(),
+    });
+
+    await order.save();
+    await syncTableStatusAfterMove({
+      restaurantId: req.user.restaurant,
+      oldTableId,
+      newTableId: targetTable._id,
+      orderId: order._id,
+    });
+
+    await logAction({
+      action: "ORDER_TABLE_CHANGED",
+      userId: req.user.id,
+      role: req.user.role?.toUpperCase(),
+      meta: {
+        orderId: order._id,
+        fromTable: oldTableId,
+        toTable: targetTable._id,
+      },
+    });
+
+    const populatedOrder = await populateOrderDetails(Order.findById(order._id));
+    return sendSuccess(res, populatedOrder);
+  } catch (err) {
+    await logError(err, "CHANGE_ORDER_TABLE");
     return sendError(res, err.message);
   }
 };

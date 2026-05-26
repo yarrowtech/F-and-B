@@ -1,8 +1,9 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from "react";
-import { FaCheckCircle, FaMinus, FaPlus, FaSearch, FaShoppingCart, FaTable, FaTimes, FaUtensils } from "react-icons/fa";
+import { FaCheckCircle, FaExchangeAlt, FaMinus, FaPlus, FaSearch, FaShoppingCart, FaTable, FaTimes, FaUtensils } from "react-icons/fa";
 import {
   addItemsToOrder,
+  changeOrderTable,
   createOrder,
   getWaiterOrders,
   markOrderServed,
@@ -11,6 +12,14 @@ import { getMenu } from "../../services/menu.service";
 import { getTables } from "../../services/table.service";
 
 const REFRESH_INTERVAL = 5000;
+const CUSTOMIZATION_PRESETS = [
+  "Extra chili",
+  "Less spicy",
+  "No tomato",
+  "No onion",
+  "Extra cheese",
+  "Jain preparation",
+];
 
 const MenuModal = ({ children, onClose }) => (
   <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
@@ -36,6 +45,7 @@ export default function WaiterManagement() {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const restaurantId =
     typeof user?.restaurant === "object" ? user?.restaurant?._id : user?.restaurant || "";
+  const currentWaiterId = String(user?._id || user?.id || "");
 
   const [tables, setTables] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -49,7 +59,10 @@ export default function WaiterManagement() {
   const [activeMenuFilter, setActiveMenuFilter] = useState("all");
   const [billedOrderIds, setBilledOrderIds] = useState([]);
   const [billMessage, setBillMessage] = useState("");
+  const [tableLockMessage, setTableLockMessage] = useState("");
   const [activeMobilePanel, setActiveMobilePanel] = useState("menu");
+  const [tableMoveId, setTableMoveId] = useState("");
+  const [movingTable, setMovingTable] = useState(false);
 
   const load = async () => {
     if (!restaurantId) {
@@ -80,15 +93,31 @@ export default function WaiterManagement() {
     return () => clearInterval(timer);
   }, []);
 
+  const ownOrderIds = useMemo(
+    () => new Set(orders.map((order) => String(order._id))),
+    [orders]
+  );
+
   const tableOrders = useMemo(() => {
     const map = {};
+    tables.forEach((table) => {
+      if (table.activeOrder?._id && table.activeOrder.status !== "PAID") {
+        map[table._id] = table.activeOrder;
+      }
+    });
     orders.forEach((order) => {
-      if (order.table?._id && order.status !== "PAID") {
+      if (order.table?._id && order.status !== "PAID" && !map[order.table._id]) {
         map[order.table._id] = order;
       }
     });
     return map;
-  }, [orders]);
+  }, [orders, tables]);
+
+  const isOwnOrder = (order) => {
+    if (!order?._id) return false;
+    const waiterId = String(order.waiter?._id || order.waiter || "");
+    return ownOrderIds.has(String(order._id)) || Boolean(currentWaiterId && waiterId === currentWaiterId);
+  };
 
   const availableMenuItems = useMemo(
     () => menuItems.filter((item) => item.isAvailable),
@@ -120,6 +149,11 @@ export default function WaiterManagement() {
 
   const getStatusLabel = (order) => {
     if (!order) return "Available";
+    if (!isOwnOrder(order)) {
+      return order.waiter?.name
+        ? `Occupied by ${order.waiter.name}`
+        : "Occupied by another waiter";
+    }
     if (order.status === "PENDING") return "Order Placed";
     if (order.status === "ACCEPTED") {
       return order.chef?.name ? `Accepted by Chef ${order.chef.name}` : "Accepted by Chef";
@@ -132,9 +166,23 @@ export default function WaiterManagement() {
 
   const getTableCardStyle = (order) => {
     if (!order) return "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200";
+    if (!isOwnOrder(order)) return "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300";
     if (order.status === "READY") return "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200";
     if (order.status === "SERVED") return "border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900/60 dark:bg-violet-950/40 dark:text-violet-200";
     return "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200";
+  };
+
+  const getTableHint = (order, isBilled) => {
+    if (!order) return "Tap to start taking a new order.";
+    if (!isOwnOrder(order)) {
+      return "This table is running under another waiter. You cannot add items or transfer this order.";
+    }
+    if (order.status === "SERVED") {
+      return isBilled
+        ? "Bill has been sent to accountant for payment processing."
+        : "Order served. Bill is ready for accountant and you can still edit if customer adds more.";
+    }
+    return "Tap or use the action buttons below to continue this order flow.";
   };
 
   const handleBill = (order) => {
@@ -146,11 +194,22 @@ export default function WaiterManagement() {
   };
 
   const closeBillMessage = () => setBillMessage("");
+  const closeTableLockMessage = () => setTableLockMessage("");
 
   const handleTableClick = (table) => {
     const existingOrder = tableOrders[table._id];
+    if (existingOrder && !isOwnOrder(existingOrder)) {
+      setTableLockMessage(
+        existingOrder.waiter?.name
+          ? `This table is already occupied by ${existingOrder.waiter.name}.`
+          : "This table is already occupied by another waiter."
+      );
+      return;
+    }
+
     setSelectedTable(table);
     setSelectedOrder(existingOrder || null);
+    setTableMoveId(table._id);
     setCartItems([]);
     setActiveMobilePanel("menu");
     setMenuSearch("");
@@ -174,6 +233,7 @@ export default function WaiterManagement() {
           name: item.name,
           price: item.price,
           qty: 1,
+          customization: [],
         },
       ];
     });
@@ -191,14 +251,74 @@ export default function WaiterManagement() {
     );
   };
 
+  const toggleCustomization = (id, value) => {
+    setCartItems((prev) =>
+      prev.map((item) => {
+        if (item.menuItem !== id) return item;
+
+        const selected = new Set(item.customization || []);
+        if (selected.has(value)) {
+          selected.delete(value);
+        } else {
+          selected.add(value);
+        }
+
+        return { ...item, customization: Array.from(selected) };
+      })
+    );
+  };
+
+  const updateCustomNote = (id, value) => {
+    setCartItems((prev) =>
+      prev.map((item) => {
+        if (item.menuItem !== id) return item;
+
+        const presetNotes = (item.customization || []).filter(
+          (note) => !note.startsWith("Note: ")
+        );
+        const note = value.trim() ? [`Note: ${value.slice(0, 120)}`] : [];
+
+        return { ...item, customization: [...presetNotes, ...note] };
+      })
+    );
+  };
+
+  const getCustomNote = (item) =>
+    (item.customization || [])
+      .find((note) => note.startsWith("Note: "))
+      ?.replace(/^Note:\s*/, "") || "";
+
   const closeMenuModal = () => {
     setIsMenuOpen(false);
     setSelectedTable(null);
     setSelectedOrder(null);
+    setTableMoveId("");
     setCartItems([]);
     setActiveMobilePanel("menu");
     setMenuSearch("");
     setActiveMenuFilter("all");
+  };
+
+  const handleMoveOrderTable = async () => {
+    if (!selectedOrder?._id || !tableMoveId || tableMoveId === selectedTable?._id) return;
+
+    try {
+      setMovingTable(true);
+      const updatedOrder = await changeOrderTable(selectedOrder._id, tableMoveId);
+      const nextTable =
+        tables.find((table) => table._id === updatedOrder?.table?._id) ||
+        updatedOrder?.table ||
+        selectedTable;
+
+      setSelectedOrder(updatedOrder);
+      setSelectedTable(nextTable);
+      setTableMoveId(nextTable?._id || "");
+      await load();
+    } catch (err) {
+      alert(err.response?.data?.message || "Table change failed");
+    } finally {
+      setMovingTable(false);
+    }
   };
 
   const handleSubmitOrder = async () => {
@@ -209,6 +329,7 @@ export default function WaiterManagement() {
         items: cartItems.map((item) => ({
           menuItem: item.menuItem,
           quantity: item.qty,
+          customization: item.customization || [],
         })),
       };
 
@@ -236,6 +357,10 @@ export default function WaiterManagement() {
       alert(err.response?.data?.message || "Serve failed");
     }
   };
+
+  const movableTables = selectedOrder
+    ? tables.filter((table) => !tableOrders[table._id] || table._id === selectedTable?._id)
+    : [];
 
   if (loading) {
     return <div className="p-10 text-xl text-slate-700 dark:text-slate-200">Loading waiter panel...</div>;
@@ -283,6 +408,7 @@ export default function WaiterManagement() {
           <div className="space-y-2 lg:hidden">
             {tables.map((table) => {
               const order = tableOrders[table._id];
+              const isLocked = Boolean(order && !isOwnOrder(order));
               const isBilled = order ? billedOrderIds.includes(order._id) : false;
               return (
                 <div
@@ -292,7 +418,7 @@ export default function WaiterManagement() {
                   <button
                     type="button"
                     onClick={() => handleTableClick(table)}
-                    className="flex min-h-16 w-full items-center justify-between gap-3 text-left"
+                    className={`flex min-h-16 w-full items-center justify-between gap-3 text-left ${isLocked ? "cursor-not-allowed opacity-80" : ""}`}
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -306,7 +432,7 @@ export default function WaiterManagement() {
                     <FaTable className="shrink-0" />
                   </button>
 
-                  {order && (
+                  {order && !isLocked && (
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       {!isBilled && (
                         <button
@@ -351,6 +477,7 @@ export default function WaiterManagement() {
           <div className="hidden gap-3 lg:grid lg:grid-cols-3 xl:grid-cols-4">
             {tables.map((table) => {
               const order = tableOrders[table._id];
+              const isLocked = Boolean(order && !isOwnOrder(order));
               const isBilled = order ? billedOrderIds.includes(order._id) : false;
               return (
                 <div
@@ -364,7 +491,7 @@ export default function WaiterManagement() {
                       handleTableClick(table);
                     }
                   }}
-                  className={`min-h-36 cursor-pointer rounded-2xl border p-3 text-left shadow-sm transition active:scale-[0.99] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:min-h-44 sm:p-4 ${getTableCardStyle(order)}`}
+                  className={`min-h-36 rounded-2xl border p-3 text-left shadow-sm transition focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:min-h-44 sm:p-4 ${isLocked ? "cursor-not-allowed opacity-85" : "cursor-pointer active:scale-[0.99] hover:shadow-md"} ${getTableCardStyle(order)}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -379,17 +506,11 @@ export default function WaiterManagement() {
                   <div className="mt-3 space-y-1.5 sm:mt-5 sm:space-y-2">
                     <p className="text-sm font-semibold">{getStatusLabel(order)}</p>
                     <p className="hidden text-xs opacity-70 sm:line-clamp-2 sm:block">
-                      {order
-                        ? order.status === "SERVED"
-                          ? isBilled
-                            ? "Bill has been sent to accountant for payment processing."
-                            : "Order served. Bill is ready for accountant and you can still edit if customer adds more."
-                          : "Tap or use the action buttons below to continue this order flow."
-                        : "Tap to start taking a new order."}
+                      {getTableHint(order, isBilled)}
                     </p>
                   </div>
 
-                  {order && (
+                  {order && !isLocked && (
                     <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap">
                       {!isBilled && (
                         <button
@@ -449,6 +570,35 @@ export default function WaiterManagement() {
                     {selectedOrder ? getStatusLabel(selectedOrder) : "New Order"}
                   </span>
                 </div>
+                {selectedOrder && (
+                  <div className="mt-4 grid gap-2 rounded-2xl bg-white p-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:grid-cols-[1fr_auto]">
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                        Change Table
+                      </label>
+                      <select
+                        value={tableMoveId}
+                        onChange={(e) => setTableMoveId(e.target.value)}
+                        className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      >
+                        {movableTables.map((table) => (
+                          <option key={table._id} value={table._id}>
+                            Table #{table.tableNumber}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleMoveOrderTable}
+                      disabled={movingTable || !tableMoveId || tableMoveId === selectedTable?._id}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:self-end"
+                    >
+                      <FaExchangeAlt />
+                      {movingTable ? "Moving..." : "Move"}
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 lg:hidden">
@@ -589,19 +739,50 @@ export default function WaiterManagement() {
                   ) : (
                     <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3 lg:px-4">
                       {cartItems.map((item) => (
-                        <div key={item.menuItem} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-700 dark:bg-slate-800">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{item.name}</p>
-                            <p className="mt-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">Rs. {item.price * item.qty}</p>
+                        <div key={item.menuItem} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-700 dark:bg-slate-800">
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{item.name}</p>
+                              <p className="mt-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">Rs. {item.price * item.qty}</p>
+                            </div>
+                            <div className="grid grid-cols-[44px_34px_44px] items-center gap-1">
+                              <button type="button" onClick={() => updateQty(item.menuItem, "dec")} className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rose-100 text-rose-600 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-200 dark:hover:bg-rose-900/50">
+                                <FaMinus className="text-xs" />
+                              </button>
+                              <div className="text-center text-sm font-bold text-slate-800 dark:text-slate-100">{item.qty}</div>
+                              <button type="button" onClick={() => updateQty(item.menuItem, "inc")} className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/50">
+                                <FaPlus className="text-xs" />
+                              </button>
+                            </div>
                           </div>
-                          <div className="grid grid-cols-[44px_34px_44px] items-center gap-1">
-                            <button type="button" onClick={() => updateQty(item.menuItem, "dec")} className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-rose-100 text-rose-600 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-200 dark:hover:bg-rose-900/50">
-                              <FaMinus className="text-xs" />
-                            </button>
-                            <div className="text-center text-sm font-bold text-slate-800 dark:text-slate-100">{item.qty}</div>
-                            <button type="button" onClick={() => updateQty(item.menuItem, "inc")} className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/50">
-                              <FaPlus className="text-xs" />
-                            </button>
+
+                          <div className="space-y-2">
+                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Custom Order
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {CUSTOMIZATION_PRESETS.map((preset) => (
+                                <button
+                                  key={`${item.menuItem}-${preset}`}
+                                  type="button"
+                                  onClick={() => toggleCustomization(item.menuItem, preset)}
+                                  className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                                    (item.customization || []).includes(preset)
+                                      ? "bg-emerald-600 text-white"
+                                      : "bg-white text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700"
+                                  }`}
+                                >
+                                  {preset}
+                                </button>
+                              ))}
+                            </div>
+                            <input
+                              type="text"
+                              value={getCustomNote(item)}
+                              onChange={(e) => updateCustomNote(item.menuItem, e.target.value)}
+                              placeholder="Other note: no tomato, extra chili..."
+                              className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            />
                           </div>
                         </div>
                       ))}
@@ -643,6 +824,29 @@ export default function WaiterManagement() {
               )}
             </div>
           </MenuModal>
+        )}
+
+        {tableLockMessage && (
+          <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 p-4 sm:items-center">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-2xl ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-xl text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+                <FaTable />
+              </div>
+              <h2 className="mt-4 text-lg font-black text-slate-900 dark:text-white">
+                Table Occupied
+              </h2>
+              <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                {tableLockMessage}
+              </p>
+              <button
+                type="button"
+                onClick={closeTableLockMessage}
+                className="mt-5 min-h-11 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+              >
+                OK
+              </button>
+            </div>
+          </div>
         )}
 
         {billMessage && (

@@ -153,6 +153,36 @@ const orderItemSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const tableChangeSchema = new mongoose.Schema(
+  {
+    fromTable: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Table",
+      default: null,
+    },
+    toTable: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Table",
+      required: true,
+    },
+    changedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employee",
+      required: true,
+    },
+    changedByRole: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    changedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
 /* ===============================
    ORDER SCHEMA
 =============================== */
@@ -231,6 +261,11 @@ const orderSchema = new mongoose.Schema(
     readyAt: Date,
     servedAt: Date,
     paidAt: Date,
+
+    tableChangeHistory: {
+      type: [tableChangeSchema],
+      default: [],
+    },
   },
   { timestamps: true }
 );

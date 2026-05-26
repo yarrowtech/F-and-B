@@ -50,6 +50,7 @@ const defaultBillingTemplate = {
   showRestaurantCode: false,
   showCustomerContact: true,
   showTaxBreakup: true,
+  showServiceCharge: true,
 };
 const maxLogoBytes = 700 * 1024;
 
@@ -282,6 +283,21 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
           rows={3}
           className="w-full resize-none rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
         />
+      </div>
+
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-900/50 dark:bg-emerald-900/20">
+        <label className="flex items-center justify-between gap-3 text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+          <span>Show service charge line</span>
+          <input
+            type="checkbox"
+            checked={Boolean(form.showServiceCharge)}
+            onChange={(e) => change("showServiceCharge", e.target.checked)}
+            className="h-5 w-5 rounded border-emerald-300 text-green-600 focus:ring-green-500"
+          />
+        </label>
+        <p className="mt-1 text-xs font-medium text-emerald-700 dark:text-emerald-200">
+          Controls whether the service charge row appears on the bill.
+        </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">

@@ -151,6 +151,7 @@ const defaultBillingTemplate = {
   showRestaurantCode: false,
   showCustomerContact: true,
   showTaxBreakup: true,
+  showServiceCharge: true,
 };
 const maxLogoDataLength = 1000000;
 
@@ -174,6 +175,7 @@ const sanitizeBillingTemplate = (payload = {}) => {
     showRestaurantCode: Boolean(payload.showRestaurantCode),
     showCustomerContact: payload.showCustomerContact !== false,
     showTaxBreakup: payload.showTaxBreakup !== false,
+    showServiceCharge: payload.showServiceCharge !== false,
   };
 };
 

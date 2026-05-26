@@ -1,6 +1,7 @@
 import Bill from "../models/Bill.model.js";
 import Menu from "../models/Menu.model.js";
 import Order from "../models/Order.model.js";
+import Restaurant from "../models/Restaurant.model.js";
 import Table from "../models/Table.model.js";
 import PDFDocument from "pdfkit";
 
@@ -24,6 +25,7 @@ const defaultBillingTemplate = {
   showRestaurantCode: false,
   showCustomerContact: true,
   showTaxBreakup: true,
+  showServiceCharge: true,
 };
 
 const getBillingTemplate = (restaurant) => ({
@@ -200,9 +202,31 @@ const findBillWithOrder = (query) =>
       path: "order",
       populate: [
         { path: "table", select: "tableNumber status" },
+        { path: "waiter", select: "name" },
         { path: "items.menuItem", select: "name price" },
+        { path: "tableChangeHistory.fromTable", select: "tableNumber" },
+        { path: "tableChangeHistory.toTable", select: "tableNumber" },
+        { path: "tableChangeHistory.changedBy", select: "name" },
       ],
     });
+
+const getAuthorizedRestaurantIds = async (req) => {
+  if (req.user.role === "admin") {
+    return Restaurant.find({ admin: req.user.id }).distinct("_id");
+  }
+
+  return req.user.restaurant ? [req.user.restaurant] : [];
+};
+
+const findBillForUserWithOrder = async (req, query) => {
+  const restaurantIds = await getAuthorizedRestaurantIds(req);
+  if (restaurantIds.length === 0) return null;
+
+  return findBillWithOrder({
+    ...query,
+    restaurant: { $in: restaurantIds },
+  });
+};
 
 const drawAmountLine = (doc, label, value, options = {}) => {
   const {
@@ -261,6 +285,7 @@ const createManualBill = async (req, res) => {
       cgstRate = 2.5,
       sgstRate = 2.5,
       serviceCharge = 0,
+      showServiceCharge,
       discount = 0,
       complimentaryType = "NONE",
       complimentaryItems = [],
@@ -374,6 +399,8 @@ const createManualBill = async (req, res) => {
       cgst: totals.cgst,
       sgst: totals.sgst,
       serviceCharge: totals.serviceCharge,
+      showServiceCharge:
+        typeof showServiceCharge === "boolean" ? showServiceCharge : undefined,
       discount: totals.discount,
       complimentaryType: finalComplimentaryType,
       complimentaryItems: complimentaryOrderItems.map((item) => item._id),
@@ -410,8 +437,10 @@ const createManualBill = async (req, res) => {
 
 const getHistory = async (req, res) => {
   try {
+    const restaurantIds = await getAuthorizedRestaurantIds(req);
+
     const bills = await Bill.find({
-      restaurant: req.user.restaurant,
+      restaurant: { $in: restaurantIds },
       paymentStatus: "PAID",
     })
       .populate("restaurant")
@@ -474,6 +503,9 @@ const customizeBill = async (req, res) => {
     bill.cgst = totals.cgst;
     bill.sgst = totals.sgst;
     bill.serviceCharge = totals.serviceCharge;
+    if (typeof req.body.showServiceCharge === "boolean") {
+      bill.showServiceCharge = req.body.showServiceCharge;
+    }
     bill.discount = totals.discount;
     bill.totalAmount = totals.totalAmount;
     bill.customerEmail = sanitizeText(req.body.customerEmail).toLowerCase();
@@ -563,9 +595,8 @@ const markPaid = async (req, res) => {
 
 const generateBillPDF = async (req, res) => {
   try {
-    const bill = await findBillWithOrder({
+    const bill = await findBillForUserWithOrder(req, {
       _id: req.params.id,
-      restaurant: req.user.restaurant,
     });
 
     if (!bill) return sendError(res, "Bill not found", 404);
@@ -582,12 +613,23 @@ const generateBillPDF = async (req, res) => {
       defaultBillingTemplate.accentColor
     );
     const invoiceTitle = sanitizeText(template.headerTitle) || bill.restaurant?.name || "Restaurant";
+    const invoiceSubtitle = sanitizeText(template.subtitle);
+    const restaurantAddress =
+      sanitizeText(bill.restaurant?.address) || "Address not available";
     const footerMessage =
       sanitizeText(template.footerMessage) || defaultBillingTemplate.footerMessage;
     const terms = sanitizeText(template.terms) || defaultBillingTemplate.terms;
+    const showServiceCharge =
+      typeof bill.showServiceCharge === "boolean"
+        ? bill.showServiceCharge
+        : template.showServiceCharge;
     const logoBuffer = await loadLogoBuffer(template.logoUrl);
     const headerTextX = logoBuffer ? 115 : 55;
     const headerTextWidth = logoBuffer ? 260 : 320;
+    const headerTop = 40;
+    const headerHeight = 124;
+    const detailsTop = headerTop + headerHeight + 16;
+    const detailsTextTop = detailsTop + 15;
 
     const doc = new PDFDocument({ size: "A4", margin: 40 });
 
@@ -599,10 +641,10 @@ const generateBillPDF = async (req, res) => {
 
     doc.pipe(res);
 
-    doc.rect(40, 40, 515, 92).fill(accentColor);
+    doc.rect(40, headerTop, 515, headerHeight).fill(accentColor);
     if (logoBuffer) {
       try {
-        doc.image(logoBuffer, 55, 58, { fit: [44, 44] });
+        doc.image(logoBuffer, 55, 56, { fit: [48, 48] });
       } catch {
         // Ignore unsupported image formats and continue with the text header.
       }
@@ -614,19 +656,34 @@ const generateBillPDF = async (req, res) => {
       { width: headerTextWidth }
     );
     doc.font("Helvetica").fontSize(10).fillColor("#4b5563");
-    doc.text(template.subtitle || bill.restaurant?.address || "Address not available", headerTextX, 86, {
+    let headerInfoY = 84;
+    if (invoiceSubtitle) {
+      doc.text(invoiceSubtitle, headerTextX, headerInfoY, {
+        width: headerTextWidth,
+      });
+      headerInfoY += Math.max(
+        14,
+        doc.heightOfString(invoiceSubtitle, { width: headerTextWidth }) + 2
+      );
+    }
+    doc.text(restaurantAddress, headerTextX, headerInfoY, {
       width: headerTextWidth,
     });
-    doc.text(`Phone: ${bill.restaurant?.phone || "N/A"}`, headerTextX, 101, {
+    headerInfoY += Math.max(
+      14,
+      doc.heightOfString(restaurantAddress, { width: headerTextWidth }) + 2
+    );
+    doc.text(`Phone: ${bill.restaurant?.phone || "N/A"}`, headerTextX, headerInfoY, {
       width: 220,
     });
+    headerInfoY += 14;
     if (template.showGstNo && bill.restaurant?.gstNo) {
-      doc.text(`GST: ${bill.restaurant.gstNo}`, headerTextX, 116, {
+      doc.text(`GST: ${bill.restaurant.gstNo}`, headerTextX, headerInfoY, {
         width: 220,
       });
     }
     if (template.showRestaurantCode && bill.restaurant?.restaurantCode) {
-      doc.text(`Code: ${bill.restaurant.restaurantCode}`, 245, 116, {
+      doc.text(`Code: ${bill.restaurant.restaurantCode}`, 245, headerInfoY, {
         width: 130,
       });
     }
@@ -643,50 +700,50 @@ const generateBillPDF = async (req, res) => {
     );
 
     doc.fillColor("#111827");
-    doc.roundedRect(40, 148, 250, 88, 10).stroke("#d1d5db");
-    doc.roundedRect(305, 148, 250, 88, 10).stroke("#d1d5db");
+    doc.roundedRect(40, detailsTop, 250, 88, 10).stroke("#d1d5db");
+    doc.roundedRect(305, detailsTop, 250, 88, 10).stroke("#d1d5db");
 
-    doc.font("Helvetica-Bold").fontSize(11).text("Bill Details", 55, 163);
+    doc.font("Helvetica-Bold").fontSize(11).text("Bill Details", 55, detailsTextTop);
     doc.font("Helvetica").fontSize(10);
-    doc.text(`Bill No: ${bill.billNo}`, 55, 183);
-    doc.text(`Order No: ${bill.order?.orderNo || "N/A"}`, 55, 199);
+    doc.text(`Bill No: ${bill.billNo}`, 55, detailsTextTop + 20);
+    doc.text(`Order No: ${bill.order?.orderNo || "N/A"}`, 55, detailsTextTop + 36);
     doc.text(
       `Bill Date: ${new Date(billDate).toLocaleString("en-IN")}`,
       55,
-      215
+      detailsTextTop + 52
     );
 
-    doc.font("Helvetica-Bold").fontSize(11).text("Order Info", 320, 163);
+    doc.font("Helvetica-Bold").fontSize(11).text("Order Info", 320, detailsTextTop);
     doc.font("Helvetica").fontSize(10);
     doc.text(
       `Table: ${bill.order?.table?.tableNumber || bill.order?.orderType || "N/A"}`,
       320,
-      183
+      detailsTextTop + 20
     );
     doc.text(
       `Status: ${bill.paymentStatus === "PAID" ? "Paid" : "Pending"}`,
       320,
-      199
+      detailsTextTop + 36
     );
     doc.text(
       `Payment: ${bill.paymentMethod || "Not paid yet"}`,
       320,
-      215
+      detailsTextTop + 52
     );
 
     const showCustomerContact =
       template.showCustomerContact && (bill.customerEmail || bill.customerPhone);
 
     if (showCustomerContact) {
-      doc.font("Helvetica-Bold").fontSize(11).text("Customer Contact", 55, 242);
+      doc.font("Helvetica-Bold").fontSize(11).text("Customer Contact", 55, detailsTop + 94);
       doc.font("Helvetica").fontSize(10);
       if (bill.customerEmail) {
-        doc.text(`Email: ${bill.customerEmail}`, 55, 258, {
+        doc.text(`Email: ${bill.customerEmail}`, 55, detailsTop + 110, {
           width: 250,
         });
       }
       if (bill.customerPhone) {
-        doc.text(`Phone: ${bill.customerPhone}`, 320, 258, {
+        doc.text(`Phone: ${bill.customerPhone}`, 320, detailsTop + 110, {
           width: 180,
         });
       }
@@ -694,15 +751,15 @@ const generateBillPDF = async (req, res) => {
 
     const complimentaryNote = sanitizeText(bill.complimentaryNote);
     if (complimentaryNote) {
-      const noteTop = showCustomerContact ? 284 : 242;
+      const noteTop = showCustomerContact ? detailsTop + 136 : detailsTop + 94;
       doc.font("Helvetica-Bold").fontSize(11).text("Complimentary Reason", 55, noteTop);
       doc.font("Helvetica").fontSize(10).text(complimentaryNote, 55, noteTop + 16, {
         width: 470,
       });
     }
 
-    let tableTop = 264;
-    if (showCustomerContact) tableTop = 296;
+    let tableTop = detailsTop + 116;
+    if (showCustomerContact) tableTop = detailsTop + 148;
     if (complimentaryNote) tableTop += 48;
     const columnX = {
       item: 50,
@@ -795,10 +852,12 @@ const generateBillPDF = async (req, res) => {
       );
       summaryY += 18;
     }
-    drawAmountLine(doc, "Service Charge", bill.serviceCharge, {
-      y: summaryY,
-    });
-    summaryY += 18;
+    if (showServiceCharge) {
+      drawAmountLine(doc, "Service Charge", bill.serviceCharge, {
+        y: summaryY,
+      });
+      summaryY += 18;
+    }
     drawAmountLine(doc, "Discount", bill.discount || 0, {
       y: summaryY,
     });

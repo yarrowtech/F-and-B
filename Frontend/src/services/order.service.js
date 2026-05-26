@@ -118,6 +118,11 @@ export const addItemsToOrder = async (id, data) => {
   return res.data?.data || null;
 };
 
+export const changeOrderTable = async (id, tableId) => {
+  const res = await api.put(`/order/${id}/table`, { tableId });
+  return res.data?.data || null;
+};
+
 /* Serve Order */
 export const markOrderServed = async (id) => {
   const res = await api.put(`/order/${id}/served`);

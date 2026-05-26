@@ -183,6 +183,18 @@ export default function ChefManagement() {
                 </span>
               )}
             </div>
+            {(item.customization || []).length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {item.customization.map((note, index) => (
+                  <span
+                    key={`${item._id}-custom-${index}`}
+                    className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:ring-amber-900/50"
+                  >
+                    {note}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         <span className={`shrink-0 text-sm font-bold ${isNew ? "text-emerald-700 dark:text-emerald-200" : "text-slate-700 dark:text-slate-200"}`}>x {item.quantity}</span>

@@ -291,6 +291,13 @@ const getTables = async (req, res) => {
     } 
     /* Employee access */
     else {
+      if (String(req.user.restaurant) !== String(restaurantId)) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied for this restaurant",
+        });
+      }
+
       restaurant = await Restaurant.findById(restaurantId);
     }
 
@@ -314,6 +321,9 @@ const getTables = async (req, res) => {
     })
       .populate("waiter", "name employeeId")
       .populate("items.menuItem", "name price cuisine courseType")
+      .populate("tableChangeHistory.fromTable", "tableNumber")
+      .populate("tableChangeHistory.toTable", "tableNumber")
+      .populate("tableChangeHistory.changedBy", "name")
       .sort({ createdAt: -1 })
       .lean();
 

@@ -596,6 +596,12 @@ const LiveTableOrders = ({ tables, loading, freeCount, occupiedCount, onOpenOrde
                       {table.activeOrder?.orderNo || "-"}
                     </p>
                   </div>
+                  <div className="rounded-xl bg-white/70 p-3 dark:bg-gray-900/30">
+                    <p className="text-xs text-gray-400">Waiter</p>
+                    <p className="mt-1 truncate font-semibold text-gray-800 dark:text-gray-100">
+                      {table.activeOrder?.waiter?.name || "-"}
+                    </p>
+                  </div>
                 </div>
                 {occupied && (
                   <p className="mt-3 text-xs font-semibold text-red-700 dark:text-red-300">
@@ -641,6 +647,21 @@ const OrderDetailsModal = ({ table, onClose }) => {
             <p><span className="text-gray-400">Started:</span> <b>{order?.createdAt ? new Date(order.createdAt).toLocaleString() : "-"}</b></p>
           </div>
         </div>
+
+        {order?.tableChangeHistory?.length > 0 && (
+          <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
+            <p className="mb-2 font-bold">Table Change History</p>
+            <div className="space-y-2">
+              {order.tableChangeHistory.map((entry, index) => (
+                <p key={`${entry.changedAt || index}-${index}`}>
+                  T{entry.fromTable?.tableNumber || "-"} to T{entry.toTable?.tableNumber || "-"} by{" "}
+                  {entry.changedBy?.name || entry.changedByRole || "staff"}{" "}
+                  {entry.changedAt ? new Date(entry.changedAt).toLocaleString() : ""}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700">
           <table className="w-full text-sm">

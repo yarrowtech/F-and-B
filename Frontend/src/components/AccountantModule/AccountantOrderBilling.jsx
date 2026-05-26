@@ -21,6 +21,8 @@ import {
   markBillPaid,
 } from "../../services/billing.service";
 import { getMenu } from "../../services/menu.service";
+import { changeOrderTable } from "../../services/order.service";
+import { getTables } from "../../services/table.service";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-IN", {
@@ -41,6 +43,7 @@ const defaultBillingTemplate = {
   showRestaurantCode: false,
   showCustomerContact: true,
   showTaxBreakup: true,
+  showServiceCharge: true,
 };
 
 const getBillingTemplate = (restaurant) => ({
@@ -324,6 +327,7 @@ export default function AccountantOrderBilling() {
     cgstRate: 2.5,
     sgstRate: 2.5,
     serviceCharge: 0,
+    showServiceCharge: true,
     discount: 0,
     complimentaryType: "NONE",
     complimentaryItems: [],
@@ -334,6 +338,7 @@ export default function AccountantOrderBilling() {
     cgstRate: 2.5,
     sgstRate: 2.5,
     serviceCharge: 0,
+    showServiceCharge: true,
     discount: 0,
     complimentaryType: "NONE",
     complimentaryItems: [],
@@ -344,6 +349,8 @@ export default function AccountantOrderBilling() {
     sendToPhone: false,
   });
   const [savingBill, setSavingBill] = useState(false);
+  const [billTables, setBillTables] = useState([]);
+  const [billTableId, setBillTableId] = useState("");
   const [historyFilter, setHistoryFilter] = useState({
     paymentMethod: "",
     orderType: "",
@@ -365,11 +372,8 @@ export default function AccountantOrderBilling() {
     selectedTemplate.headerTitle ||
     selectedBill?.restaurant?.name ||
     "Bill Preview";
-  const previewSubtitle =
-    selectedTemplate.subtitle ||
-    selectedBill?.restaurant?.address ||
-    selectedBill?.restaurant?.phone ||
-    "";
+  const previewSubtitle = selectedTemplate.subtitle || "";
+  const previewAddress = selectedBill?.restaurant?.address || "";
 
   const fetchBills = async () => {
     try {
@@ -418,12 +422,19 @@ export default function AccountantOrderBilling() {
     loadMenu();
   }, []);
 
-  const openBillModal = (bill) => {
+  const openBillModal = async (bill) => {
+    const billTemplate = getBillingTemplate(bill.restaurant);
     setSelectedBill(bill);
+    setBillTableId(bill.order?.table?._id || "");
+    setBillTables([]);
     setCustomValues({
       cgstRate: Number(bill.cgstRate ?? 2.5),
       sgstRate: Number(bill.sgstRate ?? 2.5),
       serviceCharge: Number(bill.serviceCharge ?? 0),
+      showServiceCharge:
+        typeof bill.showServiceCharge === "boolean"
+          ? bill.showServiceCharge
+          : billTemplate.showServiceCharge,
       discount: Number(bill.discount ?? 0),
       complimentaryType: bill.complimentaryType || "NONE",
       complimentaryItems: Array.isArray(bill.complimentaryItems)
@@ -435,11 +446,26 @@ export default function AccountantOrderBilling() {
       sendToEmail: false,
       sendToPhone: false,
     });
+
+    const restaurantId =
+      typeof bill.restaurant === "object" ? bill.restaurant?._id : bill.restaurant;
+
+    if (restaurantId) {
+      try {
+        const data = await getTables(restaurantId);
+        setBillTables(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("FETCH BILL TABLES ERROR:", err);
+        setBillTables([]);
+      }
+    }
   };
 
   const closeBillModal = () => {
     setSelectedBill(null);
     setSavingBill(false);
+    setBillTables([]);
+    setBillTableId("");
   };
 
   const handleCustomValueChange = (field, value) => {
@@ -488,10 +514,29 @@ export default function AccountantOrderBilling() {
     try {
       setSavingBill(true);
 
+      let billForPdf = selectedBill;
+
+      if (
+        selectedBill.order?._id &&
+        billTableId &&
+        billTableId !== selectedBill.order?.table?._id
+      ) {
+        const updatedOrder = await changeOrderTable(selectedBill.order._id, billTableId);
+        billForPdf = {
+          ...selectedBill,
+          order: {
+            ...selectedBill.order,
+            ...updatedOrder,
+          },
+        };
+        setSelectedBill(billForPdf);
+      }
+
       const response = await customizeBill(selectedBill._id, {
         cgstRate: sanitizeNumber(customValues.cgstRate),
         sgstRate: sanitizeNumber(customValues.sgstRate),
         serviceCharge: sanitizeNumber(customValues.serviceCharge),
+        showServiceCharge: Boolean(customValues.showServiceCharge),
         discount: sanitizeNumber(customValues.discount),
         complimentaryType: customValues.complimentaryType,
         complimentaryItems: customValues.complimentaryItems,
@@ -503,15 +548,19 @@ export default function AccountantOrderBilling() {
       });
 
       const updatedBill = response?.bill || response;
+      const finalBill = {
+        ...updatedBill,
+        order: billForPdf.order || updatedBill.order,
+      };
 
       setBills((prev) =>
         prev.map((bill) =>
-          bill._id === updatedBill._id ? updatedBill : bill
+          bill._id === finalBill._id ? finalBill : bill
         )
       );
 
-      setSelectedBill(updatedBill);
-      await downloadBillPdf(updatedBill._id, pdfWindow);
+      setSelectedBill(finalBill);
+      await downloadBillPdf(finalBill._id, pdfWindow);
 
       if (response?.deliveryMessage) {
         alert(response.deliveryMessage);
@@ -638,6 +687,7 @@ export default function AccountantOrderBilling() {
         cgstRate: sanitizeNumber(manualBill.cgstRate),
         sgstRate: sanitizeNumber(manualBill.sgstRate),
         serviceCharge: sanitizeNumber(manualBill.serviceCharge),
+        showServiceCharge: Boolean(manualBill.showServiceCharge),
         discount: sanitizeNumber(manualBill.discount),
         complimentaryType: manualBill.complimentaryType,
         complimentaryItems: manualBill.complimentaryItems,
@@ -657,6 +707,7 @@ export default function AccountantOrderBilling() {
         cgstRate: 2.5,
         sgstRate: 2.5,
         serviceCharge: 0,
+        showServiceCharge: true,
         discount: 0,
         complimentaryType: "NONE",
         complimentaryItems: [],
@@ -752,6 +803,14 @@ export default function AccountantOrderBilling() {
         selectedBill.order?.items || []
       )
     : null;
+  const movableBillTables = selectedBill
+    ? billTables.filter(
+        (table) =>
+          !table.activeOrder ||
+          table._id === selectedBill.order?.table?._id ||
+          table.activeOrder?._id === selectedBill.order?._id
+      )
+    : [];
 
   return (
     <div className="min-h-screen bg-slate-50 p-3 dark:bg-neutral-800 sm:p-4 lg:p-6">
@@ -1091,6 +1150,17 @@ export default function AccountantOrderBilling() {
                     </label>
                   ))}
                 </div>
+                <label className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-slate-100 px-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                  <span>Show service charge on bill</span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(manualBill.showServiceCharge)}
+                    onChange={(e) =>
+                      updateManualBill("showServiceCharge", e.target.checked)
+                    }
+                    className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                </label>
 
                 <div className="mt-4 space-y-2 rounded-xl bg-white p-3 text-sm dark:bg-slate-900">
                   <div className="flex justify-between text-slate-600 dark:text-slate-300">
@@ -1105,11 +1175,15 @@ export default function AccountantOrderBilling() {
                     <span>Tax</span>
                     <span>{formatCurrency(manualTotals.cgst + manualTotals.sgst)}</span>
                   </div>
+                  {manualBill.showServiceCharge && (
+                    <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                      <span>Service</span>
+                      <span>{formatCurrency(manualTotals.serviceCharge)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                    <span>Service/Discount</span>
-                    <span>
-                      {formatCurrency(manualTotals.serviceCharge)} / -{formatCurrency(manualTotals.discount)}
-                    </span>
+                    <span>Discount</span>
+                    <span>-{formatCurrency(manualTotals.discount)}</span>
                   </div>
                   <div className="border-t border-dashed border-slate-200 pt-2 font-black text-slate-900 dark:border-slate-700 dark:text-white">
                     <div className="flex justify-between">
@@ -1602,8 +1676,13 @@ export default function AccountantOrderBilling() {
                     {previewTitle}
                   </h2>
                   {previewSubtitle && (
-                    <p className="mt-1 truncate text-sm text-slate-600">
+                    <p className="mt-1 text-sm text-slate-600">
                       {previewSubtitle}
+                    </p>
+                  )}
+                  {previewAddress && (
+                    <p className="mt-1 max-w-2xl break-words text-sm text-slate-600">
+                      {previewAddress}
                     </p>
                   )}
                   <p className="mt-1 text-sm text-slate-600">
@@ -1745,6 +1824,24 @@ export default function AccountantOrderBilling() {
                         ? `Table ${selectedBill.order.table.tableNumber}`
                         : selectedBill.order?.orderType || "No Table"}
                     </p>
+                    {selectedBill.order?.table && (
+                      <div className="mt-3">
+                        <label className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">
+                          Change Table
+                        </label>
+                        <select
+                          value={billTableId}
+                          onChange={(e) => setBillTableId(e.target.value)}
+                          className="min-h-11 w-full rounded-xl border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 dark:border-emerald-900/60 dark:bg-slate-950 dark:text-slate-100"
+                        >
+                          {movableBillTables.map((table) => (
+                            <option key={table._id} value={table._id}>
+                              Table {table.tableNumber}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
 
                   <div className="rounded-2xl bg-slate-100 p-4 dark:bg-slate-800">
@@ -1910,6 +2007,20 @@ export default function AccountantOrderBilling() {
                       }
                       className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:text-sm"
                     />
+                    <label className="mt-2 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-slate-100 px-3 text-sm font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                      <span>Show service charge on bill</span>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(customValues.showServiceCharge)}
+                        onChange={(e) =>
+                          handleCustomValueChange(
+                            "showServiceCharge",
+                            e.target.checked
+                          )
+                        }
+                        className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                    </label>
                   </div>
 
                   <div>
@@ -2052,12 +2163,14 @@ export default function AccountantOrderBilling() {
                           {formatCurrency(selectedTotals.sgst)}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span>Service Charge</span>
-                        <span className="font-semibold text-slate-800">
-                          {formatCurrency(selectedTotals.serviceCharge)}
-                        </span>
-                      </div>
+                      {customValues.showServiceCharge && (
+                        <div className="flex items-center justify-between text-slate-600">
+                          <span>Service Charge</span>
+                          <span className="font-semibold text-slate-800">
+                            {formatCurrency(selectedTotals.serviceCharge)}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between text-slate-600">
                         <span>Discount</span>
                         <span className="font-semibold text-rose-600">

@@ -142,6 +142,10 @@ const billingTemplateSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    showServiceCharge: {
+      type: Boolean,
+      default: true,
+    },
   },
   { _id: false }
 );

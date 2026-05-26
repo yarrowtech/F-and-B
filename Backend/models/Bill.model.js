@@ -163,6 +163,11 @@ const billSchema = new mongoose.Schema(
       default: 0,
     },
 
+    showServiceCharge: {
+      type: Boolean,
+      default: undefined,
+    },
+
     discount: {
       type: Number,
       default: 0,
