@@ -27,25 +27,69 @@ const getOrderItemId = (item) => String(item?._id || "");
 const getItemName = (item) =>
   item?.menuItem?.name || item?.name || "Dish";
 
+const getComplimentaryMeta = (bill) => bill?.complimentaryMeta || null;
+
+const getComplimentaryType = (bill) => {
+  const metaType = getComplimentaryMeta(bill)?.type;
+  if (["ITEMS", "FULL_ORDER", "NONE"].includes(metaType)) return metaType;
+
+  const rawType = String(bill?.complimentaryType || "").trim().toUpperCase();
+
+  if (["FULL_ORDER", "FULL", "ORDER"].includes(rawType)) return "FULL_ORDER";
+  if (["ITEMS", "ITEM", "DISH", "DISHES"].includes(rawType)) return "ITEMS";
+  return "NONE";
+};
+
 const getComplimentaryItems = (bill) => {
+  const metaItems = getComplimentaryMeta(bill)?.items;
+  if (Array.isArray(metaItems)) return metaItems;
+
   const items = bill?.order?.items || [];
-  if (bill?.complimentaryType === "FULL_ORDER") return items;
-  if (bill?.complimentaryType !== "ITEMS") return [];
+  const type = getComplimentaryType(bill);
+  if (type === "FULL_ORDER") return items;
+  if (type !== "ITEMS") return [];
 
   const selectedIds = new Set((bill?.complimentaryItems || []).map(String));
   return items.filter((item) => selectedIds.has(getOrderItemId(item)));
+};
+
+const hasComplimentary = (bill) =>
+  getComplimentaryType(bill) !== "NONE" ||
+  getComplimentaryMeta(bill)?.type !== "NONE" ||
+  Number(bill?.complimentaryAmount || 0) > 0 ||
+  (Array.isArray(bill?.complimentaryItems) &&
+    bill.complimentaryItems.length > 0) ||
+  getComplimentaryItems(bill).length > 0;
+
+const getComplimentaryFilterType = (bill) => {
+  const metaType = getComplimentaryMeta(bill)?.type;
+  if (["ITEMS", "FULL_ORDER", "NONE"].includes(metaType)) return metaType;
+
+  const type = getComplimentaryType(bill);
+  if (type === "FULL_ORDER") return "FULL_ORDER";
+  if (
+    type === "ITEMS" ||
+    Number(bill?.complimentaryAmount || 0) > 0 ||
+    (Array.isArray(bill?.complimentaryItems) &&
+      bill.complimentaryItems.length > 0) ||
+    getComplimentaryItems(bill).length > 0
+  ) {
+    return "ITEMS";
+  }
+  return "NONE";
 };
 
 const getComplimentaryStats = (bills = []) =>
   bills.reduce(
     (stats, bill) => {
       const items = getComplimentaryItems(bill);
-      const amount = Number(bill.complimentaryAmount || 0);
+      const meta = getComplimentaryMeta(bill);
+      const amount = Number(meta?.amount ?? bill.complimentaryAmount ?? 0);
 
-      if (bill.complimentaryType !== "NONE" || amount > 0 || items.length > 0) {
+      if (hasComplimentary(bill)) {
         stats.billCount += 1;
         stats.amount += amount;
-        stats.itemCount += items.reduce(
+        stats.itemCount += Number(meta?.itemCount || 0) || items.reduce(
           (sum, item) => sum + Number(item.quantity || 0),
           0
         );
@@ -58,20 +102,18 @@ const getComplimentaryStats = (bills = []) =>
 
 function ComplimentaryDetails({ bill }) {
   const items = getComplimentaryItems(bill);
-  const hasComplimentary =
-    bill?.complimentaryType !== "NONE" ||
-    Number(bill?.complimentaryAmount || 0) > 0 ||
-    items.length > 0;
+  const meta = getComplimentaryMeta(bill);
+  const type = getComplimentaryType(bill);
 
-  if (!hasComplimentary) {
+  if (!hasComplimentary(bill)) {
     return <span className="text-slate-400">No complimentary item</span>;
   }
 
   return (
     <div className="space-y-2">
       <div className="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-700">
-        {bill.complimentaryType === "FULL_ORDER" ? "Full bill" : "Dish"} free -
-        {" "}{formatCurrency(bill.complimentaryAmount)}
+        {type === "FULL_ORDER" ? "Full bill" : "Dish"} free -
+        {" "}{formatCurrency(meta?.amount ?? bill.complimentaryAmount)}
       </div>
       {items.length > 0 && (
         <div className="space-y-1">
@@ -84,7 +126,7 @@ function ComplimentaryDetails({ bill }) {
       )}
       <p className="max-w-xs text-xs text-slate-500">
         <span className="font-semibold text-slate-700">Reason:</span>{" "}
-        {bill.complimentaryNote || "Not provided"}
+        {meta?.note || bill.complimentaryNote || "Not provided"}
       </p>
     </div>
   );
@@ -94,10 +136,11 @@ const getBillSearchText = (bill) => {
   const complimentaryItems = getComplimentaryItems(bill)
     .map((item) => `${getItemName(item)} ${item.quantity || ""}`)
     .join(" ");
+  const type = getComplimentaryType(bill);
   const complimentarySearchLabel =
-    bill?.complimentaryType === "FULL_ORDER"
+    type === "FULL_ORDER"
       ? "complimentary complimentry reason reosen reson full order order bill full bill free complimentary order bill"
-      : bill?.complimentaryType === "ITEMS"
+      : type === "ITEMS"
       ? "complimentary complimentry reason reosen reson item complimentary dish free item free dish"
       : "no complimentary regular bill paid bill";
 
@@ -108,7 +151,7 @@ const getBillSearchText = (bill) => {
     bill?.order?.table?.tableNumber,
     bill?.order?.waiter?.name,
     bill?.paymentMethod,
-    bill?.complimentaryType,
+    type,
     complimentarySearchLabel,
     bill?.complimentaryNote,
     complimentaryItems,
@@ -153,12 +196,20 @@ const presetButtons = [
   { key: "custom", label: "Date Wise" },
 ];
 
+const complimentaryFilters = [
+  { key: "ALL", label: "All Bills" },
+  { key: "ITEMS", label: "Complimentary Dish" },
+  { key: "FULL_ORDER", label: "Complimentary Order" },
+  { key: "NONE", label: "Regular Bills" },
+];
+
 export default function AdminAccount() {
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurantId, setSelectedRestaurantId] = useState("");
   const [preset, setPreset] = useState("today");
   const [filters, setFilters] = useState(() => getPresetRange("today"));
   const [search, setSearch] = useState("");
+  const [complimentaryFilter, setComplimentaryFilter] = useState("ALL");
   const [data, setData] = useState({
     summary: {
       totalOrders: 0,
@@ -275,15 +326,21 @@ export default function AdminAccount() {
   }, [filters.endDate, filters.startDate, preset]);
 
   const complimentaryStats = useMemo(
-    () => getComplimentaryStats(data.bills),
-    [data.bills]
+    () => data.summary.complimentary || getComplimentaryStats(data.bills),
+    [data.bills, data.summary.complimentary]
   );
 
   const filteredBills = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return data.bills;
-    return data.bills.filter((bill) => getBillSearchText(bill).includes(term));
-  }, [data.bills, search]);
+    return data.bills.filter((bill) => {
+      const type = getComplimentaryFilterType(bill);
+      const matchesComplimentary =
+        complimentaryFilter === "ALL" || type === complimentaryFilter;
+      const matchesSearch = !term || getBillSearchText(bill).includes(term);
+
+      return matchesComplimentary && matchesSearch;
+    });
+  }, [complimentaryFilter, data.bills, search]);
 
   const handlePresetChange = async (nextPreset) => {
     setPreset(nextPreset);
@@ -467,15 +524,28 @@ export default function AdminAccount() {
                   {filteredBills.length} of {data.bills.length} paid bills visible.
                 </p>
               </div>
-              <div className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 lg:max-w-md">
-                <FaSearch className="shrink-0 text-slate-400" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search bill, order, waiter, dish, reason..."
-                  className="h-12 w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
-                />
+              <div className="grid w-full gap-2 sm:grid-cols-[220px_1fr] lg:max-w-2xl">
+                <select
+                  value={complimentaryFilter}
+                  onChange={(e) => setComplimentaryFilter(e.target.value)}
+                  className="min-h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400"
+                >
+                  {complimentaryFilters.map((filter) => (
+                    <option key={filter.key} value={filter.key}>
+                      {filter.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4">
+                  <FaSearch className="shrink-0 text-slate-400" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search bill, order, waiter, dish, reason..."
+                    className="h-12 w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                  />
+                </div>
               </div>
             </div>
           </div>

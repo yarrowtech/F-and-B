@@ -37,6 +37,54 @@ const buildPaidAtFilter = ({ startDate, endDate }) => {
   return { paidAt };
 };
 
+const normalizeComplimentaryType = (value) => {
+  const type = String(value || "").trim().toUpperCase();
+  if (["FULL_ORDER", "FULL", "ORDER"].includes(type)) return "FULL_ORDER";
+  if (["ITEMS", "ITEM", "DISH", "DISHES"].includes(type)) return "ITEMS";
+  return "NONE";
+};
+
+const getOrderItemId = (item) => String(item?._id || "");
+
+const getBillComplimentaryMeta = (bill) => {
+  const orderItems = Array.isArray(bill?.order?.items) ? bill.order.items : [];
+  const selectedIds = new Set((bill?.complimentaryItems || []).map(String));
+  const amount = Number(bill?.complimentaryAmount || 0);
+  const rawType = normalizeComplimentaryType(bill?.complimentaryType);
+  const hasSelectedItems = selectedIds.size > 0;
+  const type =
+    rawType === "FULL_ORDER"
+      ? "FULL_ORDER"
+      : rawType === "ITEMS" || hasSelectedItems || amount > 0
+      ? "ITEMS"
+      : "NONE";
+
+  const items =
+    type === "FULL_ORDER"
+      ? orderItems
+      : type === "ITEMS"
+      ? orderItems.filter((item) => selectedIds.has(getOrderItemId(item)))
+      : [];
+
+  const itemCount =
+    type === "ITEMS" && items.length === 0 && hasSelectedItems
+      ? selectedIds.size
+      : items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+
+  return {
+    type,
+    amount,
+    itemCount,
+    billCount: type === "NONE" ? 0 : 1,
+    items: items.map((item) => ({
+      _id: item._id,
+      name: item.menuItem?.name || item.name || "Dish",
+      quantity: item.quantity || 0,
+    })),
+    note: bill?.complimentaryNote || "",
+  };
+};
+
 /* ================= ADMIN SUMMARY ================= */
 export const getAdminSummary = async (req, res) => {
   try {
@@ -370,15 +418,32 @@ export const getAdminAccountHistory = async (req, res) => {
       .sort({ paidAt: -1, createdAt: -1 })
       .lean();
 
-    const totalRevenue = bills.reduce(
+    const billsWithComplimentaryMeta = bills.map((bill) => ({
+      ...bill,
+      complimentaryMeta: getBillComplimentaryMeta(bill),
+    }));
+
+    const totalRevenue = billsWithComplimentaryMeta.reduce(
       (sum, bill) => sum + Number(bill.totalAmount || 0),
       0
     );
 
-    const totalOrders = bills.length;
+    const totalOrders = billsWithComplimentaryMeta.length;
     const averageBillValue = totalOrders
       ? Number((totalRevenue / totalOrders).toFixed(2))
       : 0;
+    const complimentarySummary = billsWithComplimentaryMeta.reduce(
+      (stats, bill) => {
+        const meta = bill.complimentaryMeta;
+        if (meta.type !== "NONE") {
+          stats.billCount += 1;
+          stats.itemCount += Number(meta.itemCount || 0);
+          stats.amount += Number(meta.amount || 0);
+        }
+        return stats;
+      },
+      { billCount: 0, itemCount: 0, amount: 0 }
+    );
 
     const today = new Date();
     const todayStart = new Date(today);
@@ -386,7 +451,7 @@ export const getAdminAccountHistory = async (req, res) => {
     const todayEnd = new Date(today);
     todayEnd.setHours(23, 59, 59, 999);
 
-    const todayCollections = bills.filter((bill) => {
+    const todayCollections = billsWithComplimentaryMeta.filter((bill) => {
       const paidAt = bill.paidAt ? new Date(bill.paidAt) : null;
       return paidAt && paidAt >= todayStart && paidAt <= todayEnd;
     }).length;
@@ -400,9 +465,10 @@ export const getAdminAccountHistory = async (req, res) => {
           averageBillValue,
           todayCollections,
           selectedRestaurantCount: restaurantIds.length,
+          complimentary: complimentarySummary,
         },
         filters: { restaurantId: restaurantId || "", startDate: startDate || "", endDate: endDate || "" },
-        bills,
+        bills: billsWithComplimentaryMeta,
       },
     });
   } catch (err) {
