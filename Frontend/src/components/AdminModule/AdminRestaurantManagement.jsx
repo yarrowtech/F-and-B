@@ -3,6 +3,7 @@ import {
   getRestaurants,
   createRestaurant,
   updateRestaurant,
+  updateRestaurantBillingTemplate,
   deleteRestaurant,
   getRestaurantEmployees,
 } from "../../services/restaurant.service";
@@ -37,6 +38,20 @@ const Modal = ({ title, onClose, children, wide }) => (
    RESTAURANT FORM (shared by add/edit)
 ═══════════════════════════════════ */
 const emptyForm = { name: "", address: "", phone: "", gstNo: "" };
+const defaultBillingTemplate = {
+  headerTitle: "",
+  subtitle: "",
+  logoUrl: "",
+  primaryColor: "#183153",
+  accentColor: "#f5f8f2",
+  footerMessage: "Thank you for dining with us.",
+  terms: "This invoice includes all selected taxes, service charges, and discounts.",
+  showGstNo: true,
+  showRestaurantCode: false,
+  showCustomerContact: true,
+  showTaxBreakup: true,
+};
+const maxLogoBytes = 700 * 1024;
 
 const RestaurantForm = ({ initial, onSave, onCancel, saving }) => {
   const [form, setForm]     = useState(initial || emptyForm);
@@ -120,6 +135,182 @@ const RestaurantForm = ({ initial, onSave, onCancel, saving }) => {
   );
 };
 
+const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
+  const [form, setForm] = useState({
+    ...defaultBillingTemplate,
+    ...(restaurant?.billingTemplate || {}),
+  });
+  const [logoError, setLogoError] = useState("");
+
+  const change = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const submit = (e) => {
+    e.preventDefault();
+    onSave(form);
+  };
+
+  const handleLogoUpload = (file) => {
+    setLogoError("");
+
+    if (!file) return;
+    if (file.type !== "image/png") {
+      setLogoError("Please upload a PNG logo.");
+      return;
+    }
+    if (file.size > maxLogoBytes) {
+      setLogoError("Logo must be smaller than 700 KB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => change("logoUrl", reader.result || "");
+    reader.onerror = () => setLogoError("Could not read this logo file.");
+    reader.readAsDataURL(file);
+  };
+
+  const textField = (label, key, placeholder = "", props = {}) => (
+    <div>
+      <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+        {label}
+      </label>
+      <input
+        value={form[key]}
+        onChange={(e) => change(key, e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+        {...props}
+      />
+    </div>
+  );
+
+  const toggleField = (label, key) => (
+    <label className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200">
+      <span>{label}</span>
+      <input
+        type="checkbox"
+        checked={Boolean(form[key])}
+        onChange={(e) => change(key, e.target.checked)}
+        className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+      />
+    </label>
+  );
+
+  return (
+    <form onSubmit={submit} className="space-y-5">
+      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
+          Bill Preview Header
+        </p>
+        <div className="mt-3 rounded-xl p-4" style={{ backgroundColor: form.accentColor }}>
+          <div className="flex items-center gap-3">
+            {form.logoUrl && (
+              <img
+                src={form.logoUrl}
+                alt="Bill logo preview"
+                className="h-12 w-12 rounded-lg object-contain"
+              />
+            )}
+            <div className="min-w-0">
+              <p className="truncate text-xl font-bold" style={{ color: form.primaryColor }}>
+                {form.headerTitle || restaurant?.name || "Restaurant Name"}
+              </p>
+              <p className="mt-1 truncate text-sm text-gray-600">
+                {form.subtitle || restaurant?.address || "Restaurant address"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {textField("Bill Header Title", "headerTitle", restaurant?.name || "Restaurant name")}
+        {textField("Subtitle / Tagline", "subtitle", "Fresh food, warm service")}
+        {textField("Primary Color", "primaryColor", "#183153", { type: "color" })}
+        {textField("Background Color", "accentColor", "#f5f8f2", { type: "color" })}
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+          Upload PNG Logo
+        </label>
+        <div className="rounded-xl border border-dashed border-gray-300 bg-white p-4 dark:border-gray-600 dark:bg-gray-700">
+          <input
+            type="file"
+            accept="image/png"
+            onChange={(e) => handleLogoUpload(e.target.files?.[0])}
+            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-lg file:border-0 file:bg-green-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-green-700 hover:file:bg-green-100 dark:text-gray-200 dark:file:bg-green-900/30 dark:file:text-green-300"
+          />
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              PNG only, up to 700 KB.
+            </p>
+            {form.logoUrl && (
+              <button
+                type="button"
+                onClick={() => change("logoUrl", "")}
+                className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300"
+              >
+                Remove Logo
+              </button>
+            )}
+          </div>
+          {logoError && <p className="mt-2 text-sm text-red-500">{logoError}</p>}
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+          Footer Message
+        </label>
+        <textarea
+          value={form.footerMessage}
+          onChange={(e) => change("footerMessage", e.target.value)}
+          rows={2}
+          className="w-full resize-none rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+          Terms / Notes
+        </label>
+        <textarea
+          value={form.terms}
+          onChange={(e) => change("terms", e.target.value)}
+          rows={3}
+          className="w-full resize-none rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {toggleField("Show GST number", "showGstNo")}
+        {toggleField("Show restaurant code", "showRestaurantCode")}
+        {toggleField("Show customer contact", "showCustomerContact")}
+        {toggleField("Show tax breakup", "showTaxBreakup")}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 pt-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-60"
+        >
+          {saving ? "Saving..." : "Save Billing"}
+        </button>
+      </div>
+    </form>
+  );
+};
+
 /* ═══════════════════════════════════
    MAIN COMPONENT
 ═══════════════════════════════════ */
@@ -132,6 +323,7 @@ export default function AdminRestaurantManagement() {
   /* modal state */
   const [showAdd, setShowAdd]         = useState(false);
   const [editTarget, setEditTarget]   = useState(null);   // restaurant object
+  const [billingTarget, setBillingTarget] = useState(null); // restaurant object
   const [staffTarget, setStaffTarget] = useState(null);   // restaurant object
   const [staff, setStaff]             = useState([]);
   const [staffLoading, setStaffLoading] = useState(false);
@@ -174,6 +366,27 @@ export default function AdminRestaurantManagement() {
       fetchRestaurants();
     } catch {
       alert("Failed to update restaurant");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleBillingUpdate = async (form) => {
+    try {
+      setSaving(true);
+      const result = await updateRestaurantBillingTemplate(billingTarget._id, form);
+      const updatedRestaurant = result?.restaurant || result?.data?.restaurant;
+      if (updatedRestaurant?._id) {
+        setRestaurants((prev) =>
+          prev.map((restaurant) =>
+            restaurant._id === updatedRestaurant._id ? updatedRestaurant : restaurant
+          )
+        );
+      }
+      setBillingTarget(null);
+      fetchRestaurants();
+    } catch (err) {
+      alert(err?.response?.data?.message || "Failed to update billing template");
     } finally {
       setSaving(false);
     }
@@ -299,8 +512,9 @@ const handleDelete = async () => {
                 )}
               </div>
               <p className="mt-3 line-clamp-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{r.address || "-"}</p>
-              <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="mt-4 grid grid-cols-2 gap-2">
                 <button onClick={() => openStaff(r)} className="rounded-xl bg-blue-50 px-2 py-2 text-xs font-semibold text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">Staff</button>
+                <button onClick={() => setBillingTarget(r)} className="rounded-xl bg-purple-50 px-2 py-2 text-xs font-semibold text-purple-700 dark:bg-purple-900/20 dark:text-purple-300">Billing Update</button>
                 <button onClick={() => setEditTarget(r)} className="rounded-xl bg-yellow-50 px-2 py-2 text-xs font-semibold text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300">Edit</button>
                 <button onClick={() => setDeleteTarget(r)} className="rounded-xl bg-red-50 px-2 py-2 text-xs font-semibold text-red-600 dark:bg-red-900/20 dark:text-red-300">Delete</button>
               </div>
@@ -351,6 +565,12 @@ const handleDelete = async () => {
                         Manage Staff
                       </button>
                       <button
+                        onClick={() => setBillingTarget(r)}
+                        className="rounded-lg bg-purple-50 px-3 py-2 text-sm font-semibold text-purple-700 transition-colors hover:bg-purple-100 dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/40"
+                      >
+                        Billing Update
+                      </button>
+                      <button
                         onClick={() => setEditTarget(r)}
                         className="rounded-lg bg-yellow-50 px-3 py-2 text-sm font-semibold text-yellow-700 transition-colors hover:bg-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-400 dark:hover:bg-yellow-900/40"
                       >
@@ -396,6 +616,21 @@ const handleDelete = async () => {
       )}
 
       {/* ════════ MANAGE STAFF MODAL ════════ */}
+      {billingTarget && (
+        <Modal
+          title={`Billing Update - ${billingTarget.name}`}
+          onClose={() => setBillingTarget(null)}
+          wide
+        >
+          <BillingTemplateForm
+            restaurant={billingTarget}
+            onSave={handleBillingUpdate}
+            onCancel={() => setBillingTarget(null)}
+            saving={saving}
+          />
+        </Modal>
+      )}
+
       {staffTarget && (
         <Modal
           title={`Staff — ${staffTarget.name}`}

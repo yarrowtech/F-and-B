@@ -135,7 +135,7 @@ export const customizeBill = async (billId, payload) => {
   return res.data.data;
 };
 
-export const downloadBillPdf = async (billId) => {
+export const downloadBillPdf = async (billId, targetWindow = null) => {
   try {
     const res = await API.get(
       `/billing/${billId}/pdf`,
@@ -150,8 +150,13 @@ export const downloadBillPdf = async (billId) => {
 
     const url = window.URL.createObjectURL(blob);
 
-    // Open in new tab
-    window.open(url);
+    if (targetWindow && !targetWindow.closed) {
+      targetWindow.location.href = url;
+    } else {
+      window.open(url);
+    }
+
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 60000);
 
     // OPTIONAL: If you want auto-download instead,
     // comment window.open(url) and use below:
@@ -167,6 +172,9 @@ export const downloadBillPdf = async (billId) => {
 
   } catch (error) {
     console.error("PDF Download Error:", error);
+    if (targetWindow && !targetWindow.closed) {
+      targetWindow.close();
+    }
     alert("Failed to download bill PDF");
   }
 };

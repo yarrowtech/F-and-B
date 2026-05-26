@@ -139,6 +139,44 @@
 import Restaurant from "../models/Restaurant.model.js";
 import Employee from "../models/Employee.model.js";
 
+const defaultBillingTemplate = {
+  headerTitle: "",
+  subtitle: "",
+  logoUrl: "",
+  primaryColor: "#183153",
+  accentColor: "#f5f8f2",
+  footerMessage: "Thank you for dining with us.",
+  terms: "This invoice includes all selected taxes, service charges, and discounts.",
+  showGstNo: true,
+  showRestaurantCode: false,
+  showCustomerContact: true,
+  showTaxBreakup: true,
+};
+const maxLogoDataLength = 1000000;
+
+const sanitizeBillingTemplate = (payload = {}) => {
+  const text = (value, max) => String(value || "").trim().slice(0, max);
+  const color = (value, fallback) => {
+    const normalized = String(value || "").trim();
+    return /^#[0-9a-fA-F]{6}$/.test(normalized) ? normalized : fallback;
+  };
+
+  return {
+    headerTitle: text(payload.headerTitle, 80),
+    subtitle: text(payload.subtitle, 120),
+    logoUrl: text(payload.logoUrl, maxLogoDataLength),
+    primaryColor: color(payload.primaryColor, defaultBillingTemplate.primaryColor),
+    accentColor: color(payload.accentColor, defaultBillingTemplate.accentColor),
+    footerMessage:
+      text(payload.footerMessage, 180) || defaultBillingTemplate.footerMessage,
+    terms: text(payload.terms, 300) || defaultBillingTemplate.terms,
+    showGstNo: Boolean(payload.showGstNo),
+    showRestaurantCode: Boolean(payload.showRestaurantCode),
+    showCustomerContact: payload.showCustomerContact !== false,
+    showTaxBreakup: payload.showTaxBreakup !== false,
+  };
+};
+
 /* =====================================================
    GENERATE RESTAURANT CODE
 ===================================================== */
@@ -287,6 +325,42 @@ export const updateRestaurant = async (req, res) => {
         message: "Restaurant not found"
       });
     }
+
+    res.json({
+      success: true,
+      restaurant
+    });
+
+  } catch (err) {
+    res.status(400).json({
+      message: err.message
+    });
+  }
+};
+
+
+/* =====================================================
+   UPDATE BILLING TEMPLATE
+===================================================== */
+
+export const updateBillingTemplate = async (req, res) => {
+  try {
+
+    const { restaurantId } = req.params;
+
+    const restaurant = await Restaurant.findOne({
+      _id: restaurantId,
+      admin: req.user.id
+    });
+
+    if (!restaurant) {
+      return res.status(404).json({
+        message: "Restaurant not found"
+      });
+    }
+
+    restaurant.billingTemplate = sanitizeBillingTemplate(req.body);
+    await restaurant.save();
 
     res.json({
       success: true,

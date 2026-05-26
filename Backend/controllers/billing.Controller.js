@@ -12,6 +12,60 @@ const sendError = (res, message, status = 400) =>
 
 const asMoney = (value) => Number(value || 0).toFixed(2);
 
+const defaultBillingTemplate = {
+  headerTitle: "",
+  subtitle: "",
+  logoUrl: "",
+  primaryColor: "#183153",
+  accentColor: "#f5f8f2",
+  footerMessage: "Thank you for dining with us.",
+  terms: "This invoice includes all selected taxes, service charges, and discounts.",
+  showGstNo: true,
+  showRestaurantCode: false,
+  showCustomerContact: true,
+  showTaxBreakup: true,
+};
+
+const getBillingTemplate = (restaurant) => ({
+  ...defaultBillingTemplate,
+  ...(restaurant?.billingTemplate?.toObject?.() || restaurant?.billingTemplate || {}),
+});
+
+const normalizePdfColor = (value, fallback) =>
+  /^#[0-9a-fA-F]{6}$/.test(String(value || "").trim())
+    ? String(value).trim()
+    : fallback;
+
+const loadLogoBuffer = async (logoUrl) => {
+  const source = sanitizeText(logoUrl);
+  if (!source) return null;
+
+  try {
+    const dataUrlMatch = source.match(/^data:image\/(png|jpe?g);base64,(.+)$/i);
+    if (dataUrlMatch) return Buffer.from(dataUrlMatch[2], "base64");
+
+    if (!/^https?:\/\//i.test(source) || typeof fetch !== "function") {
+      return null;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    const response = await fetch(source, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (!response.ok) return null;
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.startsWith("image/")) return null;
+
+    const arrayBuffer = await response.arrayBuffer();
+    if (arrayBuffer.byteLength > 2 * 1024 * 1024) return null;
+
+    return Buffer.from(arrayBuffer);
+  } catch {
+    return null;
+  }
+};
+
 const sanitizeAmount = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
@@ -518,6 +572,22 @@ const generateBillPDF = async (req, res) => {
 
     const billDate =
       bill.paymentStatus === "PAID" && bill.paidAt ? bill.paidAt : bill.updatedAt || bill.createdAt;
+    const template = getBillingTemplate(bill.restaurant);
+    const primaryColor = normalizePdfColor(
+      template.primaryColor,
+      defaultBillingTemplate.primaryColor
+    );
+    const accentColor = normalizePdfColor(
+      template.accentColor,
+      defaultBillingTemplate.accentColor
+    );
+    const invoiceTitle = sanitizeText(template.headerTitle) || bill.restaurant?.name || "Restaurant";
+    const footerMessage =
+      sanitizeText(template.footerMessage) || defaultBillingTemplate.footerMessage;
+    const terms = sanitizeText(template.terms) || defaultBillingTemplate.terms;
+    const logoBuffer = await loadLogoBuffer(template.logoUrl);
+    const headerTextX = logoBuffer ? 115 : 55;
+    const headerTextWidth = logoBuffer ? 260 : 320;
 
     const doc = new PDFDocument({ size: "A4", margin: 40 });
 
@@ -529,25 +599,42 @@ const generateBillPDF = async (req, res) => {
 
     doc.pipe(res);
 
-    doc.rect(40, 40, 515, 78).fill("#f5f8f2");
-    doc.fillColor("#183153").font("Helvetica-Bold").fontSize(22).text(
-      bill.restaurant?.name || "Restaurant",
-      55,
+    doc.rect(40, 40, 515, 92).fill(accentColor);
+    if (logoBuffer) {
+      try {
+        doc.image(logoBuffer, 55, 58, { fit: [44, 44] });
+      } catch {
+        // Ignore unsupported image formats and continue with the text header.
+      }
+    }
+    doc.fillColor(primaryColor).font("Helvetica-Bold").fontSize(22).text(
+      invoiceTitle,
+      headerTextX,
       58,
-      { width: 320 }
+      { width: headerTextWidth }
     );
     doc.font("Helvetica").fontSize(10).fillColor("#4b5563");
-    doc.text(bill.restaurant?.address || "Address not available", 55, 88, {
-      width: 320,
+    doc.text(template.subtitle || bill.restaurant?.address || "Address not available", headerTextX, 86, {
+      width: headerTextWidth,
     });
-    doc.text(`Phone: ${bill.restaurant?.phone || "N/A"}`, 55, 103, {
+    doc.text(`Phone: ${bill.restaurant?.phone || "N/A"}`, headerTextX, 101, {
       width: 220,
     });
+    if (template.showGstNo && bill.restaurant?.gstNo) {
+      doc.text(`GST: ${bill.restaurant.gstNo}`, headerTextX, 116, {
+        width: 220,
+      });
+    }
+    if (template.showRestaurantCode && bill.restaurant?.restaurantCode) {
+      doc.text(`Code: ${bill.restaurant.restaurantCode}`, 245, 116, {
+        width: 130,
+      });
+    }
 
     doc
       .fillColor("#0f172a")
       .roundedRect(400, 56, 140, 46, 8)
-      .fill("#183153");
+      .fill(primaryColor);
     doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(12).text(
       "TAX INVOICE",
       400,
@@ -556,47 +643,50 @@ const generateBillPDF = async (req, res) => {
     );
 
     doc.fillColor("#111827");
-    doc.roundedRect(40, 135, 250, 88, 10).stroke("#d1d5db");
-    doc.roundedRect(305, 135, 250, 88, 10).stroke("#d1d5db");
+    doc.roundedRect(40, 148, 250, 88, 10).stroke("#d1d5db");
+    doc.roundedRect(305, 148, 250, 88, 10).stroke("#d1d5db");
 
-    doc.font("Helvetica-Bold").fontSize(11).text("Bill Details", 55, 150);
+    doc.font("Helvetica-Bold").fontSize(11).text("Bill Details", 55, 163);
     doc.font("Helvetica").fontSize(10);
-    doc.text(`Bill No: ${bill.billNo}`, 55, 170);
-    doc.text(`Order No: ${bill.order?.orderNo || "N/A"}`, 55, 186);
+    doc.text(`Bill No: ${bill.billNo}`, 55, 183);
+    doc.text(`Order No: ${bill.order?.orderNo || "N/A"}`, 55, 199);
     doc.text(
       `Bill Date: ${new Date(billDate).toLocaleString("en-IN")}`,
       55,
-      202
+      215
     );
 
-    doc.font("Helvetica-Bold").fontSize(11).text("Order Info", 320, 150);
+    doc.font("Helvetica-Bold").fontSize(11).text("Order Info", 320, 163);
     doc.font("Helvetica").fontSize(10);
     doc.text(
       `Table: ${bill.order?.table?.tableNumber || bill.order?.orderType || "N/A"}`,
       320,
-      170
+      183
     );
     doc.text(
       `Status: ${bill.paymentStatus === "PAID" ? "Paid" : "Pending"}`,
       320,
-      186
+      199
     );
     doc.text(
       `Payment: ${bill.paymentMethod || "Not paid yet"}`,
       320,
-      202
+      215
     );
 
-    if (bill.customerEmail || bill.customerPhone) {
-      doc.font("Helvetica-Bold").fontSize(11).text("Customer Contact", 55, 228);
+    const showCustomerContact =
+      template.showCustomerContact && (bill.customerEmail || bill.customerPhone);
+
+    if (showCustomerContact) {
+      doc.font("Helvetica-Bold").fontSize(11).text("Customer Contact", 55, 242);
       doc.font("Helvetica").fontSize(10);
       if (bill.customerEmail) {
-        doc.text(`Email: ${bill.customerEmail}`, 55, 244, {
+        doc.text(`Email: ${bill.customerEmail}`, 55, 258, {
           width: 250,
         });
       }
       if (bill.customerPhone) {
-        doc.text(`Phone: ${bill.customerPhone}`, 320, 244, {
+        doc.text(`Phone: ${bill.customerPhone}`, 320, 258, {
           width: 180,
         });
       }
@@ -604,15 +694,15 @@ const generateBillPDF = async (req, res) => {
 
     const complimentaryNote = sanitizeText(bill.complimentaryNote);
     if (complimentaryNote) {
-      const noteTop = bill.customerEmail || bill.customerPhone ? 270 : 228;
+      const noteTop = showCustomerContact ? 284 : 242;
       doc.font("Helvetica-Bold").fontSize(11).text("Complimentary Reason", 55, noteTop);
       doc.font("Helvetica").fontSize(10).text(complimentaryNote, 55, noteTop + 16, {
         width: 470,
       });
     }
 
-    let tableTop = 250;
-    if (bill.customerEmail || bill.customerPhone) tableTop = 282;
+    let tableTop = 264;
+    if (showCustomerContact) tableTop = 296;
     if (complimentaryNote) tableTop += 48;
     const columnX = {
       item: 50,
@@ -621,7 +711,7 @@ const generateBillPDF = async (req, res) => {
       amount: 465,
     };
 
-    doc.roundedRect(40, tableTop, 515, 28, 6).fill("#183153");
+    doc.roundedRect(40, tableTop, 515, 28, 6).fill(primaryColor);
     doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(10);
     doc.text("Item", columnX.item, tableTop + 9, { width: 230 });
     doc.text("Qty", columnX.qty, tableTop + 9, {
@@ -688,44 +778,50 @@ const generateBillPDF = async (req, res) => {
     drawAmountLine(doc, "Complimentary", bill.complimentaryAmount || 0, {
       y: summaryTop + 18,
     });
-    drawAmountLine(
-      doc,
-      `CGST (${sanitizeRate(bill.cgstRate, 2.5)}%)`,
-      bill.cgst,
-      { y: summaryTop + 36 }
-    );
-    drawAmountLine(
-      doc,
-      `SGST (${sanitizeRate(bill.sgstRate, 2.5)}%)`,
-      bill.sgst,
-      { y: summaryTop + 54 }
-    );
+    let summaryY = summaryTop + 36;
+    if (template.showTaxBreakup) {
+      drawAmountLine(
+        doc,
+        `CGST (${sanitizeRate(bill.cgstRate, 2.5)}%)`,
+        bill.cgst,
+        { y: summaryY }
+      );
+      summaryY += 18;
+      drawAmountLine(
+        doc,
+        `SGST (${sanitizeRate(bill.sgstRate, 2.5)}%)`,
+        bill.sgst,
+        { y: summaryY }
+      );
+      summaryY += 18;
+    }
     drawAmountLine(doc, "Service Charge", bill.serviceCharge, {
-      y: summaryTop + 72,
+      y: summaryY,
     });
+    summaryY += 18;
     drawAmountLine(doc, "Discount", bill.discount || 0, {
-      y: summaryTop + 90,
+      y: summaryY,
     });
 
-    doc.moveTo(340, summaryTop + 114).lineTo(540, summaryTop + 114).stroke("#111827");
+    doc.moveTo(340, summaryY + 24).lineTo(540, summaryY + 24).stroke("#111827");
     drawAmountLine(doc, "Grand Total", bill.totalAmount, {
-      y: summaryTop + 122,
+      y: summaryY + 32,
       bold: true,
     });
 
-    const footerTop = summaryTop + 173;
+    const footerTop = summaryY + 83;
     ensurePageSpace(doc, 80);
     doc
       .roundedRect(40, footerTop, 515, 56, 10)
-      .fill("#f5f8f2");
+      .fill(accentColor);
     doc.fillColor("#1f2937").font("Helvetica-Bold").fontSize(11).text(
-      "Thank you for dining with us.",
+      footerMessage,
       55,
       footerTop + 14,
       { width: 220 }
     );
     doc.font("Helvetica").fontSize(10).text(
-      "This invoice includes all selected taxes, service charges, and discounts.",
+      terms,
       55,
       footerTop + 30,
       { width: 410 }

@@ -84,6 +84,68 @@
 
 import mongoose from "mongoose";
 
+const billingTemplateSchema = new mongoose.Schema(
+  {
+    headerTitle: {
+      type: String,
+      trim: true,
+      maxlength: 80,
+      default: "",
+    },
+    subtitle: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+      default: "",
+    },
+    logoUrl: {
+      type: String,
+      trim: true,
+      maxlength: 1000000,
+      default: "",
+    },
+    primaryColor: {
+      type: String,
+      trim: true,
+      default: "#183153",
+    },
+    accentColor: {
+      type: String,
+      trim: true,
+      default: "#f5f8f2",
+    },
+    footerMessage: {
+      type: String,
+      trim: true,
+      maxlength: 180,
+      default: "Thank you for dining with us.",
+    },
+    terms: {
+      type: String,
+      trim: true,
+      maxlength: 300,
+      default: "This invoice includes all selected taxes, service charges, and discounts.",
+    },
+    showGstNo: {
+      type: Boolean,
+      default: true,
+    },
+    showRestaurantCode: {
+      type: Boolean,
+      default: false,
+    },
+    showCustomerContact: {
+      type: Boolean,
+      default: true,
+    },
+    showTaxBreakup: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  { _id: false }
+);
+
 const restaurantSchema = new mongoose.Schema(
   {
     /* =========================
@@ -135,6 +197,11 @@ const restaurantSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+    },
+
+    billingTemplate: {
+      type: billingTemplateSchema,
+      default: () => ({}),
     },
   },
   {

@@ -362,6 +362,43 @@ export const getMenu = async (req, res) => {
 };
 
 /* ===============================
+   PUBLIC MENU FOR QR SCAN
+=============================== */
+export const getPublicMenu = async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+      return res.status(400).json({ message: "Invalid restaurant" });
+    }
+
+    const restaurant = await Restaurant.findById(restaurantId)
+      .select("name address phone")
+      .lean();
+
+    if (!restaurant) {
+      return res.status(404).json({ message: "Restaurant not found" });
+    }
+
+    const items = await Menu.find({
+      restaurant: restaurantId,
+      isAvailable: true,
+    })
+      .select("name cuisine courseType price")
+      .sort({ courseType: 1, cuisine: 1, name: 1 })
+      .lean();
+
+    res.json({
+      restaurant,
+      items,
+    });
+  } catch (err) {
+    console.error("PUBLIC MENU ERROR:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+/* ===============================
    GET MENU ITEM BY ID
 =============================== */
 export const getMenuItemById = async (req, res) => {

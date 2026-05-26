@@ -1110,7 +1110,7 @@ app.use(
 app.use(apiLimiter);
 
 /* ================= GLOBAL ================= */
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 
 /* ================= LOGGER ================= */
 app.use(async (req, res, next) => {

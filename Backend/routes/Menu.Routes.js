@@ -4,6 +4,7 @@ import allowRoles from "../middlewares/role.middleware.js";
 import {
   createMenuItem,
   getMenu,
+  getPublicMenu,
   getMenuItemById,
   updateMenuItem,
   deleteMenuItem,
@@ -21,6 +22,8 @@ router.get(
 );
 
 /* MENU ROUTES */
+
+router.get("/public/:restaurantId", getPublicMenu);
 
 router.post("/:restaurantId", auth, allowRoles("admin"), createMenuItem);
 

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import {
   FaCheck,
   FaFilePdf,
+  FaFilter,
   FaMinus,
   FaMoneyBillWave,
   FaPlus,
@@ -27,6 +28,30 @@ const formatCurrency = (value) =>
     currency: "INR",
     maximumFractionDigits: 2,
   }).format(Number(value || 0));
+
+const defaultBillingTemplate = {
+  headerTitle: "",
+  subtitle: "",
+  logoUrl: "",
+  primaryColor: "#0f172a",
+  accentColor: "#f8fafc",
+  footerMessage: "Thank you for dining with us.",
+  terms: "This invoice includes all selected taxes, service charges, and discounts.",
+  showGstNo: true,
+  showRestaurantCode: false,
+  showCustomerContact: true,
+  showTaxBreakup: true,
+};
+
+const getBillingTemplate = (restaurant) => ({
+  ...defaultBillingTemplate,
+  ...(restaurant?.billingTemplate || {}),
+});
+
+const getSafeColor = (value, fallback) =>
+  /^#[0-9a-fA-F]{6}$/.test(String(value || "").trim())
+    ? String(value).trim()
+    : fallback;
 
 const sanitizeNumber = (value) => {
   const parsed = Number(value);
@@ -319,6 +344,32 @@ export default function AccountantOrderBilling() {
     sendToPhone: false,
   });
   const [savingBill, setSavingBill] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState({
+    paymentMethod: "",
+    orderType: "",
+    dateFrom: "",
+    dateTo: "",
+  });
+  const selectedTemplate = selectedBill
+    ? getBillingTemplate(selectedBill.restaurant)
+    : defaultBillingTemplate;
+  const previewPrimaryColor = getSafeColor(
+    selectedTemplate.primaryColor,
+    defaultBillingTemplate.primaryColor
+  );
+  const previewAccentColor = getSafeColor(
+    selectedTemplate.accentColor,
+    defaultBillingTemplate.accentColor
+  );
+  const previewTitle =
+    selectedTemplate.headerTitle ||
+    selectedBill?.restaurant?.name ||
+    "Bill Preview";
+  const previewSubtitle =
+    selectedTemplate.subtitle ||
+    selectedBill?.restaurant?.address ||
+    selectedBill?.restaurant?.phone ||
+    "";
 
   const fetchBills = async () => {
     try {
@@ -429,6 +480,11 @@ export default function AccountantOrderBilling() {
   const handleGenerateBill = async () => {
     if (!selectedBill?._id) return;
 
+    const pdfWindow = window.open("", "_blank");
+    if (pdfWindow) {
+      pdfWindow.document.write("<p style=\"font-family:Arial,sans-serif;padding:24px;\">Generating bill PDF...</p>");
+    }
+
     try {
       setSavingBill(true);
 
@@ -455,12 +511,16 @@ export default function AccountantOrderBilling() {
       );
 
       setSelectedBill(updatedBill);
+      await downloadBillPdf(updatedBill._id, pdfWindow);
 
       if (response?.deliveryMessage) {
         alert(response.deliveryMessage);
       }
     } catch (err) {
       console.error("GENERATE BILL ERROR:", err);
+      if (pdfWindow && !pdfWindow.closed) {
+        pdfWindow.close();
+      }
       alert("Failed to generate bill");
     } finally {
       setSavingBill(false);
@@ -613,13 +673,42 @@ export default function AccountantOrderBilling() {
   };
 
   const filteredBills = Array.isArray(bills)
-    ? bills.filter((bill) =>
-        `${bill.billNo || ""} ${bill.order?.orderNo || ""} ${bill.order?.orderType || ""} ${
+    ? bills.filter((bill) => {
+        const matchesSearch = `${bill.billNo || ""} ${bill.order?.orderNo || ""} ${bill.order?.orderType || ""} ${
           bill.order?.table?.tableNumber || ""
         }`
           .toLowerCase()
-          .includes(search.toLowerCase())
-      )
+          .includes(search.toLowerCase());
+
+        if (!matchesSearch) return false;
+
+        if (tab === "HISTORY") {
+          if (historyFilter.paymentMethod && bill.paymentMethod !== historyFilter.paymentMethod) return false;
+
+          if (historyFilter.orderType) {
+            if (historyFilter.orderType === "TABLE") {
+              if (!bill.order?.table?.tableNumber) return false;
+            } else {
+              if (bill.order?.table?.tableNumber) return false;
+              if (bill.order?.orderType !== historyFilter.orderType) return false;
+            }
+          }
+
+          const billDate = new Date(bill.updatedAt || bill.createdAt);
+          if (historyFilter.dateFrom) {
+            const from = new Date(historyFilter.dateFrom);
+            from.setHours(0, 0, 0, 0);
+            if (billDate < from) return false;
+          }
+          if (historyFilter.dateTo) {
+            const to = new Date(historyFilter.dateTo);
+            to.setHours(23, 59, 59, 999);
+            if (billDate > to) return false;
+          }
+        }
+
+        return true;
+      })
     : [];
 
   const filteredMenuItems = menuItems.filter((item) =>
@@ -1060,6 +1149,80 @@ export default function AccountantOrderBilling() {
             </span>
           </div>
 
+          {tab === "HISTORY" && (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950">
+              <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                <FaFilter className="text-[10px]" />
+                Filter
+              </span>
+
+              <div className="flex flex-wrap items-center gap-1">
+                {["", "CASH", "UPI", "CARD"].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setHistoryFilter((f) => ({ ...f, paymentMethod: m }))}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                      historyFilter.paymentMethod === m
+                        ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"
+                    }`}
+                  >
+                    {m || "All Methods"}
+                  </button>
+                ))}
+              </div>
+
+              <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />
+
+              <div className="flex flex-wrap items-center gap-1">
+                {["", "TABLE", "TAKEAWAY", "ONLINE", "PACKAGING"].map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setHistoryFilter((f) => ({ ...f, orderType: t }))}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                      historyFilter.orderType === t
+                        ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"
+                    }`}
+                  >
+                    {t || "All Types"}
+                  </button>
+                ))}
+              </div>
+
+              <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />
+
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  value={historyFilter.dateFrom}
+                  onChange={(e) => setHistoryFilter((f) => ({ ...f, dateFrom: e.target.value }))}
+                  className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                />
+                <span className="text-xs text-slate-400">to</span>
+                <input
+                  type="date"
+                  value={historyFilter.dateTo}
+                  onChange={(e) => setHistoryFilter((f) => ({ ...f, dateTo: e.target.value }))}
+                  className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                />
+              </div>
+
+              {(historyFilter.paymentMethod || historyFilter.orderType || historyFilter.dateFrom || historyFilter.dateTo) && (
+                <button
+                  type="button"
+                  onClick={() => setHistoryFilter({ paymentMethod: "", orderType: "", dateFrom: "", dateTo: "" })}
+                  className="ml-auto flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50 dark:ring-rose-900 dark:hover:bg-rose-950/30"
+                >
+                  <FaTimes />
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="space-y-3 lg:hidden">
             {loading && (
               <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
@@ -1413,33 +1576,57 @@ export default function AccountantOrderBilling() {
       {selectedBill && (
         <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/55 sm:items-center sm:p-4">
           <div className="flex h-[100svh] max-h-[100dvh] w-full max-w-5xl flex-col overflow-hidden bg-white shadow-2xl dark:bg-slate-900 sm:h-auto sm:max-h-[92vh] sm:rounded-2xl">
-            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 bg-slate-900 px-4 py-4 text-white sm:px-6 sm:py-5">
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
-                  Bill Preview
-                </p>
-                <h2 className="mt-2 truncate text-xl font-bold sm:text-2xl">
-                  {selectedBill.billNo || selectedBill._id.slice(-6)}
-                </h2>
-                <p className="mt-1 text-sm text-slate-300">
-                  Order {selectedBill.order?.orderNo || "N/A"} |{" "}
-                  {selectedBill.order?.table?.tableNumber
-                    ? `Table ${selectedBill.order.table.tableNumber}`
-                    : selectedBill.order?.orderType || "No Table"}
-                </p>
+            <div
+              className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5"
+              style={{ backgroundColor: previewAccentColor }}
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                {selectedTemplate.logoUrl && (
+                  <img
+                    src={selectedTemplate.logoUrl}
+                    alt="Restaurant logo"
+                    className="h-14 w-14 shrink-0 rounded-xl bg-white/80 object-contain p-1 shadow-sm"
+                  />
+                )}
+                <div className="min-w-0">
+                  <p
+                    className="text-xs font-semibold uppercase tracking-[0.2em]"
+                    style={{ color: previewPrimaryColor }}
+                  >
+                    Bill Preview
+                  </p>
+                  <h2
+                    className="mt-2 truncate text-xl font-black sm:text-2xl"
+                    style={{ color: previewPrimaryColor }}
+                  >
+                    {previewTitle}
+                  </h2>
+                  {previewSubtitle && (
+                    <p className="mt-1 truncate text-sm text-slate-600">
+                      {previewSubtitle}
+                    </p>
+                  )}
+                  <p className="mt-1 text-sm text-slate-600">
+                    {selectedBill.billNo || selectedBill._id.slice(-6)} | Order{" "}
+                    {selectedBill.order?.orderNo || "N/A"} |{" "}
+                    {selectedBill.order?.table?.tableNumber
+                      ? `Table ${selectedBill.order.table.tableNumber}`
+                      : selectedBill.order?.orderType || "No Table"}
+                  </p>
+                </div>
               </div>
 
               <button
                 type="button"
                 onClick={closeBillModal}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white transition hover:bg-white/20"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/80 text-slate-700 shadow-sm transition hover:bg-white"
               >
                 <FaTimes />
               </button>
             </div>
 
-            <div className="grid min-h-0 flex-1 gap-0 overflow-y-auto pb-3 lg:grid-cols-[1.15fr_0.85fr] lg:pb-0">
-              <div className="border-b border-slate-200 p-4 dark:border-slate-700 lg:border-b-0 lg:border-r lg:p-6">
+            <div className="grid min-h-0 flex-1 gap-0 overflow-y-auto pb-3 lg:grid-cols-[1.15fr_0.85fr] lg:overflow-hidden lg:pb-0">
+              <div className="border-b border-slate-200 p-4 dark:border-slate-700 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-6">
                 <div className="mb-4 flex items-center gap-2 text-slate-800 dark:text-slate-100 lg:mb-5">
                   <FaReceipt className="text-emerald-600" />
                   <h3 className="text-lg font-semibold">Bill Items</h3>
@@ -1571,7 +1758,7 @@ export default function AccountantOrderBilling() {
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-4 dark:bg-slate-950 lg:p-6">
+              <div className="bg-slate-50 p-4 dark:bg-slate-950 lg:overflow-y-auto lg:p-6">
                 <div className="mb-4 flex items-center gap-2 text-slate-800 dark:text-slate-100 lg:mb-5">
                   <FaMoneyBillWave className="text-emerald-600" />
                   <h3 className="text-lg font-semibold">Charges & Totals</h3>

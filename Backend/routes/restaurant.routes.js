@@ -6,6 +6,7 @@ import {
   getRestaurants,
   getRestaurantById,
   updateRestaurant,
+  updateBillingTemplate,
   deleteRestaurant,
   assignEmployeesToRestaurant,
   getRestaurantEmployees,
@@ -25,6 +26,9 @@ router.get("/", auth, getRestaurants);
 
 // Get single restaurant
 router.get("/:restaurantId", auth, getRestaurantById);
+
+// Update restaurant billing template
+router.put("/:restaurantId/billing-template", auth, updateBillingTemplate);
 
 // Update restaurant
 router.put("/:restaurantId", auth, updateRestaurant);

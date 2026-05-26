@@ -2,6 +2,7 @@
 import { createElement, useEffect, useMemo, useState } from "react";
 import { FaCheckCircle, FaEdit, FaSearch, FaStore, FaTimes, FaUtensils } from "react-icons/fa";
 import { getMenu, getMenuAnalytics, getMenuOrdersByDate, updateMenu } from "../../services/menu.service";
+import MenuQrModal, { MenuQrButton } from "../common/MenuQrModal";
 
 const Modal = ({ title, onClose, children }) => (
   <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4">
@@ -145,6 +146,7 @@ export default function ManagerMenuManagement() {
   const [search, setSearch] = useState("");
   const [activeMenuFilter, setActiveMenuFilter] = useState("all");
   const [editingItem, setEditingItem] = useState(null);
+  const [showQrModal, setShowQrModal] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
 
   const [ordersFilter, setOrdersFilter] = useState("today");
@@ -286,8 +288,16 @@ export default function ManagerMenuManagement() {
                     className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-white"
                   />
                 </div>
-                <div className="inline-flex min-w-0 items-center rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                  {assignedRestaurantName}
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                  <div className="inline-flex min-w-0 items-center rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    {assignedRestaurantName}
+                  </div>
+                  <MenuQrButton
+                    restaurantId={assignedRestaurantId}
+                    disabled={!assignedRestaurantId}
+                    onClick={() => setShowQrModal(true)}
+                    className="rounded-xl"
+                  />
                 </div>
               </div>
             </div>
@@ -478,6 +488,13 @@ export default function ManagerMenuManagement() {
               </div>
             </form>
           </Modal>
+        )}
+        {showQrModal && assignedRestaurantId && (
+          <MenuQrModal
+            restaurantId={assignedRestaurantId}
+            restaurantName={assignedRestaurantName}
+            onClose={() => setShowQrModal(false)}
+          />
         )}
       </div>
     </div>

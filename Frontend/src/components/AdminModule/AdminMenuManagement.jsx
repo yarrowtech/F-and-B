@@ -4,6 +4,7 @@ import { FaCheckCircle, FaEdit, FaPlus, FaSearch, FaStore, FaTimes, FaTrash, FaU
 import { createMenu, deleteMenu, getMenu, getMenuAnalytics, getMenuOrdersByDate, updateMenu } from "../../services/menu.service";
 import { getRestaurants } from "../../services/restaurant.service";
 import { getInventory } from "../../services/inventory.service";
+import MenuQrModal, { MenuQrButton } from "../common/MenuQrModal";
 
 const CUISINE_PRESETS = ["Indian", "Chinese", "Italian", "Continental", "Mexican", "Thai", "Arabian"];
 const COURSE_PRESETS = ["Starter", "Main Course", "Dessert", "Beverage", "Snack", "Soup"];
@@ -55,6 +56,7 @@ export default function AdminMenuManagement() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [showQrModal, setShowQrModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [ingredients, setIngredients] = useState([emptyIngredient()]);
 
@@ -253,6 +255,9 @@ export default function AdminMenuManagement() {
 
   const availableCount = menus.filter((m) => m.isAvailable).length;
   const totalOrders = orderAnalytics.reduce((sum, item) => sum + Number(item.totalOrders || 0), 0);
+  const selectedRestaurantName =
+    restaurants.find((restaurant) => restaurant._id === selectedRestaurant)?.name ||
+    "Restaurant Menu";
   const renderForm = (onSubmit, submitLabel) => (
     <form onSubmit={onSubmit} className="space-y-5">
       <div className="grid gap-5 sm:grid-cols-2">
@@ -383,7 +388,7 @@ export default function AdminMenuManagement() {
         </div>
 
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <div className={`grid gap-3 ${viewTab === "menu" ? "xl:grid-cols-[280px_1fr_auto]" : "xl:grid-cols-[280px_1fr]"}`}>
+          <div className={`grid gap-3 ${viewTab === "menu" ? "xl:grid-cols-[280px_1fr_auto_auto]" : "xl:grid-cols-[280px_1fr]"}`}>
             <select value={selectedRestaurant} onChange={(e) => setSelectedRestaurant(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white">
               <option value="">Select Restaurant</option>
               {restaurants.map((r) => <option key={r._id} value={r._id}>{r.name}</option>)}
@@ -398,6 +403,11 @@ export default function AdminMenuManagement() {
                   <FaPlus />
                   Add Menu Item
                 </button>
+                <MenuQrButton
+                  restaurantId={selectedRestaurant}
+                  disabled={!selectedRestaurant}
+                  onClick={() => setShowQrModal(true)}
+                />
               </>
             ) : (
               <div className="inline-flex items-center rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
@@ -644,6 +654,13 @@ export default function AdminMenuManagement() {
 
         {showAddModal && <Modal title="Add Menu Item" onClose={() => setShowAddModal(false)}>{renderForm(handleAdd, "Save Menu Item")}</Modal>}
         {showEditModal && <Modal title="Edit Menu Item" onClose={() => { setShowEditModal(false); setEditingId(null); }}>{renderForm(handleEdit, "Update Menu Item")}</Modal>}
+        {showQrModal && selectedRestaurant && (
+          <MenuQrModal
+            restaurantId={selectedRestaurant}
+            restaurantName={selectedRestaurantName}
+            onClose={() => setShowQrModal(false)}
+          />
+        )}
 
         {deleteTarget && (
           <Modal title="Delete Menu Item" onClose={() => setDeleteTarget(null)}>

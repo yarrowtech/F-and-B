@@ -127,6 +127,7 @@ const Subscription = lazy(() => import("./Pages/Subscription"));
 const Department = lazy(() => import("./Pages/Department"));
 const KitchenPage = lazy(() => import("./Pages/Kitchen"));
 const FloorPage = lazy(() => import("./Pages/Floor"));
+const PublicMenu = lazy(() => import("./Pages/PublicMenu"));
 
 /* ================= LOGIN PAGES ================= */
 const SuperAdminLogin = lazy(() => import("./components/Login/SuperAdminLogin"));
@@ -173,6 +174,7 @@ const App = () => {
           <Route path="/services" element={<Services />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/subscription" element={<Subscription />} />
+          <Route path="/public-menu/:restaurantId" element={<PublicMenu />} />
 
         {/* ===== DEPARTMENTS ===== */}
         <Route path="/department" element={<Department />} />

@@ -86,6 +86,11 @@ export const updateRestaurant = async (restaurantId, data) => {
   return (await api.put(`/restaurants/${restaurantId}`, data)).data;
 };
 
+/* Update restaurant billing template */
+export const updateRestaurantBillingTemplate = async (restaurantId, data) => {
+  return (await api.put(`/restaurants/${restaurantId}/billing-template`, data)).data;
+};
+
 /* Delete restaurant */
 export const deleteRestaurant = async (restaurantId) => {
   return (await api.delete(`/restaurants/${restaurantId}`)).data;
