@@ -14,6 +14,10 @@ export default function PublicMenu() {
   const [data, setData] = useState({ restaurant: null, items: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [courseFilter, setCourseFilter] = useState("all");
+  const [cuisineFilter, setCuisineFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("course");
 
   useEffect(() => {
     const loadMenu = async () => {
@@ -35,30 +39,70 @@ export default function PublicMenu() {
     loadMenu();
   }, [restaurantId]);
 
+  const courses = useMemo(
+    () => [...new Set(data.items.map((item) => item.courseType).filter(Boolean))],
+    [data.items]
+  );
+
+  const cuisines = useMemo(
+    () => [...new Set(data.items.map((item) => item.cuisine).filter(Boolean))],
+    [data.items]
+  );
+
+  const visibleItems = useMemo(() => {
+    const term = search.trim().toLowerCase();
+
+    const filtered = data.items.filter((item) => {
+      const matchesSearch = `${item.name} ${item.cuisine} ${item.courseType}`
+        .toLowerCase()
+        .includes(term);
+      const matchesCourse =
+        courseFilter === "all" || item.courseType === courseFilter;
+      const matchesCuisine =
+        cuisineFilter === "all" || item.cuisine === cuisineFilter;
+
+      return matchesSearch && matchesCourse && matchesCuisine;
+    });
+
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "priceLow") return Number(a.price || 0) - Number(b.price || 0);
+      if (sortBy === "priceHigh") return Number(b.price || 0) - Number(a.price || 0);
+      if (sortBy === "name") return String(a.name || "").localeCompare(String(b.name || ""));
+
+      return (
+        String(a.courseType || "").localeCompare(String(b.courseType || "")) ||
+        String(a.cuisine || "").localeCompare(String(b.cuisine || "")) ||
+        String(a.name || "").localeCompare(String(b.name || ""))
+      );
+    });
+  }, [courseFilter, cuisineFilter, data.items, search, sortBy]);
+
   const groupedItems = useMemo(() => {
-    return data.items.reduce((groups, item) => {
+    return visibleItems.reduce((groups, item) => {
       const course = item.courseType || "Menu";
       groups[course] = groups[course] || [];
       groups[course].push(item);
       return groups;
     }, {});
-  }, [data.items]);
+  }, [visibleItems]);
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-5 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-3xl">
-        <header className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">
-            Menu
-          </p>
-          <h1 className="mt-2 text-2xl font-black sm:text-3xl">
-            {data.restaurant?.name || "Restaurant Menu"}
-          </h1>
-          {data.restaurant?.phone && (
-            <p className="mt-2 text-sm font-medium text-slate-500">
-              {data.restaurant.phone}
+    <main className="min-h-screen bg-[#f6f7f4] px-4 py-5 text-slate-900 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-5xl">
+        <header className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-sm">
+          <div className="p-5 sm:p-7">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-300">
+              Digital Menu
             </p>
-          )}
+            <h1 className="mt-2 text-3xl font-black sm:text-4xl">
+              {data.restaurant?.name || "Restaurant Menu"}
+            </h1>
+            {data.restaurant?.phone && (
+              <p className="mt-2 text-sm font-medium text-slate-300">
+                {data.restaurant.phone}
+              </p>
+            )}
+          </div>
         </header>
 
         {loading ? (
@@ -75,14 +119,98 @@ export default function PublicMenu() {
           </div>
         ) : (
           <div className="mt-5 space-y-5">
+            <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+              <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search dish, cuisine, or course..."
+                  className="min-h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium outline-none focus:border-emerald-500 focus:bg-white"
+                />
+                <select
+                  value={courseFilter}
+                  onChange={(e) => setCourseFilter(e.target.value)}
+                  className="min-h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold outline-none focus:border-emerald-500 focus:bg-white"
+                >
+                  <option value="all">All Courses</option>
+                  {courses.map((course) => (
+                    <option key={course} value={course}>
+                      {course}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={cuisineFilter}
+                  onChange={(e) => setCuisineFilter(e.target.value)}
+                  className="min-h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold outline-none focus:border-emerald-500 focus:bg-white"
+                >
+                  <option value="all">All Cuisines</option>
+                  {cuisines.map((cuisine) => (
+                    <option key={cuisine} value={cuisine}>
+                      {cuisine}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="min-h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold outline-none focus:border-emerald-500 focus:bg-white"
+                >
+                  <option value="course">Sort by Course</option>
+                  <option value="name">Sort by Name</option>
+                  <option value="priceLow">Price Low to High</option>
+                  <option value="priceHigh">Price High to Low</option>
+                </select>
+              </div>
+
+              <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => setCourseFilter("all")}
+                  className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
+                    courseFilter === "all"
+                      ? "bg-slate-950 text-white"
+                      : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  All ({data.items.length})
+                </button>
+                {courses.map((course) => (
+                  <button
+                    key={course}
+                    type="button"
+                    onClick={() => setCourseFilter(course)}
+                    className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
+                      courseFilter === course
+                        ? "bg-emerald-600 text-white"
+                        : "bg-emerald-50 text-emerald-700"
+                    }`}
+                  >
+                    {course}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {visibleItems.length === 0 ? (
+              <div className="rounded-2xl bg-white p-8 text-center text-sm font-semibold text-slate-500 shadow-sm ring-1 ring-slate-200">
+                No menu items match your filters.
+              </div>
+            ) : null}
+
             {Object.entries(groupedItems).map(([course, items]) => (
-              <section key={course} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                <h2 className="text-sm font-black uppercase tracking-[0.18em] text-slate-500">
-                  {course}
-                </h2>
-                <div className="mt-3 divide-y divide-slate-100">
+              <section key={course} className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+                <div className="flex items-center justify-between gap-3 bg-slate-100 px-4 py-3">
+                  <h2 className="text-sm font-black uppercase tracking-[0.18em] text-slate-600">
+                    {course}
+                  </h2>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">
+                    {items.length}
+                  </span>
+                </div>
+                <div className="divide-y divide-slate-100">
                   {items.map((item) => (
-                    <article key={item._id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-4">
+                    <article key={item._id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 px-4 py-4 transition hover:bg-slate-50">
                       <div className="min-w-0">
                         <h3 className="truncate text-base font-bold text-slate-900">
                           {item.name}
