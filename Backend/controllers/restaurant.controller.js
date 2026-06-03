@@ -138,6 +138,17 @@
 
 import Restaurant from "../models/Restaurant.model.js";
 import Employee from "../models/Employee.model.js";
+import { invalidateCacheNamespaces } from "../utils/cacheStore.js";
+
+const invalidateRestaurantCaches = ({ adminId, restaurantId }) => {
+  invalidateCacheNamespaces([
+    adminId ? `restaurants:${adminId}` : "",
+    restaurantId ? `restaurant:${restaurantId}` : "",
+    restaurantId ? `restaurant-employees:${restaurantId}` : "",
+    restaurantId ? `public-menu:${restaurantId}` : "",
+    "dashboard",
+  ].filter(Boolean));
+};
 
 const defaultBillingTemplate = {
   headerTitle: "",
@@ -234,6 +245,11 @@ export const createRestaurant = async (req, res) => {
       admin: req.user.id,
     });
 
+    invalidateRestaurantCaches({
+      adminId: req.user.id,
+      restaurantId: restaurant._id,
+    });
+
     res.status(201).json({
       success: true,
       restaurant
@@ -328,6 +344,8 @@ export const updateRestaurant = async (req, res) => {
       });
     }
 
+    invalidateRestaurantCaches({ adminId: req.user.id, restaurantId });
+
     res.json({
       success: true,
       restaurant
@@ -363,6 +381,7 @@ export const updateBillingTemplate = async (req, res) => {
 
     restaurant.billingTemplate = sanitizeBillingTemplate(req.body);
     await restaurant.save();
+    invalidateRestaurantCaches({ adminId: req.user.id, restaurantId });
 
     res.json({
       success: true,
@@ -403,6 +422,8 @@ export const deleteRestaurant = async (req, res) => {
       { restaurant: restaurantId },
       { $unset: { restaurant: "" } }
     );
+
+    invalidateRestaurantCaches({ adminId: req.user.id, restaurantId });
 
     res.json({
       success: true,
@@ -451,6 +472,8 @@ export const assignEmployeesToRestaurant = async (req, res) => {
       },
       { restaurant: restaurantId }
     );
+
+    invalidateRestaurantCaches({ adminId: req.user.id, restaurantId });
 
     res.json({
       success: true,

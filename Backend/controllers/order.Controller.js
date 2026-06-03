@@ -1184,6 +1184,34 @@ const populateOrderDetails = (query) =>
     .populate("tableChangeHistory.toTable", "tableNumber")
     .populate("tableChangeHistory.changedBy", "name");
 
+const getOrderNotificationPayload = (order, type) => {
+  const itemCount = Array.isArray(order?.items)
+    ? order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+    : 0;
+
+  return {
+    type,
+    orderId: String(order?._id || ""),
+    orderNo: order?.orderNo || "",
+    restaurant: String(order?.restaurant?._id || order?.restaurant || ""),
+    waiter: String(order?.waiter?._id || order?.waiter || ""),
+    waiterName: order?.waiter?.name || "",
+    tableNumber: order?.table?.tableNumber || "",
+    itemCount,
+    status: order?.status || "",
+    createdAt: order?.createdAt || new Date(),
+    readyAt: order?.readyAt || null,
+  };
+};
+
+const emitOrderNotification = (event, order, type) => {
+  try {
+    getIO().emit(event, getOrderNotificationPayload(order, type));
+  } catch (err) {
+    console.error("ORDER SOCKET EMIT ERROR:", err.message);
+  }
+};
+
 const syncTableStatusAfterMove = async ({
   restaurantId,
   oldTableId,
@@ -1302,6 +1330,9 @@ export const createOrder = async (req, res) => {
       meta: { orderId: order._id },
     });
 
+    const populatedOrder = await populateOrderDetails(Order.findById(order._id));
+    emitOrderNotification("chef:new-order", populatedOrder, "NEW_ORDER");
+
     return sendSuccess(res, order, 201);
   } catch (err) {
     await logError(err, "CREATE_ORDER");
@@ -1384,6 +1415,9 @@ export const addItemsToOrder = async (req, res) => {
       role: "WAITER",
       meta: { orderId: order._id },
     });
+
+    const populatedOrder = await populateOrderDetails(Order.findById(order._id));
+    emitOrderNotification("chef:new-order", populatedOrder, "UPDATED_ORDER");
 
     return sendSuccess(res, order);
   } catch (err) {
@@ -1601,6 +1635,9 @@ export const acceptOrder = async (req, res) => {
       meta: { orderId: order._id },
     });
 
+    const populatedOrder = await populateOrderDetails(Order.findById(order._id));
+    emitOrderNotification("chef:order-accepted", populatedOrder, "ORDER_ACCEPTED");
+
     return sendSuccess(res, order);
   } catch (err) {
     await logError(err, "ACCEPT_ORDER");
@@ -1696,6 +1733,9 @@ export const markReady = async (req, res) => {
       meta: { orderId: order._id },
     });
 
+    const populatedOrder = await populateOrderDetails(Order.findById(order._id));
+    emitOrderNotification("waiter:order-ready", populatedOrder, "ORDER_READY");
+
     return sendSuccess(res, order);
   } catch (err) {
     await session.abortTransaction();
@@ -1762,6 +1802,9 @@ export const markServed = async (req, res) => {
       role: "WAITER",
       meta: { orderId: order._id },
     });
+
+    const populatedOrder = await populateOrderDetails(Order.findById(order._id));
+    emitOrderNotification("waiter:order-served", populatedOrder, "ORDER_SERVED");
 
     return sendSuccess(res, order);
   } catch (err) {

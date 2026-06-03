@@ -11,6 +11,7 @@ import {
   assignEmployeesToRestaurant,
   getRestaurantEmployees,
 } from "../controllers/restaurant.controller.js";
+import { cacheResponse } from "../middlewares/cache.middleware.js";
 
 const router = express.Router();
 
@@ -22,10 +23,26 @@ const router = express.Router();
 router.post("/", auth, createRestaurant);
 
 // Get all restaurants for logged-in admin
-router.get("/", auth, getRestaurants);
+router.get(
+  "/",
+  auth,
+  cacheResponse({
+    ttlSeconds: 120,
+    namespace: (req) => `restaurants:${req.user.id}`,
+  }),
+  getRestaurants
+);
 
 // Get single restaurant
-router.get("/:restaurantId", auth, getRestaurantById);
+router.get(
+  "/:restaurantId",
+  auth,
+  cacheResponse({
+    ttlSeconds: 120,
+    namespace: (req) => `restaurant:${req.params.restaurantId}`,
+  }),
+  getRestaurantById
+);
 
 // Update restaurant billing template
 router.put("/:restaurantId/billing-template", auth, updateBillingTemplate);
@@ -47,6 +64,10 @@ router.put(
 router.get(
   "/:restaurantId/employees",
   auth,
+  cacheResponse({
+    ttlSeconds: 60,
+    namespace: (req) => `restaurant-employees:${req.params.restaurantId}`,
+  }),
   getRestaurantEmployees
 );
 

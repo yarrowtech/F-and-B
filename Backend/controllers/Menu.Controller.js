@@ -232,6 +232,16 @@ import Employee from "../models/Employee.model.js";
 import Inventory from "../models/Inventory.model.js";
 import Order from "../models/Order.model.js";
 import mongoose from "mongoose";
+import { invalidateCacheNamespaces } from "../utils/cacheStore.js";
+
+const invalidateMenuCaches = (restaurantId) => {
+  invalidateCacheNamespaces([
+    `menu:${restaurantId}`,
+    `public-menu:${restaurantId}`,
+    `menu-analytics:${restaurantId}`,
+    "dashboard",
+  ]);
+};
 
 /* ===============================
    CREATE MENU ITEM
@@ -299,6 +309,8 @@ export const createMenuItem = async (req, res) => {
       isAvailable: isAvailable ?? true,
       ingredients,
     });
+
+    invalidateMenuCaches(restaurantId);
 
     res.status(201).json(menuItem);
   } catch (err) {
@@ -488,6 +500,7 @@ export const updateMenuItem = async (req, res) => {
 
       item.isAvailable = Boolean(isAvailable);
       await item.save();
+      invalidateMenuCaches(restaurantId);
       return res.json(item);
     }
 
@@ -528,6 +541,7 @@ export const updateMenuItem = async (req, res) => {
     }
 
     await item.save();
+    invalidateMenuCaches(restaurantId);
 
     res.json(item);
   } catch (err) {
@@ -566,6 +580,7 @@ export const deleteMenuItem = async (req, res) => {
     }
 
     await item.deleteOne();
+    invalidateMenuCaches(restaurantId);
 
     res.json({
       message: "Menu item deleted successfully",

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { FaCheckCircle, FaClock, FaSearch, FaUserCheck, FaUtensils } from "react-icons/fa";
+import { FaBell, FaCheckCircle, FaClock, FaSearch, FaTimes, FaUserCheck, FaUtensils } from "react-icons/fa";
 import { acceptOrder, getChefOrders, updateOrderStatusApi } from "../../services/order.service";
+import socket from "../../socket/socket";
 
 const REFRESH_INTERVAL = 5000;
 
@@ -50,6 +51,7 @@ export default function ChefManagement() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [actionLoading, setActionLoading] = useState(null);
+  const [liveNotifications, setLiveNotifications] = useState([]);
 
   const chefId = (() => {
     try {
@@ -59,6 +61,17 @@ export default function ChefManagement() {
       return user?._id || user?.id || null;
     } catch {
       return null;
+    }
+  })();
+
+  const chefRestaurantId = (() => {
+    try {
+      const user =
+        JSON.parse(localStorage.getItem("employee")) ||
+        JSON.parse(localStorage.getItem("user"));
+      return String(user?.restaurant?._id || user?.restaurant || "");
+    } catch {
+      return "";
     }
   })();
 
@@ -89,6 +102,67 @@ export default function ChefManagement() {
     const timer = setInterval(loadOrders, REFRESH_INTERVAL);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const handleNewOrder = (payload) => {
+      if (
+        chefRestaurantId &&
+        payload?.restaurant &&
+        String(payload.restaurant) !== chefRestaurantId
+      ) {
+        return;
+      }
+
+      const tableText = payload?.tableNumber
+        ? `Table ${payload.tableNumber}`
+        : "New order";
+      const actionText =
+        payload?.type === "UPDATED_ORDER" ? "updated order" : "new order";
+
+      setLiveNotifications((prev) => {
+        const nextNotification = {
+          id: payload?.orderId || String(Date.now()),
+          orderId: payload?.orderId || "",
+          title: payload?.type === "UPDATED_ORDER" ? "Order Updated" : "New Order",
+          message: `${tableText} has a ${actionText} with ${payload?.itemCount || 0} item${payload?.itemCount === 1 ? "" : "s"}.`,
+        };
+
+        return [
+          nextNotification,
+          ...prev.filter((notification) => notification.orderId !== nextNotification.orderId),
+        ].slice(0, 5);
+      });
+      loadOrders();
+    };
+
+    const handleOrderAccepted = (payload) => {
+      setLiveNotifications((prev) =>
+        prev.filter((notification) => notification.orderId !== payload?.orderId)
+      );
+      loadOrders();
+    };
+
+    socket.on("chef:new-order", handleNewOrder);
+    socket.on("chef:order-accepted", handleOrderAccepted);
+    return () => {
+      socket.off("chef:new-order", handleNewOrder);
+      socket.off("chef:order-accepted", handleOrderAccepted);
+    };
+  }, [chefRestaurantId]);
+
+  const closeLiveNotification = (id) => {
+    const notification = liveNotifications.find((item) => item.id === id);
+    if (notification?.orderId) {
+      window.dispatchEvent(
+        new CustomEvent("chef-notification-dismissed", {
+          detail: { orderId: notification.orderId },
+        })
+      );
+    }
+    setLiveNotifications((prev) =>
+      prev.filter((notification) => notification.id !== id)
+    );
+  };
 
   const handleAccept = async (orderId) => {
     try {
@@ -320,6 +394,33 @@ export default function ChefManagement() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-3 dark:bg-slate-900 sm:p-4 lg:p-6">
+      {liveNotifications.length > 0 && (
+        <div className="fixed right-4 top-4 z-[80] grid w-[calc(100%-2rem)] max-w-sm gap-3">
+          {liveNotifications.map((notification) => (
+            <div
+              key={notification.id}
+              className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-2xl dark:border-emerald-900/60 dark:bg-slate-800"
+            >
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-xl bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+                  <FaBell />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-slate-900 dark:text-white">{notification.title}</p>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{notification.message}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => closeLiveNotification(notification.id)}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="mx-auto max-w-7xl space-y-5">
         <div className="grid gap-3 sm:grid-cols-3">
           <StatCard type="pending" value={totalPending} />

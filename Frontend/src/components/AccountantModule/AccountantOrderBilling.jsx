@@ -7,6 +7,7 @@ import {
   FaMinus,
   FaMoneyBillWave,
   FaPlus,
+  FaPrint,
   FaReceipt,
   FaSearch,
   FaTimes,
@@ -126,6 +127,189 @@ const formatDate = (value) => {
   });
 };
 
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const receiptAmount = (value) => Number(value || 0).toFixed(2);
+const receiptText = (value) => String(value || "").trim();
+const receiptLine = (length = 42, char = "-") => char.repeat(length);
+const receiptCenter = (value, width = 42) => {
+  const text = receiptText(value).slice(0, width);
+  const padding = Math.max(width - text.length, 0);
+  const left = Math.floor(padding / 2);
+  return `${" ".repeat(left)}${text}`;
+};
+const receiptPair = (label, value, width = 42) => {
+  const left = receiptText(label).slice(0, width);
+  const right = receiptText(value).slice(0, width);
+  const space = Math.max(width - left.length - right.length, 1);
+  return `${left}${" ".repeat(space)}${right}`.slice(0, width);
+};
+const receiptDate = (value) =>
+  value
+    ? new Date(value).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : new Date().toLocaleString("en-IN");
+
+const buildThermalReceiptHtml = (bill, options = {}) => {
+  const width = 42;
+  const restaurant = bill?.restaurant || {};
+  const template = getBillingTemplate(restaurant);
+  const order = bill?.order || {};
+  const items = Array.isArray(order.items) ? order.items : [];
+  const title = template.headerTitle || restaurant.name || "Restaurant";
+  const subtitle = template.subtitle || "";
+  const address = restaurant.address || "";
+  const phone = restaurant.phone || "";
+  const gstNo = restaurant.gstNo || "";
+  const orderLabel = order.table?.tableNumber
+    ? `Table ${order.table.tableNumber}`
+    : order.orderType || "Order";
+  const totals = options.totals || bill || {};
+  const paymentMethod = options.paymentMethod || bill.paymentMethod || "PENDING";
+  const cashReceived = Number(options.cashReceived || 0);
+  const changeDue = Math.max(cashReceived - Number(totals.totalAmount || 0), 0);
+  const complimentaryIds = new Set(
+    (bill.complimentaryItems || []).map((item) => String(item))
+  );
+  const fullComplimentary = bill.complimentaryType === "FULL_ORDER";
+  const totalQty = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const lines = [
+    receiptCenter("Tax Invoice", width),
+    "",
+    receiptCenter(title, width),
+  ];
+
+  if (subtitle) lines.push(receiptCenter(subtitle, width));
+  if (address) lines.push(receiptCenter(address, width));
+  if (phone) lines.push(receiptCenter(`Phone: ${phone}`, width));
+  if (gstNo && template.showGstNo) lines.push(receiptCenter(`GSTIN: ${gstNo}`, width));
+
+  lines.push(
+    receiptLine(width),
+    receiptCenter("Tax Invoice For Supply", width),
+    receiptLine(width),
+    `Invoice No: ${bill.billNo || bill._id || "N/A"}`.slice(0, width),
+    receiptPair("Date:", receiptDate(bill.updatedAt || bill.createdAt), width),
+    receiptPair("Order:", order.orderNo || "N/A", width),
+    receiptPair("Type:", orderLabel, width)
+  );
+
+  if (bill.customerPhone || order.customerPhone) {
+    lines.push(`Mobile: ${bill.customerPhone || order.customerPhone}`.slice(0, width));
+  }
+  if (bill.customerEmail) {
+    lines.push(`Email: ${bill.customerEmail}`.slice(0, width));
+  }
+
+  lines.push(receiptLine(width), "Sl Product              Qty   Rate    Amt");
+
+  items.forEach((item, index) => {
+    const name = item.menuItem?.name || item.name || "Menu Item";
+    const qty = Number(item.quantity || 0);
+    const rate = Number(item.price ?? item.menuItem?.price ?? 0);
+    const isComplimentary =
+      fullComplimentary || complimentaryIds.has(String(item._id));
+    const amount = isComplimentary ? 0 : rate * qty;
+    const itemName = `${index + 1} ${name}`.slice(0, 22).padEnd(22, " ");
+    lines.push(
+      `${itemName}${String(qty).padStart(4, " ")} ${receiptAmount(rate).padStart(7, " ")} ${receiptAmount(amount).padStart(7, " ")}`
+    );
+    if (isComplimentary) {
+      lines.push("   Complimentary".slice(0, width));
+    }
+  });
+
+  lines.push(
+    receiptLine(width),
+    receiptPair("Total Qty:", totalQty, width),
+    receiptLine(width),
+    receiptPair("Payment:", paymentMethod, width),
+    receiptPair("Total Sale:", receiptAmount(totals.itemsTotal), width)
+  );
+
+  if (Number(totals.complimentaryAmount || 0) > 0) {
+    lines.push(receiptPair("Complimentary:", `- ${receiptAmount(totals.complimentaryAmount)}`, width));
+  }
+  if (Number(totals.discount || 0) > 0) {
+    lines.push(receiptPair("Discount:", `- ${receiptAmount(totals.discount)}`, width));
+  }
+
+  lines.push(
+    receiptPair(`CGST (${receiptAmount(totals.cgstRate || 0)}%):`, receiptAmount(totals.cgst), width),
+    receiptPair(`SGST (${receiptAmount(totals.sgstRate || 0)}%):`, receiptAmount(totals.sgst), width)
+  );
+
+  if (Number(totals.serviceCharge || 0) > 0) {
+    lines.push(receiptPair("Service Charge:", receiptAmount(totals.serviceCharge), width));
+  }
+
+  lines.push(
+    receiptLine(width),
+    receiptPair("Net Payable:", receiptAmount(totals.totalAmount), width),
+    receiptLine(width)
+  );
+
+  if (cashReceived > 0) {
+    lines.push(
+      receiptPair("Customer Paid:", receiptAmount(cashReceived), width),
+      receiptPair("Change Return:", receiptAmount(changeDue), width),
+      receiptLine(width)
+    );
+  }
+
+  lines.push(
+    receiptCenter(template.footerMessage || "Thank you for dining with us.", width),
+    receiptCenter("Visit Again", width)
+  );
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Print Bill</title>
+  <style>
+    @page { size: 80mm auto; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff; color: #000; }
+    pre {
+      width: 80mm;
+      margin: 0;
+      padding: 4mm 3mm;
+      white-space: pre-wrap;
+      font-family: "Courier New", monospace;
+      font-size: 12px;
+      line-height: 1.25;
+    }
+    @media screen {
+      body { background: #e5e7eb; padding: 20px; }
+      pre { background: #fff; border-radius: 8px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2); }
+    }
+  </style>
+</head>
+<body>
+  <pre>${escapeHtml(lines.join("\n"))}</pre>
+  <script>
+    window.addEventListener("load", function () {
+      setTimeout(function () {
+        window.print();
+      }, 250);
+    });
+  </script>
+</body>
+</html>`;
+};
+
 function BillCard({
   bill,
   tab,
@@ -135,6 +319,7 @@ function BillCard({
   setCashReceived,
   openBillModal,
   payBill,
+  printBill,
 }) {
   const selectedPaymentMethod = paymentMethod[bill._id] || "CASH";
   const receivedAmount = Number(cashReceived[bill._id] || 0);
@@ -242,17 +427,41 @@ function BillCard({
               <FaCheck />
               Pay
             </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                printBill(bill, {
+                  paymentMethod: selectedPaymentMethod,
+                  cashReceived: receivedAmount,
+                })
+              }
+              className="col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            >
+              <FaPrint />
+              Print Bill
+            </button>
           </div>
         )}
         {tab === "HISTORY" && (
-          <button
-            type="button"
-            onClick={() => downloadBillPdf(bill._id)}
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
-          >
-            <FaFilePdf />
-            PDF
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => downloadBillPdf(bill._id)}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
+            >
+              <FaFilePdf />
+              PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => printBill(bill)}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            >
+              <FaPrint />
+              Print
+            </button>
+          </div>
         )}
       </div>
     </article>
@@ -506,9 +715,18 @@ export default function AccountantOrderBilling() {
   const handleGenerateBill = async () => {
     if (!selectedBill?._id) return;
 
+    const shouldOpenWhatsApp =
+      Boolean(customValues.sendToPhone) ||
+      Boolean(String(customValues.customerPhone || "").trim());
     const pdfWindow = window.open("", "_blank");
+    const whatsappWindow = shouldOpenWhatsApp
+      ? window.open("", "_blank")
+      : null;
     if (pdfWindow) {
       pdfWindow.document.write("<p style=\"font-family:Arial,sans-serif;padding:24px;\">Generating bill PDF...</p>");
+    }
+    if (whatsappWindow) {
+      whatsappWindow.document.write("<p style=\"font-family:Arial,sans-serif;padding:24px;\">Preparing WhatsApp message...</p>");
     }
 
     try {
@@ -544,7 +762,7 @@ export default function AccountantOrderBilling() {
         customerEmail: customValues.customerEmail,
         customerPhone: customValues.customerPhone,
         sendToEmail: customValues.sendToEmail,
-        sendToPhone: customValues.sendToPhone,
+        sendToPhone: shouldOpenWhatsApp,
       });
 
       const updatedBill = response?.bill || response;
@@ -562,7 +780,22 @@ export default function AccountantOrderBilling() {
       setSelectedBill(finalBill);
       await downloadBillPdf(finalBill._id, pdfWindow);
 
-      if (response?.deliveryMessage) {
+      const whatsappUrl = response?.delivery?.whatsapp?.url;
+      if (whatsappUrl && whatsappWindow && !whatsappWindow.closed) {
+        whatsappWindow.location.href = whatsappUrl;
+      } else if (whatsappWindow && !whatsappWindow.closed) {
+        whatsappWindow.close();
+      } else if (whatsappUrl) {
+        window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+      }
+
+      const whatsappMessage = response?.delivery?.whatsapp?.message || "";
+      const onlyManualWhatsApp =
+        whatsappUrl &&
+        response?.deliveryMessage &&
+        response.deliveryMessage === whatsappMessage;
+
+      if (response?.deliveryMessage && !onlyManualWhatsApp) {
         alert(response.deliveryMessage);
       }
     } catch (err) {
@@ -570,7 +803,94 @@ export default function AccountantOrderBilling() {
       if (pdfWindow && !pdfWindow.closed) {
         pdfWindow.close();
       }
+      if (whatsappWindow && !whatsappWindow.closed) {
+        whatsappWindow.close();
+      }
       alert("Failed to generate bill");
+    } finally {
+      setSavingBill(false);
+    }
+  };
+
+  const printBill = (bill, options = {}, targetWindow = null) => {
+    if (!bill?._id) return;
+
+    const printWindow =
+      targetWindow || window.open("", "_blank", "width=420,height=720");
+    if (!printWindow) {
+      alert("Allow popup windows to print the bill");
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(buildThermalReceiptHtml(bill, options));
+    printWindow.document.close();
+  };
+
+  const handlePrintSelectedBill = async () => {
+    if (!selectedBill?._id) return;
+
+    const printWindow = window.open("", "_blank", "width=420,height=720");
+    if (!printWindow) {
+      alert("Allow popup windows to print the bill");
+      return;
+    }
+    printWindow.document.write("<p style=\"font-family:Arial,sans-serif;padding:24px;\">Preparing print bill...</p>");
+
+    try {
+      setSavingBill(true);
+
+      let billForPrint = selectedBill;
+
+      if (
+        selectedBill.order?._id &&
+        billTableId &&
+        billTableId !== selectedBill.order?.table?._id
+      ) {
+        const updatedOrder = await changeOrderTable(selectedBill.order._id, billTableId);
+        billForPrint = {
+          ...selectedBill,
+          order: {
+            ...selectedBill.order,
+            ...updatedOrder,
+          },
+        };
+      }
+
+      const response = await customizeBill(selectedBill._id, {
+        cgstRate: sanitizeNumber(customValues.cgstRate),
+        sgstRate: sanitizeNumber(customValues.sgstRate),
+        serviceCharge: sanitizeNumber(customValues.serviceCharge),
+        showServiceCharge: Boolean(customValues.showServiceCharge),
+        discount: sanitizeNumber(customValues.discount),
+        complimentaryType: customValues.complimentaryType,
+        complimentaryItems: customValues.complimentaryItems,
+        complimentaryNote: customValues.complimentaryNote,
+        customerEmail: customValues.customerEmail,
+        customerPhone: customValues.customerPhone,
+        sendToEmail: false,
+        sendToPhone: false,
+      });
+
+      const updatedBill = response?.bill || response;
+      const finalBill = {
+        ...updatedBill,
+        order: billForPrint.order || updatedBill.order,
+      };
+
+      setBills((prev) =>
+        prev.map((bill) =>
+          bill._id === finalBill._id ? finalBill : bill
+        )
+      );
+      setSelectedBill(finalBill);
+      printBill(finalBill, { totals: selectedTotals || finalBill }, printWindow);
+    } catch (err) {
+      console.error("PRINT BILL ERROR:", err);
+      if (printWindow && !printWindow.closed) {
+        printWindow.close();
+      }
+      alert("Failed to print bill");
     } finally {
       setSavingBill(false);
     }
@@ -1322,6 +1642,7 @@ export default function AccountantOrderBilling() {
                   setCashReceived={setCashReceived}
                   openBillModal={openBillModal}
                   payBill={payBill}
+                  printBill={printBill}
                 />
               ))}
           </div>
@@ -1443,17 +1764,42 @@ export default function AccountantOrderBilling() {
                                 <FaCheck />
                                 Pay
                               </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  printBill(bill, {
+                                    paymentMethod: paymentMethod[bill._id] || "CASH",
+                                    cashReceived: Number(cashReceived[bill._id] || 0),
+                                  })
+                                }
+                                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                              >
+                                <FaPrint />
+                                Print Bill
+                              </button>
                             </>
                           )}
                           {tab === "HISTORY" && (
-                            <button
-                              type="button"
-                              onClick={() => downloadBillPdf(bill._id)}
-                              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
-                            >
-                              <FaFilePdf />
-                              PDF
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => downloadBillPdf(bill._id)}
+                                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
+                              >
+                                <FaFilePdf />
+                                PDF
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => printBill(bill)}
+                                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                              >
+                                <FaPrint />
+                                Print Bill
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -2191,7 +2537,7 @@ export default function AccountantOrderBilling() {
             </div>
 
             <div className="shrink-0 border-t border-slate-200 bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] dark:border-slate-700 dark:bg-slate-900 sm:p-4">
-              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-2">
+              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-3">
                 <button
                   type="button"
                   onClick={handleGenerateBill}
@@ -2200,6 +2546,16 @@ export default function AccountantOrderBilling() {
                 >
                   <FaReceipt />
                   <span>{savingBill ? "Generating..." : "Generate Bill"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintSelectedBill}
+                  disabled={savingBill}
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800"
+                >
+                  <FaPrint />
+                  <span>{savingBill ? "Preparing..." : "Print Bill"}</span>
                 </button>
 
                 <button

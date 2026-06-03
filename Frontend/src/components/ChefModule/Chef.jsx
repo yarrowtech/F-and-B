@@ -7,6 +7,7 @@ import {
   FaClipboardCheck,
   FaUserCircle,
   FaStickyNote,
+  FaBell,
 } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
@@ -21,6 +22,7 @@ import ChefDashboard from "./ChefDashboard";
 import ChefMessage from "./ChefMessage";
 import ChefNotifications from "./ChefNotification";
 import { getUser, logout } from "../../services/auth.service";
+import socket from "../../socket/socket";
 
 function ChefProfileButton() {
   const navigate = useNavigate();
@@ -119,6 +121,7 @@ const BOTTOM_NAV = [
   { key: "attendance", label: "Attendance", icon: FaClipboardCheck },
   { key: "profile", label: "Profile", icon: FaUserCircle },
   { key: "notes", label: "Notes", icon: FaStickyNote },
+  { key: "notification", label: "Alerts", icon: FaBell },
 ];
 
 const getInitialDarkMode = () => {
@@ -134,7 +137,19 @@ const getInitialDarkMode = () => {
 const Chef = () => {
   const [active, setActive] = useState("dashboard");
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
+  const [notificationOrderIds, setNotificationOrderIds] = useState([]);
   const mainRef = useRef(null);
+
+  const chefRestaurantId = (() => {
+    try {
+      const user =
+        JSON.parse(localStorage.getItem("employee")) ||
+        JSON.parse(localStorage.getItem("user"));
+      return String(user?.restaurant?._id || user?.restaurant || "");
+    } catch {
+      return "";
+    }
+  })();
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -146,7 +161,46 @@ const Chef = () => {
     if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
   }, [active]);
 
-  const handleSetActive = useCallback((section) => setActive(section), []);
+  useEffect(() => {
+    const handleNewOrder = (payload) => {
+      if (
+        chefRestaurantId &&
+        payload?.restaurant &&
+        String(payload.restaurant) !== chefRestaurantId
+      ) {
+        return;
+      }
+
+      setNotificationOrderIds((prev) => {
+        const orderId = payload?.orderId || "";
+        if (!orderId || prev.includes(orderId)) return prev;
+        return [orderId, ...prev];
+      });
+    };
+
+    const handleOrderAccepted = (payload) => {
+      const orderId = payload?.orderId || payload?.detail?.orderId;
+      setNotificationOrderIds((prev) =>
+        prev.filter((item) => item !== orderId)
+      );
+    };
+
+    socket.on("chef:new-order", handleNewOrder);
+    socket.on("chef:order-accepted", handleOrderAccepted);
+    window.addEventListener("chef-notification-dismissed", handleOrderAccepted);
+    return () => {
+      socket.off("chef:new-order", handleNewOrder);
+      socket.off("chef:order-accepted", handleOrderAccepted);
+      window.removeEventListener("chef-notification-dismissed", handleOrderAccepted);
+    };
+  }, [chefRestaurantId]);
+
+  const handleSetActive = useCallback((section) => {
+    setActive(section);
+    if (section === "notification") {
+      setNotificationOrderIds([]);
+    }
+  }, []);
 
   const renderContent = () => {
     switch (active) {
@@ -196,7 +250,11 @@ const Chef = () => {
 
       <div className="flex h-full">
         <aside className="hidden lg:block w-72 shrink-0">
-          <ChefSidebar active={active} setActive={handleSetActive} />
+          <ChefSidebar
+            active={active}
+            setActive={handleSetActive}
+            notificationCount={notificationOrderIds.length}
+          />
         </aside>
 
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -240,11 +298,16 @@ const Chef = () => {
               }`}
             >
               <span
-                className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
+                className={`relative flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
                   isActive ? "bg-green-100 dark:bg-green-900/40" : ""
                 }`}
               >
                 {React.createElement(Icon, { size: 18 })}
+                {key === "notification" && notificationOrderIds.length > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-black text-white">
+                    {notificationOrderIds.length > 9 ? "9+" : notificationOrderIds.length}
+                  </span>
+                )}
               </span>
               {label}
             </button>

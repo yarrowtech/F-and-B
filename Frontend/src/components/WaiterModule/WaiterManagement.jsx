@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from "react";
-import { FaCheckCircle, FaExchangeAlt, FaMinus, FaPlus, FaSearch, FaShoppingCart, FaTable, FaTimes, FaUtensils } from "react-icons/fa";
+import { FaBell, FaCheckCircle, FaExchangeAlt, FaMinus, FaPlus, FaSearch, FaShoppingCart, FaTable, FaTimes, FaUtensils } from "react-icons/fa";
 import {
   addItemsToOrder,
   changeOrderTable,
@@ -10,6 +10,7 @@ import {
 } from "../../services/order.service";
 import { getMenu } from "../../services/menu.service";
 import { getTables } from "../../services/table.service";
+import socket from "../../socket/socket";
 
 const REFRESH_INTERVAL = 5000;
 const CUSTOMIZATION_PRESETS = [
@@ -63,6 +64,7 @@ export default function WaiterManagement() {
   const [activeMobilePanel, setActiveMobilePanel] = useState("menu");
   const [tableMoveId, setTableMoveId] = useState("");
   const [movingTable, setMovingTable] = useState(false);
+  const [liveNotifications, setLiveNotifications] = useState([]);
 
   const load = async () => {
     if (!restaurantId) {
@@ -92,6 +94,73 @@ export default function WaiterManagement() {
     const timer = setInterval(load, REFRESH_INTERVAL);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const handleOrderReady = (payload) => {
+      if (
+        currentWaiterId &&
+        payload?.waiter &&
+        String(payload.waiter) !== currentWaiterId
+      ) {
+        return;
+      }
+
+      const tableText = payload?.tableNumber
+        ? `Table ${payload.tableNumber}`
+        : "Order";
+
+      setLiveNotifications((prev) => {
+        const nextNotification = {
+          id: payload?.orderId || String(Date.now()),
+          orderId: payload?.orderId || "",
+          title: "Order Ready",
+          message: `${tableText} is ready to serve.`,
+        };
+
+        return [
+          nextNotification,
+          ...prev.filter((notification) => notification.orderId !== nextNotification.orderId),
+        ].slice(0, 5);
+      });
+      load();
+    };
+
+    const handleOrderServed = (payload) => {
+      if (
+        currentWaiterId &&
+        payload?.waiter &&
+        String(payload.waiter) !== currentWaiterId
+      ) {
+        return;
+      }
+
+      setLiveNotifications((prev) =>
+        prev.filter((notification) => notification.orderId !== payload?.orderId)
+      );
+      load();
+    };
+
+    socket.on("waiter:order-ready", handleOrderReady);
+    socket.on("waiter:order-served", handleOrderServed);
+    return () => {
+      socket.off("waiter:order-ready", handleOrderReady);
+      socket.off("waiter:order-served", handleOrderServed);
+    };
+  }, [currentWaiterId]);
+
+  const closeLiveNotification = (id) => {
+    const notification = liveNotifications.find((item) => item.id === id);
+    if (notification?.orderId) {
+      window.dispatchEvent(
+        new CustomEvent("waiter-notification-dismissed", {
+          detail: { orderId: notification.orderId },
+        })
+      );
+    }
+    setLiveNotifications((prev) =>
+      prev.filter((notification) => notification.id !== id)
+    );
+  };
 
   const ownOrderIds = useMemo(
     () => new Set(orders.map((order) => String(order._id))),
@@ -368,6 +437,33 @@ export default function WaiterManagement() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-3 dark:bg-slate-900 sm:p-4 lg:p-6">
+      {liveNotifications.length > 0 && (
+        <div className="fixed right-4 top-4 z-[80] grid w-[calc(100%-2rem)] max-w-sm gap-3">
+          {liveNotifications.map((notification) => (
+            <div
+              key={notification.id}
+              className="rounded-2xl border border-sky-200 bg-white p-4 shadow-2xl dark:border-sky-900/60 dark:bg-slate-800"
+            >
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-xl bg-sky-100 p-2 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200">
+                  <FaBell />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-slate-900 dark:text-white">{notification.title}</p>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{notification.message}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => closeLiveNotification(notification.id)}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="mx-auto max-w-7xl space-y-4 sm:space-y-6">
         <div className="grid grid-cols-3 gap-2 lg:gap-3">
           <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 sm:p-5">

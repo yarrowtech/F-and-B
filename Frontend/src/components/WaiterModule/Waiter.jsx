@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUserTie } from "react-icons/fa";
+import { FaBell, FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUserTie } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import WaiterSidebar from "./WaiterSidebar";
@@ -12,6 +12,7 @@ import SettingsPage from "./WaiterSettings";
 import WaiterMessage from "./WaiterMessages";
 import WaiterNotifications from "./WaiterNotification";
 import WaiterDashboard from "./WaiterDashboard";
+import socket from "../../socket/socket";
 
 /* ─── Profile Popup ─── */
 function WaiterProfileButton() {
@@ -110,6 +111,7 @@ const BOTTOM_NAV = [
   { key: "attendance", label: "Attendance", icon: FaClipboardCheck },
   { key: "profile",    label: "Profile",    icon: FaUserCircle },
   { key: "notes",      label: "Notes",      icon: FaStickyNote },
+  { key: "notifications", label: "Alerts",  icon: FaBell },
 ];
 
 const getInitialDarkMode = () => {
@@ -125,7 +127,17 @@ const getInitialDarkMode = () => {
 const Waiter = () => {
   const [active, setActive] = useState("dashboard");
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
+  const [notificationOrderIds, setNotificationOrderIds] = useState([]);
   const mainRef = useRef(null);
+
+  const currentWaiterId = (() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      return String(user?._id || user?.id || "");
+    } catch {
+      return "";
+    }
+  })();
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -137,7 +149,46 @@ const Waiter = () => {
     if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
   }, [active]);
 
-  const handleSetActive = useCallback((section) => setActive(section), []);
+  useEffect(() => {
+    const handleOrderReady = (payload) => {
+      if (
+        currentWaiterId &&
+        payload?.waiter &&
+        String(payload.waiter) !== currentWaiterId
+      ) {
+        return;
+      }
+
+      setNotificationOrderIds((prev) => {
+        const orderId = payload?.orderId || "";
+        if (!orderId || prev.includes(orderId)) return prev;
+        return [orderId, ...prev];
+      });
+    };
+
+    const handleOrderServed = (payload) => {
+      const orderId = payload?.orderId || payload?.detail?.orderId;
+      setNotificationOrderIds((prev) =>
+        prev.filter((item) => item !== orderId)
+      );
+    };
+
+    socket.on("waiter:order-ready", handleOrderReady);
+    socket.on("waiter:order-served", handleOrderServed);
+    window.addEventListener("waiter-notification-dismissed", handleOrderServed);
+    return () => {
+      socket.off("waiter:order-ready", handleOrderReady);
+      socket.off("waiter:order-served", handleOrderServed);
+      window.removeEventListener("waiter-notification-dismissed", handleOrderServed);
+    };
+  }, [currentWaiterId]);
+
+  const handleSetActive = useCallback((section) => {
+    setActive(section);
+    if (section === "notifications") {
+      setNotificationOrderIds([]);
+    }
+  }, []);
 
   const renderContent = () => {
     switch (active) {
@@ -178,7 +229,11 @@ const Waiter = () => {
       <div className="flex h-full">
         {/* ===== Sidebar (desktop) ===== */}
         <aside className="hidden lg:block w-72 shrink-0">
-          <WaiterSidebar active={active} setActive={handleSetActive} />
+          <WaiterSidebar
+            active={active}
+            setActive={handleSetActive}
+            notificationCount={notificationOrderIds.length}
+          />
         </aside>
 
         {/* ===== Right Column ===== */}
@@ -225,9 +280,14 @@ const Waiter = () => {
                   : "text-gray-400 dark:text-gray-500 hover:text-green-500 dark:hover:text-green-400"
                 }`}
             >
-              <span className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors
+              <span className={`relative flex items-center justify-center w-8 h-8 rounded-full transition-colors
                 ${isActive ? "bg-green-100 dark:bg-green-900/40" : ""}`}>
                 {React.createElement(Icon, { size: 18 })}
+                {key === "notifications" && notificationOrderIds.length > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-black text-white">
+                    {notificationOrderIds.length > 9 ? "9+" : notificationOrderIds.length}
+                  </span>
+                )}
               </span>
               {label}
             </button>

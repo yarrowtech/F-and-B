@@ -7,6 +7,7 @@ import {
 
 import auth from "../middlewares/auth.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
+import { cacheResponse } from "../middlewares/cache.middleware.js";
 
 const router = express.Router();
 
@@ -20,6 +21,10 @@ router.get(
   "/today",
   auth,
   allowRoles("admin", "manager"),
+  cacheResponse({
+    ttlSeconds: 30,
+    namespace: "dashboard",
+  }),
   getTodayDashboard
 );
 
@@ -33,6 +38,10 @@ router.get(
   "/monthly",
   auth,
   allowRoles("admin", "manager"),
+  cacheResponse({
+    ttlSeconds: 120,
+    namespace: "dashboard",
+  }),
   getMonthlyDashboard
 );
 
@@ -49,6 +58,10 @@ router.get(
   "/top-items",
   auth,
   allowRoles("admin", "manager"),
+  cacheResponse({
+    ttlSeconds: 60,
+    namespace: "dashboard",
+  }),
   getTopItemsDashboard
 );
 

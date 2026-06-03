@@ -10,6 +10,7 @@ import {
   deleteMenuItem,
   getMenuOrdersByDate,
 } from "../controllers/Menu.Controller.js";
+import { cacheResponse } from "../middlewares/cache.middleware.js";
 
 const router = express.Router();
 
@@ -18,18 +19,46 @@ router.get(
   "/orders-by-date/:restaurantId",
   auth,
   allowRoles("manager", "admin"),
+  cacheResponse({
+    ttlSeconds: 60,
+    namespace: (req) => `menu-analytics:${req.params.restaurantId}`,
+  }),
   getMenuOrdersByDate
 );
 
 /* MENU ROUTES */
 
-router.get("/public/:restaurantId", getPublicMenu);
+router.get(
+  "/public/:restaurantId",
+  cacheResponse({
+    ttlSeconds: 300,
+    namespace: (req) => `public-menu:${req.params.restaurantId}`,
+    scope: "public",
+  }),
+  getPublicMenu
+);
 
 router.post("/:restaurantId", auth, allowRoles("admin"), createMenuItem);
 
-router.get("/:restaurantId", auth, getMenu);
+router.get(
+  "/:restaurantId",
+  auth,
+  cacheResponse({
+    ttlSeconds: 90,
+    namespace: (req) => `menu:${req.params.restaurantId}`,
+  }),
+  getMenu
+);
 
-router.get("/:restaurantId/:id", auth, getMenuItemById);
+router.get(
+  "/:restaurantId/:id",
+  auth,
+  cacheResponse({
+    ttlSeconds: 90,
+    namespace: (req) => `menu:${req.params.restaurantId}`,
+  }),
+  getMenuItemById
+);
 
 router.put("/:restaurantId/:id", auth, allowRoles("admin", "manager"), updateMenuItem);
 

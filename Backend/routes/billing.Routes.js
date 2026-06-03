@@ -54,6 +54,11 @@ import allowRoles from "../middlewares/role.middleware.js";
 const router = express.Router();
 
 router.get(
+  "/public/:id/pdf",
+  billingController.generatePublicBillPDF
+);
+
+router.get(
   "/inbox",
   auth,
   allowRoles("accountant"),

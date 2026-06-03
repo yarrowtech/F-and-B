@@ -1,9 +1,21 @@
 import Bill from "../models/Bill.model.js";
+import Inventory from "../models/Inventory.model.js";
+import InventoryLog from "../models/InventoryLog.model.js";
 import Menu from "../models/Menu.model.js";
 import Order from "../models/Order.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import Table from "../models/Table.model.js";
+import crypto from "crypto";
+import mongoose from "mongoose";
 import PDFDocument from "pdfkit";
+import { invalidateCacheNamespaces } from "../utils/cacheStore.js";
+import {
+  buildWhatsAppChatUrl,
+  isWhatsAppConfigured,
+  isTwilioWhatsAppConfigured,
+  sendTwilioWhatsAppMessage,
+  sendWhatsAppTextMessage,
+} from "../utils/whatsapp.service.js";
 
 const sendSuccess = (res, data, status = 200) =>
   res.status(status).json({ success: true, data });
@@ -150,6 +162,62 @@ const isValidEmail = (email) =>
 const isValidPhone = (phone) =>
   /^[0-9+\-\s()]{7,20}$/.test(sanitizeText(phone));
 
+const buildWhatsAppBillMessage = (bill) => {
+  const restaurantName = bill.restaurant?.name || "Restaurant";
+  const tableLabel = bill.order?.table?.tableNumber
+    ? `Table ${bill.order.table.tableNumber}`
+    : bill.order?.orderType || "Order";
+
+  return [
+    `${restaurantName}`,
+    `Bill: ${bill.billNo || bill._id}`,
+    `Order: ${bill.order?.orderNo || "N/A"} (${tableLabel})`,
+    `Total Amount: Rs. ${asMoney(bill.totalAmount)}`,
+    "Thank you for dining with us.",
+  ].join("\n");
+};
+
+const getPublicBillSecret = () =>
+  process.env.BILL_PDF_PUBLIC_SECRET || process.env.JWT_SECRET || "";
+
+const getPublicApiUrl = () =>
+  String(process.env.PUBLIC_API_URL || process.env.APP_PUBLIC_URL || "")
+    .trim()
+    .replace(/\/$/, "");
+
+const createPublicBillPdfToken = (billId) => {
+  const secret = getPublicBillSecret();
+  if (!secret) return "";
+
+  return crypto
+    .createHmac("sha256", secret)
+    .update(String(billId))
+    .digest("hex");
+};
+
+const verifyPublicBillPdfToken = (billId, token) => {
+  const expected = createPublicBillPdfToken(billId);
+  const received = sanitizeText(token);
+
+  if (!expected || !received || expected.length !== received.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(
+    Buffer.from(expected),
+    Buffer.from(received)
+  );
+};
+
+const buildPublicBillPdfUrl = (billId) => {
+  const baseUrl = getPublicApiUrl();
+  const token = createPublicBillPdfToken(billId);
+
+  if (!baseUrl || !token) return "";
+
+  return `${baseUrl}/api/billing/public/${billId}/pdf?token=${token}`;
+};
+
 const calculateBillTotals = ({
   itemsTotal,
   complimentaryAmount = 0,
@@ -193,6 +261,63 @@ const calculateBillTotals = ({
     discount: appliedDiscount,
     totalAmount,
   };
+};
+
+const deductInventoryForManualBill = async ({
+  menuById,
+  orderItems,
+  restaurantId,
+  userId,
+  userName,
+  session,
+}) => {
+  for (const orderItem of orderItems) {
+    const menu = menuById.get(String(orderItem.menuItem));
+    const ingredients = Array.isArray(menu?.ingredients)
+      ? menu.ingredients
+      : [];
+
+    for (const ingredient of ingredients) {
+      const requiredQty =
+        Number(ingredient.quantity || 0) * Number(orderItem.quantity || 0);
+
+      if (!requiredQty) continue;
+
+      const inventoryId = ingredient.item?._id || ingredient.item;
+      const inventory = await Inventory.findOne({
+        _id: inventoryId,
+        restaurant: restaurantId,
+        isActive: true,
+      }).session(session);
+
+      if (!inventory) {
+        throw new Error("Inventory item not found for selected menu item");
+      }
+
+      if (inventory.quantity < requiredQty) {
+        throw new Error(`Insufficient stock for ${inventory.name}`);
+      }
+
+      inventory.quantity -= requiredQty;
+      inventory.lastUpdatedBy = userId;
+      await inventory.save({ session });
+
+      await InventoryLog.create(
+        [
+          {
+            item: inventory._id,
+            restaurant: restaurantId,
+            quantityAdded: -requiredQty,
+            unit: inventory.unit,
+            action: "UPDATE",
+            addedBy: userId,
+            addedByName: userName || "",
+          },
+        ],
+        { session }
+      );
+    }
+  }
 };
 
 const findBillWithOrder = (query) =>
@@ -276,6 +401,8 @@ const getInbox = async (req, res) => {
 };
 
 const createManualBill = async (req, res) => {
+  let session;
+
   try {
     const {
       items = [],
@@ -296,6 +423,17 @@ const createManualBill = async (req, res) => {
       return sendError(res, "Select at least one menu item");
     }
 
+    const normalizedCustomerEmail = sanitizeText(customerEmail).toLowerCase();
+    const normalizedCustomerPhone = sanitizeText(customerPhone);
+
+    if (normalizedCustomerEmail && !isValidEmail(normalizedCustomerEmail)) {
+      return sendError(res, "Enter a valid customer email");
+    }
+
+    if (normalizedCustomerPhone && !isValidPhone(normalizedCustomerPhone)) {
+      return sendError(res, "Enter a valid customer phone number");
+    }
+
     const normalizedType = [
       "TAKEAWAY",
       "ONLINE",
@@ -305,12 +443,20 @@ const createManualBill = async (req, res) => {
       ? orderType
       : "TAKEAWAY";
 
+    session = await mongoose.startSession();
+    session.startTransaction();
+
     const itemIds = items.map((item) => sanitizeText(item.menuItem)).filter(Boolean);
     const menuItems = await Menu.find({
       _id: { $in: itemIds },
       restaurant: req.user.restaurant,
       isAvailable: true,
-    });
+    })
+      .populate({
+        path: "ingredients.item",
+        select: "name unit quantity isActive",
+      })
+      .session(session);
     const menuById = new Map(menuItems.map((item) => [String(item._id), item]));
 
     const orderItems = items.map((item) => {
@@ -337,20 +483,34 @@ const createManualBill = async (req, res) => {
     });
 
     const now = new Date();
-    const order = await Order.create({
-      restaurant: req.user.restaurant,
-      table: null,
-      waiter: null,
-      chef: null,
-      orderType: normalizedType,
-      items: orderItems,
-      customerPhone: sanitizeText(customerPhone) || null,
-      status: "SERVED",
-      acceptedAt: now,
-      preparingAt: now,
-      readyAt: now,
-      servedAt: now,
+    await deductInventoryForManualBill({
+      menuById,
+      orderItems,
+      restaurantId: req.user.restaurant,
+      userId: req.user.id,
+      userName: req.user.name,
+      session,
     });
+
+    const [order] = await Order.create(
+      [
+        {
+          restaurant: req.user.restaurant,
+          table: null,
+          waiter: null,
+          chef: null,
+          orderType: normalizedType,
+          items: orderItems,
+          customerPhone: normalizedCustomerPhone || null,
+          status: "SERVED",
+          acceptedAt: now,
+          preparingAt: now,
+          readyAt: now,
+          servedAt: now,
+        },
+      ],
+      { session }
+    );
 
     const selectedComplimentaryMenuIds = new Set(
       normalizeIdList(complimentaryItems).map(String)
@@ -387,41 +547,45 @@ const createManualBill = async (req, res) => {
       discount,
     });
 
-    const bill = await Bill.create({
-      restaurant: req.user.restaurant,
-      order: order._id,
-      accountant: req.user.id,
-      generatedBy: req.user.id,
-      generatedAt: now,
-      itemsTotal: totals.itemsTotal,
-      cgstRate: totals.cgstRate,
-      sgstRate: totals.sgstRate,
-      cgst: totals.cgst,
-      sgst: totals.sgst,
-      serviceCharge: totals.serviceCharge,
-      showServiceCharge:
-        typeof showServiceCharge === "boolean" ? showServiceCharge : undefined,
-      discount: totals.discount,
-      complimentaryType: finalComplimentaryType,
-      complimentaryItems: complimentaryOrderItems.map((item) => item._id),
-      complimentaryAmount,
-      complimentaryNote:
-        finalComplimentaryType === "NONE" ? "" : sanitizeText(complimentaryNote),
-      customerEmail: sanitizeText(customerEmail).toLowerCase(),
-      customerPhone: sanitizeText(customerPhone),
-      totalAmount: totals.totalAmount,
-      paymentStatus: "PENDING",
-    });
+    const [bill] = await Bill.create(
+      [
+        {
+          restaurant: req.user.restaurant,
+          order: order._id,
+          accountant: req.user.id,
+          generatedBy: req.user.id,
+          generatedAt: now,
+          itemsTotal: totals.itemsTotal,
+          cgstRate: totals.cgstRate,
+          sgstRate: totals.sgstRate,
+          cgst: totals.cgst,
+          sgst: totals.sgst,
+          serviceCharge: totals.serviceCharge,
+          showServiceCharge:
+            typeof showServiceCharge === "boolean" ? showServiceCharge : undefined,
+          discount: totals.discount,
+          complimentaryType: finalComplimentaryType,
+          complimentaryItems: complimentaryOrderItems.map((item) => item._id),
+          complimentaryAmount,
+          complimentaryNote:
+            finalComplimentaryType === "NONE" ? "" : sanitizeText(complimentaryNote),
+          customerEmail: normalizedCustomerEmail,
+          customerPhone: normalizedCustomerPhone,
+          totalAmount: totals.totalAmount,
+          paymentStatus: "PENDING",
+        },
+      ],
+      { session }
+    );
 
-    if (bill.customerEmail && !isValidEmail(bill.customerEmail)) {
-      await Promise.all([Bill.findByIdAndDelete(bill._id), Order.findByIdAndDelete(order._id)]);
-      return sendError(res, "Enter a valid customer email");
-    }
+    await session.commitTransaction();
+    session.endSession();
+    session = null;
 
-    if (bill.customerPhone && !isValidPhone(bill.customerPhone)) {
-      await Promise.all([Bill.findByIdAndDelete(bill._id), Order.findByIdAndDelete(order._id)]);
-      return sendError(res, "Enter a valid customer phone number");
-    }
+    invalidateCacheNamespaces([
+      "dashboard",
+      `menu-analytics:${req.user.restaurant}`,
+    ]);
 
     const populatedBill = await findBillWithOrder({
       _id: bill._id,
@@ -430,6 +594,11 @@ const createManualBill = async (req, res) => {
 
     return sendSuccess(res, populatedBill, 201);
   } catch (err) {
+    if (session) {
+      await session.abortTransaction();
+      session.endSession();
+    }
+
     console.error(err);
     return sendError(res, err.message);
   }
@@ -527,23 +696,86 @@ const customizeBill = async (req, res) => {
     const sendToPhone = Boolean(req.body.sendToPhone);
 
     let deliveryMessage = "";
+    const delivery = {
+      email: {
+        requested: sendToEmail,
+        sent: false,
+        message: "",
+      },
+      whatsapp: {
+        requested: sendToPhone,
+        sent: false,
+        message: "",
+        url: "",
+      },
+    };
 
-    if (sendToEmail || sendToPhone) {
-      const pendingChannels = [];
+    if (sendToEmail && bill.customerEmail) {
+      delivery.email.message =
+        "Email delivery is not configured yet. Customer email was saved.";
+    }
 
-      if (sendToEmail && bill.customerEmail) pendingChannels.push("email");
-      if (sendToPhone && bill.customerPhone) pendingChannels.push("phone");
+    if (sendToPhone) {
+      if (!bill.customerPhone) {
+        delivery.whatsapp.message = "Customer phone number is required for WhatsApp.";
+      } else if (isTwilioWhatsAppConfigured()) {
+        const mediaUrl = buildPublicBillPdfUrl(bill._id);
+        const twilioResult = await sendTwilioWhatsAppMessage({
+          to: bill.customerPhone,
+          message: buildWhatsAppBillMessage(bill),
+          mediaUrl,
+        });
 
-      if (pendingChannels.length > 0) {
-        deliveryMessage = `Bill contact details saved. Automatic ${pendingChannels.join(
-          " and "
-        )} delivery will work after SMTP or SMS gateway is configured on the server.`;
+        delivery.whatsapp.sent = twilioResult.sent;
+        delivery.whatsapp.message = twilioResult.sent
+          ? mediaUrl
+            ? "Bill PDF sent to customer WhatsApp."
+            : "Bill details sent to customer WhatsApp. Add PUBLIC_API_URL to attach the PDF."
+          : twilioResult.reason || "Twilio WhatsApp delivery failed.";
+        delivery.whatsapp.mediaUrl = mediaUrl;
+      } else if (!isWhatsAppConfigured()) {
+        delivery.whatsapp.url = buildWhatsAppChatUrl({
+          to: bill.customerPhone,
+          message: buildWhatsAppBillMessage(bill),
+        });
+        delivery.whatsapp.message =
+          delivery.whatsapp.url
+            ? "WhatsApp chat is ready. Please review and tap send."
+            : "Customer WhatsApp phone number is invalid.";
+      } else {
+        const whatsappResult = await sendWhatsAppTextMessage({
+          to: bill.customerPhone,
+          message: buildWhatsAppBillMessage(bill),
+        });
+
+        delivery.whatsapp.sent = whatsappResult.sent;
+        delivery.whatsapp.url = whatsappResult.sent
+          ? ""
+          : buildWhatsAppChatUrl({
+              to: bill.customerPhone,
+              message: buildWhatsAppBillMessage(bill),
+            });
+        delivery.whatsapp.message = whatsappResult.sent
+          ? "Bill details sent to customer WhatsApp."
+          : delivery.whatsapp.url
+            ? "WhatsApp API failed, so manual WhatsApp chat is ready. Please review and tap send."
+            : whatsappResult.reason || "WhatsApp delivery failed.";
       }
+    }
+
+    const deliveryMessages = [
+      delivery.email.message,
+      delivery.whatsapp.message,
+    ].filter(Boolean);
+
+    if (deliveryMessages.length > 0) {
+      deliveryMessage = deliveryMessages.join(" ");
     }
 
     return sendSuccess(res, {
       bill,
       deliveryMessage,
+      delivery,
     });
   } catch (err) {
     console.error(err);
@@ -593,14 +825,8 @@ const markPaid = async (req, res) => {
   }
 };
 
-const generateBillPDF = async (req, res) => {
+const streamBillPDF = async (bill, res) => {
   try {
-    const bill = await findBillForUserWithOrder(req, {
-      _id: req.params.id,
-    });
-
-    if (!bill) return sendError(res, "Bill not found", 404);
-
     const billDate =
       bill.paymentStatus === "PAID" && bill.paidAt ? bill.paidAt : bill.updatedAt || bill.createdAt;
     const template = getBillingTemplate(bill.restaurant);
@@ -893,6 +1119,43 @@ const generateBillPDF = async (req, res) => {
   }
 };
 
+const generateBillPDF = async (req, res) => {
+  try {
+    const bill = await findBillForUserWithOrder(req, {
+      _id: req.params.id,
+    });
+
+    if (!bill) return sendError(res, "Bill not found", 404);
+
+    return streamBillPDF(bill, res);
+  } catch (err) {
+    console.error("PDF ERROR:", err);
+    return sendError(res, "Failed to generate bill PDF", 500);
+  }
+};
+
+const generatePublicBillPDF = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { token = "" } = req.query;
+
+    if (!verifyPublicBillPdfToken(id, token)) {
+      return sendError(res, "Invalid bill PDF link", 403);
+    }
+
+    const bill = await findBillWithOrder({
+      _id: id,
+    });
+
+    if (!bill) return sendError(res, "Bill not found", 404);
+
+    return streamBillPDF(bill, res);
+  } catch (err) {
+    console.error("PUBLIC PDF ERROR:", err);
+    return sendError(res, "Failed to generate bill PDF", 500);
+  }
+};
+
 export default {
   getInbox,
   getHistory,
@@ -900,4 +1163,5 @@ export default {
   customizeBill,
   markPaid,
   generateBillPDF,
+  generatePublicBillPDF,
 };
