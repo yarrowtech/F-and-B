@@ -7,8 +7,10 @@ const REFRESH_INTERVAL = 5000;
 
 const statusStyles = {
   PENDING: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
+  PREPARING: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
   ACCEPTED: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
   READY: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200",
+  SERVED: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200",
 };
 
 const statCards = {
@@ -188,16 +190,10 @@ export default function ChefManagement() {
     }
   };
 
-  const chefScopedOrders = useMemo(() => {
-    return orders.filter((order) => {
-      const isMine =
-        typeof order.chef === "object"
-          ? order.chef?._id === chefId
-          : order.chef === chefId;
-
-      return order.status === "PENDING" || isMine;
-    });
-  }, [orders, chefId]);
+  const chefScopedOrders = useMemo(
+    () => orders.filter((order) => (order.items || []).length > 0),
+    [orders]
+  );
 
   const searchedOrders = useMemo(() => {
     const query = searchTerm.toLowerCase();
@@ -213,27 +209,34 @@ export default function ChefManagement() {
     });
   }, [chefScopedOrders, searchTerm]);
 
-  const pendingOrders = searchedOrders.filter((order) => order.status === "PENDING");
-  const acceptedOrders = searchedOrders.filter((order) => order.status === "ACCEPTED");
-  const readyOrders = searchedOrders.filter((order) => order.status === "READY");
+  const hasItemStatus = (order, statuses) =>
+    (order.items || []).some((item) => statuses.includes(item.status));
 
-  const totalPending = chefScopedOrders.filter((order) => order.status === "PENDING").length;
-  const totalAccepted = chefScopedOrders.filter((order) => order.status === "ACCEPTED").length;
-  const totalReady = chefScopedOrders.filter((order) => order.status === "READY" && isToday(order.readyAt)).length;
+  const pendingOrders = searchedOrders.filter((order) => hasItemStatus(order, ["PENDING"]));
+  const acceptedOrders = searchedOrders.filter((order) => hasItemStatus(order, ["PREPARING"]));
+  const readyOrders = searchedOrders.filter((order) => hasItemStatus(order, ["READY"]));
+
+  const totalPending = chefScopedOrders.filter((order) => hasItemStatus(order, ["PENDING"])).length;
+  const totalAccepted = chefScopedOrders.filter((order) => hasItemStatus(order, ["PREPARING"])).length;
+  const totalReady = chefScopedOrders.filter((order) =>
+    (order.items || []).some((item) => item.status === "READY" && isToday(item.readyAt || order.readyAt))
+  ).length;
 
   if (loading) {
     return <div className="min-h-screen bg-slate-50 p-6 text-lg font-semibold text-slate-600 dark:bg-slate-900 dark:text-slate-300">Loading chef panel...</div>;
   }
 
   const renderOrderCard = (order, compact = false) => {
-    const isAccepted = !!order.chef;
+    const isAccepted = (order.items || []).some((item) => item.status !== "PENDING");
     const isMine =
-      typeof order.chef === "object"
-        ? order.chef?._id === chefId
-        : order.chef === chefId;
+      (order.items || []).some((item) =>
+        String(item.assignedChef?._id || item.assignedChef || "") === chefId
+      );
     const newItems = (order.items || []).filter((item) => item.isAdditional);
     const previousItems = (order.items || []).filter((item) => !item.isAdditional);
     const hasNewItems = newItems.length > 0;
+    const hasPendingItems = (order.items || []).some((item) => item.status === "PENDING");
+    const hasPreparingItems = (order.items || []).some((item) => item.status === "PREPARING");
 
     const renderItemRow = (item, isNew = false) => (
       <div
@@ -251,6 +254,12 @@ export default function ChefManagement() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="truncate font-semibold text-slate-900 dark:text-white">{item.menuItem?.name || "Menu Item"}</p>
+              <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700 ring-1 ring-sky-100 dark:bg-sky-900/30 dark:text-sky-200 dark:ring-sky-900/50">
+                {item.menuItem?.cuisine || "Cuisine"}
+              </span>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyles[item.status] || statusStyles.PENDING}`}>
+                {item.status || "PENDING"}
+              </span>
               {isNew && (
                 <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                   New
@@ -324,7 +333,7 @@ export default function ChefManagement() {
         </div>
 
         <div className="mt-5 grid gap-3 sm:flex sm:flex-wrap">
-          {!isAccepted && order.status === "PENDING" && (
+          {hasPendingItems && (
             <button
               disabled={actionLoading === order._id}
               onClick={() => handleAccept(order._id)}
@@ -334,7 +343,7 @@ export default function ChefManagement() {
             </button>
           )}
 
-          {isAccepted && isMine && order.status === "ACCEPTED" && (
+          {(hasPreparingItems || hasPendingItems) && (
             <button
               disabled={actionLoading === order._id}
               onClick={() => handleReady(order._id)}
@@ -344,13 +353,13 @@ export default function ChefManagement() {
             </button>
           )}
 
-          {isAccepted && !isMine && (
+          {isAccepted && !isMine && !hasPendingItems && (
             <div className="inline-flex min-h-12 items-center justify-center rounded-xl bg-slate-100 px-4 py-3 text-center text-sm font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-200">
-              Accepted by {order.chef?.name || "another chef"}
+              Accepted by another chef
             </div>
           )}
 
-          {order.status === "READY" && (
+          {hasItemStatus(order, ["READY"]) && (
             <div className="inline-flex min-h-12 items-center justify-center rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200">
               Ready for waiter
             </div>

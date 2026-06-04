@@ -315,6 +315,7 @@ import {
 } from "../../services/employee.service";
 
 import { getRestaurants } from "../../services/restaurant.service";
+import { getMenu } from "../../services/menu.service";
 
 const ROLE_OPTIONS = [
   "ALL",
@@ -379,6 +380,7 @@ export default function AdminStaffManagement() {
     email: "",
     restaurantId: "",
     address: { ...emptyAddress },
+    cuisineTypes: [],
   });
   const [confirmPassword, setConfirmPassword] = useState("");
   const [addErr, setAddErr] = useState("");
@@ -392,7 +394,9 @@ export default function AdminStaffManagement() {
     email: "",
     restaurantId: "",
     address: { ...emptyAddress },
+    cuisineTypes: [],
   });
+  const [menuCuisines, setMenuCuisines] = useState([]);
 
   /* =========================
      LOAD DATA
@@ -408,6 +412,35 @@ export default function AdminStaffManagement() {
     const t = setTimeout(() => nameInputRef.current?.focus(), 0);
     return () => clearTimeout(t);
   }, [showAddForm]);
+
+  useEffect(() => {
+    const restaurantId = showEmployeeDetails
+      ? editForm.restaurantId
+      : form.restaurantId;
+
+    if (!restaurantId) {
+      setMenuCuisines([]);
+      return;
+    }
+
+    const loadCuisines = async () => {
+      try {
+        const items = await getMenu(restaurantId);
+        const cuisines = [
+          ...new Set(
+            (Array.isArray(items) ? items : [])
+              .map((item) => String(item.cuisine || "").trim())
+              .filter(Boolean)
+          ),
+        ].sort();
+        setMenuCuisines(cuisines);
+      } catch {
+        setMenuCuisines([]);
+      }
+    };
+
+    loadCuisines();
+  }, [form.restaurantId, editForm.restaurantId, showEmployeeDetails]);
 
   const fetchEmployees = async () => {
     try {
@@ -473,6 +506,7 @@ export default function AdminStaffManagement() {
     setForm({
       ...form,
       [name]: value,
+      ...(name === "role" && value !== "CHEF" ? { cuisineTypes: [] } : {}),
     });
     setAddErr("");
   };
@@ -496,6 +530,24 @@ export default function AdminStaffManagement() {
     setEditForm({
       ...editForm,
       [name]: value,
+      ...(name === "role" && value !== "CHEF" ? { cuisineTypes: [] } : {}),
+    });
+  };
+
+  const toggleCuisine = (target, cuisine) => {
+    const setter = target === "edit" ? setEditForm : setForm;
+    setter((prev) => {
+      const selected = new Set(prev.cuisineTypes || []);
+      if (selected.has(cuisine)) {
+        selected.delete(cuisine);
+      } else {
+        selected.add(cuisine);
+      }
+
+      return {
+        ...prev,
+        cuisineTypes: Array.from(selected),
+      };
     });
   };
 
@@ -533,6 +585,7 @@ export default function AdminStaffManagement() {
         email: form.email,
         restaurantId: form.restaurantId,
         address: form.address,
+        cuisineTypes: form.role === "CHEF" ? form.cuisineTypes : [],
       };
 
       await createEmployee(payload);
@@ -547,6 +600,7 @@ export default function AdminStaffManagement() {
         email: "",
         restaurantId: "",
         address: { ...emptyAddress },
+        cuisineTypes: [],
       });
       setConfirmPassword("");
 
@@ -569,6 +623,7 @@ export default function AdminStaffManagement() {
       email: "",
       restaurantId: "",
       address: { ...emptyAddress },
+      cuisineTypes: [],
     });
     setConfirmPassword("");
     setShowPassword(false);
@@ -654,6 +709,7 @@ export default function AdminStaffManagement() {
         ...emptyAddress,
         ...(emp.address || {}),
       },
+      cuisineTypes: Array.isArray(emp.cuisineTypes) ? emp.cuisineTypes : [],
     });
 
     setShowEmployeeDetails(true);
@@ -928,6 +984,36 @@ export default function AdminStaffManagement() {
                   </select>
                 </div>
 
+                {form.role === "CHEF" && (
+                  <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                      Chef Cuisine Assignment
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {menuCuisines.length === 0 ? (
+                        <p className="text-sm text-gray-500">
+                          Create menu items with cuisine first, then assign cuisines to this chef.
+                        </p>
+                      ) : (
+                        menuCuisines.map((cuisine) => (
+                          <button
+                            key={cuisine}
+                            type="button"
+                            onClick={() => toggleCuisine("add", cuisine)}
+                            className={`rounded-full px-3 py-2 text-xs font-bold transition ${
+                              form.cuisineTypes.includes(cuisine)
+                                ? "bg-emerald-600 text-white"
+                                : "bg-white text-emerald-700 ring-1 ring-emerald-200"
+                            }`}
+                          >
+                            {cuisine}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <p className="mt-6 text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">
                   Address Details
                 </p>
@@ -1126,6 +1212,36 @@ export default function AdminStaffManagement() {
                   ))}
                 </select>
               </div>
+
+              {editForm.role === "CHEF" && (
+                <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                    Chef Cuisine Assignment
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {menuCuisines.length === 0 ? (
+                      <p className="text-sm text-gray-500">
+                        Create menu items with cuisine first, then assign cuisines to this chef.
+                      </p>
+                    ) : (
+                      menuCuisines.map((cuisine) => (
+                        <button
+                          key={cuisine}
+                          type="button"
+                          onClick={() => toggleCuisine("edit", cuisine)}
+                          className={`rounded-full px-3 py-2 text-xs font-bold transition ${
+                            editForm.cuisineTypes.includes(cuisine)
+                              ? "bg-emerald-600 text-white"
+                              : "bg-white text-emerald-700 ring-1 ring-emerald-200"
+                          }`}
+                        >
+                          {cuisine}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
 
               <p className="mt-6 text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">
                 Address Details

@@ -129,6 +129,11 @@ export const markOrderServed = async (id) => {
   return res.data?.data || null;
 };
 
+export const printOrderKOT = async (id) => {
+  const res = await api.post(`/order/${id}/kot`);
+  return res.data?.data || null;
+};
+
 /* ===================================================
    👨‍🍳 CHEF
 =================================================== */

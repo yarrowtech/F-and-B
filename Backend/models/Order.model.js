@@ -134,6 +134,18 @@ const orderItemSchema = new mongoose.Schema(
       default: "PENDING",
     },
 
+    assignedChef: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employee",
+      default: null,
+      index: true,
+    },
+
+    inventoryDeducted: {
+      type: Boolean,
+      default: false,
+    },
+
     // 🔥 Price snapshot (very important for billing safety)
     price: {
       type: Number,
@@ -149,6 +161,10 @@ const orderItemSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    acceptedAt: Date,
+    readyAt: Date,
+    servedAt: Date,
   },
   { timestamps: true }
 );
@@ -178,6 +194,34 @@ const tableChangeSchema = new mongoose.Schema(
     changedAt: {
       type: Date,
       default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
+const kotSchema = new mongoose.Schema(
+  {
+    mode: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    printed: {
+      type: Boolean,
+      default: false,
+    },
+    printedAt: {
+      type: Date,
+      default: null,
+    },
+    printedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employee",
+      default: null,
+    },
+    directBilling: {
+      type: Boolean,
+      default: false,
     },
   },
   { _id: false }
@@ -265,6 +309,11 @@ const orderSchema = new mongoose.Schema(
     tableChangeHistory: {
       type: [tableChangeSchema],
       default: [],
+    },
+
+    kot: {
+      type: kotSchema,
+      default: () => ({}),
     },
   },
   { timestamps: true }

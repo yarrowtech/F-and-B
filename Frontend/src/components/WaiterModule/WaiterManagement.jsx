@@ -1,14 +1,16 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from "react";
-import { FaBell, FaCheckCircle, FaExchangeAlt, FaMinus, FaPlus, FaSearch, FaShoppingCart, FaTable, FaTimes, FaUtensils } from "react-icons/fa";
+import { FaBell, FaCheckCircle, FaExchangeAlt, FaMinus, FaPlus, FaPrint, FaSearch, FaShoppingCart, FaTable, FaTimes, FaUtensils } from "react-icons/fa";
 import {
   addItemsToOrder,
   changeOrderTable,
   createOrder,
   getWaiterOrders,
   markOrderServed,
+  printOrderKOT,
 } from "../../services/order.service";
 import { getMenu } from "../../services/menu.service";
+import { printJobsOnThisDevice } from "../../services/localPrint.service";
 import { getTables } from "../../services/table.service";
 import socket from "../../socket/socket";
 
@@ -65,6 +67,7 @@ export default function WaiterManagement() {
   const [tableMoveId, setTableMoveId] = useState("");
   const [movingTable, setMovingTable] = useState(false);
   const [liveNotifications, setLiveNotifications] = useState([]);
+  const [kotPrintingId, setKotPrintingId] = useState("");
 
   const load = async () => {
     if (!restaurantId) {
@@ -216,6 +219,18 @@ export default function WaiterManagement() {
     return <div className="p-10 text-xl text-red-600">No restaurant assigned to this waiter.</div>;
   }
 
+  const hasReadyItems = (order) =>
+    (order?.items || []).some((item) => item.status === "READY");
+
+  const isKotDirectBilling = (order) =>
+    Boolean(order?.kot?.mode || order?.kot?.directBilling || order?.kot?.printed);
+
+  const allItemsServed = (order) =>
+    (order?.items || []).length > 0 &&
+    (order.items || []).every((item) => item.status === "SERVED");
+
+  const canBillOrder = (order) => isKotDirectBilling(order) || allItemsServed(order);
+
   const getStatusLabel = (order) => {
     if (!order) return "Available";
     if (!isOwnOrder(order)) {
@@ -224,20 +239,21 @@ export default function WaiterManagement() {
         : "Occupied by another waiter";
     }
     if (order.status === "PENDING") return "Order Placed";
+    if (isKotDirectBilling(order)) return "KOT Printed - Ready for Billing";
     if (order.status === "ACCEPTED") {
       return order.chef?.name ? `Accepted by Chef ${order.chef.name}` : "Accepted by Chef";
     }
     if (order.status === "PREPARING") return "Preparing";
-    if (order.status === "READY") return "Ready to Serve";
-    if (order.status === "SERVED") return "Served";
+    if (allItemsServed(order)) return "All Items Served";
+    if (hasReadyItems(order)) return "Some Items Ready";
     return order.status;
   };
 
   const getTableCardStyle = (order) => {
     if (!order) return "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200";
     if (!isOwnOrder(order)) return "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300";
-    if (order.status === "READY") return "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200";
-    if (order.status === "SERVED") return "border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900/60 dark:bg-violet-950/40 dark:text-violet-200";
+    if (allItemsServed(order)) return "border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900/60 dark:bg-violet-950/40 dark:text-violet-200";
+    if (hasReadyItems(order)) return "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200";
     return "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200";
   };
 
@@ -246,7 +262,12 @@ export default function WaiterManagement() {
     if (!isOwnOrder(order)) {
       return "This table is running under another waiter. You cannot add items or transfer this order.";
     }
-    if (order.status === "SERVED") {
+    if (isKotDirectBilling(order)) {
+      return isBilled
+        ? "KOT printed and bill has been sent to accountant."
+        : "KOT printed to kitchen. Chef tracking is skipped and bill is ready.";
+    }
+    if (allItemsServed(order)) {
       return isBilled
         ? "Bill has been sent to accountant for payment processing."
         : "Order served. Bill is ready for accountant and you can still edit if customer adds more.";
@@ -255,7 +276,7 @@ export default function WaiterManagement() {
   };
 
   const handleBill = (order) => {
-    if (!order || order.status !== "SERVED") return;
+    if (!order || !canBillOrder(order)) return;
     setBilledOrderIds((prev) =>
       prev.includes(order._id) ? prev : [...prev, order._id]
     );
@@ -427,6 +448,59 @@ export default function WaiterManagement() {
     }
   };
 
+  const handlePrintKOT = async (orderId) => {
+    try {
+      setKotPrintingId(orderId);
+      const result = await printOrderKOT(orderId);
+      const printedCount = await printJobsOnThisDevice(result?.printJobs || []);
+      await load();
+      const count = result?.printJobs?.length || 0;
+      setBillMessage(
+        `KOT print started on this device: ${printedCount}/${count}. Bill is ready for accountant.`
+      );
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || "KOT print failed");
+    } finally {
+      setKotPrintingId("");
+    }
+  };
+
+  const renderItemStatusList = (order) => {
+    if (!order?.items?.length) return null;
+
+    if (isKotDirectBilling(order)) {
+      return (
+        <div className="mt-3 rounded-xl bg-white/60 px-2.5 py-2 text-xs font-bold uppercase tracking-wide text-violet-700 dark:bg-slate-900/40 dark:text-violet-200">
+          KOT printed - chef tracking skipped
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-3 space-y-1.5">
+        {(order.items || []).map((item) => (
+          <div
+            key={item._id}
+            className="flex items-center justify-between gap-2 rounded-xl bg-white/60 px-2.5 py-2 text-xs dark:bg-slate-900/40"
+          >
+            <span className="min-w-0 truncate font-semibold">
+              {item.menuItem?.name || "Menu Item"} x{item.quantity}
+            </span>
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+              item.status === "READY"
+                ? "bg-sky-600 text-white"
+                : item.status === "SERVED"
+                ? "bg-violet-600 text-white"
+                : "bg-amber-100 text-amber-700"
+            }`}>
+              {item.status || "PENDING"}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const movableTables = selectedOrder
     ? tables.filter((table) => !tableOrders[table._id] || table._id === selectedTable?._id)
     : [];
@@ -488,7 +562,7 @@ export default function WaiterManagement() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400 lg:text-xs lg:tracking-[0.2em]">Ready</p>
-                <p className="mt-2 text-xl font-bold text-slate-900 dark:text-white lg:mt-3 lg:text-2xl">{orders.filter((order) => order.status === "READY").length}</p>
+                <p className="mt-2 text-xl font-bold text-slate-900 dark:text-white lg:mt-3 lg:text-2xl">{orders.filter(hasReadyItems).length}</p>
               </div>
               <div className="hidden rounded-2xl bg-emerald-50 p-3 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 lg:block"><FaCheckCircle /></div>
             </div>
@@ -528,9 +602,11 @@ export default function WaiterManagement() {
                     <FaTable className="shrink-0" />
                   </button>
 
+                  {renderItemStatusList(order)}
+
                   {order && !isLocked && (
                     <div className="mt-2 grid grid-cols-2 gap-2">
-                      {!isBilled && (
+                      {!isBilled && !isKotDirectBilling(order) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -541,7 +617,19 @@ export default function WaiterManagement() {
                           Edit
                         </button>
                       )}
-                      {order.status === "READY" && (
+                      {!isKotDirectBilling(order) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePrintKOT(order._id);
+                          }}
+                          disabled={kotPrintingId === order._id}
+                          className="min-h-11 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60 dark:bg-white dark:text-slate-900"
+                        >
+                          {kotPrintingId === order._id ? "Printing..." : "KOT"}
+                        </button>
+                      )}
+                      {!isKotDirectBilling(order) && hasReadyItems(order) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -549,10 +637,10 @@ export default function WaiterManagement() {
                           }}
                           className="min-h-11 rounded-xl bg-sky-600 px-3 py-2 text-sm font-semibold text-white"
                         >
-                          Serve
+                          Serve Ready
                         </button>
                       )}
-                      {order.status === "SERVED" && (
+                      {canBillOrder(order) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -606,9 +694,11 @@ export default function WaiterManagement() {
                     </p>
                   </div>
 
+                  {renderItemStatusList(order)}
+
                   {order && !isLocked && (
                     <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap">
-                      {!isBilled && (
+                      {!isBilled && !isKotDirectBilling(order) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -620,7 +710,21 @@ export default function WaiterManagement() {
                         </button>
                       )}
 
-                      {order.status === "READY" && (
+                      {!isKotDirectBilling(order) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePrintKOT(order._id);
+                          }}
+                          disabled={kotPrintingId === order._id}
+                          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 sm:w-auto"
+                        >
+                          <FaPrint />
+                          {kotPrintingId === order._id ? "Printing..." : "KOT"}
+                        </button>
+                      )}
+
+                      {!isKotDirectBilling(order) && hasReadyItems(order) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -628,11 +732,11 @@ export default function WaiterManagement() {
                           }}
                           className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 sm:w-auto"
                         >
-                          Serve
+                          Serve Ready
                         </button>
                       )}
 
-                      {order.status === "SERVED" && (
+                      {canBillOrder(order) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

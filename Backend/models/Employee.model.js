@@ -242,6 +242,17 @@ const employeeSchema = new mongoose.Schema(
       billsGenerated: { type: Number, default: 0 },
     },
 
+    cuisineTypes: {
+      type: [String],
+      default: [],
+      set: (values) =>
+        Array.isArray(values)
+          ? values
+              .map((value) => String(value || "").trim())
+              .filter(Boolean)
+          : [],
+    },
+
     /* =========================
        RELATIONSHIPS
     ========================= */
@@ -273,5 +284,6 @@ employeeSchema.index(
   { employeeId: 1, restaurant: 1 },
   { unique: true }
 );
+employeeSchema.index({ restaurant: 1, role: 1 });
 
 export default mongoose.model("Employee", employeeSchema);

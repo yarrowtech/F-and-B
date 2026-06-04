@@ -157,6 +157,7 @@ import {
   acceptOrder,
   markPreparing,
   markReady,
+  printKOT,
   markServed,
   markPaid,
 } from "../controllers/order.Controller.js";
@@ -174,6 +175,8 @@ router.get("/waiter", auth, allowRoles("waiter"), getWaiterOrders);
 router.put("/:id/served", auth, allowRoles("waiter"), markServed);
 
 router.put("/:id/table", auth, allowRoles("waiter", "accountant"), changeOrderTable);
+
+router.post("/:id/kot", auth, allowRoles("waiter"), printKOT);
 
 /* ===============================
    CHEF

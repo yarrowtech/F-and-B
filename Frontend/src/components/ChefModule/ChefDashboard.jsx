@@ -7,6 +7,18 @@ const formatDate = (value) => {
   return new Date(value).toLocaleString("en-IN");
 };
 
+const getOrderItemDate = (order, field) => {
+  const dates = (order.items || [])
+    .map((item) => item[field])
+    .filter(Boolean)
+    .map((value) => new Date(value))
+    .filter((date) => !Number.isNaN(date.getTime()));
+
+  if (dates.length === 0) return null;
+
+  return new Date(Math.min(...dates.map((date) => date.getTime())));
+};
+
 const getStartOfDay = (date) => {
   const value = new Date(date);
   value.setHours(0, 0, 0, 0);
@@ -116,6 +128,8 @@ function StatusBadge({ children }) {
 }
 
 function OrderCard({ order }) {
+  const acceptedAt = getOrderItemDate(order, "acceptedAt") || order.acceptedAt;
+
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
       <div className="flex items-start justify-between gap-3">
@@ -138,7 +152,7 @@ function OrderCard({ order }) {
         </div>
         <div>
           <p className="text-xs font-medium text-slate-400">Accepted</p>
-          <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{formatDate(order.acceptedAt)}</p>
+          <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{formatDate(acceptedAt)}</p>
         </div>
       </div>
     </article>
@@ -170,9 +184,6 @@ function CookedItemCard({ item }) {
 }
 
 const ChefDashboard = () => {
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const userId = user?.id || user?._id || "";
-
   const [filter, setFilter] = useState("today");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -202,47 +213,40 @@ const ChefDashboard = () => {
     [filter, fromDate, toDate]
   );
 
-  const chefOrders = useMemo(
-    () =>
-      orders.filter((order) => {
-        const chefId =
-          typeof order.chef === "string"
-            ? order.chef
-            : order.chef?._id || "";
-        return chefId && String(chefId) === String(userId);
-      }),
-    [orders, userId]
-  );
-
   const acceptedOrders = useMemo(() => {
     if (filter === "custom" && (!fromDate || !toDate)) return [];
 
-    return chefOrders.filter((order) => {
-      const acceptedDate = order.acceptedAt ? new Date(order.acceptedAt) : null;
-      return acceptedDate && acceptedDate >= startDate && acceptedDate <= endDate;
+    return orders.filter((order) => {
+      return (order.items || []).some((item) => {
+        const acceptedDate = item.acceptedAt ? new Date(item.acceptedAt) : null;
+        return acceptedDate && acceptedDate >= startDate && acceptedDate <= endDate;
+      });
     });
-  }, [chefOrders, filter, fromDate, toDate, startDate, endDate]);
+  }, [orders, filter, fromDate, toDate, startDate, endDate]);
 
   const cookedItems = useMemo(() => {
     if (filter === "custom" && (!fromDate || !toDate)) return [];
 
-    return chefOrders
-      .filter((order) => {
-        const cookedDate = order.readyAt ? new Date(order.readyAt) : null;
-        return cookedDate && cookedDate >= startDate && cookedDate <= endDate;
-      })
+    return orders
       .flatMap((order) =>
-        (order.items || []).map((item, index) => ({
+        (order.items || []).flatMap((item, index) => {
+          const cookedDate = item.readyAt ? new Date(item.readyAt) : null;
+          if (!cookedDate || cookedDate < startDate || cookedDate > endDate) {
+            return [];
+          }
+
+          return [{
           id: `${order._id}-${index}`,
           orderNo: order.orderNo || "N/A",
           tableNumber: order.table?.tableNumber || "N/A",
           itemName: item.menuItem?.name || "Unknown Item",
           quantity: Number(item.quantity || 0),
-          status: order.status || "READY",
-          cookedAt: order.readyAt,
-        }))
+          status: item.status || "READY",
+          cookedAt: item.readyAt,
+        }];
+        })
       );
-  }, [chefOrders, filter, fromDate, toDate, startDate, endDate]);
+  }, [orders, filter, fromDate, toDate, startDate, endDate]);
 
   const totalAcceptedOrders = acceptedOrders.length;
   const totalCookedItems = cookedItems.reduce(
@@ -402,7 +406,7 @@ const ChefDashboard = () => {
                         <td className="px-4 py-3">
                           <StatusBadge>{order.status || "ACCEPTED"}</StatusBadge>
                         </td>
-                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatDate(order.acceptedAt)}</td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatDate(getOrderItemDate(order, "acceptedAt") || order.acceptedAt)}</td>
                       </tr>
                     ))
                   )}
@@ -444,7 +448,7 @@ const ChefDashboard = () => {
                       {(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)}
                     </td>
                     <td className="px-4 py-3"><StatusBadge>{order.status || "ACCEPTED"}</StatusBadge></td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatDate(order.acceptedAt)}</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatDate(getOrderItemDate(order, "acceptedAt") || order.acceptedAt)}</td>
                   </tr>
                 ))}
               </tbody>

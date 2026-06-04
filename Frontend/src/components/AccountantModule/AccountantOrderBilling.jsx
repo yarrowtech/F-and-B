@@ -21,6 +21,7 @@ import {
   getBillingInbox,
   markBillPaid,
 } from "../../services/billing.service";
+import { printJobsOnThisDevice } from "../../services/localPrint.service";
 import { getMenu } from "../../services/menu.service";
 import { changeOrderTable } from "../../services/order.service";
 import { getTables } from "../../services/table.service";
@@ -270,7 +271,16 @@ const buildThermalReceiptHtml = (bill, options = {}) => {
 
   lines.push(
     receiptCenter(template.footerMessage || "Thank you for dining with us.", width),
-    receiptCenter("Visit Again", width)
+    receiptCenter("Visit Again", width),
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
   );
 
   return `<!doctype html>
@@ -279,26 +289,46 @@ const buildThermalReceiptHtml = (bill, options = {}) => {
   <meta charset="utf-8" />
   <title>Print Bill</title>
   <style>
-    @page { size: 80mm auto; margin: 0; }
+    @page { size: 80mm 500mm; margin: 0; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: #fff; color: #000; }
-    pre {
+    html,
+    body {
       width: 80mm;
+      min-height: 500mm;
       margin: 0;
-      padding: 4mm 3mm;
-      white-space: pre-wrap;
+      background: #fff;
+      color: #000;
+    }
+    .receipt {
+      width: 80mm;
+      min-height: 500mm;
+      margin: 0;
+      padding: 4mm 3mm 0;
+    }
+    pre {
+      margin: 0;
+      white-space: pre;
       font-family: "Courier New", monospace;
       font-size: 12px;
       line-height: 1.25;
+      overflow: visible;
+    }
+    .paper-feed {
+      display: block;
+      height: 70mm;
+      width: 100%;
     }
     @media screen {
       body { background: #e5e7eb; padding: 20px; }
-      pre { background: #fff; border-radius: 8px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2); }
+      .receipt { background: #fff; border-radius: 8px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2); }
     }
   </style>
 </head>
 <body>
-  <pre>${escapeHtml(lines.join("\n"))}</pre>
+  <div class="receipt">
+    <pre>${escapeHtml(lines.join("\n"))}</pre>
+    <div class="paper-feed"></div>
+  </div>
   <script>
     window.addEventListener("load", function () {
       setTimeout(function () {
@@ -778,6 +808,9 @@ export default function AccountantOrderBilling() {
       );
 
       setSelectedBill(finalBill);
+      if (response?.printJob) {
+        await printJobsOnThisDevice([response.printJob]);
+      }
       await downloadBillPdf(finalBill._id, pdfWindow);
 
       const whatsappUrl = response?.delivery?.whatsapp?.url;
@@ -884,7 +917,14 @@ export default function AccountantOrderBilling() {
         )
       );
       setSelectedBill(finalBill);
-      printBill(finalBill, { totals: selectedTotals || finalBill }, printWindow);
+      if (response?.printJob) {
+        await printJobsOnThisDevice([response.printJob]);
+        if (printWindow && !printWindow.closed) {
+          printWindow.close();
+        }
+      } else {
+        printBill(finalBill, { totals: selectedTotals || finalBill }, printWindow);
+      }
     } catch (err) {
       console.error("PRINT BILL ERROR:", err);
       if (printWindow && !printWindow.closed) {
@@ -1018,7 +1058,12 @@ export default function AccountantOrderBilling() {
         })),
       });
 
-      setBills((prev) => [bill, ...prev]);
+      const createdBill = bill?.bill || bill;
+      if (bill?.printJob) {
+        await printJobsOnThisDevice([bill.printJob]);
+      }
+
+      setBills((prev) => [createdBill, ...prev]);
       setTab("INBOX");
       setManualBill({
         orderType: "TAKEAWAY",
@@ -1034,10 +1079,10 @@ export default function AccountantOrderBilling() {
         complimentaryNote: "",
         items: [],
       });
-      setSuccessBill(bill);
+      setSuccessBill(createdBill);
     } catch (err) {
       console.error("CREATE MANUAL BILL ERROR:", err);
-      alert(err.response?.data?.message || "Failed to create bill");
+      alert(err.response?.data?.message || err.message || "Failed to create bill");
     } finally {
       setCreatingManualBill(false);
     }

@@ -4,7 +4,8 @@ import Attendance from "../models/Attendance.model.js";
 export const getChefDashboard = async (req,res)=>{
   try{
 
-    const { restaurant,_id } = req.user;
+    const { restaurant } = req.user;
+    const chefId = req.user.id;
 
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -14,22 +15,28 @@ export const getChefDashboard = async (req,res)=>{
 
     const todayAcceptedOrders = await Order.countDocuments({
       restaurant,
-      chef:_id,
-      status:"accepted",
-      createdAt:{ $gte:today }
+      items: {
+        $elemMatch: {
+          assignedChef: chefId,
+          acceptedAt: { $gte: today },
+        },
+      },
     });
 
     const monthlyAcceptedOrders = await Order.countDocuments({
       restaurant,
-      chef:_id,
-      status:"accepted",
-      createdAt:{ $gte:monthStart }
+      items: {
+        $elemMatch: {
+          assignedChef: chefId,
+          acceptedAt: { $gte: monthStart },
+        },
+      },
     });
 
     const totalDays = new Date().getDate();
 
     const presentDays = await Attendance.countDocuments({
-      employee:_id,
+      employee:chefId,
       status:"present",
       date:{ $regex:`^${month}` }
     });

@@ -1100,6 +1100,8 @@ import Bill from "../models/Bill.model.js";
 import SalesAnalytics from "../models/SalesAnalytics.model.js";
 import Menu from "../models/Menu.model.js";
 import Inventory from "../models/Inventory.model.js";
+import Employee from "../models/Employee.model.js";
+import KotPrintJob from "../models/KotPrintJob.model.js";
 import { getIO } from "../socket.js";
 
 /* 🔥 LOGGER */
@@ -1137,8 +1139,123 @@ const getCustomizationKey = (value) =>
 
 const getItemsForInventoryDeduction = (order) => {
   const additionalItems = (order.items || []).filter((item) => item.isAdditional);
-  return additionalItems.length > 0 ? additionalItems : order.items || [];
+  const sourceItems = additionalItems.length > 0 ? additionalItems : order.items || [];
+  return sourceItems.filter((item) => !item.inventoryDeducted);
 };
+
+const normalizeCuisine = (value) => String(value || "").trim().toLowerCase();
+
+const displayCuisine = (value) => String(value || "General").trim() || "General";
+
+const getKotPrinterMap = () => {
+  try {
+    const parsed = JSON.parse(process.env.KOT_PRINTER_MAP_JSON || "{}");
+    return Object.entries(parsed).reduce((map, [key, value]) => {
+      const normalizedKey = normalizeCuisine(key);
+      const printerName = String(value || "").trim();
+      if (normalizedKey && printerName) map[normalizedKey] = printerName;
+      return map;
+    }, {});
+  } catch {
+    return {};
+  }
+};
+
+const getKotPrinterName = (cuisine) => {
+  const printerMap = getKotPrinterMap();
+  return (
+    printerMap[normalizeCuisine(cuisine)] ||
+    process.env.KOT_DEFAULT_PRINTER ||
+    "Kitchen KOT"
+  );
+};
+
+const calculateOrderBillTotals = (order) => {
+  const itemsTotal = (order.items || []).reduce(
+    (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
+    0
+  );
+  const cgstRate = 2.5;
+  const sgstRate = 2.5;
+  const cgst = Math.round(itemsTotal * (cgstRate / 100));
+  const sgst = Math.round(itemsTotal * (sgstRate / 100));
+
+  return {
+    itemsTotal,
+    cgstRate,
+    sgstRate,
+    cgst,
+    sgst,
+    totalAmount: itemsTotal + cgst + sgst,
+  };
+};
+
+const ensurePendingBillForOrder = async (order, session = null) => {
+  const query = Bill.findOne({ order: order._id });
+  if (session) query.session(session);
+  const existingBill = await query;
+
+  if (existingBill) return existingBill;
+
+  const totals = calculateOrderBillTotals(order);
+  const [bill] = await Bill.create(
+    [
+      {
+        restaurant: order.restaurant,
+        order: order._id,
+        table: order.table,
+        ...totals,
+        discount: 0,
+        paymentStatus: "PENDING",
+      },
+    ],
+    session ? { session } : {}
+  );
+
+  return bill;
+};
+
+const getChefCuisineSet = async (chefId, restaurantId) => {
+  const chef = await Employee.findOne({
+    _id: chefId,
+    restaurant: restaurantId,
+    role: "CHEF",
+    isActive: true,
+  }).select("cuisineTypes");
+
+  if (!chef) return null;
+
+  return new Set((chef.cuisineTypes || []).map(normalizeCuisine).filter(Boolean));
+};
+
+const isChefCuisineItem = (item, cuisineSet) => {
+  if (!cuisineSet || cuisineSet.size === 0) return true;
+  return cuisineSet.has(normalizeCuisine(item.menuItem?.cuisine));
+};
+
+const deriveOrderStatus = (items = []) => {
+  const activeItems = items.filter((item) => item.status !== "CANCELLED");
+  if (activeItems.length === 0) return "CANCELLED";
+  if (activeItems.every((item) => item.status === "SERVED")) return "SERVED";
+  if (activeItems.every((item) => ["READY", "SERVED"].includes(item.status))) return "READY";
+  if (activeItems.some((item) => ["PREPARING", "READY", "SERVED"].includes(item.status))) return "ACCEPTED";
+  return "PENDING";
+};
+
+const filterOrdersForChefCuisine = (orders, cuisineSet, chefId) =>
+  orders
+    .map((order) => {
+      const data = order.toObject ? order.toObject() : order;
+      data.items = (data.items || []).filter((item) => {
+        const assignedChefId = String(item.assignedChef?._id || item.assignedChef || "");
+        const isMine = assignedChefId === String(chefId);
+        const isOpen = !assignedChefId && item.status === "PENDING";
+
+        return isChefCuisineItem(item, cuisineSet) && (isOpen || isMine);
+      });
+      return data;
+    })
+    .filter((order) => order.items.length > 0);
 
 const getIngredientMultiplier = (ingredientName, customizations = []) => {
   const name = String(ingredientName || "").toLowerCase();
@@ -1179,7 +1296,8 @@ const populateOrderDetails = (query) =>
     .populate("table", "tableNumber")
     .populate("waiter", "name")
     .populate("chef", "name")
-    .populate("items.menuItem", "name price")
+    .populate("items.menuItem", "name price cuisine courseType ingredients")
+    .populate("items.assignedChef", "name")
     .populate("tableChangeHistory.fromTable", "tableNumber")
     .populate("tableChangeHistory.toTable", "tableNumber")
     .populate("tableChangeHistory.changedBy", "name");
@@ -1210,6 +1328,114 @@ const emitOrderNotification = (event, order, type) => {
   } catch (err) {
     console.error("ORDER SOCKET EMIT ERROR:", err.message);
   }
+};
+
+const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt }) => {
+  const tableNo = order.table?.tableNumber || "N/A";
+  const waiterName = order.waiter?.name || "N/A";
+  const lines = [
+    "KITCHEN ORDER TICKET",
+    "------------------------------",
+    `KOT: ${kotNo}`,
+    `Order: ${order.orderNo || order._id}`,
+    `Table: ${tableNo}`,
+    `Section: ${displayCuisine(cuisine)}`,
+    `Waiter: ${waiterName}`,
+    `Time: ${new Date(printedAt).toLocaleString("en-IN")}`,
+    "------------------------------",
+  ];
+
+  items.forEach((item, index) => {
+    lines.push(`${index + 1}. ${item.menuItem?.name || "Menu Item"}`);
+    lines.push(`   Qty: ${Number(item.quantity || 0)}`);
+    if ((item.customization || []).length > 0) {
+      lines.push(`   Note: ${item.customization.join(", ")}`);
+    }
+  });
+
+  lines.push("------------------------------");
+  lines.push("No price on KOT");
+  lines.push("");
+  lines.push("");
+  return lines.join("\n");
+};
+
+const groupKotItemsByCuisine = (order) => {
+  const groups = new Map();
+
+  (order.items || []).forEach((item) => {
+    if (item.status === "CANCELLED") return;
+
+    const cuisine = displayCuisine(item.menuItem?.cuisine);
+    const key = normalizeCuisine(cuisine) || "general";
+    const group = groups.get(key) || {
+      cuisine,
+      items: [],
+    };
+
+    group.items.push(item);
+    groups.set(key, group);
+  });
+
+  return Array.from(groups.values());
+};
+
+const createKotPrintJobs = async ({ order, session }) => {
+  const printedAt = order.kot?.printedAt || new Date();
+  const groups = groupKotItemsByCuisine(order);
+  const jobs = [];
+
+  for (const group of groups) {
+    const cuisineKey = normalizeCuisine(group.cuisine) || "general";
+    const kotNo = `KOT-${String(order.orderNo || order._id).slice(-8)}-${cuisineKey.toUpperCase()}`;
+    const payload = {
+      kotNo,
+      orderId: order._id,
+      orderNo: order.orderNo,
+      tableNumber: order.table?.tableNumber || "",
+      waiterName: order.waiter?.name || "",
+      cuisine: group.cuisine,
+      printedAt,
+      items: group.items.map((item) => ({
+        name: item.menuItem?.name || "Menu Item",
+        quantity: Number(item.quantity || 0),
+        customization: item.customization || [],
+      })),
+    };
+
+    const receiptText = buildKotReceiptText({
+      order,
+      cuisine: group.cuisine,
+      items: group.items,
+      kotNo,
+      printedAt,
+    });
+
+    const job = await KotPrintJob.findOneAndUpdate(
+      { order: order._id, cuisine: group.cuisine },
+      {
+        $setOnInsert: {
+          restaurant: order.restaurant,
+          order: order._id,
+          waiter: order.waiter?._id || order.waiter,
+          cuisine: group.cuisine,
+          printerName: getKotPrinterName(group.cuisine),
+          payload,
+          receiptText,
+          status: "PENDING",
+        },
+      },
+      {
+        new: true,
+        upsert: true,
+        session,
+      }
+    );
+
+    jobs.push(job);
+  }
+
+  return jobs;
 };
 
 const syncTableStatusAfterMove = async ({
@@ -1272,6 +1498,8 @@ const deductInventoryForOrder = async (order, session) => {
       inventory.quantity -= requiredQty;
       await inventory.save({ session });
     }
+
+    item.inventoryDeducted = true;
   }
 };
 
@@ -1393,7 +1621,7 @@ export const addItemsToOrder = async (req, res) => {
     }
 
     if (shouldRestartFlow) {
-      order.status = "PENDING";
+      order.status = deriveOrderStatus(order.items);
       order.chef = null;
       order.acceptedAt = undefined;
       order.preparingAt = undefined;
@@ -1448,31 +1676,30 @@ export const getOrders = async (req, res) => {
 export const getChefOrders = async (req, res) => {
   try {
     const { type } = req.query;
+    const cuisineSet = await getChefCuisineSet(req.user.id, req.user.restaurant);
+
+    if (!cuisineSet) {
+      return sendError(res, "Chef not found", 404);
+    }
 
     const filter = {
       restaurant: req.user.restaurant,
     };
 
     if (type === "history") {
-      filter.chef = req.user.id;
+      filter["items.assignedChef"] = req.user.id;
     } else if (type === "mine") {
-      filter.chef = req.user.id;
-      filter.status = { $in: ["ACCEPTED", "PREPARING", "READY"] };
+      filter.status = { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY"] };
+      filter["items.assignedChef"] = req.user.id;
     } else {
-      filter.$or = [
-        { status: "PENDING", chef: null },
-        {
-          chef: req.user.id,
-          status: { $in: ["ACCEPTED", "PREPARING", "READY"] },
-        },
-      ];
+      filter.status = { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY"] };
     }
 
     const orders = await populateOrderDetails(
       Order.find(filter).sort({ createdAt: -1 })
     );
 
-    return sendSuccess(res, orders);
+    return sendSuccess(res, filterOrdersForChefCuisine(orders, cuisineSet, req.user.id));
   } catch (err) {
     await logError(err, "GET_CHEF_ORDERS");
     return sendError(res, err.message);
@@ -1614,17 +1841,38 @@ export const changeOrderTable = async (req, res) => {
 
 export const acceptOrder = async (req, res) => {
   try {
+    const cuisineSet = await getChefCuisineSet(req.user.id, req.user.restaurant);
+    if (!cuisineSet) return sendError(res, "Chef not found", 404);
+
     const order = await Order.findOne({
       _id: req.params.id,
       restaurant: req.user.restaurant,
-      status: "PENDING",
-    });
+      status: { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY"] },
+    }).populate("items.menuItem", "name price cuisine courseType ingredients");
 
     if (!order) return sendError(res, "Invalid order");
 
-    order.status = "ACCEPTED";
-    order.chef = req.user.id;
-    order.acceptedAt = new Date();
+    const now = new Date();
+    const matchedItems = order.items.filter(
+      (item) =>
+        isChefCuisineItem(item, cuisineSet) &&
+        item.status === "PENDING" &&
+        (!item.assignedChef || String(item.assignedChef) === req.user.id)
+    );
+
+    if (matchedItems.length === 0) {
+      return sendError(res, "No pending cuisine items assigned to this chef");
+    }
+
+    matchedItems.forEach((item) => {
+      item.status = "PREPARING";
+      item.assignedChef = req.user.id;
+      item.acceptedAt = now;
+    });
+
+    if (!order.chef) order.chef = req.user.id;
+    if (!order.acceptedAt) order.acceptedAt = now;
+    order.status = deriveOrderStatus(order.items);
 
     await order.save();
 
@@ -1638,7 +1886,7 @@ export const acceptOrder = async (req, res) => {
     const populatedOrder = await populateOrderDetails(Order.findById(order._id));
     emitOrderNotification("chef:order-accepted", populatedOrder, "ORDER_ACCEPTED");
 
-    return sendSuccess(res, order);
+    return sendSuccess(res, populatedOrder);
   } catch (err) {
     await logError(err, "ACCEPT_ORDER");
     return sendError(res, err.message);
@@ -1648,32 +1896,42 @@ export const acceptOrder = async (req, res) => {
 /* ================= PREPARING ================= */
 
 export const markPreparing = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
+    const cuisineSet = await getChefCuisineSet(req.user.id, req.user.restaurant);
+    if (!cuisineSet) return sendError(res, "Chef not found", 404);
+
     const order = await Order.findOne({
       _id: req.params.id,
       restaurant: req.user.restaurant,
-      status: "ACCEPTED",
-    })
-      .populate({
-        path: "items.menuItem",
-        populate: { path: "ingredients.item" },
-      })
-      .session(session);
+      status: { $in: ["PENDING", "ACCEPTED", "PREPARING"] },
+    }).populate("items.menuItem", "name price cuisine courseType ingredients");
 
     if (!order)
-      throw new Error("Order must be ACCEPTED first");
+      return sendError(res, "Order must be active first", 404);
 
-    await deductInventoryForOrder(order, session);
+    const now = new Date();
+    const matchedItems = order.items.filter(
+      (item) =>
+        isChefCuisineItem(item, cuisineSet) &&
+        item.status === "PENDING" &&
+        (!item.assignedChef || String(item.assignedChef) === req.user.id)
+    );
 
-    order.status = "PREPARING";
-    order.preparingAt = new Date();
-    await order.save({ session });
+    if (matchedItems.length === 0) {
+      return sendError(res, "No pending cuisine items available to prepare");
+    }
 
-    await session.commitTransaction();
-    session.endSession();
+    matchedItems.forEach((item) => {
+      item.status = "PREPARING";
+      item.assignedChef = req.user.id;
+      item.acceptedAt = item.acceptedAt || now;
+    });
+
+    if (!order.chef) order.chef = req.user.id;
+    if (!order.acceptedAt) order.acceptedAt = now;
+    if (!order.preparingAt) order.preparingAt = now;
+    order.status = deriveOrderStatus(order.items);
+    await order.save();
 
     await logAction({
       action: "ORDER_PREPARING",
@@ -1682,11 +1940,9 @@ export const markPreparing = async (req, res) => {
       meta: { orderId: order._id },
     });
 
-    return sendSuccess(res, order);
+    const populatedOrder = await populateOrderDetails(Order.findById(order._id));
+    return sendSuccess(res, populatedOrder);
   } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
-
     await logError(err, "MARK_PREPARING");
     return sendError(res, err.message);
   }
@@ -1699,10 +1955,15 @@ export const markReady = async (req, res) => {
   session.startTransaction();
 
   try {
+    const cuisineSet = await getChefCuisineSet(req.user.id, req.user.restaurant);
+    if (!cuisineSet) {
+      throw new Error("Chef not found");
+    }
+
     const order = await Order.findOne({
       _id: req.params.id,
       restaurant: req.user.restaurant,
-      status: { $in: ["ACCEPTED", "PREPARING"] },
+      status: { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY"] },
     })
       .populate({
         path: "items.menuItem",
@@ -1710,17 +1971,35 @@ export const markReady = async (req, res) => {
       })
       .session(session);
 
-    if (!order) return sendError(res, "Order must be accepted before marking ready", 404);
+    if (!order) throw new Error("Order must be active before marking ready");
 
-    // The current chef UI moves ACCEPTED -> READY directly, so deduct stock here
-    // if the PREPARING step was skipped. Updated orders only deduct new items.
-    if (order.status === "ACCEPTED" && !order.preparingAt) {
-      await deductInventoryForOrder(order, session);
-      order.preparingAt = new Date();
+    const now = new Date();
+    const matchedItems = order.items.filter(
+      (item) =>
+        isChefCuisineItem(item, cuisineSet) &&
+        ["PENDING", "PREPARING"].includes(item.status) &&
+        (!item.assignedChef || String(item.assignedChef) === req.user.id)
+    );
+
+    if (matchedItems.length === 0) {
+      throw new Error("No pending cuisine items available to mark ready");
     }
 
-    order.status = "READY";
-    order.readyAt = new Date();
+    await deductInventoryForOrder({ items: matchedItems }, session);
+
+    matchedItems.forEach((item) => {
+      item.status = "READY";
+      item.assignedChef = req.user.id;
+      item.readyAt = now;
+      item.isAdditional = false;
+      item.addedAt = null;
+    });
+
+    if (!order.chef) order.chef = req.user.id;
+    if (!order.acceptedAt) order.acceptedAt = now;
+    if (!order.preparingAt) order.preparingAt = now;
+    order.status = deriveOrderStatus(order.items);
+    if (order.status === "READY" && !order.readyAt) order.readyAt = now;
     await order.save({ session });
 
     await session.commitTransaction();
@@ -1736,12 +2015,99 @@ export const markReady = async (req, res) => {
     const populatedOrder = await populateOrderDetails(Order.findById(order._id));
     emitOrderNotification("waiter:order-ready", populatedOrder, "ORDER_READY");
 
-    return sendSuccess(res, order);
+    return sendSuccess(res, populatedOrder);
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
 
     await logError(err, "MARK_READY");
+    return sendError(res, err.message);
+  }
+};
+
+/* ================= KOT PRINT + DIRECT BILLING ================= */
+
+export const printKOT = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const order = await Order.findOne({
+      _id: req.params.id,
+      restaurant: req.user.restaurant,
+      waiter: req.user.id,
+      status: { $in: ACTIVE_ORDER_STATUSES },
+    })
+      .populate("table", "tableNumber")
+      .populate("waiter", "name")
+      .populate({
+        path: "items.menuItem",
+        populate: { path: "ingredients.item" },
+      })
+      .session(session);
+
+    if (!order) {
+      throw new Error("Active order not found");
+    }
+
+    if (!order.items?.length) {
+      throw new Error("Order has no items for KOT");
+    }
+
+    const now = new Date();
+
+    await deductInventoryForOrder(order, session);
+
+    order.items.forEach((item) => {
+      if (item.status === "CANCELLED") return;
+      item.status = "SERVED";
+      item.servedAt = item.servedAt || now;
+      item.isAdditional = false;
+      item.addedAt = null;
+    });
+
+    order.status = "SERVED";
+    order.servedAt = order.servedAt || now;
+    order.kot = {
+      ...(order.kot?.toObject?.() || order.kot || {}),
+      mode: true,
+      printed: true,
+      printedAt: order.kot?.printedAt || now,
+      printedBy: req.user.id,
+      directBilling: true,
+    };
+
+    const jobs = await createKotPrintJobs({ order, session });
+    const bill = await ensurePendingBillForOrder(order, session);
+    await order.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    await logAction({
+      action: "KOT_PRINTED",
+      userId: req.user.id,
+      role: "WAITER",
+      meta: {
+        orderId: order._id,
+        jobCount: jobs.length,
+        billId: bill._id,
+      },
+    });
+
+    const populatedOrder = await populateOrderDetails(Order.findById(order._id));
+    emitOrderNotification("waiter:order-served", populatedOrder, "KOT_PRINTED");
+
+    return sendSuccess(res, {
+      order: populatedOrder,
+      bill,
+      printJobs: jobs,
+    });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+
+    await logError(err, "PRINT_KOT");
     return sendError(res, err.message);
   }
 };
@@ -1754,46 +2120,58 @@ export const markServed = async (req, res) => {
       _id: req.params.id,
       restaurant: req.user.restaurant,
       waiter: req.user.id,
-      status: "READY",
+      status: { $in: ["ACCEPTED", "PREPARING", "READY"] },
     });
 
-    if (!order) return sendError(res, "Order must be ready before serving", 404);
+    if (!order) return sendError(res, "Active order not found", 404);
 
-    order.status = "SERVED";
-    order.servedAt = new Date();
-    order.items.forEach((item) => {
-      item.isAdditional = false;
-      item.addedAt = null;
+    const now = new Date();
+    const readyItems = order.items.filter((item) => item.status === "READY");
+
+    if (readyItems.length === 0) {
+      return sendError(res, "No ready items available to serve", 400);
+    }
+
+    readyItems.forEach((item) => {
+      item.status = "SERVED";
+      item.servedAt = now;
     });
+
+    order.status = deriveOrderStatus(order.items);
+    if (order.status === "SERVED") {
+      order.servedAt = now;
+    }
     await order.save();
 
-    const itemsTotal = order.items.reduce(
-      (sum, i) => sum + i.price * i.quantity,
-      0
-    );
+    if (order.status === "SERVED") {
+      const itemsTotal = order.items.reduce(
+        (sum, i) => sum + i.price * i.quantity,
+        0
+      );
 
-    const existingBill = await Bill.findOne({ order: order._id });
+      const existingBill = await Bill.findOne({ order: order._id });
 
-    if (!existingBill) {
-      const cgstRate = 2.5;
-      const sgstRate = 2.5;
-      const cgst = Math.round(itemsTotal * (cgstRate / 100));
-      const sgst = Math.round(itemsTotal * (sgstRate / 100));
+      if (!existingBill) {
+        const cgstRate = 2.5;
+        const sgstRate = 2.5;
+        const cgst = Math.round(itemsTotal * (cgstRate / 100));
+        const sgst = Math.round(itemsTotal * (sgstRate / 100));
 
-      await Bill.create({
-        restaurant: order.restaurant,
-        order: order._id,
-        table: order.table,
-        itemsTotal,
-        cgst,
-        cgstRate,
-        sgst,
-        sgstRate,
-        discount: 0,
-        totalAmount:
-          itemsTotal + cgst + sgst,
-        paymentStatus: "PENDING",
-      });
+        await Bill.create({
+          restaurant: order.restaurant,
+          order: order._id,
+          table: order.table,
+          itemsTotal,
+          cgst,
+          cgstRate,
+          sgst,
+          sgstRate,
+          discount: 0,
+          totalAmount:
+            itemsTotal + cgst + sgst,
+          paymentStatus: "PENDING",
+        });
+      }
     }
 
     await logAction({

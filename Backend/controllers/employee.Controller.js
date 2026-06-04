@@ -722,13 +722,36 @@ const ROLE_CODES = {
   ACCOUNTANT: "ACC",
 };
 
+const normalizeCuisineTypes = (values) =>
+  Array.isArray(values)
+    ? [...new Set(
+        values
+          .map((value) => String(value || "").trim())
+          .filter(Boolean)
+      )]
+    : [];
+
+const employeeSafeResponse = (employee) => ({
+  id: employee._id,
+  _id: employee._id,
+  name: employee.name,
+  role: employee.role,
+  employeeId: employee.employeeId,
+  restaurant: employee.restaurant,
+  phone: employee.phone,
+  email: employee.email,
+  address: employee.address,
+  cuisineTypes: employee.cuisineTypes || [],
+});
+
 /* ===============================
    CREATE EMPLOYEE
 =============================== */
 
 const createEmployee = async (req, res) => {
   try {
-    const { password, restaurantId, role, ...rest } = req.body;
+    const { password, restaurantId, role, cuisineTypes, ...rest } = req.body;
+    const normalizedRole = String(role || "").toUpperCase();
 
     // 🔐 Role check
     if (req.user.role !== "admin") {
@@ -767,11 +790,11 @@ const createEmployee = async (req, res) => {
       });
     }
 
-    const roleCode = ROLE_CODES[role] || "EMP";
+    const roleCode = ROLE_CODES[normalizedRole] || "EMP";
 
     const count = await Employee.countDocuments({
       restaurant: restaurantId,
-      role,
+      role: normalizedRole,
     });
 
     const sequence = String(count + 1).padStart(3, "0");
@@ -783,7 +806,9 @@ const createEmployee = async (req, res) => {
 
     const employee = await Employee.create({
       ...rest,
-      role,
+      role: normalizedRole,
+      cuisineTypes:
+        normalizedRole === "CHEF" ? normalizeCuisineTypes(cuisineTypes) : [],
       employeeId,
       password: hashedPassword,
       createdBy: req.user.id,
@@ -797,16 +822,7 @@ const createEmployee = async (req, res) => {
     });
 
     // 🔐 Safe response
-    res.status(201).json({
-      id: employee._id,
-      name: employee.name,
-      role: employee.role,
-      employeeId: employee.employeeId,
-      restaurant: employee.restaurant,
-      phone: employee.phone,
-      email: employee.email,
-      address: employee.address,
-    });
+    res.status(201).json(employeeSafeResponse(employee));
 
   } catch (err) {
     await logError(err, "CREATE_EMPLOYEE");
@@ -827,16 +843,7 @@ const getEmployees = async (req, res) => {
     }).populate("restaurant", "name restaurantCode");
 
     // 🔐 Safe response
-    const safeEmployees = employees.map(emp => ({
-      id: emp._id,
-      name: emp.name,
-      role: emp.role,
-      employeeId: emp.employeeId,
-      restaurant: emp.restaurant,
-      address: emp.address,
-      phone: emp.phone,     // ✅ ADD THIS
-      email: emp.email,     // ✅ ADD THI
-    }));
+    const safeEmployees = employees.map(employeeSafeResponse);
 
     res.json(safeEmployees);
 
@@ -871,16 +878,7 @@ const getEmployeeById = async (req, res) => {
       });
     }
 
-    res.json({
-      id: employee._id,
-      name: employee.name,
-      role: employee.role,
-      employeeId: employee.employeeId,
-      restaurant: employee.restaurant,
-      phone: employee.phone,
-      email: employee.email,
-      address: employee.address,
-    });
+    res.json(employeeSafeResponse(employee));
 
   } catch (err) {
     await logError(err, "GET_EMPLOYEE_BY_ID");
@@ -904,14 +902,25 @@ const updateEmployee = async (req, res) => {
     }
 
     // 🔐 Whitelist updates
-    const allowedUpdates = ["name", "email", "phone", "role", "address"];
+    const allowedUpdates = ["name", "email", "phone", "role", "address", "cuisineTypes"];
     const updates = {};
 
     allowedUpdates.forEach((field) => {
       if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
+        updates[field] =
+          field === "cuisineTypes"
+            ? normalizeCuisineTypes(req.body[field])
+            : req.body[field];
       }
     });
+
+    if (updates.role !== undefined) {
+      updates.role = String(updates.role || "").toUpperCase();
+    }
+
+    if (updates.role && updates.role !== "CHEF") {
+      updates.cuisineTypes = [];
+    }
 
     // Admin can also move the employee to another restaurant (optional)
     if (req.body.restaurantId !== undefined) {
@@ -950,16 +959,7 @@ const updateEmployee = async (req, res) => {
       meta: { employeeId: employee._id },
     });
 
-    res.json({
-      id: employee._id,
-      name: employee.name,
-      role: employee.role,
-      employeeId: employee.employeeId,
-      phone: employee.phone,
-      email: employee.email,
-      restaurant: employee.restaurant,
-      address: employee.address,
-    });
+    res.json(employeeSafeResponse(employee));
 
   } catch (err) {
     await logError(err, "UPDATE_EMPLOYEE");
@@ -1176,6 +1176,7 @@ const getMyProfile = async (req, res) => {
       email: employee.email,
       phone: employee.phone,
       restaurantName: employee.restaurant?.name,
+      cuisineTypes: employee.cuisineTypes || [],
     };
 
     res.json(profile);
@@ -1200,7 +1201,7 @@ const getRestaurantEmployees = async (req, res) => {
     }
 
     const employees = await Employee.find({ restaurant: restaurantId })
-      .select("name role employeeId phone email")
+      .select("name role employeeId phone email cuisineTypes")
       .lean();
 
     res.json({ success: true, data: employees });

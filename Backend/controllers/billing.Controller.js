@@ -1,8 +1,10 @@
 import Bill from "../models/Bill.model.js";
+import BillPrintJob from "../models/BillPrintJob.model.js";
 import Inventory from "../models/Inventory.model.js";
 import InventoryLog from "../models/InventoryLog.model.js";
 import Menu from "../models/Menu.model.js";
 import Order from "../models/Order.model.js";
+import PrintAgent from "../models/PrintAgent.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import Table from "../models/Table.model.js";
 import crypto from "crypto";
@@ -24,6 +26,30 @@ const sendError = (res, message, status = 400) =>
   res.status(status).json({ success: false, message });
 
 const asMoney = (value) => Number(value || 0).toFixed(2);
+const receiptText = (value) => String(value || "").trim();
+const receiptLine = (length = 42, char = "-") => char.repeat(length);
+const receiptCenter = (value, width = 42) => {
+  const text = receiptText(value).slice(0, width);
+  const padding = Math.max(width - text.length, 0);
+  const left = Math.floor(padding / 2);
+  return `${" ".repeat(left)}${text}`;
+};
+const receiptPair = (label, value, width = 42) => {
+  const left = receiptText(label).slice(0, width);
+  const right = receiptText(value).slice(0, width);
+  const space = Math.max(width - left.length - right.length, 1);
+  return `${left}${" ".repeat(space)}${right}`.slice(0, width);
+};
+const receiptDate = (value) =>
+  value
+    ? new Date(value).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : new Date().toLocaleString("en-IN");
 
 const defaultBillingTemplate = {
   headerTitle: "",
@@ -335,6 +361,130 @@ const findBillWithOrder = (query) =>
       ],
     });
 
+const buildBillReceiptText = (bill) => {
+  const width = 42;
+  const restaurant = bill.restaurant || {};
+  const template = getBillingTemplate(restaurant);
+  const order = bill.order || {};
+  const items = Array.isArray(order.items) ? order.items : [];
+  const title = template.headerTitle || restaurant.name || "Restaurant";
+  const orderLabel = order.table?.tableNumber
+    ? `Table ${order.table.tableNumber}`
+    : order.orderType || "Order";
+  const totalQty = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const lines = [
+    receiptCenter("Tax Invoice", width),
+    "",
+    receiptCenter(title, width),
+  ];
+
+  if (template.subtitle) lines.push(receiptCenter(template.subtitle, width));
+  if (restaurant.address) lines.push(receiptCenter(restaurant.address, width));
+  if (restaurant.phone) lines.push(receiptCenter(`Phone: ${restaurant.phone}`, width));
+  if (restaurant.gstNo && template.showGstNo) {
+    lines.push(receiptCenter(`GSTIN: ${restaurant.gstNo}`, width));
+  }
+
+  lines.push(
+    receiptLine(width),
+    receiptCenter("Tax Invoice For Supply", width),
+    receiptLine(width),
+    `Invoice No: ${bill.billNo || bill._id || "N/A"}`.slice(0, width),
+    receiptPair("Date:", receiptDate(bill.updatedAt || bill.createdAt), width),
+    receiptPair("Order:", order.orderNo || "N/A", width),
+    receiptPair("Type:", orderLabel, width)
+  );
+
+  if (bill.customerPhone || order.customerPhone) {
+    lines.push(`Mobile: ${bill.customerPhone || order.customerPhone}`.slice(0, width));
+  }
+
+  lines.push(receiptLine(width), "Sl Product              Qty   Rate    Amt");
+
+  items.forEach((item, index) => {
+    const name = item.menuItem?.name || item.name || "Menu Item";
+    const qty = Number(item.quantity || 0);
+    const rate = Number(item.price ?? item.menuItem?.price ?? 0);
+    const amount = rate * qty;
+
+    lines.push(`${String(index + 1).padStart(2, " ")} ${name}`.slice(0, width));
+    lines.push(
+      receiptPair(
+        `   ${qty.toFixed(2)} x ${asMoney(rate)}`,
+        asMoney(amount),
+        width
+      )
+    );
+  });
+
+  lines.push(
+    receiptLine(width),
+    receiptPair("Total Qty:", totalQty, width),
+    receiptPair("Total Sale:", asMoney(bill.itemsTotal), width)
+  );
+
+  if (Number(bill.complimentaryAmount || 0) > 0) {
+    lines.push(receiptPair("Complimentary:", `-${asMoney(bill.complimentaryAmount)}`, width));
+  }
+  if (Number(bill.discount || 0) > 0) {
+    lines.push(receiptPair("Discount:", `-${asMoney(bill.discount)}`, width));
+  }
+  if (Number(bill.serviceCharge || 0) > 0) {
+    lines.push(receiptPair("Service Charge:", asMoney(bill.serviceCharge), width));
+  }
+  if (template.showTaxBreakup) {
+    lines.push(
+      receiptPair(`CGST (${asMoney(bill.cgstRate)}%):`, asMoney(bill.cgst), width),
+      receiptPair(`SGST (${asMoney(bill.sgstRate)}%):`, asMoney(bill.sgst), width)
+    );
+  }
+
+  lines.push(
+    receiptLine(width),
+    receiptPair("Net Payable:", asMoney(bill.totalAmount), width),
+    receiptPair("Status:", bill.paymentStatus || "PENDING", width),
+    receiptLine(width),
+    receiptCenter(template.footerMessage || "Thank you for dining with us.", width),
+    "",
+    ""
+  );
+
+  return lines.join("\n");
+};
+
+const queueBillPrintJob = async (billId, requestedBy = null) => {
+  const bill = await findBillWithOrder({ _id: billId });
+  if (!bill) return null;
+
+  const receiptText = buildBillReceiptText(bill);
+
+  const agent = await PrintAgent.findOne({
+    restaurant: bill.restaurant?._id || bill.restaurant,
+    isActive: true,
+  }).sort({ updatedAt: -1 });
+
+  if (!agent) {
+    return {
+      _id: `local-${bill._id}`,
+      restaurant: bill.restaurant?._id || bill.restaurant,
+      bill: bill._id,
+      requestedBy,
+      printerName: "",
+      receiptText,
+      status: "LOCAL",
+    };
+  }
+
+  return BillPrintJob.create({
+    restaurant: bill.restaurant?._id || bill.restaurant,
+    bill: bill._id,
+    requestedBy,
+    printerName: agent.billPrinterName,
+    receiptText,
+    status: "PENDING",
+  });
+};
+
 const getAuthorizedRestaurantIds = async (req) => {
   if (req.user.role === "admin") {
     return Restaurant.find({ admin: req.user.id }).distinct("_id");
@@ -591,8 +741,9 @@ const createManualBill = async (req, res) => {
       _id: bill._id,
       restaurant: req.user.restaurant,
     });
+    const printJob = await queueBillPrintJob(bill._id, req.user.id);
 
-    return sendSuccess(res, populatedBill, 201);
+    return sendSuccess(res, { ...populatedBill.toObject(), printJob }, 201);
   } catch (err) {
     if (session) {
       await session.abortTransaction();
@@ -691,6 +842,7 @@ const customizeBill = async (req, res) => {
     }
 
     await bill.save();
+    const printJob = await queueBillPrintJob(bill._id, req.user.id);
 
     const sendToEmail = Boolean(req.body.sendToEmail);
     const sendToPhone = Boolean(req.body.sendToPhone);
@@ -774,6 +926,7 @@ const customizeBill = async (req, res) => {
 
     return sendSuccess(res, {
       bill,
+      printJob,
       deliveryMessage,
       delivery,
     });
