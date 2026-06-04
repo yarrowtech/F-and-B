@@ -10,7 +10,6 @@ import {
   printOrderKOT,
 } from "../../services/order.service";
 import { getMenu } from "../../services/menu.service";
-import { printJobsOnThisDevice } from "../../services/localPrint.service";
 import { getTables } from "../../services/table.service";
 import socket from "../../socket/socket";
 
@@ -452,11 +451,10 @@ export default function WaiterManagement() {
     try {
       setKotPrintingId(orderId);
       const result = await printOrderKOT(orderId);
-      const printedCount = await printJobsOnThisDevice(result?.printJobs || []);
       await load();
       const count = result?.printJobs?.length || 0;
       setBillMessage(
-        `KOT print started on this device: ${printedCount}/${count}. Bill is ready for accountant.`
+        `KOT sent to ${count || "kitchen"} kitchen print job${count === 1 ? "" : "s"}. Chef/kitchen device will print automatically. Bill is ready for accountant.`
       );
     } catch (err) {
       alert(err.response?.data?.message || err.message || "KOT print failed");

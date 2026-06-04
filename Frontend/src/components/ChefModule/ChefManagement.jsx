@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FaBell, FaCheckCircle, FaClock, FaSearch, FaTimes, FaUserCheck, FaUtensils } from "react-icons/fa";
+import { getMyKotPrintJobs, markMyKotPrintJobPrinted } from "../../services/kotPrint.service";
+import { printOnThisDevice } from "../../services/localPrint.service";
 import { acceptOrder, getChefOrders, updateOrderStatusApi } from "../../services/order.service";
 import socket from "../../socket/socket";
 
@@ -54,6 +56,9 @@ export default function ChefManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [actionLoading, setActionLoading] = useState(null);
   const [liveNotifications, setLiveNotifications] = useState([]);
+  const [printNotice, setPrintNotice] = useState("");
+  const kotPrintingRef = useRef(new Set());
+  const kotFailedRef = useRef(new Set());
 
   const chefId = (() => {
     try {
@@ -151,6 +156,55 @@ export default function ChefManagement() {
       socket.off("chef:order-accepted", handleOrderAccepted);
     };
   }, [chefRestaurantId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const printPendingKotJobs = async () => {
+      try {
+        const jobs = await getMyKotPrintJobs();
+
+        for (const job of jobs) {
+          if (
+            cancelled ||
+            !job?._id ||
+            !job.receiptText ||
+            kotPrintingRef.current.has(job._id) ||
+            kotFailedRef.current.has(job._id)
+          ) {
+            continue;
+          }
+
+          kotPrintingRef.current.add(job._id);
+
+          try {
+            await printOnThisDevice({
+              receiptText: job.receiptText,
+              printerName: "",
+            });
+            await markMyKotPrintJobPrinted(job._id);
+            setPrintNotice(`KOT printed: ${job.cuisine || "Kitchen"}`);
+          } catch (err) {
+            kotFailedRef.current.add(job._id);
+            setPrintNotice("KOT waiting: start local print agent on this device.");
+            console.error("KOT local print failed", err);
+          } finally {
+            kotPrintingRef.current.delete(job._id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load KOT print jobs", err);
+      }
+    };
+
+    printPendingKotJobs();
+    const timer = setInterval(printPendingKotJobs, 3000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
 
   const closeLiveNotification = (id) => {
     const notification = liveNotifications.find((item) => item.id === id);
@@ -431,6 +485,12 @@ export default function ChefManagement() {
         </div>
       )}
       <div className="mx-auto max-w-7xl space-y-5">
+        {printNotice && (
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200">
+            {printNotice}
+          </div>
+        )}
+
         <div className="grid gap-3 sm:grid-cols-3">
           <StatCard type="pending" value={totalPending} />
           <StatCard type="accepted" value={totalAccepted} />
