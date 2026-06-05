@@ -134,6 +134,11 @@ export const printOrderKOT = async (id) => {
   return res.data?.data || null;
 };
 
+export const sendOrderToBilling = async (id) => {
+  const res = await api.post(`/order/${id}/bill`);
+  return res.data?.data || null;
+};
+
 /* ===================================================
    👨‍🍳 CHEF
 =================================================== */

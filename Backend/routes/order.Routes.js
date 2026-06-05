@@ -158,6 +158,7 @@ import {
   markPreparing,
   markReady,
   printKOT,
+  sendOrderToBilling,
   markServed,
   markPaid,
 } from "../controllers/order.Controller.js";
@@ -177,6 +178,8 @@ router.put("/:id/served", auth, allowRoles("waiter"), markServed);
 router.put("/:id/table", auth, allowRoles("waiter", "accountant"), changeOrderTable);
 
 router.post("/:id/kot", auth, allowRoles("waiter"), printKOT);
+
+router.post("/:id/bill", auth, allowRoles("waiter"), sendOrderToBilling);
 
 /* ===============================
    CHEF

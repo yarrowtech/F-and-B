@@ -8,6 +8,7 @@ import {
   getWaiterOrders,
   markOrderServed,
   printOrderKOT,
+  sendOrderToBilling,
 } from "../../services/order.service";
 import { getMenu } from "../../services/menu.service";
 import { getTables } from "../../services/table.service";
@@ -67,6 +68,7 @@ export default function WaiterManagement() {
   const [movingTable, setMovingTable] = useState(false);
   const [liveNotifications, setLiveNotifications] = useState([]);
   const [kotPrintingId, setKotPrintingId] = useState("");
+  const [billingId, setBillingId] = useState("");
 
   const load = async () => {
     if (!restaurantId) {
@@ -238,7 +240,7 @@ export default function WaiterManagement() {
         : "Occupied by another waiter";
     }
     if (order.status === "PENDING") return "Order Placed";
-    if (isKotDirectBilling(order)) return "KOT Printed - Ready for Billing";
+    if (isKotDirectBilling(order)) return "KOT Sent - Ready for Bill";
     if (order.status === "ACCEPTED") {
       return order.chef?.name ? `Accepted by Chef ${order.chef.name}` : "Accepted by Chef";
     }
@@ -263,23 +265,33 @@ export default function WaiterManagement() {
     }
     if (isKotDirectBilling(order)) {
       return isBilled
-        ? "KOT printed and bill has been sent to accountant."
-        : "KOT printed to kitchen. Chef tracking is skipped and bill is ready.";
+        ? "Bill has been sent to accountant for payment processing."
+        : "KOT sent to kitchen. Click Bill only when the customer asks for billing.";
     }
     if (allItemsServed(order)) {
       return isBilled
         ? "Bill has been sent to accountant for payment processing."
-        : "Order served. Bill is ready for accountant and you can still edit if customer adds more.";
+        : "Order served. Click Bill when the customer asks for billing.";
     }
     return "Tap or use the action buttons below to continue this order flow.";
   };
 
-  const handleBill = (order) => {
+  const handleBill = async (order) => {
     if (!order || !canBillOrder(order)) return;
-    setBilledOrderIds((prev) =>
-      prev.includes(order._id) ? prev : [...prev, order._id]
-    );
-    setBillMessage("Bill goes to Accountant > Order Billing for payment processing.");
+
+    try {
+      setBillingId(order._id);
+      await sendOrderToBilling(order._id);
+      setBilledOrderIds((prev) =>
+        prev.includes(order._id) ? prev : [...prev, order._id]
+      );
+      await load();
+      setBillMessage("Bill sent to Accountant > Order Billing for payment processing.");
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || "Send to billing failed");
+    } finally {
+      setBillingId("");
+    }
   };
 
   const closeBillMessage = () => setBillMessage("");
@@ -455,7 +467,7 @@ export default function WaiterManagement() {
       await load();
       const count = printJobs.length;
       setBillMessage(
-        `KOT sent to ${count || "kitchen"} chef/kitchen print job${count === 1 ? "" : "s"}. Chef-login printer PC will print automatically. Bill is ready for accountant.`
+        `KOT sent to ${count || "kitchen"} chef/kitchen print job${count === 1 ? "" : "s"}. Click Bill when the customer asks for billing.`
       );
     } catch (err) {
       alert(err.response?.data?.message || err.message || "KOT print failed");
@@ -645,9 +657,10 @@ export default function WaiterManagement() {
                             e.stopPropagation();
                             handleBill(order);
                           }}
+                          disabled={billingId === order._id}
                           className="min-h-11 rounded-xl bg-violet-600 px-3 py-2 text-sm font-semibold text-white"
                         >
-                          Bill
+                          {billingId === order._id ? "Sending..." : "Bill"}
                         </button>
                       )}
                     </div>
@@ -741,9 +754,10 @@ export default function WaiterManagement() {
                             e.stopPropagation();
                             handleBill(order);
                           }}
-                          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 sm:w-auto"
+                          disabled={billingId === order._id}
+                          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-60 sm:w-auto"
                         >
-                          Bill
+                          {billingId === order._id ? "Sending..." : "Bill"}
                         </button>
                       )}
                     </div>
@@ -1055,7 +1069,9 @@ export default function WaiterManagement() {
                 <FaCheckCircle />
               </div>
               <div>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">Bill Sent</h3>
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
+                  {billMessage.startsWith("KOT") ? "KOT Sent" : "Bill Sent"}
+                </h3>
                 <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{billMessage}</p>
               </div>
               <button

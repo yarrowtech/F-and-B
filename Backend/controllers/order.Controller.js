@@ -2027,7 +2027,20 @@ export const markReady = async (req, res) => {
   }
 };
 
-/* ================= KOT PRINT + DIRECT BILLING ================= */
+const isOrderReadyForBilling = (order) => {
+  if (order?.kot?.printed || order?.kot?.mode) return true;
+
+  const activeItems = (order?.items || []).filter(
+    (item) => item.status !== "CANCELLED"
+  );
+
+  return (
+    activeItems.length > 0 &&
+    activeItems.every((item) => item.status === "SERVED")
+  );
+};
+
+/* ================= KOT PRINT ================= */
 
 export const printKOT = async (req, res) => {
   const session = await mongoose.startSession();
@@ -2076,11 +2089,10 @@ export const printKOT = async (req, res) => {
       printed: true,
       printedAt: order.kot?.printedAt || now,
       printedBy: req.user.id,
-      directBilling: true,
+      directBilling: false,
     };
 
     const jobs = await createKotPrintJobs({ order, session });
-    const bill = await ensurePendingBillForOrder(order, session);
     await order.save({ session });
 
     await session.commitTransaction();
@@ -2093,7 +2105,6 @@ export const printKOT = async (req, res) => {
       meta: {
         orderId: order._id,
         jobCount: jobs.length,
-        billId: bill._id,
       },
     });
 
@@ -2102,7 +2113,6 @@ export const printKOT = async (req, res) => {
 
     return sendSuccess(res, {
       order: populatedOrder,
-      bill,
       printJobs: jobs,
     });
   } catch (err) {
@@ -2110,6 +2120,53 @@ export const printKOT = async (req, res) => {
     session.endSession();
 
     await logError(err, "PRINT_KOT");
+    return sendError(res, err.message);
+  }
+};
+
+/* ================= SEND TO BILLING ================= */
+
+export const sendOrderToBilling = async (req, res) => {
+  try {
+    const order = await Order.findOne({
+      _id: req.params.id,
+      restaurant: req.user.restaurant,
+      waiter: req.user.id,
+      status: { $in: ACTIVE_ORDER_STATUSES },
+    });
+
+    if (!order) {
+      return sendError(res, "Active order not found", 404);
+    }
+
+    if (!isOrderReadyForBilling(order)) {
+      return sendError(res, "Order is not ready for billing", 400);
+    }
+
+    const bill = await ensurePendingBillForOrder(order);
+    if (!bill.generatedBy) bill.generatedBy = req.user.id;
+    if (!bill.generatedAt) bill.generatedAt = new Date();
+    await bill.save();
+
+    await logAction({
+      action: "ORDER_SENT_TO_BILLING",
+      userId: req.user.id,
+      role: "WAITER",
+      meta: {
+        orderId: order._id,
+        billId: bill._id,
+      },
+    });
+
+    const populatedOrder = await populateOrderDetails(Order.findById(order._id));
+    emitOrderNotification("waiter:order-billed", populatedOrder, "BILLING_REQUESTED");
+
+    return sendSuccess(res, {
+      order: populatedOrder,
+      bill,
+    });
+  } catch (err) {
+    await logError(err, "SEND_ORDER_TO_BILLING");
     return sendError(res, err.message);
   }
 };
@@ -2144,37 +2201,6 @@ export const markServed = async (req, res) => {
       order.servedAt = now;
     }
     await order.save();
-
-    if (order.status === "SERVED") {
-      const itemsTotal = order.items.reduce(
-        (sum, i) => sum + i.price * i.quantity,
-        0
-      );
-
-      const existingBill = await Bill.findOne({ order: order._id });
-
-      if (!existingBill) {
-        const cgstRate = 2.5;
-        const sgstRate = 2.5;
-        const cgst = Math.round(itemsTotal * (cgstRate / 100));
-        const sgst = Math.round(itemsTotal * (sgstRate / 100));
-
-        await Bill.create({
-          restaurant: order.restaurant,
-          order: order._id,
-          table: order.table,
-          itemsTotal,
-          cgst,
-          cgstRate,
-          sgst,
-          sgstRate,
-          discount: 0,
-          totalAmount:
-            itemsTotal + cgst + sgst,
-          paymentStatus: "PENDING",
-        });
-      }
-    }
 
     await logAction({
       action: "ORDER_SERVED",

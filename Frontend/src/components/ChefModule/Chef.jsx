@@ -144,6 +144,7 @@ const Chef = () => {
   const [kotPrintJobs, setKotPrintJobs] = useState([]);
   const [kotLoading, setKotLoading] = useState(false);
   const [kotPrintingId, setKotPrintingId] = useState("");
+  const [kotError, setKotError] = useState("");
   const mainRef = useRef(null);
 
   const chefRestaurantId = (() => {
@@ -206,10 +207,12 @@ const Chef = () => {
       if (showLoading) setKotLoading(true);
       const jobs = await getMyKotPrintJobs();
       setKotPrintJobs(jobs);
+      setKotError("");
       if (jobs.length > 0) {
         setPrintNotice(`Pending KOT print job${jobs.length === 1 ? "" : "s"}: ${jobs.length}`);
       }
     } catch (err) {
+      setKotError(err.response?.data?.message || err.message || "Failed to load KOT queue");
       console.error("Failed to load KOT print jobs", err);
     } finally {
       if (showLoading) setKotLoading(false);
@@ -274,7 +277,7 @@ const Chef = () => {
   };
 
   const renderKotPrintQueue = () => {
-    if (kotPrintJobs.length === 0) return null;
+    if (active !== "management") return null;
 
     return (
       <section className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/30">
@@ -299,6 +302,19 @@ const Chef = () => {
           </button>
         </div>
 
+        {kotError && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+            {kotError}
+          </div>
+        )}
+
+        {!kotError && kotPrintJobs.length === 0 && (
+          <div className="rounded-md border border-amber-200 bg-white px-3 py-3 text-sm font-semibold text-amber-800 dark:border-amber-900/50 dark:bg-neutral-900 dark:text-amber-100">
+            No pending KOT for your assigned cuisine.
+          </div>
+        )}
+
+        {kotPrintJobs.length > 0 && (
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {kotPrintJobs.map((job) => (
             <article
@@ -331,6 +347,7 @@ const Chef = () => {
             </article>
           ))}
         </div>
+        )}
       </section>
     );
   };
