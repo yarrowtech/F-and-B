@@ -1330,6 +1330,17 @@ const emitOrderNotification = (event, order, type) => {
   }
 };
 
+const formatKotDateTime = (value) =>
+  new Date(value).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
 const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt }) => {
   const tableNo = order.table?.tableNumber || "N/A";
   const waiterName = order.waiter?.name || "N/A";
@@ -1341,7 +1352,7 @@ const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt }) => {
     `Table: ${tableNo}`,
     `Section: ${displayCuisine(cuisine)}`,
     `Waiter: ${waiterName}`,
-    `Time: ${new Date(printedAt).toLocaleString("en-IN")}`,
+    `Time: ${formatKotDateTime(printedAt)}`,
     "------------------------------",
   ];
 
