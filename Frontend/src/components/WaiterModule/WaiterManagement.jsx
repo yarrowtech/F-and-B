@@ -9,6 +9,8 @@ import {
   markOrderServed,
   printOrderKOT,
 } from "../../services/order.service";
+import { markMyKotPrintJobPrinted } from "../../services/kotPrint.service";
+import { printJobsOnThisDevice } from "../../services/localPrint.service";
 import { getMenu } from "../../services/menu.service";
 import { getTables } from "../../services/table.service";
 import socket from "../../socket/socket";
@@ -451,10 +453,28 @@ export default function WaiterManagement() {
     try {
       setKotPrintingId(orderId);
       const result = await printOrderKOT(orderId);
+      const printJobs = result?.printJobs || [];
+      let printedCount = 0;
+      let localPrintFailed = false;
+
+      try {
+        printedCount = await printJobsOnThisDevice(printJobs);
+        for (const job of printJobs.filter((item) => item?._id)) {
+          await markMyKotPrintJobPrinted(job._id);
+        }
+      } catch (printErr) {
+        localPrintFailed = true;
+        console.error("KOT local/browser print failed", printErr);
+      }
+
       await load();
-      const count = result?.printJobs?.length || 0;
+      const count = printJobs.length;
       setBillMessage(
-        `KOT sent to ${count || "kitchen"} kitchen print job${count === 1 ? "" : "s"}. Chef/kitchen device will print automatically. Bill is ready for accountant.`
+        printedCount > 0
+          ? `KOT printed on this device: ${printedCount}/${count}. Bill is ready for accountant.`
+          : localPrintFailed
+          ? `KOT created but this device could not print. Kitchen/chef device will keep trying pending KOT jobs.`
+          : `KOT sent to ${count || "kitchen"} kitchen print job${count === 1 ? "" : "s"}. Chef/kitchen device will print automatically. Bill is ready for accountant.`
       );
     } catch (err) {
       alert(err.response?.data?.message || err.message || "KOT print failed");

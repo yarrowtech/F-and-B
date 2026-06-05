@@ -34,12 +34,19 @@ http://127.0.0.1:17877
 
 So only browsers on that same PC can use it.
 
+To start the helper automatically whenever Windows logs in:
+
+```powershell
+cd Backend
+powershell -ExecutionPolicy Bypass -File .\scripts\installLocalPrintAgentStartup.ps1
+```
+
 ## Role-Based KOT Printing
 
 For automatic kitchen KOT printing:
 
 - Keep the chef/kitchen account logged in on the printer-connected PC.
-- Keep the Chef Management screen open.
+- Keep any Chef module screen open. Auto KOT printing runs in the main chef layout.
 - The chef's cuisine assignment controls which KOT jobs print on that device.
 - If chef cuisine assignment is empty, that chef device can receive all cuisines for that restaurant.
 

@@ -22,6 +22,8 @@ import ChefDashboard from "./ChefDashboard";
 import ChefMessage from "./ChefMessage";
 import ChefNotifications from "./ChefNotification";
 import { getUser, logout } from "../../services/auth.service";
+import { getMyKotPrintJobs, markMyKotPrintJobPrinted } from "../../services/kotPrint.service";
+import { printOnThisDevice } from "../../services/localPrint.service";
 import socket from "../../socket/socket";
 
 function ChefProfileButton() {
@@ -138,6 +140,8 @@ const Chef = () => {
   const [active, setActive] = useState("dashboard");
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const [notificationOrderIds, setNotificationOrderIds] = useState([]);
+  const [printNotice, setPrintNotice] = useState("");
+  const kotPrintingRef = useRef(new Set());
   const mainRef = useRef(null);
 
   const chefRestaurantId = (() => {
@@ -194,6 +198,53 @@ const Chef = () => {
       window.removeEventListener("chef-notification-dismissed", handleOrderAccepted);
     };
   }, [chefRestaurantId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const printPendingKotJobs = async () => {
+      try {
+        const jobs = await getMyKotPrintJobs();
+
+        for (const job of jobs) {
+          if (
+            cancelled ||
+            !job?._id ||
+            !job.receiptText ||
+            kotPrintingRef.current.has(job._id)
+          ) {
+            continue;
+          }
+
+          kotPrintingRef.current.add(job._id);
+
+          try {
+            await printOnThisDevice({
+              receiptText: job.receiptText,
+              printerName: "",
+            });
+            await markMyKotPrintJobPrinted(job._id);
+            setPrintNotice(`KOT auto printed: ${job.cuisine || "Kitchen"}`);
+          } catch (err) {
+            setPrintNotice("KOT auto print waiting: run local print agent on this device.");
+            console.error("KOT auto print failed", err);
+          } finally {
+            kotPrintingRef.current.delete(job._id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load KOT print jobs", err);
+      }
+    };
+
+    printPendingKotJobs();
+    const timer = setInterval(printPendingKotJobs, 2500);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
 
   const handleSetActive = useCallback((section) => {
     setActive(section);
@@ -279,6 +330,11 @@ const Chef = () => {
             ref={mainRef}
             className="flex-1 overflow-y-auto bg-white p-3 pb-24 dark:bg-neutral-800 sm:p-4 lg:p-6 lg:pb-6"
           >
+            {printNotice && (
+              <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
+                {printNotice}
+              </div>
+            )}
             {renderContent()}
           </main>
         </div>

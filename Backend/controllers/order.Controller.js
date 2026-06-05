@@ -1414,7 +1414,7 @@ const createKotPrintJobs = async ({ order, session }) => {
     const job = await KotPrintJob.findOneAndUpdate(
       { order: order._id, cuisine: group.cuisine },
       {
-        $setOnInsert: {
+        $set: {
           restaurant: order.restaurant,
           order: order._id,
           waiter: order.waiter?._id || order.waiter,
@@ -1423,6 +1423,8 @@ const createKotPrintJobs = async ({ order, session }) => {
           payload,
           receiptText,
           status: "PENDING",
+          printedAt: null,
+          lastError: "",
         },
       },
       {
