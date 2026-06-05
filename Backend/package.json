@@ -9,6 +9,7 @@
     "seed": "node seeds.js",
     "bill:print-agent": "node scripts/billPrintAgent.js",
     "kot:print-agent": "node scripts/kotPrintAgent.js",
+    "chef:kot-agent": "node scripts/chefKotPrintAgent.js",
     "local:print-agent": "node scripts/localDevicePrintAgent.js",
     "reset:super-admin": "node scripts/resetSuperAdminCredentials.js",
     "delete:super-admin": "node scripts/deleteSuperAdmin.js"
