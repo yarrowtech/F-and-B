@@ -23,7 +23,7 @@ import ChefMessage from "./ChefMessage";
 import ChefNotifications from "./ChefNotification";
 import { getUser, logout } from "../../services/auth.service";
 import { getMyKotPrintJobs, markMyKotPrintJobPrinted } from "../../services/kotPrint.service";
-import { printOnThisDevice } from "../../services/localPrint.service";
+import { printTextInBrowser } from "../../services/localPrint.service";
 import socket from "../../socket/socket";
 
 function ChefProfileButton() {
@@ -227,10 +227,7 @@ const Chef = () => {
 
     try {
       setKotPrintingId(job._id);
-      await printOnThisDevice({
-        receiptText: job.receiptText,
-        printerName: "",
-      });
+      printTextInBrowser(job.receiptText, job.cuisine ? `KOT - ${job.cuisine}` : "KOT");
       await markMyKotPrintJobPrinted(job._id);
       setPrintNotice(`KOT printed: ${job.cuisine || "Kitchen"}`);
       await loadKotPrintJobs();

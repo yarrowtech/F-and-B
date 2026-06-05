@@ -11,7 +11,7 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
-const printTextInBrowser = (receiptText, title = "Print") => {
+export const printTextInBrowser = (receiptText, title = "Print") => {
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
