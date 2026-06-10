@@ -85,3 +85,29 @@ export const getMenuAnalytics = async (restaurantId, range) => {
 
   return Array.isArray(res.data) ? res.data : [];
 };
+
+export const downloadMenuSalesExcel = async (restaurantId, params = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) query.set(key, value);
+  });
+
+  const res = await api.get(
+    `/menu/orders-by-date/${restaurantId}/excel?${query.toString()}`,
+    { responseType: "blob" }
+  );
+
+  const blob = new Blob([res.data], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const from = params.startDate || params.date || params.range || "sales";
+  const to = params.endDate || params.date || "";
+  link.href = url;
+  link.download = `menu-item-sales-${from}${to ? `-to-${to}` : ""}.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};

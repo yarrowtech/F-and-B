@@ -1100,6 +1100,7 @@ import Bill from "../models/Bill.model.js";
 import SalesAnalytics from "../models/SalesAnalytics.model.js";
 import Menu from "../models/Menu.model.js";
 import Inventory from "../models/Inventory.model.js";
+import InventoryLog from "../models/InventoryLog.model.js";
 import Employee from "../models/Employee.model.js";
 import KotPrintJob from "../models/KotPrintJob.model.js";
 import { getIO } from "../socket.js";
@@ -1242,7 +1243,25 @@ const deriveOrderStatus = (items = []) => {
   return "PENDING";
 };
 
-const filterOrdersForChefCuisine = (orders, cuisineSet, chefId) =>
+const getKotCuisineKey = (orderId, cuisine) =>
+  `${String(orderId)}:${normalizeCuisine(cuisine)}`;
+
+const getPrintedKotCuisineKeys = async (restaurantId, orders) => {
+  const orderIds = orders.map((order) => order._id).filter(Boolean);
+  if (orderIds.length === 0) return new Set();
+
+  const jobs = await KotPrintJob.find({
+    restaurant: restaurantId,
+    order: { $in: orderIds },
+    status: "PRINTED",
+  }).select("order cuisine");
+
+  return new Set(
+    jobs.map((job) => getKotCuisineKey(job.order, job.cuisine))
+  );
+};
+
+const filterOrdersForChefCuisine = (orders, cuisineSet, chefId, printedKotCuisineKeys = new Set()) =>
   orders
     .map((order) => {
       const data = order.toObject ? order.toObject() : order;
@@ -1250,8 +1269,15 @@ const filterOrdersForChefCuisine = (orders, cuisineSet, chefId) =>
         const assignedChefId = String(item.assignedChef?._id || item.assignedChef || "");
         const isMine = assignedChefId === String(chefId);
         const isOpen = !assignedChefId && item.status === "PENDING";
+        const isPrintedKotPendingItem =
+          item.status === "PENDING" &&
+          printedKotCuisineKeys.has(getKotCuisineKey(data._id, item.menuItem?.cuisine));
 
-        return isChefCuisineItem(item, cuisineSet) && (isOpen || isMine);
+        return (
+          isChefCuisineItem(item, cuisineSet) &&
+          !isPrintedKotPendingItem &&
+          (isOpen || isMine)
+        );
       });
       return data;
     })
@@ -1475,7 +1501,7 @@ const syncTableStatusAfterMove = async ({
   }
 };
 
-const deductInventoryForOrder = async (order, session) => {
+const deductInventoryForOrder = async (order, session, user = {}) => {
   const itemsToDeduct = getItemsForInventoryDeduction(order);
 
   for (const item of itemsToDeduct) {
@@ -1509,7 +1535,23 @@ const deductInventoryForOrder = async (order, session) => {
       }
 
       inventory.quantity -= requiredQty;
+      inventory.lastUpdatedBy = user.id || inventory.lastUpdatedBy;
       await inventory.save({ session });
+
+      await InventoryLog.create(
+        [
+          {
+            item: inventory._id,
+            restaurant: inventory.restaurant,
+            quantityAdded: -requiredQty,
+            unit: inventory.unit,
+            action: "UPDATE",
+            addedBy: user.id || null,
+            addedByName: user.name || "",
+          },
+        ],
+        { session }
+      );
     }
 
     item.inventoryDeducted = true;
@@ -1711,8 +1753,15 @@ export const getChefOrders = async (req, res) => {
     const orders = await populateOrderDetails(
       Order.find(filter).sort({ createdAt: -1 })
     );
+    const printedKotCuisineKeys = await getPrintedKotCuisineKeys(
+      req.user.restaurant,
+      orders
+    );
 
-    return sendSuccess(res, filterOrdersForChefCuisine(orders, cuisineSet, req.user.id));
+    return sendSuccess(
+      res,
+      filterOrdersForChefCuisine(orders, cuisineSet, req.user.id, printedKotCuisineKeys)
+    );
   } catch (err) {
     await logError(err, "GET_CHEF_ORDERS");
     return sendError(res, err.message);
@@ -1741,7 +1790,31 @@ export const getWaiterOrders = async (req, res) => {
       Order.find(filter).sort({ createdAt: -1 })
     );
 
-    return sendSuccess(res, orders);
+    const bills = await Bill.find({
+      order: { $in: orders.map((order) => order._id) },
+      paymentStatus: "PENDING",
+    })
+      .select("order paymentStatus generatedAt")
+      .lean();
+
+    const billByOrder = new Map(
+      bills.map((bill) => [String(bill.order), bill])
+    );
+
+    const ordersWithBilling = orders.map((order) => {
+      const data = order.toObject ? order.toObject() : order;
+      const bill = billByOrder.get(String(order._id));
+      data.billing = bill
+        ? {
+            sent: true,
+            status: bill.paymentStatus,
+            generatedAt: bill.generatedAt,
+          }
+        : { sent: false };
+      return data;
+    });
+
+    return sendSuccess(res, ordersWithBilling);
   } catch (err) {
     await logError(err, "GET_WAITER_ORDERS");
     return sendError(res, err.message);
@@ -1998,7 +2071,7 @@ export const markReady = async (req, res) => {
       throw new Error("No pending cuisine items available to mark ready");
     }
 
-    await deductInventoryForOrder({ items: matchedItems }, session);
+    await deductInventoryForOrder({ items: matchedItems }, session, req.user);
 
     matchedItems.forEach((item) => {
       item.status = "READY";
@@ -2082,7 +2155,7 @@ export const printKOT = async (req, res) => {
 
     const now = new Date();
 
-    await deductInventoryForOrder(order, session);
+    await deductInventoryForOrder(order, session, req.user);
 
     order.items.forEach((item) => {
       if (item.status === "CANCELLED") return;

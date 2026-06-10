@@ -232,6 +232,9 @@ export default function WaiterManagement() {
 
   const canBillOrder = (order) => isKotDirectBilling(order) || allItemsServed(order);
 
+  const isBillingSent = (order) =>
+    Boolean(order?.billing?.sent || billedOrderIds.includes(order?._id));
+
   const getStatusLabel = (order) => {
     if (!order) return "Available";
     if (!isOwnOrder(order)) {
@@ -239,6 +242,7 @@ export default function WaiterManagement() {
         ? `Occupied by ${order.waiter.name}`
         : "Occupied by another waiter";
     }
+    if (isBillingSent(order)) return "Sent to Billing";
     if (order.status === "PENDING") return "Order Placed";
     if (isKotDirectBilling(order)) return "KOT Sent - Ready for Bill";
     if (order.status === "ACCEPTED") {
@@ -277,7 +281,7 @@ export default function WaiterManagement() {
   };
 
   const handleBill = async (order) => {
-    if (!order || !canBillOrder(order)) return;
+    if (!order || !canBillOrder(order) || isBillingSent(order)) return;
 
     try {
       setBillingId(order._id);
@@ -590,7 +594,7 @@ export default function WaiterManagement() {
             {tables.map((table) => {
               const order = tableOrders[table._id];
               const isLocked = Boolean(order && !isOwnOrder(order));
-              const isBilled = order ? billedOrderIds.includes(order._id) : false;
+              const isBilled = isBillingSent(order);
               return (
                 <div
                   key={table._id}
@@ -657,10 +661,16 @@ export default function WaiterManagement() {
                             e.stopPropagation();
                             handleBill(order);
                           }}
-                          disabled={billingId === order._id}
-                          className="min-h-11 rounded-xl bg-violet-600 px-3 py-2 text-sm font-semibold text-white"
+                          disabled={billingId === order._id || isBilled}
+                          className={`min-h-11 rounded-xl px-3 py-2 text-sm font-semibold text-white disabled:opacity-70 ${
+                            isBilled ? "bg-red-600" : "bg-violet-600"
+                          }`}
                         >
-                          {billingId === order._id ? "Sending..." : "Bill"}
+                          {isBilled
+                            ? "Sent to Billing"
+                            : billingId === order._id
+                              ? "Sending..."
+                              : "Bill"}
                         </button>
                       )}
                     </div>
@@ -674,7 +684,7 @@ export default function WaiterManagement() {
             {tables.map((table) => {
               const order = tableOrders[table._id];
               const isLocked = Boolean(order && !isOwnOrder(order));
-              const isBilled = order ? billedOrderIds.includes(order._id) : false;
+              const isBilled = isBillingSent(order);
               return (
                 <div
                   key={table._id}
@@ -754,10 +764,18 @@ export default function WaiterManagement() {
                             e.stopPropagation();
                             handleBill(order);
                           }}
-                          disabled={billingId === order._id}
-                          className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-60 sm:w-auto"
+                          disabled={billingId === order._id || isBilled}
+                          className={`inline-flex min-h-11 w-full items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-70 sm:w-auto ${
+                            isBilled
+                              ? "bg-red-600"
+                              : "bg-violet-600 hover:bg-violet-700"
+                          }`}
                         >
-                          {billingId === order._id ? "Sending..." : "Bill"}
+                          {isBilled
+                            ? "Sent to Billing"
+                            : billingId === order._id
+                              ? "Sending..."
+                              : "Bill"}
                         </button>
                       )}
                     </div>

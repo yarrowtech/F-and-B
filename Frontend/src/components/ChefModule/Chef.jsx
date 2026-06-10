@@ -232,6 +232,7 @@ const Chef = () => {
       setKotPrintingId(job._id);
       printTextInBrowser(job.receiptText, job.cuisine ? `KOT - ${job.cuisine}` : "KOT");
       await markMyKotPrintJobPrinted(job._id);
+      window.dispatchEvent(new CustomEvent("chef-kot-printed"));
       setPrintNotice(`KOT printed: ${job.cuisine || "Kitchen"}`);
       await loadKotPrintJobs();
     } catch (err) {

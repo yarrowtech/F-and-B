@@ -13,6 +13,7 @@ import {
   getMyInventoryStats,
   getInventoryCategories,
   addInventoryCategory,
+  exportInventoryDayWiseExcel,
 } from "../controllers/inventory.controller.js";
 
 const router = express.Router();
@@ -50,6 +51,15 @@ router.post(
   auth,
   allowRoles("admin", "manager", "inventory_manager"),
   addInventoryCategory
+);
+
+/* ================= INVENTORY DAY-WISE EXCEL ================= */
+/* GET /api/inventory/report/day-wise/excel?from=YYYY-MM-DD&to=YYYY-MM-DD&restaurantId=... */
+router.get(
+  "/report/day-wise/excel",
+  auth,
+  allowRoles("admin", "manager", "inventory_manager"),
+  exportInventoryDayWiseExcel
 );
 
 /* ================= INVENTORY LOGS ================= */

@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { createElement, useEffect, useMemo, useState } from "react";
-import { FaCheckCircle, FaEdit, FaSearch, FaStore, FaTimes, FaUtensils } from "react-icons/fa";
-import { getMenu, getMenuAnalytics, getMenuOrdersByDate, updateMenu } from "../../services/menu.service";
+import { FaCheckCircle, FaEdit, FaFileExcel, FaSearch, FaStore, FaTimes, FaUtensils } from "react-icons/fa";
+import { downloadMenuSalesExcel, getMenu, getMenuAnalytics, getMenuOrdersByDate, updateMenu } from "../../services/menu.service";
 import MenuQrModal, { MenuQrButton } from "../common/MenuQrModal";
 
 const Modal = ({ title, onClose, children }) => (
@@ -154,6 +154,7 @@ export default function ManagerMenuManagement() {
   const [selectedEndDate, setSelectedEndDate] = useState("");
   const [orderAnalytics, setOrderAnalytics] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersExporting, setOrdersExporting] = useState(false);
   const [ordersSearch, setOrdersSearch] = useState("");
 
   useEffect(() => {
@@ -246,6 +247,30 @@ export default function ManagerMenuManagement() {
       alert(err?.response?.data?.message || "Failed to update availability");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDownloadMenuSalesExcel = async () => {
+    if (!assignedRestaurantId) return;
+    if (ordersFilter === "date" && (!selectedStartDate || !selectedEndDate)) {
+      return alert("Choose start and end dates first");
+    }
+
+    try {
+      setOrdersExporting(true);
+      await downloadMenuSalesExcel(
+        assignedRestaurantId,
+        ordersFilter === "date"
+          ? {
+              startDate: selectedStartDate,
+              endDate: selectedEndDate,
+            }
+          : { range: ordersFilter }
+      );
+    } catch (err) {
+      alert(err?.response?.data?.message || "Failed to download menu sales Excel");
+    } finally {
+      setOrdersExporting(false);
     }
   };
 
@@ -417,6 +442,17 @@ export default function ManagerMenuManagement() {
                     />
                   </>
                 )}
+                <button
+                  type="button"
+                  onClick={handleDownloadMenuSalesExcel}
+                  disabled={!assignedRestaurantId || ordersExporting || (ordersFilter === "date" && (!selectedStartDate || !selectedEndDate))}
+                  className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <FaFileExcel />
+                    {ordersExporting ? "Downloading..." : "Download Excel"}
+                  </span>
+                </button>
                 </div>
               </div>
             </div>

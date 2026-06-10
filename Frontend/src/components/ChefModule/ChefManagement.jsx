@@ -31,6 +31,53 @@ const statCards = {
   },
 };
 
+const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+const toValidDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getOrderQueueDate = (order, statuses = []) => {
+  const statusSet = new Set(statuses);
+  const matchingItemDates = (order.items || [])
+    .filter((item) => statusSet.size === 0 || statusSet.has(item.status))
+    .flatMap((item) => [item.addedAt, item.createdAt])
+    .map(toValidDate)
+    .filter(Boolean);
+
+  const fallbackDates = [order.kot?.printedAt, order.createdAt, order.updatedAt]
+    .map(toValidDate)
+    .filter(Boolean);
+
+  const dates = matchingItemDates.length > 0 ? matchingItemDates : fallbackDates;
+
+  if (dates.length === 0) return null;
+
+  return new Date(Math.min(...dates.map((date) => date.getTime())));
+};
+
+const formatOrderDateTime = (value) => {
+  const date = toValidDate(value);
+  return date ? dateTimeFormatter.format(date) : "N/A";
+};
+
+const sortOrdersByQueueTime = (statuses = []) => (a, b) => {
+  const firstTime = getOrderQueueDate(a, statuses)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+  const secondTime = getOrderQueueDate(b, statuses)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+
+  if (firstTime !== secondTime) return firstTime - secondTime;
+
+  return String(a.orderNo || a._id || "").localeCompare(String(b.orderNo || b._id || ""));
+};
+
+const isKotPrintedOrder = (order) =>
+  Boolean(order?.kot?.mode || order?.kot?.printed || order?.kot?.directBilling);
+
 function StatCard({ type, value }) {
   const meta = statCards[type];
   const Icon = meta.icon;
@@ -77,17 +124,6 @@ export default function ChefManagement() {
     }
   })();
 
-  const isToday = (value) => {
-    if (!value) return false;
-    const date = new Date(value);
-    const now = new Date();
-    return (
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth() &&
-      date.getDate() === now.getDate()
-    );
-  };
-
   const loadOrders = async () => {
     try {
       const data = await getChefOrders();
@@ -102,7 +138,11 @@ export default function ChefManagement() {
   useEffect(() => {
     loadOrders();
     const timer = setInterval(loadOrders, REFRESH_INTERVAL);
-    return () => clearInterval(timer);
+    window.addEventListener("chef-kot-printed", loadOrders);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("chef-kot-printed", loadOrders);
+    };
   }, []);
 
   useEffect(() => {
@@ -212,15 +252,19 @@ export default function ChefManagement() {
   const hasItemStatus = (order, statuses) =>
     (order.items || []).some((item) => statuses.includes(item.status));
 
-  const pendingOrders = searchedOrders.filter((order) => hasItemStatus(order, ["PENDING"]));
-  const acceptedOrders = searchedOrders.filter((order) => hasItemStatus(order, ["PREPARING"]));
-  const readyOrders = searchedOrders.filter((order) => hasItemStatus(order, ["READY"]));
+  const pendingOrders = searchedOrders
+    .filter((order) => !isKotPrintedOrder(order) && hasItemStatus(order, ["PENDING"]))
+    .sort(sortOrdersByQueueTime(["PENDING"]));
+  const acceptedOrders = searchedOrders
+    .filter((order) => hasItemStatus(order, ["PREPARING"]))
+    .sort(sortOrdersByQueueTime(["PREPARING"]));
+  const readyOrders = searchedOrders
+    .filter((order) => hasItemStatus(order, ["READY"]))
+    .sort(sortOrdersByQueueTime(["READY"]));
 
-  const totalPending = chefScopedOrders.filter((order) => hasItemStatus(order, ["PENDING"])).length;
-  const totalAccepted = chefScopedOrders.filter((order) => hasItemStatus(order, ["PREPARING"])).length;
-  const totalReady = chefScopedOrders.filter((order) =>
-    (order.items || []).some((item) => item.status === "READY" && isToday(item.readyAt || order.readyAt))
-  ).length;
+  const totalPending = pendingOrders.length;
+  const totalAccepted = acceptedOrders.length;
+  const totalReady = readyOrders.length;
 
   if (loading) {
     return <div className="min-h-screen bg-slate-50 p-6 text-lg font-semibold text-slate-600 dark:bg-slate-900 dark:text-slate-300">Loading chef panel...</div>;
@@ -237,6 +281,14 @@ export default function ChefManagement() {
     const hasNewItems = newItems.length > 0;
     const hasPendingItems = (order.items || []).some((item) => item.status === "PENDING");
     const hasPreparingItems = (order.items || []).some((item) => item.status === "PREPARING");
+    const queueStatuses = hasPendingItems
+      ? ["PENDING"]
+      : hasPreparingItems
+        ? ["PREPARING"]
+        : hasItemStatus(order, ["READY"])
+          ? ["READY"]
+          : [];
+    const queueDate = getOrderQueueDate(order, queueStatuses);
 
     const renderItemRow = (item, isNew = false) => (
       <div
@@ -296,6 +348,9 @@ export default function ChefManagement() {
             </div>
             <h2 className={`${compact ? "text-xl" : "text-2xl"} mt-3 font-bold text-slate-900 dark:text-white`}>Table {order.table?.tableNumber || "N/A"}</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Waiter: {order.waiter?.name || "N/A"}</p>
+            <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">
+              Time: {formatOrderDateTime(queueDate)}
+            </p>
             {hasNewItems && (
               <div className="mt-3 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:ring-emerald-900/50">
                 Updated order - cook new items

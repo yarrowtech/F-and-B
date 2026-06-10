@@ -232,6 +232,7 @@ import Employee from "../models/Employee.model.js";
 import Inventory from "../models/Inventory.model.js";
 import Order from "../models/Order.model.js";
 import mongoose from "mongoose";
+import ExcelJS from "exceljs";
 import { invalidateCacheNamespaces } from "../utils/cacheStore.js";
 
 const invalidateMenuCaches = (restaurantId) => {
@@ -591,6 +592,128 @@ export const deleteMenuItem = async (req, res) => {
 };
 
 
+const verifyMenuAnalyticsAccess = async (req, restaurantId) => {
+  if (req.user.role === "admin") {
+    const restaurant = await Restaurant.findOne({
+      _id: restaurantId,
+      admin: req.user.id,
+    });
+    return Boolean(restaurant);
+  }
+
+  const employee = await Employee.findById(req.user.id);
+  return Boolean(
+    employee &&
+      employee.restaurant &&
+      employee.restaurant.toString() === restaurantId
+  );
+};
+
+const buildMenuAnalyticsRange = ({ range, startDate, endDate, date }) => {
+  let start;
+  let end;
+
+  if (range === "today") {
+    start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    end = new Date();
+    end.setHours(23, 59, 59, 999);
+  } else if (range === "last7days" || range === "week") {
+    start = new Date();
+    start.setDate(start.getDate() - 6);
+    start.setHours(0, 0, 0, 0);
+
+    end = new Date();
+    end.setHours(23, 59, 59, 999);
+  } else if (range === "last1month" || range === "month") {
+    start = new Date();
+    start.setDate(start.getDate() - 29);
+    start.setHours(0, 0, 0, 0);
+
+    end = new Date();
+    end.setHours(23, 59, 59, 999);
+  } else if (startDate && endDate) {
+    start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+
+    end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+  } else if (date) {
+    start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+
+    end = new Date(date);
+    end.setHours(23, 59, 59, 999);
+  }
+
+  if (!start || !end) {
+    throw new Error("Provide date, startDate and endDate, or range");
+  }
+
+  if (start > end) {
+    throw new Error("Start date cannot be after end date");
+  }
+
+  return { start, end };
+};
+
+const buildMenuSalesAnalytics = async (restaurantId, start, end) =>
+  Order.aggregate([
+    {
+      $match: {
+        restaurant: new mongoose.Types.ObjectId(restaurantId),
+        createdAt: { $gte: start, $lte: end },
+        status: { $ne: "CANCELLED" },
+      },
+    },
+    { $unwind: "$items" },
+    {
+      $group: {
+        _id: "$items.menuItem",
+        totalOrders: { $sum: "$items.quantity" },
+        salesAmount: {
+          $sum: {
+            $multiply: [
+              "$items.quantity",
+              { $ifNull: ["$items.price", 0] },
+            ],
+          },
+        },
+      },
+    },
+    {
+      $lookup: {
+        from: "menus",
+        localField: "_id",
+        foreignField: "_id",
+        as: "menu",
+      },
+    },
+    { $unwind: "$menu" },
+    {
+      $project: {
+        name: "$menu.name",
+        cuisine: "$menu.cuisine",
+        courseType: "$menu.courseType",
+        price: "$menu.price",
+        totalOrders: 1,
+        salesAmount: 1,
+      },
+    },
+    { $sort: { totalOrders: -1 } },
+  ]);
+
+const formatAnalyticsDate = (date) =>
+  new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+
+const roundMoney = (value) =>
+  Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+
 export const getMenuOrdersByDate = async (req, res) => {
   try {
     const { restaurantId } = req.params;
@@ -736,5 +859,94 @@ const result = await Order.aggregate([
 
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+export const exportMenuSalesExcel = async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const { date, range, startDate, endDate } = req.query;
+
+    const hasAccess = await verifyMenuAnalyticsAccess(req, restaurantId);
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const { start, end } = buildMenuAnalyticsRange({
+      range,
+      startDate,
+      endDate,
+      date,
+    });
+    const rows = await buildMenuSalesAnalytics(restaurantId, start, end);
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "F&B ERP";
+    workbook.created = new Date();
+
+    const worksheet = workbook.addWorksheet("Menu Item Sales");
+    worksheet.columns = [
+      { header: "Date Range", key: "dateRange", width: 28 },
+      { header: "Menu Item", key: "name", width: 32 },
+      { header: "Cuisine", key: "cuisine", width: 18 },
+      { header: "Course", key: "courseType", width: 18 },
+      { header: "Qty Sold", key: "totalOrders", width: 14 },
+      { header: "Item Price", key: "price", width: 14 },
+      { header: "Sales Amount", key: "salesAmount", width: 16 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+    worksheet.getRow(1).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF047857" },
+    };
+
+    const dateRange =
+      start.toDateString() === end.toDateString()
+        ? formatAnalyticsDate(start)
+        : `${formatAnalyticsDate(start)} to ${formatAnalyticsDate(end)}`;
+
+    rows.forEach((item) => {
+      worksheet.addRow({
+        dateRange,
+        name: item.name || "Menu Item",
+        cuisine: item.cuisine || "-",
+        courseType: item.courseType || "-",
+        totalOrders: Number(item.totalOrders || 0),
+        price: roundMoney(item.price),
+        salesAmount: roundMoney(item.salesAmount || Number(item.totalOrders || 0) * Number(item.price || 0)),
+      });
+    });
+
+    ["totalOrders", "price", "salesAmount"].forEach((key) => {
+      worksheet.getColumn(key).numFmt = key === "totalOrders" ? "0.###" : "0.00";
+    });
+
+    worksheet.eachRow((row) => {
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+    });
+
+    const fileFrom = start.toISOString().slice(0, 10);
+    const fileTo = end.toISOString().slice(0, 10);
+    const filename = `menu-item-sales-${fileFrom}-to-${fileTo}.xlsx`;
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    res.status(err.message.includes("Provide") || err.message.includes("cannot") ? 400 : 500).json({ message: err.message });
   }
 };

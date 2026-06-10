@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useState } from "react";
-import { FaCheckCircle, FaEdit, FaPlus, FaSearch, FaStore, FaTimes, FaTrash, FaUtensils } from "react-icons/fa";
-import { createMenu, deleteMenu, getMenu, getMenuAnalytics, getMenuOrdersByDate, updateMenu } from "../../services/menu.service";
+import { FaCheckCircle, FaEdit, FaFileExcel, FaPlus, FaSearch, FaStore, FaTimes, FaTrash, FaUtensils } from "react-icons/fa";
+import { createMenu, deleteMenu, downloadMenuSalesExcel, getMenu, getMenuAnalytics, getMenuOrdersByDate, updateMenu } from "../../services/menu.service";
 import { getRestaurants } from "../../services/restaurant.service";
 import { getInventory } from "../../services/inventory.service";
 import MenuQrModal, { MenuQrButton } from "../common/MenuQrModal";
@@ -50,6 +50,7 @@ export default function AdminMenuManagement() {
   const [selectedOrderStartDate, setSelectedOrderStartDate] = useState("");
   const [selectedOrderEndDate, setSelectedOrderEndDate] = useState("");
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersExporting, setOrdersExporting] = useState(false);
   const [orderAnalytics, setOrderAnalytics] = useState([]);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -250,6 +251,30 @@ export default function AdminMenuManagement() {
       setMenus((prev) => prev.filter((m) => m._id !== id));
     } catch (err) {
       alert(err?.response?.data?.message || "Delete failed");
+    }
+  };
+
+  const handleDownloadMenuSalesExcel = async () => {
+    if (!selectedRestaurant) return;
+    if (ordersFilter === "date" && (!selectedOrderStartDate || !selectedOrderEndDate)) {
+      return alert("Choose start and end dates first");
+    }
+
+    try {
+      setOrdersExporting(true);
+      await downloadMenuSalesExcel(
+        selectedRestaurant,
+        ordersFilter === "date"
+          ? {
+              startDate: selectedOrderStartDate,
+              endDate: selectedOrderEndDate,
+            }
+          : { range: ordersFilter }
+      );
+    } catch (err) {
+      alert(err?.response?.data?.message || "Failed to download menu sales Excel");
+    } finally {
+      setOrdersExporting(false);
     }
   };
 
@@ -593,6 +618,15 @@ export default function AdminMenuManagement() {
                       />
                     </>
                   )}
+                  <button
+                    type="button"
+                    onClick={handleDownloadMenuSalesExcel}
+                    disabled={!selectedRestaurant || ordersExporting || (ordersFilter === "date" && (!selectedOrderStartDate || !selectedOrderEndDate))}
+                    className="col-span-2 inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 sm:col-span-1"
+                  >
+                    <FaFileExcel />
+                    {ordersExporting ? "Downloading..." : "Download Excel"}
+                  </button>
                 </div>
               </div>
             </div>

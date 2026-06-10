@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react";
-import { FaBoxOpen, FaEdit, FaHistory, FaPlus, FaSearch, FaStore, FaTrash } from "react-icons/fa";
+import { FaBoxOpen, FaEdit, FaFileExcel, FaHistory, FaPlus, FaSearch, FaStore, FaTrash } from "react-icons/fa";
 import {
   getInventory,
   getItemLogs,
@@ -10,6 +10,7 @@ import {
   addStock,
   getInventoryCategories,
   addInventoryCategory,
+  downloadInventoryDayWiseExcel,
 } from "../../services/inventory.service";
 
 /* ─────────────────────────────────────
@@ -28,6 +29,7 @@ const emptyForm = {
 };
 
 const inputCls = "w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700/60 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition";
+const formatQuantity = (value) => Number(value || 0).toFixed(3);
 
 /* ─────────────────────────────────────
    FIELD HELPER
@@ -186,7 +188,7 @@ function InventoryItemCard({ item, onAddStock, onLogs, onEdit, onDelete }) {
       <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3 text-center dark:bg-neutral-800">
         <div>
           <p className="text-xs text-slate-400 dark:text-neutral-500">Qty</p>
-          <p className={`mt-1 text-sm font-bold ${isLow ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}`}>{item.quantity}</p>
+          <p className={`mt-1 text-sm font-bold ${isLow ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}`}>{formatQuantity(item.quantity)}</p>
         </div>
         <div>
           <p className="text-xs text-slate-400 dark:text-neutral-500">Unit</p>
@@ -194,7 +196,7 @@ function InventoryItemCard({ item, onAddStock, onLogs, onEdit, onDelete }) {
         </div>
         <div>
           <p className="text-xs text-slate-400 dark:text-neutral-500">Alert</p>
-          <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{item.lowStockThreshold}</p>
+          <p className="mt-1 text-sm font-bold text-slate-900 dark:text-white">{formatQuantity(item.lowStockThreshold)}</p>
         </div>
       </div>
 
@@ -225,6 +227,9 @@ const InventoryManagerManagement = () => {
   const [statusFilter, setStatusFilter]   = useState("all");
   const [loading, setLoading]             = useState(false);
   const [submitting, setSubmitting]       = useState(false);
+  const [exportFrom, setExportFrom]       = useState(new Date().toISOString().slice(0, 10));
+  const [exportTo, setExportTo]           = useState(new Date().toISOString().slice(0, 10));
+  const [exporting, setExporting]         = useState(false);
 
   const [logs, setLogs]                     = useState([]);
   const [logsItemName, setLogsItemName]     = useState("");
@@ -383,6 +388,17 @@ const InventoryManagerManagement = () => {
     finally       { setSubmitting(false); }
   };
 
+  const handleDownloadDayWiseExcel = async () => {
+    try {
+      setExporting(true);
+      await downloadInventoryDayWiseExcel({ restaurantId, from: exportFrom, to: exportTo });
+    } catch (err) {
+      alert(err?.response?.data?.message || "Failed to download inventory Excel");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   /* ── filtered list ── */
   const filtered = inventory.filter((item) => {
     const matchSearch = item.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -429,10 +445,33 @@ const InventoryManagerManagement = () => {
             )}
           </div>
           {restaurantId && (
-            <button onClick={openAddModal}
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-700 sm:w-auto">
-              <FaPlus /> Add Item
-            </button>
+            <div className="grid gap-2 sm:grid-cols-[auto_auto_auto_auto] sm:items-center">
+              <input
+                type="date"
+                value={exportFrom}
+                onChange={(e) => setExportFrom(e.target.value)}
+                aria-label="Export from date"
+                className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
+              />
+              <input
+                type="date"
+                value={exportTo}
+                onChange={(e) => setExportTo(e.target.value)}
+                aria-label="Export to date"
+                className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
+              />
+              <button
+                onClick={handleDownloadDayWiseExcel}
+                disabled={exporting}
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition-all hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200 sm:w-auto"
+              >
+                <FaFileExcel /> {exporting ? "Downloading..." : "Excel"}
+              </button>
+              <button onClick={openAddModal}
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-700 sm:w-auto">
+                <FaPlus /> Add Item
+              </button>
+            </div>
           )}
         </div>
 
@@ -580,10 +619,10 @@ const InventoryManagerManagement = () => {
                           <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{item.unit}</td>
                           <td className="px-4 py-3.5">
                             <span className={`text-sm font-bold ${isLow ? "text-rose-600 dark:text-rose-400" : "text-gray-800 dark:text-gray-100"}`}>
-                              {item.quantity}
+                              {formatQuantity(item.quantity)}
                             </span>
                           </td>
-                          <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{item.lowStockThreshold}</td>
+                          <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{formatQuantity(item.lowStockThreshold)}</td>
                           <td className="px-4 py-3.5">
                             {isLow ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">⚠ Low</span>
@@ -639,7 +678,7 @@ const InventoryManagerManagement = () => {
                     <div className="flex items-center gap-3">
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${meta.bg} ${meta.text}`}>{meta.label}</span>
                       <span className="text-sm font-bold text-gray-800 dark:text-gray-100">
-                        {log.quantityAdded > 0 ? "+" : ""}{log.quantityAdded} {log.unit}
+                        {log.quantityAdded > 0 ? "+" : ""}{formatQuantity(log.quantityAdded)} {log.unit}
                       </span>
                     </div>
                     <div className="text-right text-xs text-gray-400 dark:text-gray-500 shrink-0">
@@ -742,7 +781,7 @@ const InventoryManagerManagement = () => {
                 </span>
               )}
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Current stock: <span className="font-semibold text-emerald-700 dark:text-emerald-400">{stockTarget.quantity} {stockTarget.unit}</span>
+                Current stock: <span className="font-semibold text-emerald-700 dark:text-emerald-400">{formatQuantity(stockTarget.quantity)} {stockTarget.unit}</span>
               </p>
             </div>
             <Field label={`Quantity to Add (${stockTarget.unit})`}>
@@ -782,10 +821,10 @@ const InventoryManagerManagement = () => {
                 <span>Unit</span><span className="font-semibold">{deleteTarget.unit}</span>
               </div>
               <div className="flex justify-between text-gray-600 dark:text-gray-300">
-                <span>Quantity</span><span className="font-semibold">{deleteTarget.quantity}</span>
+                <span>Quantity</span><span className="font-semibold">{formatQuantity(deleteTarget.quantity)}</span>
               </div>
               <div className="flex justify-between text-gray-600 dark:text-gray-300">
-                <span>Low Stock Threshold</span><span className="font-semibold">{deleteTarget.lowStockThreshold}</span>
+                <span>Low Stock Threshold</span><span className="font-semibold">{formatQuantity(deleteTarget.lowStockThreshold)}</span>
               </div>
             </div>
             <p className="text-center text-xs text-gray-400 dark:text-gray-500">This action cannot be undone.</p>

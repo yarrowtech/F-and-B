@@ -96,6 +96,38 @@ export const getMyInventoryStats = async ({ period = "today", from = "", to = ""
   return res.data?.data || {};
 };
 
+/* ================= INVENTORY DAY-WISE EXCEL ================= */
+/* GET /api/inventory/report/day-wise/excel */
+export const downloadInventoryDayWiseExcel = async ({
+  restaurantId = "",
+  date = "",
+  from = "",
+  to = "",
+} = {}) => {
+  const params = new URLSearchParams();
+  if (restaurantId) params.set("restaurantId", restaurantId);
+  if (from || date) params.set("from", from || date);
+  if (to || date) params.set("to", to || date);
+
+  const res = await api.get(`/inventory/report/day-wise/excel?${params.toString()}`, {
+    responseType: "blob",
+  });
+
+  const blob = new Blob([res.data], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  const fileFrom = from || date || new Date().toISOString().slice(0, 10);
+  const fileTo = to || date || fileFrom;
+  link.download = `inventory-day-wise-${fileFrom}-to-${fileTo}.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 /* ================= INVENTORY LOGS ================= */
 /* GET /api/inventory/logs/:itemId */
 

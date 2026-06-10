@@ -9,6 +9,7 @@ import {
   updateMenuItem,
   deleteMenuItem,
   getMenuOrdersByDate,
+  exportMenuSalesExcel,
 } from "../controllers/Menu.Controller.js";
 import { cacheResponse } from "../middlewares/cache.middleware.js";
 
@@ -24,6 +25,13 @@ router.get(
     namespace: (req) => `menu-analytics:${req.params.restaurantId}`,
   }),
   getMenuOrdersByDate
+);
+
+router.get(
+  "/orders-by-date/:restaurantId/excel",
+  auth,
+  allowRoles("manager", "admin"),
+  exportMenuSalesExcel
 );
 
 /* MENU ROUTES */
