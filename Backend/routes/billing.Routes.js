@@ -72,6 +72,13 @@ router.get(
   billingController.getHistory
 );
 
+router.get(
+  "/history/excel",
+  auth,
+  allowRoles("accountant", "admin"),
+  billingController.exportBillingHistoryExcel
+);
+
 router.post(
   "/manual",
   auth,

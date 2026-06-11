@@ -1096,7 +1096,7 @@
 import mongoose from "mongoose";
 import Order from "../models/Order.model.js";
 import Table from "../models/Table.model.js";
-import Bill from "../models/Bill.model.js";
+import Bill, { allocateBillNumber } from "../models/Bill.model.js";
 import SalesAnalytics from "../models/SalesAnalytics.model.js";
 import Menu from "../models/Menu.model.js";
 import Inventory from "../models/Inventory.model.js";
@@ -1203,6 +1203,7 @@ const ensurePendingBillForOrder = async (order, session = null) => {
     [
       {
         restaurant: order.restaurant,
+        billNo: await allocateBillNumber(order.restaurant, session),
         order: order._id,
         table: order.table,
         ...totals,

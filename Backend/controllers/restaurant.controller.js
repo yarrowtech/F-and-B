@@ -165,6 +165,13 @@ const defaultBillingTemplate = {
   showServiceCharge: true,
 };
 const maxLogoDataLength = 1000000;
+const normalizeBillingNumber = (value, fallback = 1) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+
+  const normalized = Math.floor(parsed);
+  return normalized > 0 ? normalized : fallback;
+};
 
 const sanitizeBillingTemplate = (payload = {}) => {
   const text = (value, max) => String(value || "").trim().slice(0, max);
@@ -188,6 +195,28 @@ const sanitizeBillingTemplate = (payload = {}) => {
     showTaxBreakup: payload.showTaxBreakup !== false,
     showServiceCharge: payload.showServiceCharge !== false,
   };
+};
+
+const applyBillingSequenceSettings = async (restaurant, payload = {}) => {
+  const requestedStartNumber = normalizeBillingNumber(
+    payload.billingStartNumber,
+    normalizeBillingNumber(restaurant.billingStartNumber, 1)
+  );
+
+  restaurant.billingStartNumber = requestedStartNumber;
+
+  const existingBill = await Restaurant.db
+    .model("Bill")
+    .exists({ restaurant: restaurant._id });
+
+  const currentNextBillNumber = normalizeBillingNumber(
+    restaurant.nextBillNumber,
+    requestedStartNumber
+  );
+
+  restaurant.nextBillNumber = existingBill
+    ? Math.max(currentNextBillNumber, requestedStartNumber)
+    : requestedStartNumber;
 };
 
 /* =====================================================
@@ -226,7 +255,7 @@ export const createRestaurant = async (req, res) => {
       });
     }
 
-    const { name, address, phone, gstNo } = req.body;
+    const { name, address, phone, gstNo, billingStartNumber } = req.body;
 
     if (!name) {
       return res.status(400).json({
@@ -242,6 +271,8 @@ export const createRestaurant = async (req, res) => {
       address,
       phone,
       gstNo,
+      billingStartNumber: normalizeBillingNumber(billingStartNumber, 1),
+      nextBillNumber: normalizeBillingNumber(billingStartNumber, 1),
       admin: req.user.id,
     });
 
@@ -380,6 +411,7 @@ export const updateBillingTemplate = async (req, res) => {
     }
 
     restaurant.billingTemplate = sanitizeBillingTemplate(req.body);
+    await applyBillingSequenceSettings(restaurant, req.body);
     await restaurant.save();
     invalidateRestaurantCaches({ adminId: req.user.id, restaurantId });
 

@@ -90,6 +90,7 @@
 
 
 import mongoose from "mongoose";
+import Restaurant from "./Restaurant.model.js";
 
 const billSchema = new mongoose.Schema(
   {
@@ -168,6 +169,28 @@ const billSchema = new mongoose.Schema(
       default: undefined,
     },
 
+    packagingCharge: {
+      type: Number,
+      default: 0,
+    },
+
+    showPackagingCharge: {
+      type: Boolean,
+      default: undefined,
+    },
+
+    extraCharge: {
+      type: Number,
+      default: 0,
+    },
+
+    extraChargeReason: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 300,
+    },
+
     discount: {
       type: Number,
       default: 0,
@@ -227,6 +250,61 @@ const billSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+const normalizeBillSequenceNumber = (value, fallback = 1) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+
+  const normalized = Math.floor(parsed);
+  return normalized > 0 ? normalized : fallback;
+};
+
+export const allocateBillNumber = async (restaurantId, session = null) => {
+  const restaurant = await Restaurant.findOneAndUpdate(
+    { _id: restaurantId },
+    [
+      {
+        $set: {
+          billingStartNumber: {
+            $max: [{ $ifNull: ["$billingStartNumber", 1] }, 1],
+          },
+          nextBillNumber: {
+            $add: [
+              {
+                $max: [
+                  { $ifNull: ["$billingStartNumber", 1] },
+                  { $ifNull: ["$nextBillNumber", { $ifNull: ["$billingStartNumber", 1] }] },
+                  1,
+                ],
+              },
+              1,
+            ],
+          },
+        },
+      },
+    ],
+    {
+      new: false,
+      session,
+      projection: { billingStartNumber: 1, nextBillNumber: 1 },
+    }
+  );
+
+  if (!restaurant) {
+    throw new Error("Restaurant not found for billing");
+  }
+
+  const billingStartNumber = normalizeBillSequenceNumber(
+    restaurant.billingStartNumber,
+    1
+  );
+  const nextBillNumber = normalizeBillSequenceNumber(
+    restaurant.nextBillNumber,
+    billingStartNumber
+  );
+
+  return String(Math.max(billingStartNumber, nextBillNumber, 1));
+};
 
 billSchema.pre("save", function (next) {
   if (!this.billNo) {

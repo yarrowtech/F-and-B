@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import {
   FaCheck,
+  FaFileExcel,
   FaFilePdf,
   FaFilter,
   FaMinus,
@@ -16,6 +17,7 @@ import {
 import {
   createManualBill,
   customizeBill,
+  downloadBillingHistoryExcel,
   downloadBillPdf,
   getBillingHistory,
   getBillingInbox,
@@ -63,6 +65,9 @@ const sanitizeNumber = (value) => {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 };
 
+const roundNetPayableUp = (value) => Math.ceil(Number(value || 0));
+const PAYMENT_METHODS = ["CASH", "UPI", "CARD"];
+
 const getOrderItemId = (item) =>
   String(item?._id || item?.menuItem?._id || item?.menuItem || "");
 
@@ -96,13 +101,16 @@ const buildTotals = (itemsTotal, customValues, orderItems = []) => {
   const cgstRate = sanitizeNumber(customValues.cgstRate);
   const sgstRate = sanitizeNumber(customValues.sgstRate);
   const serviceCharge = sanitizeNumber(customValues.serviceCharge);
+  const packagingCharge = sanitizeNumber(customValues.packagingCharge);
+  const extraCharge = sanitizeNumber(customValues.extraCharge);
   const discount = sanitizeNumber(customValues.discount);
 
   const cgst = Number((safeItemsTotal * (cgstRate / 100)).toFixed(2));
   const sgst = Number((safeItemsTotal * (sgstRate / 100)).toFixed(2));
-  const grossAmount = safeItemsTotal + cgst + sgst + serviceCharge;
+  const grossAmount =
+    safeItemsTotal + cgst + sgst + serviceCharge + packagingCharge + extraCharge;
   const finalDiscount = Math.min(discount, grossAmount);
-  const totalAmount = Number((grossAmount - finalDiscount).toFixed(2));
+  const totalAmount = roundNetPayableUp(grossAmount - finalDiscount);
 
   return {
     itemsTotal: safeItemsTotal,
@@ -112,6 +120,12 @@ const buildTotals = (itemsTotal, customValues, orderItems = []) => {
     cgst,
     sgst,
     serviceCharge,
+    packagingCharge,
+    extraCharge,
+    extraChargeReason:
+      extraCharge > 0 ? String(customValues.extraChargeReason || "").trim() : "",
+    showServiceCharge: Boolean(customValues.showServiceCharge),
+    showPackagingCharge: Boolean(customValues.showPackagingCharge),
     discount: finalDiscount,
     totalAmount,
   };
@@ -151,16 +165,50 @@ const receiptPair = (label, value, width = 42) => {
   const space = Math.max(width - left.length - right.length, 1);
   return `${left}${" ".repeat(space)}${right}`.slice(0, width);
 };
-const receiptDate = (value) =>
-  value
-    ? new Date(value).toLocaleString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : new Date().toLocaleString("en-IN");
+const receiptWrap = (value, width = 42) => {
+  const text = receiptText(value);
+  if (!text) return [];
+
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+
+  words.forEach((word) => {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= width) {
+      current = candidate;
+      return;
+    }
+    if (current) lines.push(current);
+    current = word.slice(0, width);
+  });
+
+  if (current) lines.push(current);
+  return lines;
+};
+const receiptBillDate = (value) => {
+  const date = value ? new Date(value) : new Date();
+  const day = date.getDate();
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+  const time = date.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return `${day}-${month}-${year} ${time}`;
+};
+const receiptItemRow = (name, qty, rate, amount, width = 42) => {
+  const itemWidth = 18;
+  const qtyWidth = 5;
+  const rateWidth = 8;
+  const amtWidth = 9;
+  const left = receiptText(name).slice(0, itemWidth).padEnd(itemWidth, " ");
+  const qtyText = String(qty).padStart(qtyWidth, " ");
+  const rateText = receiptAmount(rate).padStart(rateWidth, " ");
+  const amountText = receiptAmount(amount).padStart(amtWidth, " ");
+  return `${left}${qtyText}${rateText}${amountText}`.slice(0, width);
+};
 
 const buildThermalReceiptHtml = (bill, options = {}) => {
   const width = 42;
@@ -169,13 +217,6 @@ const buildThermalReceiptHtml = (bill, options = {}) => {
   const order = bill?.order || {};
   const items = Array.isArray(order.items) ? order.items : [];
   const title = template.headerTitle || restaurant.name || "Restaurant";
-  const subtitle = template.subtitle || "";
-  const address = restaurant.address || "";
-  const phone = restaurant.phone || "";
-  const gstNo = restaurant.gstNo || "";
-  const orderLabel = order.table?.tableNumber
-    ? `Table ${order.table.tableNumber}`
-    : order.orderType || "Order";
   const totals = options.totals || bill || {};
   const paymentMethod = options.paymentMethod || bill.paymentMethod || "PENDING";
   const cashReceived = Number(options.cashReceived || 0);
@@ -184,36 +225,40 @@ const buildThermalReceiptHtml = (bill, options = {}) => {
     (bill.complimentaryItems || []).map((item) => String(item))
   );
   const fullComplimentary = bill.complimentaryType === "FULL_ORDER";
-  const totalQty = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const taxableBase = Number(totals.itemsTotal || 0);
+  const rawTotal =
+    taxableBase +
+    Number(totals.cgst || 0) +
+    Number(totals.sgst || 0) +
+    Number(totals.serviceCharge || 0) +
+    Number(totals.packagingCharge || 0) +
+    Number(totals.extraCharge || 0) -
+    Number(totals.discount || 0);
+  const roundOff = Number(receiptAmount(Number(totals.totalAmount || 0) - rawTotal));
   const lines = [
-    receiptCenter("Tax Invoice", width),
-    "",
-    receiptCenter(title, width),
+    receiptCenter("TAX INVOICE", width),
+    receiptCenter(String(title).toUpperCase(), width),
   ];
 
-  if (subtitle) lines.push(receiptCenter(subtitle, width));
-  if (address) lines.push(receiptCenter(address, width));
-  if (phone) lines.push(receiptCenter(`Phone: ${phone}`, width));
-  if (gstNo && template.showGstNo) lines.push(receiptCenter(`GSTIN: ${gstNo}`, width));
+  receiptWrap(template.subtitle, width).forEach((line) =>
+    lines.push(receiptCenter(String(line).toUpperCase(), width))
+  );
+  if (restaurant.phone) lines.push(receiptCenter(`Ph - ${restaurant.phone}`, width));
+  if (restaurant.gstNo && template.showGstNo) {
+    lines.push(receiptCenter(`GST No. ${restaurant.gstNo}`, width));
+  }
 
   lines.push(
+    "",
+    receiptPair(
+      `Bill No ${bill.billNo || bill._id || "N/A"}`,
+      receiptBillDate(bill.updatedAt || bill.createdAt),
+      width
+    ),
     receiptLine(width),
-    receiptCenter("Tax Invoice For Supply", width),
-    receiptLine(width),
-    `Invoice No: ${bill.billNo || bill._id || "N/A"}`.slice(0, width),
-    receiptPair("Date:", receiptDate(bill.updatedAt || bill.createdAt), width),
-    receiptPair("Order:", order.orderNo || "N/A", width),
-    receiptPair("Type:", orderLabel, width)
+    "ITEM               QTY    RATE      AMT",
+    receiptLine(width)
   );
-
-  if (bill.customerPhone || order.customerPhone) {
-    lines.push(`Mobile: ${bill.customerPhone || order.customerPhone}`.slice(0, width));
-  }
-  if (bill.customerEmail) {
-    lines.push(`Email: ${bill.customerEmail}`.slice(0, width));
-  }
-
-  lines.push(receiptLine(width), "Sl Product              Qty   Rate    Amt");
 
   items.forEach((item, index) => {
     const name = item.menuItem?.name || item.name || "Menu Item";
@@ -222,56 +267,77 @@ const buildThermalReceiptHtml = (bill, options = {}) => {
     const isComplimentary =
       fullComplimentary || complimentaryIds.has(String(item._id));
     const amount = isComplimentary ? 0 : rate * qty;
-    const itemName = `${index + 1} ${name}`.slice(0, 22).padEnd(22, " ");
-    lines.push(
-      `${itemName}${String(qty).padStart(4, " ")} ${receiptAmount(rate).padStart(7, " ")} ${receiptAmount(amount).padStart(7, " ")}`
-    );
+    lines.push(receiptItemRow(name, qty, rate, amount, width));
     if (isComplimentary) {
-      lines.push("   Complimentary".slice(0, width));
+      lines.push("Complimentary".slice(0, width));
     }
   });
 
-  lines.push(
-    receiptLine(width),
-    receiptPair("Total Qty:", totalQty, width),
-    receiptLine(width),
-    receiptPair("Payment:", paymentMethod, width),
-    receiptPair("Total Sale:", receiptAmount(totals.itemsTotal), width)
-  );
+  lines.push(receiptLine(width));
 
   if (Number(totals.complimentaryAmount || 0) > 0) {
     lines.push(receiptPair("Complimentary:", `- ${receiptAmount(totals.complimentaryAmount)}`, width));
   }
-  if (Number(totals.discount || 0) > 0) {
-    lines.push(receiptPair("Discount:", `- ${receiptAmount(totals.discount)}`, width));
+  if (
+    Number(totals.serviceCharge || 0) > 0 &&
+    totals.showServiceCharge !== false
+  ) {
+    lines.push(receiptPair("Service Charge", receiptAmount(totals.serviceCharge), width));
   }
-
+  if (
+    Number(totals.packagingCharge || 0) > 0 &&
+    totals.showPackagingCharge !== false
+  ) {
+    lines.push(receiptPair("Packaging Charge", receiptAmount(totals.packagingCharge), width));
+  }
+  if (Number(totals.extraCharge || 0) > 0) {
+    lines.push(receiptPair("Extra Charge", receiptAmount(totals.extraCharge), width));
+    if (totals.extraChargeReason) {
+      receiptWrap(`Reason: ${receiptText(totals.extraChargeReason)}`, width).forEach((line) =>
+        lines.push(line)
+      );
+    }
+  }
   lines.push(
-    receiptPair(`CGST (${receiptAmount(totals.cgstRate || 0)}%):`, receiptAmount(totals.cgst), width),
-    receiptPair(`SGST (${receiptAmount(totals.sgstRate || 0)}%):`, receiptAmount(totals.sgst), width)
+    receiptPair(
+      `CGST ${Number(totals.cgstRate || 0)}% On ${receiptAmount(taxableBase)}`,
+      receiptAmount(totals.cgst),
+      width
+    ),
+    receiptPair(
+      `SGST ${Number(totals.sgstRate || 0)}% On ${receiptAmount(taxableBase)}`,
+      receiptAmount(totals.sgst),
+      width
+    )
   );
-
-  if (Number(totals.serviceCharge || 0) > 0) {
-    lines.push(receiptPair("Service Charge:", receiptAmount(totals.serviceCharge), width));
+  if (Number(totals.discount || 0) > 0) {
+    lines.push(receiptPair("Discount", `- ${receiptAmount(totals.discount)}`, width));
   }
 
   lines.push(
+    receiptPair("Round Off", receiptAmount(roundOff), width),
     receiptLine(width),
-    receiptPair("Net Payable:", receiptAmount(totals.totalAmount), width),
-    receiptLine(width)
+    receiptPair("Total", receiptAmount(totals.totalAmount), width),
+    receiptCenter("E. & O. E.", width)
   );
 
   if (cashReceived > 0) {
     lines.push(
-      receiptPair("Customer Paid:", receiptAmount(cashReceived), width),
-      receiptPair("Change Return:", receiptAmount(changeDue), width),
-      receiptLine(width)
+      "",
+      receiptPair("Payment", paymentMethod, width),
+      receiptPair("Customer Paid", receiptAmount(cashReceived), width),
+      receiptPair("Change Return", receiptAmount(changeDue), width)
     );
   }
 
+  lines.push("");
+  receiptWrap(restaurant.address, width).forEach((line) =>
+    lines.push(receiptCenter(line, width))
+  );
   lines.push(
+    "",
     receiptCenter(template.footerMessage || "Thank you for dining with us.", width),
-    receiptCenter("Visit Again", width),
+    receiptCenter("Please Visit Again", width),
     "",
     "",
     "",
@@ -561,12 +627,17 @@ export default function AccountantOrderBilling() {
   const [creatingManualBill, setCreatingManualBill] = useState(false);
   const [manualBill, setManualBill] = useState({
     orderType: "TAKEAWAY",
+    paymentMethod: "CASH",
     customerPhone: "",
     customerEmail: "",
     cgstRate: 2.5,
     sgstRate: 2.5,
     serviceCharge: 0,
     showServiceCharge: true,
+    packagingCharge: 0,
+    showPackagingCharge: true,
+    extraCharge: 0,
+    extraChargeReason: "",
     discount: 0,
     complimentaryType: "NONE",
     complimentaryItems: [],
@@ -578,6 +649,10 @@ export default function AccountantOrderBilling() {
     sgstRate: 2.5,
     serviceCharge: 0,
     showServiceCharge: true,
+    packagingCharge: 0,
+    showPackagingCharge: true,
+    extraCharge: 0,
+    extraChargeReason: "",
     discount: 0,
     complimentaryType: "NONE",
     complimentaryItems: [],
@@ -674,6 +749,13 @@ export default function AccountantOrderBilling() {
         typeof bill.showServiceCharge === "boolean"
           ? bill.showServiceCharge
           : billTemplate.showServiceCharge,
+      packagingCharge: Number(bill.packagingCharge ?? 0),
+      showPackagingCharge:
+        typeof bill.showPackagingCharge === "boolean"
+          ? bill.showPackagingCharge
+          : true,
+      extraCharge: Number(bill.extraCharge ?? 0),
+      extraChargeReason: bill.extraChargeReason || "",
       discount: Number(bill.discount ?? 0),
       complimentaryType: bill.complimentaryType || "NONE",
       complimentaryItems: Array.isArray(bill.complimentaryItems)
@@ -785,6 +867,10 @@ export default function AccountantOrderBilling() {
         sgstRate: sanitizeNumber(customValues.sgstRate),
         serviceCharge: sanitizeNumber(customValues.serviceCharge),
         showServiceCharge: Boolean(customValues.showServiceCharge),
+        packagingCharge: sanitizeNumber(customValues.packagingCharge),
+        showPackagingCharge: Boolean(customValues.showPackagingCharge),
+        extraCharge: sanitizeNumber(customValues.extraCharge),
+        extraChargeReason: customValues.extraChargeReason,
         discount: sanitizeNumber(customValues.discount),
         complimentaryType: customValues.complimentaryType,
         complimentaryItems: customValues.complimentaryItems,
@@ -895,6 +981,10 @@ export default function AccountantOrderBilling() {
         sgstRate: sanitizeNumber(customValues.sgstRate),
         serviceCharge: sanitizeNumber(customValues.serviceCharge),
         showServiceCharge: Boolean(customValues.showServiceCharge),
+        packagingCharge: sanitizeNumber(customValues.packagingCharge),
+        showPackagingCharge: Boolean(customValues.showPackagingCharge),
+        extraCharge: sanitizeNumber(customValues.extraCharge),
+        extraChargeReason: customValues.extraChargeReason,
         discount: sanitizeNumber(customValues.discount),
         complimentaryType: customValues.complimentaryType,
         complimentaryItems: customValues.complimentaryItems,
@@ -1042,12 +1132,17 @@ export default function AccountantOrderBilling() {
 
       const bill = await createManualBill({
         orderType: manualBill.orderType,
+        paymentMethod: manualBill.paymentMethod,
         customerPhone: manualBill.customerPhone,
         customerEmail: manualBill.customerEmail,
         cgstRate: sanitizeNumber(manualBill.cgstRate),
         sgstRate: sanitizeNumber(manualBill.sgstRate),
         serviceCharge: sanitizeNumber(manualBill.serviceCharge),
         showServiceCharge: Boolean(manualBill.showServiceCharge),
+        packagingCharge: sanitizeNumber(manualBill.packagingCharge),
+        showPackagingCharge: Boolean(manualBill.showPackagingCharge),
+        extraCharge: sanitizeNumber(manualBill.extraCharge),
+        extraChargeReason: manualBill.extraChargeReason,
         discount: sanitizeNumber(manualBill.discount),
         complimentaryType: manualBill.complimentaryType,
         complimentaryItems: manualBill.complimentaryItems,
@@ -1064,15 +1159,20 @@ export default function AccountantOrderBilling() {
       }
 
       setBills((prev) => [createdBill, ...prev]);
-      setTab("INBOX");
+      setTab("HISTORY");
       setManualBill({
         orderType: "TAKEAWAY",
+        paymentMethod: "CASH",
         customerPhone: "",
         customerEmail: "",
         cgstRate: 2.5,
         sgstRate: 2.5,
         serviceCharge: 0,
         showServiceCharge: true,
+        packagingCharge: 0,
+        showPackagingCharge: true,
+        extraCharge: 0,
+        extraChargeReason: "",
         discount: 0,
         complimentaryType: "NONE",
         complimentaryItems: [],
@@ -1126,6 +1226,24 @@ export default function AccountantOrderBilling() {
         return true;
       })
     : [];
+  const filteredBillsTotalAmount = filteredBills.reduce(
+    (sum, bill) => sum + Number(bill.totalAmount || 0),
+    0
+  );
+
+  const handleDownloadHistoryExcel = async () => {
+    try {
+      await downloadBillingHistoryExcel({
+        paymentMethod: historyFilter.paymentMethod,
+        orderType: historyFilter.orderType,
+        dateFrom: historyFilter.dateFrom,
+        dateTo: historyFilter.dateTo,
+      });
+    } catch (err) {
+      console.error("DOWNLOAD BILLING HISTORY EXCEL ERROR:", err);
+      alert("Failed to download billing history Excel");
+    }
+  };
 
   const filteredMenuItems = menuItems.filter((item) =>
     `${item.name || ""} ${item.cuisine || ""} ${item.courseType || ""}`
@@ -1270,70 +1388,101 @@ export default function AccountantOrderBilling() {
               </div>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="grid gap-4 lg:grid-cols-[0.82fr_1.18fr]">
               <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <select
-                    value={manualBill.orderType}
-                    onChange={(e) => updateManualBill("orderType", e.target.value)}
-                    className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                  >
-                    <option value="TAKEAWAY">Takeaway</option>
-                    <option value="ONLINE">Online</option>
-                    <option value="PACKAGING">Packaging</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                  <input
-                    type="text"
-                    placeholder="Customer phone"
-                    value={manualBill.customerPhone}
-                    onChange={(e) => updateManualBill("customerPhone", e.target.value)}
-                    className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                  />
-                  <input
-                    type="email"
-                    placeholder="Customer email"
-                    value={manualBill.customerEmail}
-                    onChange={(e) => updateManualBill("customerEmail", e.target.value)}
-                    className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowMenuPicker(true)}
-                  className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
-                >
-                  <FaReceipt />
-                  Menu List
-                </button>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
-                  <h3 className="text-sm font-black uppercase tracking-[0.14em] text-slate-500">
-                    Quick Add
-                  </h3>
-                  <div className="mt-3 grid gap-2">
-                    {menuItems.slice(0, 6).map((item) => (
-                      <button
-                        key={item._id}
-                        type="button"
-                        onClick={() => addManualItem(item)}
-                        className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-left transition hover:bg-emerald-50 dark:bg-slate-900 dark:hover:bg-emerald-950/20"
-                      >
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-bold text-slate-800 dark:text-slate-100">
-                            {item.name}
-                          </span>
-                          <span className="text-xs text-slate-500">
-                            {item.courseType || item.cuisine || "Menu"}
-                          </span>
-                        </span>
-                        <span className="text-sm font-black text-emerald-700">
-                          {formatCurrency(item.price)}
-                        </span>
-                      </button>
-                    ))}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-950">
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-black uppercase tracking-[0.14em] text-slate-500">
+                        Bill Setup
+                      </h3>
+                      <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                        Choose the order type, payment mode, and guest contact before you add items.
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-emerald-50 px-3 py-2 text-right dark:bg-emerald-950/30">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
+                        Items
+                      </p>
+                      <p className="text-lg font-black text-emerald-700 dark:text-emerald-200">
+                        {manualBill.items.length}
+                      </p>
+                    </div>
                   </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <select
+                      value={manualBill.orderType}
+                      onChange={(e) => updateManualBill("orderType", e.target.value)}
+                      className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    >
+                      <option value="TAKEAWAY">Takeaway</option>
+                      <option value="ONLINE">Online</option>
+                      <option value="PACKAGING">Packaging</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                    <select
+                      value={manualBill.paymentMethod}
+                      onChange={(e) => updateManualBill("paymentMethod", e.target.value)}
+                      className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    >
+                      {PAYMENT_METHODS.map((method) => (
+                        <option key={method} value={method}>
+                          {method}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Customer phone"
+                      value={manualBill.customerPhone}
+                      onChange={(e) => updateManualBill("customerPhone", e.target.value)}
+                      className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    />
+                    <input
+                      type="email"
+                      placeholder="Customer email"
+                      value={manualBill.customerEmail}
+                      onChange={(e) => updateManualBill("customerEmail", e.target.value)}
+                      className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    />
+                  </div>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                        Order Type
+                      </p>
+                      <p className="mt-1 text-sm font-black text-slate-800 dark:text-slate-100">
+                        {manualBill.orderType}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                        Payment
+                      </p>
+                      <p className="mt-1 text-sm font-black text-slate-800 dark:text-slate-100">
+                        {manualBill.paymentMethod}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                        Contact
+                      </p>
+                      <p className="mt-1 truncate text-sm font-black text-slate-800 dark:text-slate-100">
+                        {manualBill.customerPhone || manualBill.customerEmail || "Walk-in"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowMenuPicker(true)}
+                    className="mt-4 inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
+                  >
+                    <FaReceipt />
+                    Browse Menu
+                  </button>
                 </div>
 
                 <div className="rounded-2xl border border-emerald-100 bg-white p-4 dark:border-emerald-900/50 dark:bg-slate-950">
@@ -1430,49 +1579,62 @@ export default function AccountantOrderBilling() {
                       {manualBill.items.length} item{manualBill.items.length === 1 ? "" : "s"} in this bill
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowMenuPicker(true)}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-emerald-700"
-                  >
-                    <FaPlus />
-                    Add
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <div className="hidden rounded-xl bg-emerald-50 px-3 py-2 text-right sm:block dark:bg-emerald-950/30">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
+                        Current Total
+                      </p>
+                      <p className="text-sm font-black text-emerald-700 dark:text-emerald-200">
+                        {formatCurrency(manualTotals.totalAmount)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowMenuPicker(true)}
+                      className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-emerald-700"
+                    >
+                      <FaPlus />
+                      Add Item
+                    </button>
+                  </div>
                 </div>
 
-                <div className="max-h-[430px] space-y-2 overflow-y-auto pr-1">
+                <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
                   {manualBill.items.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50 p-8 text-center text-sm font-semibold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-200">
-                      Click Menu List and select dishes to add them here.
+                    <div className="rounded-2xl border border-dashed border-emerald-300 bg-emerald-50 p-8 text-center text-sm font-semibold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-200">
+                      Open Browse Menu and select dishes to build this bill.
                     </div>
                   )}
 
                   {manualBill.items.map((item) => (
                     <div
                       key={item.menuItem}
-                      className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900"
+                      className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-4 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:to-slate-950"
                     >
                       <div className="min-w-0">
-                        <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex min-w-0 items-center justify-between gap-3">
                           <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
                             {item.name}
                           </p>
-                          {(manualBill.complimentaryType === "FULL_ORDER" ||
-                            manualBill.complimentaryItems.includes(item.menuItem)) && (
-                            <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold uppercase text-emerald-700">
-                              Free
+                          <div className="flex items-center gap-2">
+                            {(manualBill.complimentaryType === "FULL_ORDER" ||
+                              manualBill.complimentaryItems.includes(item.menuItem)) && (
+                              <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold uppercase text-emerald-700">
+                                Free
+                              </span>
+                            )}
+                            <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-200 dark:bg-slate-900 dark:ring-emerald-900/60">
+                              {formatCurrency(item.price * item.quantity)}
                             </span>
-                          )}
+                          </div>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
                           <span>{formatCurrency(item.price)} x {item.quantity}</span>
                           <span className="text-slate-300">|</span>
-                          <span className="text-slate-700 dark:text-slate-200">
-                            {formatCurrency(item.price * item.quantity)}
-                          </span>
+                          <span className="text-slate-700 dark:text-slate-200">Line item</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 rounded-xl bg-white px-2 py-2 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
                         <button
                           type="button"
                           onClick={() => changeManualItemQuantity(item.menuItem, -1)}
@@ -1480,7 +1642,7 @@ export default function AccountantOrderBilling() {
                         >
                           <FaMinus />
                         </button>
-                        <span className="w-7 text-center text-sm font-black text-slate-800 dark:text-slate-100">
+                        <span className="w-8 text-center text-sm font-black text-slate-800 dark:text-slate-100">
                           {item.quantity}
                         </span>
                         <button
@@ -1500,6 +1662,8 @@ export default function AccountantOrderBilling() {
                     ["cgstRate", "CGST %"],
                     ["sgstRate", "SGST %"],
                     ["serviceCharge", "Service"],
+                    ["packagingCharge", "Packaging"],
+                    ["extraCharge", "Extra Charge"],
                     ["discount", "Discount"],
                   ].map(([field, label]) => (
                     <label key={field} className="text-xs font-bold text-slate-500">
@@ -1526,6 +1690,29 @@ export default function AccountantOrderBilling() {
                     className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                   />
                 </label>
+                <label className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-slate-100 px-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                  <span>Show packaging charge on bill</span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(manualBill.showPackagingCharge)}
+                    onChange={(e) =>
+                      updateManualBill("showPackagingCharge", e.target.checked)
+                    }
+                    className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                </label>
+                <label className="mt-3 block text-xs font-bold text-slate-500">
+                  Extra Charge Reason
+                  <textarea
+                    rows="2"
+                    value={manualBill.extraChargeReason}
+                    onChange={(e) =>
+                      updateManualBill("extraChargeReason", e.target.value)
+                    }
+                    placeholder="Example: late-night packing, rush delivery, special handling..."
+                    className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                </label>
 
                 <div className="mt-4 space-y-2 rounded-xl bg-white p-3 text-sm dark:bg-slate-900">
                   <div className="flex justify-between text-slate-600 dark:text-slate-300">
@@ -1544,6 +1731,25 @@ export default function AccountantOrderBilling() {
                     <div className="flex justify-between text-slate-600 dark:text-slate-300">
                       <span>Service</span>
                       <span>{formatCurrency(manualTotals.serviceCharge)}</span>
+                    </div>
+                  )}
+                  {manualBill.showPackagingCharge && (
+                    <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                      <span>Packaging</span>
+                      <span>{formatCurrency(manualTotals.packagingCharge)}</span>
+                    </div>
+                  )}
+                  {manualTotals.extraCharge > 0 && (
+                    <div className="space-y-1 rounded-lg bg-slate-50 px-3 py-2 text-slate-600 dark:bg-slate-950 dark:text-slate-300">
+                      <div className="flex justify-between">
+                        <span>Extra Charge</span>
+                        <span>{formatCurrency(manualTotals.extraCharge)}</span>
+                      </div>
+                      {manualTotals.extraChargeReason && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Reason: {manualTotals.extraChargeReason}
+                        </p>
+                      )}
                     </div>
                   )}
                   <div className="flex justify-between text-slate-600 dark:text-slate-300">
@@ -1653,12 +1859,26 @@ export default function AccountantOrderBilling() {
                 <button
                   type="button"
                   onClick={() => setHistoryFilter({ paymentMethod: "", orderType: "", dateFrom: "", dateTo: "" })}
-                  className="ml-auto flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50 dark:ring-rose-900 dark:hover:bg-rose-950/30"
+                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50 dark:ring-rose-900 dark:hover:bg-rose-950/30"
                 >
                   <FaTimes />
                   Clear
                 </button>
               )}
+
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <span className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">
+                  Total: {formatCurrency(filteredBillsTotalAmount)}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleDownloadHistoryExcel}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
+                >
+                  <FaFileExcel />
+                  Excel
+                </button>
+              </div>
             </div>
           )}
 
@@ -2416,6 +2636,73 @@ export default function AccountantOrderBilling() {
 
                   <div>
                     <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                      Packaging Charge
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={customValues.packagingCharge}
+                      onChange={(e) =>
+                        handleCustomValueChange(
+                          "packagingCharge",
+                          e.target.value
+                        )
+                      }
+                      className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:text-sm"
+                    />
+                    <label className="mt-2 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-slate-100 px-3 text-sm font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                      <span>Show packaging charge on bill</span>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(customValues.showPackagingCharge)}
+                        onChange={(e) =>
+                          handleCustomValueChange(
+                            "showPackagingCharge",
+                            e.target.checked
+                          )
+                        }
+                        className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                      Extra Charge
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={customValues.extraCharge}
+                      onChange={(e) =>
+                        handleCustomValueChange("extraCharge", e.target.value)
+                      }
+                      className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:text-sm"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                      Extra Charge Reason
+                    </label>
+                    <textarea
+                      rows="3"
+                      value={customValues.extraChargeReason}
+                      onChange={(e) =>
+                        handleCustomValueChange(
+                          "extraChargeReason",
+                          e.target.value
+                        )
+                      }
+                      placeholder="Example: urgent packing, delivery handling, custom service..."
+                      className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
                       Discount
                     </label>
                     <input
@@ -2562,6 +2849,29 @@ export default function AccountantOrderBilling() {
                           </span>
                         </div>
                       )}
+                      {customValues.showPackagingCharge && (
+                        <div className="flex items-center justify-between text-slate-600">
+                          <span>Packaging Charge</span>
+                          <span className="font-semibold text-slate-800">
+                            {formatCurrency(selectedTotals.packagingCharge)}
+                          </span>
+                        </div>
+                      )}
+                      {selectedTotals.extraCharge > 0 && (
+                        <div className="rounded-xl bg-slate-50 px-3 py-2 text-slate-600">
+                          <div className="flex items-center justify-between">
+                            <span>Extra Charge</span>
+                            <span className="font-semibold text-slate-800">
+                              {formatCurrency(selectedTotals.extraCharge)}
+                            </span>
+                          </div>
+                          {selectedTotals.extraChargeReason && (
+                            <span className="mt-1 block text-xs font-medium text-slate-500">
+                              Reason: {selectedTotals.extraChargeReason}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-center justify-between text-slate-600">
                         <span>Discount</span>
                         <span className="font-semibold text-rose-600">
@@ -2627,14 +2937,14 @@ export default function AccountantOrderBilling() {
               Bill Generated Successfully
             </h2>
             <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
-              {successBill.billNo || "New bill"} has been moved to Pending Bills.
+              {successBill.billNo || "New bill"} has been added to Payment History.
             </p>
             <button
               type="button"
               onClick={() => setSuccessBill(null)}
               className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
             >
-              Go to Pending
+              Go to History
             </button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import Bill from "../models/Bill.model.js";
+import Bill, { allocateBillNumber } from "../models/Bill.model.js";
 import BillPrintJob from "../models/BillPrintJob.model.js";
 import Inventory from "../models/Inventory.model.js";
 import InventoryLog from "../models/InventoryLog.model.js";
@@ -10,6 +10,7 @@ import Table from "../models/Table.model.js";
 import crypto from "crypto";
 import mongoose from "mongoose";
 import PDFDocument from "pdfkit";
+import ExcelJS from "exceljs";
 import { invalidateCacheNamespaces } from "../utils/cacheStore.js";
 import {
   buildWhatsAppChatUrl,
@@ -26,6 +27,16 @@ const sendError = (res, message, status = 400) =>
   res.status(status).json({ success: false, message });
 
 const asMoney = (value) => Number(value || 0).toFixed(2);
+const formatHistoryDate = (value) =>
+  value
+    ? new Date(value).toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "N/A";
 const receiptText = (value) => String(value || "").trim();
 const receiptLine = (length = 42, char = "-") => char.repeat(length);
 const receiptCenter = (value, width = 42) => {
@@ -40,16 +51,50 @@ const receiptPair = (label, value, width = 42) => {
   const space = Math.max(width - left.length - right.length, 1);
   return `${left}${" ".repeat(space)}${right}`.slice(0, width);
 };
-const receiptDate = (value) =>
-  value
-    ? new Date(value).toLocaleString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : new Date().toLocaleString("en-IN");
+const receiptWrap = (value, width = 42) => {
+  const text = receiptText(value);
+  if (!text) return [];
+
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+
+  words.forEach((word) => {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= width) {
+      current = candidate;
+      return;
+    }
+    if (current) lines.push(current);
+    current = word.slice(0, width);
+  });
+
+  if (current) lines.push(current);
+  return lines;
+};
+const receiptBillDate = (value) => {
+  const date = value ? new Date(value) : new Date();
+  const day = date.getDate();
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+  const time = date.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return `${day}-${month}-${year} ${time}`;
+};
+const receiptItemRow = (name, qty, rate, amount, width = 42) => {
+  const itemWidth = 18;
+  const qtyWidth = 5;
+  const rateWidth = 8;
+  const amtWidth = 9;
+  const left = receiptText(name).slice(0, itemWidth).padEnd(itemWidth, " ");
+  const qtyText = String(qty).padStart(qtyWidth, " ");
+  const rateText = asMoney(rate).padStart(rateWidth, " ");
+  const amountText = asMoney(amount).padStart(amtWidth, " ");
+  return `${left}${qtyText}${rateText}${amountText}`.slice(0, width);
+};
 
 const defaultBillingTemplate = {
   headerTitle: "",
@@ -110,6 +155,8 @@ const sanitizeAmount = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 };
+
+const roundNetPayableUp = (value) => Math.ceil(Number(value || 0));
 
 const sanitizeRate = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -250,6 +297,8 @@ const calculateBillTotals = ({
   cgstRate = 2.5,
   sgstRate = 2.5,
   serviceCharge = 0,
+  packagingCharge = 0,
+  extraCharge = 0,
   discount = 0,
 }) => {
   const normalizedItemsTotal = Math.max(
@@ -259,6 +308,8 @@ const calculateBillTotals = ({
   const normalizedCgstRate = sanitizeRate(cgstRate, 2.5);
   const normalizedSgstRate = sanitizeRate(sgstRate, 2.5);
   const normalizedServiceCharge = sanitizeAmount(serviceCharge);
+  const normalizedPackagingCharge = sanitizeAmount(packagingCharge);
+  const normalizedExtraCharge = sanitizeAmount(extraCharge);
   const normalizedDiscount = sanitizeAmount(discount);
 
   const cgst = Number(
@@ -268,13 +319,18 @@ const calculateBillTotals = ({
     (normalizedItemsTotal * (normalizedSgstRate / 100)).toFixed(2)
   );
   const subtotalBeforeDiscount =
-    normalizedItemsTotal + cgst + sgst + normalizedServiceCharge;
+    normalizedItemsTotal +
+    cgst +
+    sgst +
+    normalizedServiceCharge +
+    normalizedPackagingCharge +
+    normalizedExtraCharge;
   const appliedDiscount = Math.min(
     normalizedDiscount,
     subtotalBeforeDiscount
   );
-  const totalAmount = Number(
-    (subtotalBeforeDiscount - appliedDiscount).toFixed(2)
+  const totalAmount = roundNetPayableUp(
+    subtotalBeforeDiscount - appliedDiscount
   );
 
   return {
@@ -284,6 +340,8 @@ const calculateBillTotals = ({
     cgst,
     sgst,
     serviceCharge: normalizedServiceCharge,
+    packagingCharge: normalizedPackagingCharge,
+    extraCharge: normalizedExtraCharge,
     discount: appliedDiscount,
     totalAmount,
   };
@@ -368,85 +426,102 @@ const buildBillReceiptText = (bill) => {
   const order = bill.order || {};
   const items = Array.isArray(order.items) ? order.items : [];
   const title = template.headerTitle || restaurant.name || "Restaurant";
-  const orderLabel = order.table?.tableNumber
-    ? `Table ${order.table.tableNumber}`
-    : order.orderType || "Order";
-  const totalQty = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const lines = [
-    receiptCenter("Tax Invoice", width),
-    "",
-    receiptCenter(title, width),
-  ];
+  const taxableBase = Number(bill.itemsTotal || 0);
+  const rawTotal =
+    taxableBase +
+    Number(bill.cgst || 0) +
+    Number(bill.sgst || 0) +
+    Number(bill.serviceCharge || 0) +
+    Number(bill.packagingCharge || 0) +
+    Number(bill.extraCharge || 0) -
+    Number(bill.discount || 0);
+  const roundOff = Number(asMoney(Number(bill.totalAmount || 0) - rawTotal));
+  const lines = [receiptCenter("TAX INVOICE", width), receiptCenter(String(title).toUpperCase(), width)];
 
-  if (template.subtitle) lines.push(receiptCenter(template.subtitle, width));
-  if (restaurant.address) lines.push(receiptCenter(restaurant.address, width));
-  if (restaurant.phone) lines.push(receiptCenter(`Phone: ${restaurant.phone}`, width));
-  if (restaurant.gstNo && template.showGstNo) {
-    lines.push(receiptCenter(`GSTIN: ${restaurant.gstNo}`, width));
+  receiptWrap(template.subtitle, width).forEach((line) =>
+    lines.push(receiptCenter(String(line).toUpperCase(), width))
+  );
+  if (restaurant.phone) {
+    lines.push(receiptCenter(`Ph - ${restaurant.phone}`, width));
   }
-
+  if (restaurant.gstNo && template.showGstNo) {
+    lines.push(receiptCenter(`GST No. ${restaurant.gstNo}`, width));
+  }
+  lines.push("");
   lines.push(
+    receiptPair(
+      `Bill No ${bill.billNo || bill._id || "N/A"}`,
+      receiptBillDate(bill.updatedAt || bill.createdAt),
+      width
+    ),
     receiptLine(width),
-    receiptCenter("Tax Invoice For Supply", width),
-    receiptLine(width),
-    `Invoice No: ${bill.billNo || bill._id || "N/A"}`.slice(0, width),
-    receiptPair("Date:", receiptDate(bill.updatedAt || bill.createdAt), width),
-    receiptPair("Order:", order.orderNo || "N/A", width),
-    receiptPair("Type:", orderLabel, width)
+    "ITEM               QTY    RATE      AMT",
+    receiptLine(width)
   );
 
-  if (bill.customerPhone || order.customerPhone) {
-    lines.push(`Mobile: ${bill.customerPhone || order.customerPhone}`.slice(0, width));
-  }
-
-  lines.push(receiptLine(width), "Sl Product              Qty   Rate    Amt");
-
-  items.forEach((item, index) => {
+  items.forEach((item) => {
     const name = item.menuItem?.name || item.name || "Menu Item";
     const qty = Number(item.quantity || 0);
     const rate = Number(item.price ?? item.menuItem?.price ?? 0);
     const amount = rate * qty;
 
-    lines.push(`${String(index + 1).padStart(2, " ")} ${name}`.slice(0, width));
-    lines.push(
-      receiptPair(
-        `   ${qty.toFixed(2)} x ${asMoney(rate)}`,
-        asMoney(amount),
-        width
-      )
-    );
+    lines.push(receiptItemRow(name, qty, rate, amount, width));
   });
 
-  lines.push(
-    receiptLine(width),
-    receiptPair("Total Qty:", totalQty, width),
-    receiptPair("Total Sale:", asMoney(bill.itemsTotal), width)
-  );
+  lines.push(receiptLine(width));
 
   if (Number(bill.complimentaryAmount || 0) > 0) {
     lines.push(receiptPair("Complimentary:", `-${asMoney(bill.complimentaryAmount)}`, width));
   }
-  if (Number(bill.discount || 0) > 0) {
-    lines.push(receiptPair("Discount:", `-${asMoney(bill.discount)}`, width));
-  }
   if (Number(bill.serviceCharge || 0) > 0) {
-    lines.push(receiptPair("Service Charge:", asMoney(bill.serviceCharge), width));
+    lines.push(receiptPair("Service Charge", asMoney(bill.serviceCharge), width));
+  }
+  if (
+    Number(bill.packagingCharge || 0) > 0 &&
+    bill.showPackagingCharge !== false
+  ) {
+    lines.push(receiptPair("Packaging Charge", asMoney(bill.packagingCharge), width));
+  }
+  if (Number(bill.extraCharge || 0) > 0) {
+    lines.push(receiptPair("Extra Charge", asMoney(bill.extraCharge), width));
+    if (bill.extraChargeReason) {
+      receiptWrap(`Reason: ${bill.extraChargeReason}`, width).forEach((line) =>
+        lines.push(line)
+      );
+    }
   }
   if (template.showTaxBreakup) {
     lines.push(
-      receiptPair(`CGST (${asMoney(bill.cgstRate)}%):`, asMoney(bill.cgst), width),
-      receiptPair(`SGST (${asMoney(bill.sgstRate)}%):`, asMoney(bill.sgst), width)
+      receiptPair(
+        `CGST ${Number(bill.cgstRate || 0)}% On ${asMoney(taxableBase)}`,
+        asMoney(bill.cgst),
+        width
+      ),
+      receiptPair(
+        `SGST ${Number(bill.sgstRate || 0)}% On ${asMoney(taxableBase)}`,
+        asMoney(bill.sgst),
+        width
+      )
     );
+  }
+  if (Number(bill.discount || 0) > 0) {
+    lines.push(receiptPair("Discount", `-${asMoney(bill.discount)}`, width));
   }
 
   lines.push(
+    receiptPair("Round Off", asMoney(roundOff), width),
     receiptLine(width),
-    receiptPair("Net Payable:", asMoney(bill.totalAmount), width),
-    receiptPair("Status:", bill.paymentStatus || "PENDING", width),
-    receiptLine(width),
-    receiptCenter(template.footerMessage || "Thank you for dining with us.", width),
-    "",
+    receiptPair("Total", asMoney(bill.totalAmount), width),
+    receiptCenter("E. & O. E.", width),
     ""
+  );
+  receiptWrap(restaurant.address, width).forEach((line) =>
+    lines.push(receiptCenter(line, width))
+  );
+  lines.push(
+    "",
+    receiptCenter(template.footerMessage || "Thank you for dining with us.", width),
+    receiptCenter("Please Visit Again", width)
   );
 
   return lines.join("\n");
@@ -491,6 +566,57 @@ const getAuthorizedRestaurantIds = async (req) => {
   }
 
   return req.user.restaurant ? [req.user.restaurant] : [];
+};
+
+const buildBillingHistoryQuery = async (req) => {
+  const restaurantIds = await getAuthorizedRestaurantIds(req);
+  const query = {
+    restaurant: { $in: restaurantIds },
+    paymentStatus: "PAID",
+  };
+
+  if (req.query.paymentMethod) {
+    query.paymentMethod = sanitizeText(req.query.paymentMethod).toUpperCase();
+  }
+
+  if (req.query.orderType) {
+    query._requestedOrderType = sanitizeText(req.query.orderType).toUpperCase();
+  }
+
+  return { restaurantIds, query };
+};
+
+const filterBillingHistoryRecords = (bills, req) => {
+  const requestedOrderType = sanitizeText(req.query.orderType).toUpperCase();
+  const dateFrom = sanitizeText(req.query.dateFrom);
+  const dateTo = sanitizeText(req.query.dateTo);
+
+  return bills.filter((bill) => {
+    if (requestedOrderType) {
+      if (requestedOrderType === "TABLE") {
+        if (!bill.order?.table?.tableNumber) return false;
+      } else {
+        if (bill.order?.table?.tableNumber) return false;
+        if (String(bill.order?.orderType || "").toUpperCase() !== requestedOrderType) {
+          return false;
+        }
+      }
+    }
+
+    const billDate = new Date(bill.updatedAt || bill.createdAt);
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      from.setHours(0, 0, 0, 0);
+      if (billDate < from) return false;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      if (billDate > to) return false;
+    }
+
+    return true;
+  });
 };
 
 const findBillForUserWithOrder = async (req, query) => {
@@ -559,9 +685,14 @@ const createManualBill = async (req, res) => {
       orderType = "TAKEAWAY",
       customerPhone = "",
       customerEmail = "",
+      paymentMethod = "CASH",
       cgstRate = 2.5,
       sgstRate = 2.5,
       serviceCharge = 0,
+      packagingCharge = 0,
+      showPackagingCharge,
+      extraCharge = 0,
+      extraChargeReason = "",
       showServiceCharge,
       discount = 0,
       complimentaryType = "NONE",
@@ -592,6 +723,9 @@ const createManualBill = async (req, res) => {
     ].includes(orderType)
       ? orderType
       : "TAKEAWAY";
+    const normalizedPaymentMethod = ["CASH", "UPI", "CARD"].includes(paymentMethod)
+      ? paymentMethod
+      : "CASH";
 
     session = await mongoose.startSession();
     session.startTransaction();
@@ -694,6 +828,8 @@ const createManualBill = async (req, res) => {
       cgstRate,
       sgstRate,
       serviceCharge,
+      packagingCharge,
+      extraCharge,
       discount,
     });
 
@@ -701,6 +837,7 @@ const createManualBill = async (req, res) => {
       [
         {
           restaurant: req.user.restaurant,
+          billNo: await allocateBillNumber(req.user.restaurant, session),
           order: order._id,
           accountant: req.user.id,
           generatedBy: req.user.id,
@@ -713,6 +850,14 @@ const createManualBill = async (req, res) => {
           serviceCharge: totals.serviceCharge,
           showServiceCharge:
             typeof showServiceCharge === "boolean" ? showServiceCharge : undefined,
+          packagingCharge: totals.packagingCharge,
+          showPackagingCharge:
+            typeof showPackagingCharge === "boolean"
+              ? showPackagingCharge
+              : undefined,
+          extraCharge: totals.extraCharge,
+          extraChargeReason:
+            totals.extraCharge > 0 ? sanitizeText(extraChargeReason) : "",
           discount: totals.discount,
           complimentaryType: finalComplimentaryType,
           complimentaryItems: complimentaryOrderItems.map((item) => item._id),
@@ -722,9 +867,20 @@ const createManualBill = async (req, res) => {
           customerEmail: normalizedCustomerEmail,
           customerPhone: normalizedCustomerPhone,
           totalAmount: totals.totalAmount,
-          paymentStatus: "PENDING",
+          paymentStatus: "PAID",
+          paymentMethod: normalizedPaymentMethod,
+          paidAt: now,
         },
       ],
+      { session }
+    );
+
+    await Order.findByIdAndUpdate(
+      order._id,
+      {
+        status: "PAID",
+        paidAt: now,
+      },
       { session }
     );
 
@@ -757,12 +913,10 @@ const createManualBill = async (req, res) => {
 
 const getHistory = async (req, res) => {
   try {
-    const restaurantIds = await getAuthorizedRestaurantIds(req);
+    const { query } = await buildBillingHistoryQuery(req);
+    delete query._requestedOrderType;
 
-    const bills = await Bill.find({
-      restaurant: { $in: restaurantIds },
-      paymentStatus: "PAID",
-    })
+    const bills = await Bill.find(query)
       .populate("restaurant")
       .populate({
         path: "order",
@@ -770,10 +924,91 @@ const getHistory = async (req, res) => {
       })
       .sort({ updatedAt: -1 });
 
-    return sendSuccess(res, bills);
+    return sendSuccess(res, filterBillingHistoryRecords(bills, req));
   } catch (err) {
     console.error(err);
     return sendError(res, err.message);
+  }
+};
+
+const exportBillingHistoryExcel = async (req, res) => {
+  try {
+    const { query } = await buildBillingHistoryQuery(req);
+    delete query._requestedOrderType;
+
+    const bills = await Bill.find(query)
+      .populate({
+        path: "order",
+        populate: { path: "table", select: "tableNumber status" },
+      })
+      .sort({ updatedAt: -1 });
+
+    const filteredBills = filterBillingHistoryRecords(bills, req);
+    const totalAmount = filteredBills.reduce(
+      (sum, bill) => sum + Number(bill.totalAmount || 0),
+      0
+    );
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "F&B ERP";
+    workbook.created = new Date();
+
+    const worksheet = workbook.addWorksheet("Billing History");
+    worksheet.columns = [
+      { header: "Bill No", key: "billNo", width: 24 },
+      { header: "Date", key: "date", width: 24 },
+      { header: "Billing Amount", key: "billingAmount", width: 18 },
+    ];
+
+    worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+    worksheet.getRow(1).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF047857" },
+    };
+
+    filteredBills.forEach((bill) => {
+      worksheet.addRow({
+        billNo: bill.billNo || bill._id?.toString() || "N/A",
+        date: formatHistoryDate(bill.updatedAt || bill.createdAt),
+        billingAmount: Number(bill.totalAmount || 0),
+      });
+    });
+
+    const totalRow = worksheet.addRow({
+      billNo: "Total Amount",
+      date: "",
+      billingAmount: totalAmount,
+    });
+    totalRow.font = { bold: true };
+
+    worksheet.getColumn("billingAmount").numFmt = "0.00";
+    worksheet.eachRow((row) => {
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+    });
+
+    const fileFrom = sanitizeText(req.query.dateFrom) || "all";
+    const fileTo = sanitizeText(req.query.dateTo) || "latest";
+    const filename = `billing-history-${fileFrom}-to-${fileTo}.xlsx`;
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error(err);
+    return sendError(res, err.message, 500);
   }
 };
 
@@ -807,6 +1042,8 @@ const customizeBill = async (req, res) => {
       cgstRate: req.body.cgstRate ?? bill.cgstRate ?? 2.5,
       sgstRate: req.body.sgstRate ?? bill.sgstRate ?? 2.5,
       serviceCharge: req.body.serviceCharge ?? bill.serviceCharge ?? 0,
+      packagingCharge: req.body.packagingCharge ?? bill.packagingCharge ?? 0,
+      extraCharge: req.body.extraCharge ?? bill.extraCharge ?? 0,
       discount: req.body.discount ?? bill.discount ?? 0,
     });
 
@@ -826,6 +1063,15 @@ const customizeBill = async (req, res) => {
     if (typeof req.body.showServiceCharge === "boolean") {
       bill.showServiceCharge = req.body.showServiceCharge;
     }
+    bill.packagingCharge = totals.packagingCharge;
+    if (typeof req.body.showPackagingCharge === "boolean") {
+      bill.showPackagingCharge = req.body.showPackagingCharge;
+    }
+    bill.extraCharge = totals.extraCharge;
+    bill.extraChargeReason =
+      totals.extraCharge > 0
+        ? sanitizeText(req.body.extraChargeReason ?? bill.extraChargeReason)
+        : "";
     bill.discount = totals.discount;
     bill.totalAmount = totals.totalAmount;
     bill.customerEmail = sanitizeText(req.body.customerEmail).toLowerCase();
@@ -1237,6 +1483,32 @@ const streamBillPDF = async (bill, res) => {
       });
       summaryY += 18;
     }
+    if (
+      Number(bill.packagingCharge || 0) > 0 &&
+      bill.showPackagingCharge !== false
+    ) {
+      drawAmountLine(doc, "Packaging Charge", bill.packagingCharge, {
+        y: summaryY,
+      });
+      summaryY += 18;
+    }
+    if (Number(bill.extraCharge || 0) > 0) {
+      drawAmountLine(doc, "Extra Charge", bill.extraCharge, {
+        y: summaryY,
+      });
+      summaryY += 18;
+      if (bill.extraChargeReason) {
+        doc
+          .font("Helvetica")
+          .fontSize(9)
+          .fillColor("#6B7280")
+          .text(`Reason: ${bill.extraChargeReason}`, 340, summaryY, {
+            width: 200,
+            align: "left",
+          });
+        summaryY += 24;
+      }
+    }
     drawAmountLine(doc, "Discount", bill.discount || 0, {
       y: summaryY,
     });
@@ -1312,6 +1584,7 @@ const generatePublicBillPDF = async (req, res) => {
 export default {
   getInbox,
   getHistory,
+  exportBillingHistoryExcel,
   createManualBill,
   customizeBill,
   markPaid,

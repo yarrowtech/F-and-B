@@ -44,6 +44,7 @@ const defaultBillingTemplate = {
   logoUrl: "",
   primaryColor: "#183153",
   accentColor: "#f5f8f2",
+  billingStartNumber: 1,
   footerMessage: "Thank you for dining with us.",
   terms: "This invoice includes all selected taxes, service charges, and discounts.",
   showGstNo: true,
@@ -140,6 +141,10 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
   const [form, setForm] = useState({
     ...defaultBillingTemplate,
     ...(restaurant?.billingTemplate || {}),
+    billingStartNumber:
+      Number(restaurant?.billingStartNumber) > 0
+        ? Number(restaurant.billingStartNumber)
+        : 1,
   });
   const [logoError, setLogoError] = useState("");
 
@@ -230,6 +235,44 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
         {textField("Subtitle / Tagline", "subtitle", "Fresh food, warm service")}
         {textField("Primary Color", "primaryColor", "#183153", { type: "color" })}
         {textField("Background Color", "accentColor", "#f5f8f2", { type: "color" })}
+      </div>
+
+      <div className="rounded-2xl border border-purple-200 bg-purple-50 p-4 dark:border-purple-900/40 dark:bg-purple-900/10">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-purple-600 dark:text-purple-300">
+              Billing Number
+            </p>
+            <p className="mt-1 text-sm text-purple-900 dark:text-purple-100">
+              New bills for this restaurant will start from this number and continue in sequence.
+            </p>
+          </div>
+          <div className="grid gap-1 text-right">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-purple-500 dark:text-purple-300">
+              Current Next Bill
+            </span>
+            <span className="text-lg font-bold text-purple-800 dark:text-purple-100">
+              {Number(restaurant?.nextBillNumber) > 0 ? restaurant.nextBillNumber : form.billingStartNumber}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-4 max-w-xs">
+          <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+            Billing No.
+          </label>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={form.billingStartNumber}
+            onChange={(e) => change("billingStartNumber", e.target.value)}
+            className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          />
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Example: enter 5000 to make future bills start from 5000.
+          </p>
+        </div>
       </div>
 
       <div>

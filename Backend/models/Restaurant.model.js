@@ -203,6 +203,18 @@ const restaurantSchema = new mongoose.Schema(
       default: true,
     },
 
+    billingStartNumber: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+
+    nextBillNumber: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+
     billingTemplate: {
       type: billingTemplateSchema,
       default: () => ({}),
