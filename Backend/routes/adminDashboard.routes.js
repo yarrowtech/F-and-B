@@ -6,6 +6,7 @@ import {
   getDailySales,
   getRestaurantBreakdown,
   getAdminAccountHistory,
+  exportAdminAccountHistoryExcel,
 } from "../controllers/adminDashboard.controller.js";
 import auth from "../middlewares/auth.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
@@ -84,6 +85,11 @@ router.get(
     namespace: "dashboard",
   }),
   getRestaurantBreakdown
+);
+
+router.get(
+  "/account-history/excel",
+  exportAdminAccountHistoryExcel
 );
 
 router.get(

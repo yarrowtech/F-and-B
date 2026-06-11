@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   FaCalendarAlt,
+  FaFileExcel,
   FaFilter,
   FaGift,
   FaMoneyBillWave,
@@ -9,7 +10,10 @@ import {
   FaSearch,
   FaStore,
 } from "react-icons/fa";
-import { getAdminAccountHistory } from "../../services/adminDashboard.service";
+import {
+  downloadAdminAccountHistoryExcel,
+  getAdminAccountHistory,
+} from "../../services/adminDashboard.service";
 import { getRestaurants } from "../../services/restaurant.service";
 
 const formatCurrency = (value) =>
@@ -364,6 +368,19 @@ export default function AdminAccount() {
     await fetchHistory(restaurantId, filters);
   };
 
+  const handleDownloadExcel = async () => {
+    try {
+      await downloadAdminAccountHistoryExcel({
+        restaurantId: selectedRestaurantId,
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+      });
+    } catch (error) {
+      console.error("Admin account history Excel error:", error);
+      alert("Failed to download Excel");
+    }
+  };
+
   return (
     <div className="admin-dark-scope min-h-screen bg-slate-50 p-3 sm:p-4 lg:p-6">
       <div className="mx-auto max-w-7xl space-y-5 sm:space-y-6">
@@ -525,17 +542,28 @@ export default function AdminAccount() {
                 </p>
               </div>
               <div className="grid w-full gap-2 sm:grid-cols-[220px_1fr] lg:max-w-2xl">
-                <select
-                  value={complimentaryFilter}
-                  onChange={(e) => setComplimentaryFilter(e.target.value)}
-                  className="min-h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400"
-                >
-                  {complimentaryFilters.map((filter) => (
-                    <option key={filter.key} value={filter.key}>
-                      {filter.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <select
+                    value={complimentaryFilter}
+                    onChange={(e) => setComplimentaryFilter(e.target.value)}
+                    className="min-h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400"
+                  >
+                    {complimentaryFilters.map((filter) => (
+                      <option key={filter.key} value={filter.key}>
+                        {filter.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleDownloadExcel}
+                    disabled={loading || !selectedRestaurantId}
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <FaFileExcel />
+                    Excel
+                  </button>
+                </div>
                 <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4">
                   <FaSearch className="shrink-0 text-slate-400" />
                   <input

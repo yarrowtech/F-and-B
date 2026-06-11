@@ -242,6 +242,7 @@ const InventoryManagerManagement = () => {
   const [deleteTarget, setDeleteTarget]           = useState(null);
   const [editingId, setEditingId]                 = useState(null);
   const [stockTarget, setStockTarget]             = useState(null);
+  const [stockMode, setStockMode]                 = useState("set");
   const [stockQty, setStockQty]                   = useState("");
   const [form, setForm]                           = useState(emptyForm);
 
@@ -372,19 +373,31 @@ const InventoryManagerManagement = () => {
   };
 
   /* ── add stock ── */
-  const openAddStockModal = (item) => { setStockTarget(item); setStockQty(""); setShowAddStockModal(true); };
+  const openAddStockModal = (item) => {
+    setStockTarget(item);
+    setStockMode("set");
+    setStockQty(String(Number(item.quantity || 0)));
+    setShowAddStockModal(true);
+  };
   const handleAddStock = async (e) => {
     e.preventDefault();
-    if (!stockQty || Number(stockQty) <= 0) return alert("Enter a valid quantity");
+    if (stockQty === "" || Number.isNaN(Number(stockQty))) return alert("Enter a valid quantity");
+    if (stockMode === "add" && Number(stockQty) <= 0) return alert("Enter a quantity greater than 0");
+    if (stockMode === "set" && Number(stockQty) < 0) return alert("Stock quantity cannot be negative");
     try {
       setSubmitting(true);
-      const updated = await addStock(restaurantId, stockTarget._id, Number(stockQty));
+      const updated =
+        stockMode === "add"
+          ? await addStock(restaurantId, stockTarget._id, Number(stockQty))
+          : await updateInventoryItem(restaurantId, stockTarget._id, {
+              quantity: Number(stockQty),
+            });
       if (updated) {
         setInventory((p) => p.map((i) => i._id === stockTarget._id ? updated : i));
         await refreshLogsIfOpen(stockTarget._id);
       }
       setShowAddStockModal(false); setStockTarget(null);
-    } catch (err) { alert(err?.response?.data?.message || "Add stock failed"); }
+    } catch (err) { alert(err?.response?.data?.message || "Stock update failed"); }
     finally       { setSubmitting(false); }
   };
 
@@ -633,7 +646,7 @@ const InventoryManagerManagement = () => {
                           <td className="px-4 py-3.5 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               {[
-                                { label: "+ Stock", fn: () => openAddStockModal(item), cls: "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40" },
+                                { label: "Stock", fn: () => openAddStockModal(item), cls: "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40" },
                                 { label: "Logs",    fn: () => viewLogs(item),          cls: "bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900/40" },
                                 { label: "Edit",    fn: () => openEditModal(item),     cls: "bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/40" },
                                 { label: "Delete",  fn: () => setDeleteTarget(item),   cls: "bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/40" },
@@ -770,7 +783,7 @@ const InventoryManagerManagement = () => {
 
       {/* ════════ ADD STOCK MODAL ════════ */}
       {showAddStockModal && stockTarget && (
-        <Modal title="Add Stock" accent="bg-gradient-to-r from-emerald-600 to-green-500"
+        <Modal title="Update Stock" accent="bg-gradient-to-r from-emerald-600 to-green-500"
           onClose={() => { setShowAddStockModal(false); setStockTarget(null); }}>
           <form onSubmit={handleAddStock} className="space-y-4">
             <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/40 rounded-xl p-4">
@@ -784,11 +797,46 @@ const InventoryManagerManagement = () => {
                 Current stock: <span className="font-semibold text-emerald-700 dark:text-emerald-400">{formatQuantity(stockTarget.quantity)} {stockTarget.unit}</span>
               </p>
             </div>
-            <Field label={`Quantity to Add (${stockTarget.unit})`}>
-              <input type="number" min="0.01" step="any" placeholder="e.g. 20"
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setStockMode("add");
+                  setStockQty("");
+                }}
+                className={`rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                  stockMode === "add"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                }`}
+              >
+                Add Quantity
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStockMode("set");
+                  setStockQty(String(Number(stockTarget.quantity || 0)));
+                }}
+                className={`rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                  stockMode === "set"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                }`}
+              >
+                Set Current Stock
+              </button>
+            </div>
+            <Field label={stockMode === "add" ? `Quantity to Add (${stockTarget.unit})` : `Current Stock Quantity (${stockTarget.unit})`}>
+              <input type="number" min="0" step="any" placeholder={stockMode === "add" ? "e.g. 20" : "e.g. 85"}
                 value={stockQty} onChange={(e) => setStockQty(e.target.value)}
                 required autoFocus className={inputCls} />
             </Field>
+            {stockMode === "set" && (
+              <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                This will manually set the total stock to the entered quantity.
+              </p>
+            )}
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => { setShowAddStockModal(false); setStockTarget(null); }}
                 className="flex-1 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
@@ -796,7 +844,7 @@ const InventoryManagerManagement = () => {
               </button>
               <button type="submit" disabled={submitting}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors">
-                {submitting ? "Adding…" : "Add Stock"}
+                {submitting ? "Saving..." : stockMode === "add" ? "Add Stock" : "Save Stock"}
               </button>
             </div>
           </form>

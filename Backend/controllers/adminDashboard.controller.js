@@ -3,6 +3,7 @@ import Order from "../models/Order.model.js";
 import Bill from "../models/Bill.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import Employee from "../models/Employee.model.js";
+import ExcelJS from "exceljs";
 
 /* ================= HELPER: get admin's restaurant IDs ================= */
 const getAdminRestaurantIds = async (adminId, requestedRestaurantId) => {
@@ -471,6 +472,94 @@ export const getAdminAccountHistory = async (req, res) => {
         bills: billsWithComplimentaryMeta,
       },
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const exportAdminAccountHistoryExcel = async (req, res) => {
+  try {
+    const { restaurantId, startDate, endDate } = req.query;
+
+    const restaurantIds = await getAdminRestaurantIds(req.user.id, restaurantId);
+    if (restaurantIds === null) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Access denied to this restaurant" });
+    }
+
+    const paidAtFilter = buildPaidAtFilter({ startDate, endDate });
+
+    const bills = await Bill.find({
+      restaurant: { $in: restaurantIds },
+      paymentStatus: "PAID",
+      ...paidAtFilter,
+    })
+      .populate("restaurant", "name")
+      .populate({
+        path: "order",
+        select: "orderNo table waiter",
+        populate: [
+          { path: "table", select: "tableNumber" },
+          { path: "waiter", select: "name" },
+        ],
+      })
+      .sort({ paidAt: -1, createdAt: -1 })
+      .lean();
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Admin Account History");
+
+    worksheet.columns = [
+      { header: "Restaurant", key: "restaurant", width: 24 },
+      { header: "Bill No", key: "billNo", width: 18 },
+      { header: "Order No", key: "orderNo", width: 18 },
+      { header: "Table", key: "table", width: 12 },
+      { header: "Waiter", key: "waiter", width: 20 },
+      { header: "Payment Method", key: "paymentMethod", width: 18 },
+      { header: "Paid At", key: "paidAt", width: 24 },
+      { header: "Billing Amount", key: "billingAmount", width: 18 },
+    ];
+
+    const totalAmount = bills.reduce(
+      (sum, bill) => sum + Number(bill.totalAmount || 0),
+      0
+    );
+
+    bills.forEach((bill) => {
+      worksheet.addRow({
+        restaurant: bill.restaurant?.name || "-",
+        billNo: bill.billNo || "-",
+        orderNo: bill.order?.orderNo || "-",
+        table: bill.order?.table?.tableNumber || "-",
+        waiter: bill.order?.waiter?.name || "-",
+        paymentMethod: bill.paymentMethod || "PAID",
+        paidAt: bill.paidAt ? new Date(bill.paidAt).toLocaleString("en-IN") : "-",
+        billingAmount: Number(bill.totalAmount || 0),
+      });
+    });
+
+    worksheet.addRow({});
+    worksheet.addRow({
+      restaurant: "Total Amount",
+      billingAmount: totalAmount,
+    });
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getColumn("billingAmount").numFmt = "0.00";
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=admin-account-history-${startDate || "all"}-to-${endDate || "latest"}.xlsx`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: err.message });

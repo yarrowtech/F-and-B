@@ -3,6 +3,7 @@ import Order from "../models/Order.model.js";
 import Bill from "../models/Bill.model.js";
 import Attendance from "../models/Attendance.model.js";
 import Employee from "../models/Employee.model.js";
+import ExcelJS from "exceljs";
 
 const sendError = (res, message, status = 400) =>
   res.status(status).json({
@@ -256,6 +257,102 @@ export const getManagerAccountHistory = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to load manager account history",
+    });
+  }
+};
+
+export const exportManagerAccountHistoryExcel = async (req, res) => {
+  try {
+    const restaurantId = getManagerRestaurantId(req, res);
+    if (!restaurantId) return;
+
+    const range = parseSelectedRange(req);
+    if (range.error) {
+      return sendError(res, range.error, 400);
+    }
+
+    const { todayEnd, selectedStart, selectedEnd } = range;
+
+    const match = {
+      restaurant: restaurantId,
+      paymentStatus: "PAID",
+    };
+
+    if (selectedStart || selectedEnd) {
+      match.paidAt = {};
+      if (selectedStart) match.paidAt.$gte = selectedStart;
+      if (selectedEnd) match.paidAt.$lte = selectedEnd;
+      if (!selectedStart) match.paidAt.$gte = new Date(0);
+      if (!selectedEnd) match.paidAt.$lte = todayEnd;
+    }
+
+    const bills = await Bill.find(match)
+      .populate({
+        path: "order",
+        select: "orderNo table waiter",
+        populate: [
+          { path: "table", select: "tableNumber" },
+          { path: "waiter", select: "name" },
+        ],
+      })
+      .sort({ paidAt: -1, createdAt: -1 })
+      .lean();
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Manager Account History");
+
+    worksheet.columns = [
+      { header: "Bill No", key: "billNo", width: 18 },
+      { header: "Order No", key: "orderNo", width: 18 },
+      { header: "Table", key: "table", width: 12 },
+      { header: "Waiter", key: "waiter", width: 20 },
+      { header: "Payment Method", key: "paymentMethod", width: 18 },
+      { header: "Paid At", key: "paidAt", width: 24 },
+      { header: "Billing Amount", key: "billingAmount", width: 18 },
+    ];
+
+    const totalAmount = bills.reduce(
+      (sum, bill) => sum + Number(bill.totalAmount || 0),
+      0
+    );
+
+    bills.forEach((bill) => {
+      worksheet.addRow({
+        billNo: bill.billNo || "-",
+        orderNo: bill.order?.orderNo || "-",
+        table: bill.order?.table?.tableNumber || "-",
+        waiter: bill.order?.waiter?.name || "-",
+        paymentMethod: bill.paymentMethod || "PAID",
+        paidAt: bill.paidAt ? new Date(bill.paidAt).toLocaleString("en-IN") : "-",
+        billingAmount: Number(bill.totalAmount || 0),
+      });
+    });
+
+    worksheet.addRow({});
+    worksheet.addRow({
+      billNo: "Total Amount",
+      billingAmount: totalAmount,
+    });
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getColumn("billingAmount").numFmt = "0.00";
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=manager-account-history-${req.query.startDate || "all"}-to-${req.query.endDate || "latest"}.xlsx`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error("Manager Account History Excel Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to export manager account history",
     });
   }
 };

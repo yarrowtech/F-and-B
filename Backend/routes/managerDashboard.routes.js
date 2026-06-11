@@ -2,6 +2,7 @@ import express from "express";
 import {
   getManagerAccountHistory,
   getManagerDashboard,
+  exportManagerAccountHistoryExcel,
 } from "../controllers/managerDashboard.controller.js";
 import auth from "../middlewares/auth.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
@@ -25,6 +26,13 @@ router.get(
     namespace: "dashboard",
   }),
   getManagerDashboard
+);
+
+router.get(
+  "/account-history/excel",
+  auth,
+  allowRoles("manager"),
+  exportManagerAccountHistoryExcel
 );
 
 router.get(

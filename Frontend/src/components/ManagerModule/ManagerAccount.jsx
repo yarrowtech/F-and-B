@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   FaCalendarAlt,
   FaCreditCard,
+  FaFileExcel,
   FaFilter,
   FaGift,
   FaMoneyBillWave,
@@ -12,7 +13,10 @@ import {
   FaTable,
   FaUserTie,
 } from "react-icons/fa";
-import { getManagerAccountHistory } from "../../services/managerDashboard.service";
+import {
+  downloadManagerAccountHistoryExcel,
+  getManagerAccountHistory,
+} from "../../services/managerDashboard.service";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-IN", {
@@ -325,6 +329,18 @@ export default function ManagerAccount() {
     await fetchHistory(filters);
   };
 
+  const handleDownloadExcel = async () => {
+    try {
+      await downloadManagerAccountHistoryExcel({
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+      });
+    } catch (error) {
+      console.error("Manager account history Excel error:", error);
+      alert("Failed to download Excel");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-3 dark:bg-neutral-950 sm:p-6">
       <div className="mx-auto max-w-7xl space-y-5">
@@ -456,15 +472,26 @@ export default function ManagerAccount() {
                   {filteredBills.length} of {data.bills.length} paid bills visible.
                 </p>
               </div>
-              <div className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 dark:border-neutral-700 dark:bg-neutral-800 lg:max-w-md">
-                <FaSearch className="shrink-0 text-slate-400 dark:text-neutral-500" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search bill, order, waiter, dish, reason..."
-                  className="h-12 w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-neutral-500"
-                />
+              <div className="grid w-full gap-2 lg:max-w-2xl lg:grid-cols-[1fr_auto]">
+                <div className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 dark:border-neutral-700 dark:bg-neutral-800">
+                  <FaSearch className="shrink-0 text-slate-400 dark:text-neutral-500" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search bill, order, waiter, dish, reason..."
+                    className="h-12 w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-neutral-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDownloadExcel}
+                  disabled={loading}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <FaFileExcel />
+                  Excel
+                </button>
               </div>
             </div>
           </div>
