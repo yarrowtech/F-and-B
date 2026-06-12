@@ -84,17 +84,29 @@ const receiptBillDate = (value) => {
   });
   return `${day}-${month}-${year} ${time}`;
 };
-const receiptItemRow = (name, qty, rate, amount, width = 42) => {
+const receiptItemRows = (name, qty, rate, amount, width = 42) => {
   const itemWidth = 18;
   const qtyWidth = 5;
   const rateWidth = 8;
   const amtWidth = 9;
-  const left = receiptText(name).slice(0, itemWidth).padEnd(itemWidth, " ");
+  const wrappedName = receiptWrap(name, itemWidth);
+  const firstName = receiptText(wrappedName[0] || "")
+    .slice(0, itemWidth)
+    .padEnd(itemWidth, " ");
   const qtyText = String(qty).padStart(qtyWidth, " ");
   const rateText = asMoney(rate).padStart(rateWidth, " ");
   const amountText = asMoney(amount).padStart(amtWidth, " ");
-  return `${left}${qtyText}${rateText}${amountText}`.slice(0, width);
+  const rows = [`${firstName}${qtyText}${rateText}${amountText}`.slice(0, width)];
+
+  wrappedName.slice(1).forEach((line) => {
+    rows.push(receiptText(line).slice(0, itemWidth).padEnd(itemWidth, " "));
+  });
+
+  return rows;
 };
+
+const appendThermalFeed = (text, extraLines = 5) =>
+  `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 3))}\f`;
 
 const defaultBillingTemplate = {
   headerTitle: "",
@@ -465,7 +477,7 @@ const buildBillReceiptText = (bill) => {
     const rate = Number(item.price ?? item.menuItem?.price ?? 0);
     const amount = rate * qty;
 
-    lines.push(receiptItemRow(name, qty, rate, amount, width));
+    lines.push(...receiptItemRows(name, qty, rate, amount, width));
   });
 
   lines.push(receiptLine(width));
@@ -524,7 +536,66 @@ const buildBillReceiptText = (bill) => {
     receiptCenter("Please Visit Again", width)
   );
 
-  return lines.join("\n");
+  return appendThermalFeed(lines.join("\n"));
+};
+
+const buildManualKotReceiptText = ({ order, restaurant }) => {
+  const width = 32;
+  const title = restaurant?.name || "Restaurant";
+  const lines = [
+    receiptCenter("KITCHEN ORDER TICKET", width),
+    receiptCenter(String(title).toUpperCase(), width),
+    receiptLine(width),
+    `KOT: MKOT-${String(order.orderNo || order._id).slice(-8)}`,
+    `Order: ${order.orderNo || order._id}`,
+    `Type: ${order.orderType || "MANUAL"}`,
+    `Time: ${receiptBillDate(order.createdAt || new Date())}`,
+    receiptLine(width),
+  ];
+
+  (order.items || []).forEach((item, index) => {
+    const itemName = item.menuItem?.name || item.name || "Menu Item";
+    lines.push(`${index + 1}. ${itemName}`);
+    lines.push(`   Qty: ${Number(item.quantity || 0)}`);
+
+    if (Array.isArray(item.customization) && item.customization.length > 0) {
+      lines.push(`   Note: ${item.customization.join(", ")}`);
+    }
+  });
+
+  lines.push(receiptLine(width));
+  lines.push("No price on KOT");
+  lines.push("");
+  lines.push("");
+  return appendThermalFeed(lines.join("\n"));
+};
+
+const buildManualKotPrintJob = async (bill, requestedBy = null) => {
+  if (!bill?.order) return null;
+
+  const receiptText = buildManualKotReceiptText({
+    order: bill.order,
+    restaurant: bill.restaurant,
+  });
+
+  const agent = await PrintAgent.findOne({
+    restaurant: bill.restaurant?._id || bill.restaurant,
+    isActive: true,
+  }).sort({ updatedAt: -1 });
+
+  return {
+    _id: `manual-kot-${bill._id}`,
+    restaurant: bill.restaurant?._id || bill.restaurant,
+    bill: bill._id,
+    requestedBy,
+    printerName:
+      String(process.env.KOT_DEFAULT_PRINTER || "").trim() ||
+      agent?.billPrinterName ||
+      "",
+    receiptText,
+    cuisine: "",
+    status: "LOCAL",
+  };
 };
 
 const queueBillPrintJob = async (billId, requestedBy = null) => {
@@ -898,8 +969,13 @@ const createManualBill = async (req, res) => {
       restaurant: req.user.restaurant,
     });
     const printJob = await queueBillPrintJob(bill._id, req.user.id);
+    const kotPrintJob = await buildManualKotPrintJob(populatedBill, req.user.id);
 
-    return sendSuccess(res, { ...populatedBill.toObject(), printJob }, 201);
+    return sendSuccess(
+      res,
+      { ...populatedBill.toObject(), printJob, kotPrintJob },
+      201
+    );
   } catch (err) {
     if (session) {
       await session.abortTransaction();
