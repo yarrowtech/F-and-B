@@ -161,6 +161,7 @@ import {
   sendOrderToBilling,
   markServed,
   markPaid,
+  cancelOrderItem,
 } from "../controllers/order.Controller.js";
 
 const router = express.Router();
@@ -180,6 +181,13 @@ router.put("/:id/table", auth, allowRoles("waiter", "accountant"), changeOrderTa
 router.post("/:id/kot", auth, allowRoles("waiter"), printKOT);
 
 router.post("/:id/bill", auth, allowRoles("waiter"), sendOrderToBilling);
+
+router.put(
+  "/:id/items/:itemId/cancel",
+  auth,
+  allowRoles("waiter", "accountant", "admin", "manager"),
+  cancelOrderItem
+);
 
 /* ===============================
    CHEF

@@ -67,6 +67,10 @@ const sanitizeNumber = (value) => {
 
 const roundNetPayableUp = (value) => Math.ceil(Number(value || 0));
 const PAYMENT_METHODS = ["CASH", "UPI", "CARD"];
+const DISCOUNT_TYPE_OPTIONS = [
+  { value: "AMOUNT", label: "Amount" },
+  { value: "PERCENT", label: "%" },
+];
 
 const getOrderItemId = (item) =>
   String(item?._id || item?.menuItem?._id || item?.menuItem || "");
@@ -76,6 +80,11 @@ const getOrderItemAmount = (item) => {
   const quantity = Number(item?.quantity || 0);
   return Number((price * quantity).toFixed(2));
 };
+
+const getBillableOrderItems = (order) =>
+  Array.isArray(order?.items)
+    ? order.items.filter((item) => item?.status !== "CANCELLED")
+    : [];
 
 const getComplimentaryAmount = (orderItems = [], customValues) => {
   if (customValues.complimentaryType === "FULL_ORDER") {
@@ -104,12 +113,18 @@ const buildTotals = (itemsTotal, customValues, orderItems = []) => {
   const packagingCharge = sanitizeNumber(customValues.packagingCharge);
   const extraCharge = sanitizeNumber(customValues.extraCharge);
   const discount = sanitizeNumber(customValues.discount);
+  const discountType =
+    customValues.discountType === "PERCENT" ? "PERCENT" : "AMOUNT";
 
   const cgst = Number((safeItemsTotal * (cgstRate / 100)).toFixed(2));
   const sgst = Number((safeItemsTotal * (sgstRate / 100)).toFixed(2));
   const grossAmount =
     safeItemsTotal + cgst + sgst + serviceCharge + packagingCharge + extraCharge;
-  const finalDiscount = Math.min(discount, grossAmount);
+  const computedDiscount =
+    discountType === "PERCENT"
+      ? Number((grossAmount * (Math.min(discount, 100) / 100)).toFixed(2))
+      : discount;
+  const finalDiscount = Math.min(computedDiscount, grossAmount);
   const totalAmount = roundNetPayableUp(grossAmount - finalDiscount);
 
   return {
@@ -127,9 +142,97 @@ const buildTotals = (itemsTotal, customValues, orderItems = []) => {
     showServiceCharge: Boolean(customValues.showServiceCharge),
     showPackagingCharge: Boolean(customValues.showPackagingCharge),
     discount: finalDiscount,
+    discountType,
+    discountValue: discountType === "PERCENT" ? Math.min(discount, 100) : discount,
     totalAmount,
   };
 };
+
+const buildManualTotals = (manualBill) => {
+  const items = Array.isArray(manualBill?.items) ? manualBill.items : [];
+  const selectedIds = new Set(manualBill?.complimentaryItems || []);
+  const complimentaryType =
+    manualBill?.complimentaryType === "FULL_ORDER" ||
+    manualBill?.complimentaryType === "ITEMS"
+      ? manualBill.complimentaryType
+      : "NONE";
+  const cgstRate = sanitizeNumber(manualBill?.cgstRate);
+  const sgstRate = sanitizeNumber(manualBill?.sgstRate);
+  const serviceCharge = sanitizeNumber(manualBill?.serviceCharge);
+  const packagingCharge = sanitizeNumber(manualBill?.packagingCharge);
+  const extraCharge = sanitizeNumber(manualBill?.extraCharge);
+  const discountInput = sanitizeNumber(manualBill?.discount);
+  const discountType =
+    manualBill?.discountType === "PERCENT" ? "PERCENT" : "AMOUNT";
+
+  const isComplimentaryItem = (item) =>
+    complimentaryType === "FULL_ORDER" ||
+    (complimentaryType === "ITEMS" && selectedIds.has(item.menuItem));
+
+  const chargeableItems = items.filter((item) => !isComplimentaryItem(item));
+  const complimentaryAmount = items
+    .filter((item) => isComplimentaryItem(item))
+    .reduce((sum, item) => sum + getOrderItemAmount(item), 0);
+  const itemsTotal = chargeableItems.reduce(
+    (sum, item) => sum + getOrderItemAmount(item),
+    0
+  );
+  const itemWiseRoundedTotal = chargeableItems.reduce((sum, item) => {
+    const price = Number(item.price || 0);
+    const quantity = Number(item.quantity || 0);
+    const unitWithTax = price * (1 + (cgstRate + sgstRate) / 100);
+    return sum + Math.ceil(unitWithTax) * quantity;
+  }, 0);
+  const taxTotal = Number(Math.max(itemWiseRoundedTotal - itemsTotal, 0).toFixed(2));
+  const totalTaxRate = cgstRate + sgstRate;
+  const cgst =
+    totalTaxRate > 0
+      ? Number(((taxTotal * cgstRate) / totalTaxRate).toFixed(2))
+      : 0;
+  const sgst = Number((taxTotal - cgst).toFixed(2));
+  const grossAmount =
+    itemWiseRoundedTotal + serviceCharge + packagingCharge + extraCharge;
+  const computedDiscount =
+    discountType === "PERCENT"
+      ? Number((grossAmount * (Math.min(discountInput, 100) / 100)).toFixed(2))
+      : discountInput;
+  const discount = Math.min(computedDiscount, grossAmount);
+
+  return {
+    itemsTotal,
+    complimentaryAmount,
+    cgstRate,
+    sgstRate,
+    cgst,
+    sgst,
+    serviceCharge,
+    packagingCharge,
+    extraCharge,
+    extraChargeReason:
+      extraCharge > 0 ? String(manualBill?.extraChargeReason || "").trim() : "",
+    showServiceCharge: Boolean(manualBill?.showServiceCharge),
+    showPackagingCharge: Boolean(manualBill?.showPackagingCharge),
+    discount,
+    discountType,
+    discountValue:
+      discountType === "PERCENT" ? Math.min(discountInput, 100) : discountInput,
+    totalAmount: roundNetPayableUp(grossAmount - discount),
+  };
+};
+
+const getManualRoundedLineTotal = (item, manualBill) => {
+  const price = Number(item?.price || 0);
+  const quantity = Number(item?.quantity || 0);
+  const cgstRate = sanitizeNumber(manualBill?.cgstRate);
+  const sgstRate = sanitizeNumber(manualBill?.sgstRate);
+  const unitWithTax = price * (1 + (cgstRate + sgstRate) / 100);
+  return Math.ceil(unitWithTax) * quantity;
+};
+
+const getDiscountLabel = (values) =>
+  values?.discountType === "PERCENT" && Number(values?.discountValue ?? values?.discount ?? 0) > 0
+    ? `Discount (${Number(values.discountValue ?? values.discount)}%)`
+    : "Discount";
 
 const formatDate = (value) => {
   if (!value) return "N/A";
@@ -222,7 +325,7 @@ const buildThermalReceiptHtml = (bill, options = {}) => {
   const restaurant = bill?.restaurant || {};
   const template = getBillingTemplate(restaurant);
   const order = bill?.order || {};
-  const items = Array.isArray(order.items) ? order.items : [];
+  const items = getBillableOrderItems(order);
   const title = template.headerTitle || restaurant.name || "Restaurant";
   const totals = options.totals || bill || {};
   const paymentMethod = options.paymentMethod || bill.paymentMethod || "PENDING";
@@ -318,7 +421,9 @@ const buildThermalReceiptHtml = (bill, options = {}) => {
     )
   );
   if (Number(totals.discount || 0) > 0) {
-    lines.push(receiptPair("Discount", `- ${receiptAmount(totals.discount)}`, width));
+    lines.push(
+      receiptPair(getDiscountLabel(totals), `- ${receiptAmount(totals.discount)}`, width)
+    );
   }
 
   lines.push(
@@ -631,6 +736,7 @@ export default function AccountantOrderBilling() {
   const [showMenuPicker, setShowMenuPicker] = useState(false);
   const [successBill, setSuccessBill] = useState(null);
   const [manualSearch, setManualSearch] = useState("");
+  const [manualCodeInput, setManualCodeInput] = useState("");
   const [creatingManualBill, setCreatingManualBill] = useState(false);
   const [manualBill, setManualBill] = useState({
     orderType: "TAKEAWAY",
@@ -646,6 +752,7 @@ export default function AccountantOrderBilling() {
     extraCharge: 0,
     extraChargeReason: "",
     discount: 0,
+    discountType: "AMOUNT",
     complimentaryType: "NONE",
     complimentaryItems: [],
     complimentaryNote: "",
@@ -661,6 +768,7 @@ export default function AccountantOrderBilling() {
     extraCharge: 0,
     extraChargeReason: "",
     discount: 0,
+    discountType: "AMOUNT",
     complimentaryType: "NONE",
     complimentaryItems: [],
     complimentaryNote: "",
@@ -763,7 +871,8 @@ export default function AccountantOrderBilling() {
           : true,
       extraCharge: Number(bill.extraCharge ?? 0),
       extraChargeReason: bill.extraChargeReason || "",
-      discount: Number(bill.discount ?? 0),
+      discount: Number(bill.discountValue ?? bill.discount ?? 0),
+      discountType: bill.discountType === "PERCENT" ? "PERCENT" : "AMOUNT",
       complimentaryType: bill.complimentaryType || "NONE",
       complimentaryItems: Array.isArray(bill.complimentaryItems)
         ? bill.complimentaryItems.map(String)
@@ -879,6 +988,7 @@ export default function AccountantOrderBilling() {
         extraCharge: sanitizeNumber(customValues.extraCharge),
         extraChargeReason: customValues.extraChargeReason,
         discount: sanitizeNumber(customValues.discount),
+        discountType: customValues.discountType,
         complimentaryType: customValues.complimentaryType,
         complimentaryItems: customValues.complimentaryItems,
         complimentaryNote: customValues.complimentaryNote,
@@ -993,6 +1103,7 @@ export default function AccountantOrderBilling() {
         extraCharge: sanitizeNumber(customValues.extraCharge),
         extraChargeReason: customValues.extraChargeReason,
         discount: sanitizeNumber(customValues.discount),
+        discountType: customValues.discountType,
         complimentaryType: customValues.complimentaryType,
         complimentaryItems: customValues.complimentaryItems,
         complimentaryNote: customValues.complimentaryNote,
@@ -1151,6 +1262,7 @@ export default function AccountantOrderBilling() {
         extraCharge: sanitizeNumber(manualBill.extraCharge),
         extraChargeReason: manualBill.extraChargeReason,
         discount: sanitizeNumber(manualBill.discount),
+        discountType: manualBill.discountType,
         complimentaryType: manualBill.complimentaryType,
         complimentaryItems: manualBill.complimentaryItems,
         complimentaryNote: manualBill.complimentaryNote,
@@ -1167,7 +1279,6 @@ export default function AccountantOrderBilling() {
         }
 
       setBills((prev) => [createdBill, ...prev]);
-      setTab("HISTORY");
       setManualBill({
         orderType: "TAKEAWAY",
         paymentMethod: "CASH",
@@ -1182,12 +1293,12 @@ export default function AccountantOrderBilling() {
         extraCharge: 0,
         extraChargeReason: "",
         discount: 0,
+        discountType: "AMOUNT",
         complimentaryType: "NONE",
         complimentaryItems: [],
         complimentaryNote: "",
         items: [],
       });
-      setSuccessBill(createdBill);
     } catch (err) {
       console.error("CREATE MANUAL BILL ERROR:", err);
       alert(err.response?.data?.message || err.message || "Failed to create bill");
@@ -1254,16 +1365,38 @@ export default function AccountantOrderBilling() {
   };
 
   const filteredMenuItems = menuItems.filter((item) =>
-    `${item.name || ""} ${item.cuisine || ""} ${item.courseType || ""}`
+    `${item.name || ""} ${item.menuCode || ""} ${item.cuisine || ""} ${item.courseType || ""}`
       .toLowerCase()
       .includes(manualSearch.toLowerCase())
   );
+
+  const handleAddMenuByCode = () => {
+    const normalizedCode = String(manualCodeInput || "").trim();
+    if (!/^\d{4}$/.test(normalizedCode)) {
+      alert("Enter a valid 4-digit menu code");
+      return;
+    }
+
+    const matchedItem = menuItems.find(
+      (item) =>
+        item.isAvailable !== false &&
+        String(item.menuCode || "").trim() === normalizedCode
+    );
+
+    if (!matchedItem) {
+      alert("No menu item found for this code");
+      return;
+    }
+
+    addManualItem(matchedItem);
+    setManualCodeInput("");
+  };
 
   const manualItemsTotal = manualBill.items.reduce(
     (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
     0
   );
-  const manualTotals = buildTotals(manualItemsTotal, manualBill, manualBill.items);
+  const manualTotals = buildManualTotals(manualBill);
 
   const menuGroups = filteredMenuItems.reduce((groups, item) => {
     const cuisine = item.cuisine || "Other Cuisine";
@@ -1282,16 +1415,16 @@ export default function AccountantOrderBilling() {
     return groups;
   }, {});
 
+  const selectedBillableItems = selectedBill
+    ? getBillableOrderItems(selectedBill.order)
+    : [];
   const selectedTotals = selectedBill
     ? buildTotals(
-        Array.isArray(selectedBill.order?.items)
-          ? selectedBill.order.items.reduce(
-              (sum, item) => sum + getOrderItemAmount(item),
-              0
-            )
+        selectedBillableItems.length > 0
+          ? selectedBillableItems.reduce((sum, item) => sum + getOrderItemAmount(item), 0)
           : selectedBill.itemsTotal,
         customValues,
-        selectedBill.order?.items || []
+        selectedBillableItems
       )
     : null;
   const movableBillTables = selectedBill
@@ -1483,6 +1616,48 @@ export default function AccountantOrderBilling() {
                     </div>
                   </div>
 
+                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
+                          Fast Add By Code
+                        </p>
+                        <p className="mt-1 text-xs font-medium text-emerald-700/80 dark:text-emerald-200/80">
+                          Type the 4-digit menu code and press Enter.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="\d{4}"
+                        maxLength="4"
+                        value={manualCodeInput}
+                        onChange={(e) =>
+                          setManualCodeInput(
+                            e.target.value.replace(/\D/g, "").slice(0, 4)
+                          )
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddMenuByCode();
+                          }
+                        }}
+                        placeholder="Enter 4-digit code"
+                        className="min-h-12 w-full rounded-xl border border-emerald-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 dark:border-emerald-900/50 dark:bg-slate-900 dark:text-slate-100"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddMenuByCode}
+                        className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => setShowMenuPicker(true)}
@@ -1543,7 +1718,7 @@ export default function AccountantOrderBilling() {
                             <span className="min-w-0">
                               <span className="block break-words leading-snug">{item.name}</span>
                               <span className="text-xs font-medium text-slate-400">
-                                Qty {item.quantity} | {formatCurrency(item.price * item.quantity)}
+                                Qty {item.quantity} | {formatCurrency(getManualRoundedLineTotal(item, manualBill))}
                               </span>
                             </span>
                             <input
@@ -1632,14 +1807,16 @@ export default function AccountantOrderBilling() {
                               </span>
                             )}
                             <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-200 dark:bg-slate-900 dark:ring-emerald-900/60">
-                              {formatCurrency(item.price * item.quantity)}
+                              {formatCurrency(getManualRoundedLineTotal(item, manualBill))}
                             </span>
                           </div>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
-                          <span>{formatCurrency(item.price)} x {item.quantity}</span>
+                          <span>Code {menuItems.find((menu) => menu._id === item.menuItem)?.menuCode || "----"}</span>
                           <span className="text-slate-300">|</span>
-                          <span className="text-slate-700 dark:text-slate-200">Line item</span>
+                          <span>{formatCurrency(Math.ceil(Number(item.price || 0) * (1 + (sanitizeNumber(manualBill.cgstRate) + sanitizeNumber(manualBill.sgstRate)) / 100)))} x {item.quantity}</span>
+                          <span className="text-slate-300">|</span>
+                          <span className="text-slate-700 dark:text-slate-200">GST rounded line item</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 rounded-xl bg-white px-2 py-2 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
@@ -1672,7 +1849,6 @@ export default function AccountantOrderBilling() {
                     ["serviceCharge", "Service"],
                     ["packagingCharge", "Packaging"],
                     ["extraCharge", "Extra Charge"],
-                    ["discount", "Discount"],
                   ].map(([field, label]) => (
                     <label key={field} className="text-xs font-bold text-slate-500">
                       {label}
@@ -1686,6 +1862,38 @@ export default function AccountantOrderBilling() {
                       />
                     </label>
                   ))}
+                </div>
+                <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-950">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-xs font-bold text-slate-500">
+                      Discount
+                    </label>
+                    <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900">
+                      {DISCOUNT_TYPE_OPTIONS.map((option) => (
+                        <button
+                          key={`manual-${option.value}`}
+                          type="button"
+                          onClick={() => updateManualBill("discountType", option.value)}
+                          className={`min-h-8 rounded-md px-3 text-xs font-bold ${
+                            manualBill.discountType === option.value
+                              ? "bg-emerald-600 text-white"
+                              : "text-slate-600 dark:text-slate-300"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={manualBill.discount}
+                    onChange={(e) => updateManualBill("discount", e.target.value)}
+                    className="mt-2 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    placeholder={manualBill.discountType === "PERCENT" ? "Enter % discount" : "Enter amount discount"}
+                  />
                 </div>
                 <label className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-slate-100 px-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
                   <span>Show service charge on bill</span>
@@ -1761,7 +1969,7 @@ export default function AccountantOrderBilling() {
                     </div>
                   )}
                   <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                    <span>Discount</span>
+                    <span>{getDiscountLabel(manualTotals)}</span>
                     <span>-{formatCurrency(manualTotals.discount)}</span>
                   </div>
                   <div className="border-t border-dashed border-slate-200 pt-2 font-black text-slate-900 dark:border-slate-700 dark:text-white">
@@ -2163,8 +2371,11 @@ export default function AccountantOrderBilling() {
                             <span className="block break-words text-sm font-bold leading-snug text-slate-800 dark:text-slate-100">
                               {item.name}
                             </span>
-                            <span className="text-xs text-slate-500">
-                              {item.courseType || "General"}
+                            <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                              <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 font-bold tracking-wide text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                Code {item.menuCode || "----"}
+                              </span>
+                              <span>{item.courseType || "General"}</span>
                             </span>
                           </span>
                           <span className="shrink-0 text-right">
@@ -2331,7 +2542,7 @@ export default function AccountantOrderBilling() {
                 </div>
 
                 <div className="space-y-2 lg:hidden">
-                  {selectedBill.order?.items?.map((item, index) => {
+                  {selectedBillableItems.map((item, index) => {
                     const price = Number(
                       item.price ?? item.menuItem?.price ?? 0
                     );
@@ -2387,7 +2598,7 @@ export default function AccountantOrderBilling() {
                       </tr>
                     </thead>
                     <tbody>
-                      {selectedBill.order?.items?.map((item, index) => {
+                      {selectedBillableItems.map((item, index) => {
                         const price = Number(
                           item.price ?? item.menuItem?.price ?? 0
                         );
@@ -2514,7 +2725,7 @@ export default function AccountantOrderBilling() {
 
                     {customValues.complimentaryType === "ITEMS" && (
                       <div className="mt-3 space-y-2">
-                        {selectedBill.order?.items?.map((item, index) => {
+                        {selectedBillableItems.map((item, index) => {
                           const itemId = getOrderItemId(item);
                           const amount = getOrderItemAmount(item);
                           const isSelected =
@@ -2713,6 +2924,24 @@ export default function AccountantOrderBilling() {
                     <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
                       Discount
                     </label>
+                    <div className="mb-2 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+                      {DISCOUNT_TYPE_OPTIONS.map((option) => (
+                        <button
+                          key={`selected-${option.value}`}
+                          type="button"
+                          onClick={() =>
+                            handleCustomValueChange("discountType", option.value)
+                          }
+                          className={`min-h-10 rounded-lg px-3 text-sm font-bold transition ${
+                            customValues.discountType === option.value
+                              ? "bg-emerald-600 text-white"
+                              : "text-slate-600 dark:text-slate-300"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
                     <input
                       type="number"
                       min="0"
@@ -2722,6 +2951,11 @@ export default function AccountantOrderBilling() {
                         handleCustomValueChange("discount", e.target.value)
                       }
                       className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:text-sm"
+                      placeholder={
+                        customValues.discountType === "PERCENT"
+                          ? "Enter % discount"
+                          : "Enter amount discount"
+                      }
                     />
                   </div>
 
@@ -2881,7 +3115,7 @@ export default function AccountantOrderBilling() {
                         </div>
                       )}
                       <div className="flex items-center justify-between text-slate-600">
-                        <span>Discount</span>
+                        <span>{getDiscountLabel(selectedTotals)}</span>
                         <span className="font-semibold text-rose-600">
                           - {formatCurrency(selectedTotals.discount)}
                         </span>
@@ -2949,7 +3183,10 @@ export default function AccountantOrderBilling() {
             </p>
             <button
               type="button"
-              onClick={() => setSuccessBill(null)}
+              onClick={() => {
+                setSuccessBill(null);
+                setTab("HISTORY");
+              }}
               className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
             >
               Go to History

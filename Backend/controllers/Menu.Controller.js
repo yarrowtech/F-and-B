@@ -235,6 +235,28 @@ import mongoose from "mongoose";
 import ExcelJS from "exceljs";
 import { invalidateCacheNamespaces } from "../utils/cacheStore.js";
 
+const normalizeMenuCode = (value) => String(value || "").trim();
+const isValidMenuCode = (value) => /^\d{4}$/.test(normalizeMenuCode(value));
+const generateNextMenuCode = async (restaurantId, excludeId = null) => {
+  const menus = await Menu.find({
+    restaurant: restaurantId,
+    ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+  })
+    .select("menuCode")
+    .lean();
+
+  const usedCodes = new Set(
+    menus.map((item) => normalizeMenuCode(item.menuCode)).filter(isValidMenuCode)
+  );
+
+  for (let code = 1001; code <= 9999; code += 1) {
+    const nextCode = String(code);
+    if (!usedCodes.has(nextCode)) return nextCode;
+  }
+
+  throw new Error("No 4-digit menu codes available for this restaurant");
+};
+
 const invalidateMenuCaches = (restaurantId) => {
   invalidateCacheNamespaces([
     `menu:${restaurantId}`,
@@ -253,6 +275,7 @@ export const createMenuItem = async (req, res) => {
     const {
       name,
       price,
+      menuCode,
       cuisine,
       courseType,
       description,
@@ -264,6 +287,12 @@ export const createMenuItem = async (req, res) => {
       return res.status(400).json({
         message:
           "Name, price, cuisine and courseType are required",
+      });
+    }
+
+    if (menuCode && !isValidMenuCode(menuCode)) {
+      return res.status(400).json({
+        message: "Menu code must be a unique 4-digit number",
       });
     }
 
@@ -304,6 +333,9 @@ export const createMenuItem = async (req, res) => {
       restaurant: restaurantId,
       name: name.trim(),
       price: Number(price),
+      menuCode: menuCode
+        ? normalizeMenuCode(menuCode)
+        : await generateNextMenuCode(restaurantId),
       cuisine: cuisine.trim(),
       courseType: courseType.trim(),
       description: description || "",
@@ -318,7 +350,9 @@ export const createMenuItem = async (req, res) => {
     if (err.code === 11000) {
       return res.status(400).json({
         message:
-          "Menu item already exists for this restaurant",
+          err?.keyPattern?.menuCode
+            ? "Menu code already exists for this restaurant"
+            : "Menu item already exists for this restaurant",
       });
     }
     res.status(400).json({ message: err.message });
@@ -485,6 +519,7 @@ export const updateMenuItem = async (req, res) => {
     const {
       name,
       price,
+      menuCode,
       cuisine,
       courseType,
       description,
@@ -507,6 +542,14 @@ export const updateMenuItem = async (req, res) => {
 
     if (name !== undefined) item.name = name.trim();
     if (price !== undefined) item.price = Number(price);
+    if (menuCode !== undefined) {
+      if (!isValidMenuCode(menuCode)) {
+        return res.status(400).json({
+          message: "Menu code must be a unique 4-digit number",
+        });
+      }
+      item.menuCode = normalizeMenuCode(menuCode);
+    }
     if (cuisine !== undefined) item.cuisine = cuisine.trim();
     if (courseType !== undefined) item.courseType = courseType.trim();
     if (description !== undefined) item.description = description;
@@ -549,7 +592,9 @@ export const updateMenuItem = async (req, res) => {
     if (err.code === 11000) {
       return res.status(400).json({
         message:
-          "Menu item already exists for this restaurant",
+          err?.keyPattern?.menuCode
+            ? "Menu code already exists for this restaurant"
+            : "Menu item already exists for this restaurant",
       });
     }
     res.status(400).json({ message: err.message });

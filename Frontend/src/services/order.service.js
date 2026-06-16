@@ -139,6 +139,13 @@ export const sendOrderToBilling = async (id) => {
   return res.data?.data || null;
 };
 
+export const cancelOrderItem = async (orderId, itemId, reason) => {
+  const res = await api.put(`/order/${orderId}/items/${itemId}/cancel`, {
+    reason,
+  });
+  return res.data?.data || null;
+};
+
 /* ===================================================
    👨‍🍳 CHEF
 =================================================== */

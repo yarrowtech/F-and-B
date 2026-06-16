@@ -1172,7 +1172,9 @@ const getKotPrinterName = (cuisine) => {
 };
 
 const calculateOrderBillTotals = (order) => {
-  const itemsTotal = (order.items || []).reduce(
+  const itemsTotal = (order.items || [])
+    .filter((item) => item.status !== "CANCELLED")
+    .reduce(
     (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
     0
   );
@@ -2123,6 +2125,100 @@ const isOrderReadyForBilling = (order) => {
     activeItems.length > 0 &&
     activeItems.every((item) => item.status === "SERVED")
   );
+};
+
+export const cancelOrderItem = async (req, res) => {
+  try {
+    const { id, itemId } = req.params;
+    const reason = String(req.body?.reason || "").trim();
+
+    if (!reason) {
+      return sendError(res, "Cancel reason is required");
+    }
+
+    const orderFilter = {
+      _id: id,
+      restaurant: req.user.restaurant,
+      status: { $in: ACTIVE_ORDER_STATUSES },
+    };
+
+    if (req.user.role === "waiter") {
+      orderFilter.waiter = req.user.id;
+    }
+
+    const order = await Order.findOne(orderFilter)
+      .populate("table", "tableNumber")
+      .populate("waiter", "name")
+      .populate("chef", "name")
+      .populate("items.menuItem", "name price cuisine courseType ingredients")
+      .populate("items.assignedChef", "name");
+
+    if (!order) {
+      return sendError(res, "Active order not found", 404);
+    }
+
+    const targetItem = order.items.id(itemId);
+    if (!targetItem) {
+      return sendError(res, "Order item not found", 404);
+    }
+
+    if (targetItem.status === "CANCELLED") {
+      return sendError(res, "This item is already cancelled");
+    }
+
+    const now = new Date();
+    const cancellationStage = targetItem.inventoryDeducted
+      ? "AFTER_PREPARATION"
+      : "BEFORE_PREPARATION";
+
+    targetItem.status = "CANCELLED";
+    targetItem.cancelledAt = now;
+    targetItem.cancellationReason = reason.slice(0, 200);
+    targetItem.cancellationStage = cancellationStage;
+    targetItem.cancelledBy = req.user.id;
+    targetItem.assignedChef = targetItem.assignedChef || null;
+
+    order.status = deriveOrderStatus(order.items);
+    await order.save();
+
+    if (order.status === "CANCELLED" && order.table) {
+      await Table.findByIdAndUpdate(order.table, { status: "available" });
+    }
+
+    await Bill.deleteMany({
+      order: order._id,
+      paymentStatus: "PENDING",
+    });
+
+    await logAction({
+      action: "ORDER_ITEM_CANCELLED",
+      userId: req.user.id,
+      role: String(req.user.role || "").toUpperCase(),
+      meta: {
+        orderId: order._id,
+        orderItemId: targetItem._id,
+        menuItemId: targetItem.menuItem?._id || targetItem.menuItem,
+        cancellationStage,
+        inventoryDeducted: Boolean(targetItem.inventoryDeducted),
+      },
+    });
+
+    const populatedOrder = await populateOrderDetails(Order.findById(order._id));
+    emitOrderNotification("chef:new-order", populatedOrder, "UPDATED_ORDER");
+
+    return sendSuccess(res, {
+      order: populatedOrder,
+      cancelledItemId: String(targetItem._id),
+      cancellationStage,
+      inventoryEffect:
+        cancellationStage === "AFTER_PREPARATION"
+          ? "Inventory remains consumed because preparation already happened."
+          : "Inventory was not deducted yet, so no stock reversal was needed.",
+    });
+  } catch (err) {
+    await logError(err, "CANCEL_ORDER_ITEM");
+    return sendError(res, err.message);
+  }
 };
 
 /* ================= KOT PRINT ================= */

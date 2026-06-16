@@ -188,12 +188,17 @@ const getOrderItemAmount = (item) => {
   return Number((price * quantity).toFixed(2));
 };
 
+const getBillableOrderItems = (order) =>
+  Array.isArray(order?.items)
+    ? order.items.filter((item) => item?.status !== "CANCELLED")
+    : [];
+
 const resolveComplimentaryDetails = ({
   order,
   complimentaryType = "NONE",
   complimentaryItems = [],
 }) => {
-  const orderItems = Array.isArray(order?.items) ? order.items : [];
+  const orderItems = getBillableOrderItems(order);
   const normalizedType =
     complimentaryType === "FULL_ORDER" || complimentaryType === "ITEMS"
       ? complimentaryType
@@ -312,6 +317,7 @@ const calculateBillTotals = ({
   packagingCharge = 0,
   extraCharge = 0,
   discount = 0,
+  discountType = "AMOUNT",
 }) => {
   const normalizedItemsTotal = Math.max(
     sanitizeAmount(itemsTotal) - sanitizeAmount(complimentaryAmount),
@@ -322,7 +328,9 @@ const calculateBillTotals = ({
   const normalizedServiceCharge = sanitizeAmount(serviceCharge);
   const normalizedPackagingCharge = sanitizeAmount(packagingCharge);
   const normalizedExtraCharge = sanitizeAmount(extraCharge);
-  const normalizedDiscount = sanitizeAmount(discount);
+  const normalizedDiscountType =
+    discountType === "PERCENT" ? "PERCENT" : "AMOUNT";
+  const normalizedDiscountValue = sanitizeAmount(discount);
 
   const cgst = Number(
     (normalizedItemsTotal * (normalizedCgstRate / 100)).toFixed(2)
@@ -337,8 +345,17 @@ const calculateBillTotals = ({
     normalizedServiceCharge +
     normalizedPackagingCharge +
     normalizedExtraCharge;
+  const rawDiscount =
+    normalizedDiscountType === "PERCENT"
+      ? Number(
+          (
+            subtotalBeforeDiscount *
+            (Math.min(normalizedDiscountValue, 100) / 100)
+          ).toFixed(2)
+        )
+      : normalizedDiscountValue;
   const appliedDiscount = Math.min(
-    normalizedDiscount,
+    rawDiscount,
     subtotalBeforeDiscount
   );
   const totalAmount = roundNetPayableUp(
@@ -355,9 +372,117 @@ const calculateBillTotals = ({
     packagingCharge: normalizedPackagingCharge,
     extraCharge: normalizedExtraCharge,
     discount: appliedDiscount,
+    discountType: normalizedDiscountType,
+    discountValue:
+      normalizedDiscountType === "PERCENT"
+        ? Math.min(normalizedDiscountValue, 100)
+        : normalizedDiscountValue,
     totalAmount,
   };
 };
+
+const calculateManualBillTotals = ({
+  orderItems = [],
+  complimentaryType = "NONE",
+  complimentaryItems = [],
+  cgstRate = 2.5,
+  sgstRate = 2.5,
+  serviceCharge = 0,
+  packagingCharge = 0,
+  extraCharge = 0,
+  discount = 0,
+  discountType = "AMOUNT",
+}) => {
+  const normalizedCgstRate = sanitizeRate(cgstRate, 2.5);
+  const normalizedSgstRate = sanitizeRate(sgstRate, 2.5);
+  const normalizedServiceCharge = sanitizeAmount(serviceCharge);
+  const normalizedPackagingCharge = sanitizeAmount(packagingCharge);
+  const normalizedExtraCharge = sanitizeAmount(extraCharge);
+  const normalizedDiscountType =
+    discountType === "PERCENT" ? "PERCENT" : "AMOUNT";
+  const normalizedDiscountValue = sanitizeAmount(discount);
+  const selectedIds = new Set(normalizeIdList(complimentaryItems));
+  const normalizedComplimentaryType =
+    complimentaryType === "FULL_ORDER" || complimentaryType === "ITEMS"
+      ? complimentaryType
+      : "NONE";
+
+  const complimentaryOrderItems =
+    normalizedComplimentaryType === "FULL_ORDER"
+      ? orderItems
+      : normalizedComplimentaryType === "ITEMS"
+        ? orderItems.filter((item) => selectedIds.has(String(item.menuItem)))
+        : [];
+  const complimentaryOrderItemIds = new Set(
+    complimentaryOrderItems.map((item) => String(item._id || item.menuItem))
+  );
+  const chargeableOrderItems = orderItems.filter(
+    (item) => !complimentaryOrderItemIds.has(String(item._id || item.menuItem))
+  );
+
+  const baseItemsTotal = chargeableOrderItems.reduce(
+    (sum, item) => sum + getOrderItemAmount(item),
+    0
+  );
+
+  const itemWiseRoundedTotal = chargeableOrderItems.reduce((sum, item) => {
+    const price = Number(item.price ?? item.menuItem?.price ?? 0);
+    const quantity = Number(item.quantity || 0);
+    const unitWithTax = price * (1 + (normalizedCgstRate + normalizedSgstRate) / 100);
+    return sum + Math.ceil(unitWithTax) * quantity;
+  }, 0);
+
+  const totalTax = Number(Math.max(itemWiseRoundedTotal - baseItemsTotal, 0).toFixed(2));
+  const totalTaxRate = normalizedCgstRate + normalizedSgstRate;
+  const cgst =
+    totalTaxRate > 0
+      ? Number(((totalTax * normalizedCgstRate) / totalTaxRate).toFixed(2))
+      : 0;
+  const sgst = Number((totalTax - cgst).toFixed(2));
+
+  const subtotalBeforeDiscount =
+    itemWiseRoundedTotal +
+    normalizedServiceCharge +
+    normalizedPackagingCharge +
+    normalizedExtraCharge;
+  const rawDiscount =
+    normalizedDiscountType === "PERCENT"
+      ? Number(
+          (
+            subtotalBeforeDiscount *
+            (Math.min(normalizedDiscountValue, 100) / 100)
+          ).toFixed(2)
+        )
+      : normalizedDiscountValue;
+  const appliedDiscount = Math.min(rawDiscount, subtotalBeforeDiscount);
+
+  return {
+    itemsTotal: Number(baseItemsTotal.toFixed(2)),
+    complimentaryAmount: complimentaryOrderItems.reduce(
+      (sum, item) => sum + getOrderItemAmount(item),
+      0
+    ),
+    cgstRate: normalizedCgstRate,
+    sgstRate: normalizedSgstRate,
+    cgst,
+    sgst,
+    serviceCharge: normalizedServiceCharge,
+    packagingCharge: normalizedPackagingCharge,
+    extraCharge: normalizedExtraCharge,
+    discount: Number(appliedDiscount.toFixed(2)),
+    discountType: normalizedDiscountType,
+    discountValue:
+      normalizedDiscountType === "PERCENT"
+        ? Math.min(normalizedDiscountValue, 100)
+        : normalizedDiscountValue,
+    totalAmount: roundNetPayableUp(subtotalBeforeDiscount - appliedDiscount),
+  };
+};
+
+const getDiscountLabel = (bill) =>
+  bill?.discountType === "PERCENT" && Number(bill?.discountValue || 0) > 0
+    ? `Discount (${Number(bill.discountValue)}%)`
+    : "Discount";
 
 const deductInventoryForManualBill = async ({
   menuById,
@@ -436,7 +561,7 @@ const buildBillReceiptText = (bill) => {
   const restaurant = bill.restaurant || {};
   const template = getBillingTemplate(restaurant);
   const order = bill.order || {};
-  const items = Array.isArray(order.items) ? order.items : [];
+  const items = getBillableOrderItems(order);
   const title = template.headerTitle || restaurant.name || "Restaurant";
   const taxableBase = Number(bill.itemsTotal || 0);
   const rawTotal =
@@ -517,7 +642,9 @@ const buildBillReceiptText = (bill) => {
     );
   }
   if (Number(bill.discount || 0) > 0) {
-    lines.push(receiptPair("Discount", `-${asMoney(bill.discount)}`, width));
+    lines.push(
+      receiptPair(getDiscountLabel(bill), `-${asMoney(bill.discount)}`, width)
+    );
   }
 
   lines.push(
@@ -553,7 +680,7 @@ const buildManualKotReceiptText = ({ order, restaurant }) => {
     receiptLine(width),
   ];
 
-  (order.items || []).forEach((item, index) => {
+  getBillableOrderItems(order).forEach((item, index) => {
     const itemName = item.menuItem?.name || item.name || "Menu Item";
     lines.push(`${index + 1}. ${itemName}`);
     lines.push(`   Qty: ${Number(item.quantity || 0)}`);
@@ -762,11 +889,12 @@ const createManualBill = async (req, res) => {
       serviceCharge = 0,
       packagingCharge = 0,
       showPackagingCharge,
-      extraCharge = 0,
-      extraChargeReason = "",
-      showServiceCharge,
-      discount = 0,
-      complimentaryType = "NONE",
+        extraCharge = 0,
+        extraChargeReason = "",
+        showServiceCharge,
+        discount = 0,
+        discountType = "AMOUNT",
+        complimentaryType = "NONE",
       complimentaryItems = [],
       complimentaryNote = "",
     } = req.body;
@@ -867,42 +995,36 @@ const createManualBill = async (req, res) => {
       { session }
     );
 
-    const selectedComplimentaryMenuIds = new Set(
-      normalizeIdList(complimentaryItems).map(String)
-    );
-    const normalizedComplimentaryType =
-      complimentaryType === "FULL_ORDER" || complimentaryType === "ITEMS"
-        ? complimentaryType
-        : "NONE";
-    const complimentaryOrderItems =
-      normalizedComplimentaryType === "FULL_ORDER"
-        ? order.items
-        : normalizedComplimentaryType === "ITEMS"
-          ? order.items.filter((item) =>
-              selectedComplimentaryMenuIds.has(String(item.menuItem))
-            )
-          : [];
-    const finalComplimentaryType =
-      complimentaryOrderItems.length > 0 ? normalizedComplimentaryType : "NONE";
-    const complimentaryAmount = complimentaryOrderItems.reduce(
-      (sum, item) => sum + getOrderItemAmount(item),
-      0
-    );
-    const itemsTotal = order.items.reduce(
-      (sum, item) => sum + getOrderItemAmount(item),
-      0
-    );
-
-    const totals = calculateBillTotals({
-      itemsTotal,
-      complimentaryAmount,
+    const billableOrderItems = getBillableOrderItems(order);
+    const totals = calculateManualBillTotals({
+      orderItems: billableOrderItems,
+      complimentaryType,
+      complimentaryItems,
       cgstRate,
       sgstRate,
       serviceCharge,
       packagingCharge,
       extraCharge,
       discount,
+      discountType,
     });
+    const normalizedComplimentaryType =
+      complimentaryType === "FULL_ORDER" || complimentaryType === "ITEMS"
+        ? complimentaryType
+        : "NONE";
+    const selectedComplimentaryMenuIds = new Set(
+      normalizeIdList(complimentaryItems).map(String)
+    );
+    const complimentaryOrderItems =
+      normalizedComplimentaryType === "FULL_ORDER"
+        ? billableOrderItems
+        : normalizedComplimentaryType === "ITEMS"
+          ? billableOrderItems.filter((item) =>
+              selectedComplimentaryMenuIds.has(String(item.menuItem))
+            )
+          : [];
+    const finalComplimentaryType =
+      complimentaryOrderItems.length > 0 ? normalizedComplimentaryType : "NONE";
 
     const [bill] = await Bill.create(
       [
@@ -930,9 +1052,11 @@ const createManualBill = async (req, res) => {
           extraChargeReason:
             totals.extraCharge > 0 ? sanitizeText(extraChargeReason) : "",
           discount: totals.discount,
+          discountType: totals.discountType,
+          discountValue: totals.discountValue,
           complimentaryType: finalComplimentaryType,
           complimentaryItems: complimentaryOrderItems.map((item) => item._id),
-          complimentaryAmount,
+          complimentaryAmount: totals.complimentaryAmount,
           complimentaryNote:
             finalComplimentaryType === "NONE" ? "" : sanitizeText(complimentaryNote),
           customerEmail: normalizedCustomerEmail,
@@ -1109,7 +1233,10 @@ const customizeBill = async (req, res) => {
     });
 
     const originalItemsTotal = Array.isArray(bill.order?.items)
-      ? bill.order.items.reduce((sum, item) => sum + getOrderItemAmount(item), 0)
+      ? getBillableOrderItems(bill.order).reduce(
+          (sum, item) => sum + getOrderItemAmount(item),
+          0
+        )
       : bill.itemsTotal + sanitizeAmount(bill.complimentaryAmount);
 
     const totals = calculateBillTotals({
@@ -1120,7 +1247,8 @@ const customizeBill = async (req, res) => {
       serviceCharge: req.body.serviceCharge ?? bill.serviceCharge ?? 0,
       packagingCharge: req.body.packagingCharge ?? bill.packagingCharge ?? 0,
       extraCharge: req.body.extraCharge ?? bill.extraCharge ?? 0,
-      discount: req.body.discount ?? bill.discount ?? 0,
+      discount: req.body.discount ?? bill.discountValue ?? bill.discount ?? 0,
+      discountType: req.body.discountType ?? bill.discountType ?? "AMOUNT",
     });
 
     bill.itemsTotal = totals.itemsTotal;
@@ -1149,6 +1277,8 @@ const customizeBill = async (req, res) => {
         ? sanitizeText(req.body.extraChargeReason ?? bill.extraChargeReason)
         : "";
     bill.discount = totals.discount;
+    bill.discountType = totals.discountType;
+    bill.discountValue = totals.discountValue;
     bill.totalAmount = totals.totalAmount;
     bill.customerEmail = sanitizeText(req.body.customerEmail).toLowerCase();
     bill.customerPhone = sanitizeText(req.body.customerPhone);
@@ -1491,7 +1621,7 @@ const streamBillPDF = async (bill, res) => {
     const isFullOrderComplimentary = bill.complimentaryType === "FULL_ORDER";
 
     let rowY = tableTop + 34;
-    bill.order?.items?.forEach((item, index) => {
+    getBillableOrderItems(bill.order).forEach((item, index) => {
       ensurePageSpace(doc, 32);
 
       const rowHeight = 24;
@@ -1585,7 +1715,7 @@ const streamBillPDF = async (bill, res) => {
         summaryY += 24;
       }
     }
-    drawAmountLine(doc, "Discount", bill.discount || 0, {
+    drawAmountLine(doc, getDiscountLabel(bill), bill.discount || 0, {
       y: summaryY,
     });
 

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FaBell, FaCheckCircle, FaExchangeAlt, FaMinus, FaPlus, FaPrint, FaSearch, FaShoppingCart, FaTable, FaTimes, FaUtensils } from "react-icons/fa";
 import {
   addItemsToOrder,
+  cancelOrderItem,
   changeOrderTable,
   createOrder,
   getWaiterOrders,
@@ -22,6 +23,13 @@ const CUSTOMIZATION_PRESETS = [
   "No onion",
   "Extra cheese",
   "Jain preparation",
+];
+const CANCEL_REASON_PRESETS = [
+  "Customer changed mind",
+  "Wrong item added",
+  "Item delayed",
+  "Item not required",
+  "Service recovery",
 ];
 
 const MenuModal = ({ children, onClose }) => (
@@ -69,6 +77,14 @@ export default function WaiterManagement() {
   const [liveNotifications, setLiveNotifications] = useState([]);
   const [kotPrintingId, setKotPrintingId] = useState("");
   const [billingId, setBillingId] = useState("");
+  const [cancelDialog, setCancelDialog] = useState({
+    open: false,
+    orderId: "",
+    itemId: "",
+    itemName: "",
+    reason: "",
+  });
+  const [cancellingItem, setCancellingItem] = useState(false);
 
   const load = async () => {
     if (!restaurantId) {
@@ -223,12 +239,15 @@ export default function WaiterManagement() {
   const hasReadyItems = (order) =>
     (order?.items || []).some((item) => item.status === "READY");
 
+  const getActiveOrderItems = (order) =>
+    (order?.items || []).filter((item) => item.status !== "CANCELLED");
+
   const isKotDirectBilling = (order) =>
     Boolean(order?.kot?.mode || order?.kot?.directBilling || order?.kot?.printed);
 
   const allItemsServed = (order) =>
-    (order?.items || []).length > 0 &&
-    (order.items || []).every((item) => item.status === "SERVED");
+    getActiveOrderItems(order).length > 0 &&
+    getActiveOrderItems(order).every((item) => item.status === "SERVED");
 
   const canBillOrder = (order) => isKotDirectBilling(order) || allItemsServed(order);
 
@@ -480,6 +499,53 @@ export default function WaiterManagement() {
     }
   };
 
+  const handleCancelOrderItem = async (order, item) => {
+    setCancelDialog({
+      open: true,
+      orderId: order?._id || "",
+      itemId: item?._id || "",
+      itemName: item?.menuItem?.name || "Menu Item",
+      reason: "",
+    });
+  };
+
+  const closeCancelDialog = () => {
+    if (cancellingItem) return;
+    setCancelDialog({
+      open: false,
+      orderId: "",
+      itemId: "",
+      itemName: "",
+      reason: "",
+    });
+  };
+
+  const submitCancelledItem = async () => {
+    const reason = String(cancelDialog.reason || "").trim();
+    if (!reason) {
+      alert("Please enter cancel reason");
+      return;
+    }
+
+    try {
+      setCancellingItem(true);
+      const result = await cancelOrderItem(
+        cancelDialog.orderId,
+        cancelDialog.itemId,
+        reason
+      );
+      await load();
+      closeCancelDialog();
+      if (result?.inventoryEffect) {
+        alert(result.inventoryEffect);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || "Cancel item failed");
+    } finally {
+      setCancellingItem(false);
+    }
+  };
+
   const renderItemStatusList = (order) => {
     if (!order?.items?.length) return null;
 
@@ -498,18 +564,44 @@ export default function WaiterManagement() {
             key={item._id}
             className="flex items-center justify-between gap-2 rounded-xl bg-white/60 px-2.5 py-2 text-xs dark:bg-slate-900/40"
           >
-            <span className="min-w-0 truncate font-semibold">
-              {item.menuItem?.name || "Menu Item"} x{item.quantity}
-            </span>
-            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-              item.status === "READY"
-                ? "bg-sky-600 text-white"
-                : item.status === "SERVED"
-                ? "bg-violet-600 text-white"
-                : "bg-amber-100 text-amber-700"
-            }`}>
-              {item.status || "PENDING"}
-            </span>
+            <div className="min-w-0 flex-1">
+              <span className={`block truncate font-semibold ${
+                item.status === "CANCELLED"
+                  ? "text-slate-400 line-through dark:text-slate-500"
+                  : ""
+              }`}>
+                {item.menuItem?.name || "Menu Item"} x{item.quantity}
+              </span>
+              {item.cancellationReason ? (
+                <p className="mt-1 truncate text-[11px] text-rose-600 dark:text-rose-300">
+                  {item.cancellationStage === "AFTER_PREPARATION"
+                    ? "Cancelled after prep"
+                    : "Cancelled before prep"}: {item.cancellationReason}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {item.status !== "CANCELLED" && order.status !== "PAID" ? (
+                <button
+                  type="button"
+                  onClick={() => handleCancelOrderItem(order, item)}
+                  className="inline-flex h-8 items-center justify-center rounded-lg bg-rose-100 px-2.5 text-[10px] font-bold uppercase tracking-wide text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-200"
+                >
+                  Cancel
+                </button>
+              ) : null}
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                item.status === "READY"
+                  ? "bg-sky-600 text-white"
+                  : item.status === "SERVED"
+                  ? "bg-violet-600 text-white"
+                  : item.status === "CANCELLED"
+                  ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200"
+                  : "bg-amber-100 text-amber-700"
+              }`}>
+                {item.status || "PENDING"}
+              </span>
+            </div>
           </div>
         ))}
       </div>
@@ -1100,6 +1192,95 @@ export default function WaiterManagement() {
               </button>
             </div>
           </MenuModal>
+        )}
+
+        {cancelDialog.open && (
+          <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/55 p-4 backdrop-blur-sm sm:items-center">
+            <div className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+              <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-700 sm:px-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-rose-500 dark:text-rose-300">
+                      Cancel Item
+                    </p>
+                    <h3 className="mt-2 text-xl font-black text-slate-900 dark:text-white">
+                      {cancelDialog.itemName}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      This item will be removed from billing. Stock stays consumed if preparation already happened.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeCancelDialog}
+                    disabled={cancellingItem}
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-4 px-5 py-5 sm:px-6">
+                <div>
+                  <p className="mb-2 text-sm font-bold text-slate-800 dark:text-slate-100">
+                    Quick reasons
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {CANCEL_REASON_PRESETS.map((reason) => (
+                      <button
+                        key={reason}
+                        type="button"
+                        onClick={() => setCancelDialog((prev) => ({ ...prev, reason }))}
+                        className={`rounded-full px-3 py-2 text-xs font-bold transition ${
+                          cancelDialog.reason === reason
+                            ? "bg-rose-600 text-white"
+                            : "bg-rose-50 text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-200 dark:ring-rose-900/40"
+                        }`}
+                      >
+                        {reason}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-slate-800 dark:text-slate-100">
+                    Cancel reason
+                  </label>
+                  <textarea
+                    rows="4"
+                    maxLength="200"
+                    value={cancelDialog.reason}
+                    onChange={(e) =>
+                      setCancelDialog((prev) => ({ ...prev, reason: e.target.value }))
+                    }
+                    placeholder="Write why this item is being cancelled..."
+                    className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-rose-400 focus:bg-white dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-950 sm:flex-row sm:justify-end sm:px-6">
+                <button
+                  type="button"
+                  onClick={closeCancelDialog}
+                  disabled={cancellingItem}
+                  className="min-h-11 rounded-2xl border border-slate-200 bg-white px-5 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  Keep Item
+                </button>
+                <button
+                  type="button"
+                  onClick={submitCancelledItem}
+                  disabled={cancellingItem || !String(cancelDialog.reason || "").trim()}
+                  className="min-h-11 rounded-2xl bg-rose-600 px-5 py-2 text-sm font-bold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {cancellingItem ? "Cancelling..." : "Confirm Cancel"}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

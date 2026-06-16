@@ -94,6 +94,13 @@ const menuSchema = new mongoose.Schema(
       min: 0,
     },
 
+    menuCode: {
+      type: String,
+      required: true,
+      trim: true,
+      match: /^\d{4}$/,
+    },
+
     // 🔥 Cuisine Type (Indian, Chinese, etc.)
     cuisine: {
       type: String,
@@ -135,6 +142,12 @@ const menuSchema = new mongoose.Schema(
 // Prevent duplicate menu name per restaurant
 menuSchema.index(
   { restaurant: 1, name: 1 },
+  { unique: true }
+);
+
+// Prevent duplicate menu code per restaurant
+menuSchema.index(
+  { restaurant: 1, menuCode: 1 },
   { unique: true }
 );
 

@@ -196,6 +196,17 @@ const billSchema = new mongoose.Schema(
       default: 0,
     },
 
+    discountType: {
+      type: String,
+      enum: ["AMOUNT", "PERCENT"],
+      default: "AMOUNT",
+    },
+
+    discountValue: {
+      type: Number,
+      default: 0,
+    },
+
     complimentaryType: {
       type: String,
       enum: ["NONE", "ITEMS", "FULL_ORDER"],

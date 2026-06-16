@@ -8,7 +8,7 @@ import MenuQrModal, { MenuQrButton } from "../common/MenuQrModal";
 
 const CUISINE_PRESETS = ["Indian", "Chinese", "Italian", "Continental", "Mexican", "Thai", "Arabian"];
 const COURSE_PRESETS = ["Starter", "Main Course", "Dessert", "Beverage", "Snack", "Soup"];
-const emptyForm = { name: "", price: "", cuisine: "", cuisineCustom: "", courseType: "", courseTypeCustom: "", isAvailable: true };
+const emptyForm = { name: "", price: "", menuCode: "", cuisine: "", cuisineCustom: "", courseType: "", courseTypeCustom: "", isAvailable: true };
 const emptyIngredient = () => ({ itemId: "", quantity: "" });
 const ORDER_FILTERS = [
   { key: "today", label: "Today" },
@@ -144,7 +144,7 @@ export default function AdminMenuManagement() {
 
   const filteredMenus = useMemo(() => {
     return menus.filter((item) => {
-      const matchesSearch = `${item.name} ${item.cuisine} ${item.courseType}`.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = `${item.name} ${item.menuCode || ""} ${item.cuisine} ${item.courseType}`.toLowerCase().includes(search.toLowerCase());
       if (!matchesSearch) return false;
       if (activeTab === "all") return true;
       if (activeTab.startsWith("cuisine:")) return item.cuisine === activeTab.slice(8);
@@ -166,9 +166,13 @@ export default function AdminMenuManagement() {
     if (!form.price || Number(form.price) < 0) return alert("Enter valid price"), null;
     if (!cuisine) return alert("Enter cuisine"), null;
     if (!courseType) return alert("Enter course type"), null;
+    if (!/^\d{4}$/.test(String(form.menuCode || "").trim())) {
+      return alert("Enter a unique 4-digit menu code"), null;
+    }
     return {
       name: form.name.trim(),
       price: Number(form.price),
+      menuCode: String(form.menuCode).trim(),
       cuisine,
       courseType,
       isAvailable: form.isAvailable,
@@ -195,6 +199,7 @@ export default function AdminMenuManagement() {
     setForm({
       name: item.name,
       price: item.price,
+      menuCode: item.menuCode || "",
       cuisine: cuisineIsPreset ? item.cuisine : "__custom__",
       cuisineCustom: cuisineIsPreset ? "" : item.cuisine,
       courseType: courseIsPreset ? item.courseType : "__custom__",
@@ -301,6 +306,19 @@ export default function AdminMenuManagement() {
           placeholder="Price"
           value={form.price}
           onChange={(e) => setForm({ ...form, price: e.target.value })}
+          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white"
+          required
+        />
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="\d{4}"
+          maxLength="4"
+          placeholder="4-digit menu code"
+          value={form.menuCode}
+          onChange={(e) =>
+            setForm({ ...form, menuCode: e.target.value.replace(/\D/g, "").slice(0, 4) })
+          }
           className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white"
           required
         />
@@ -470,6 +488,7 @@ export default function AdminMenuManagement() {
                     <div className="min-w-0">
                       <h2 className="truncate text-base font-semibold text-slate-900">{item.name}</h2>
                       <p className="mt-1 text-sm font-semibold text-emerald-700">Rs. {item.price}</p>
+                      <p className="mt-1 text-xs font-bold tracking-[0.14em] text-slate-400">CODE {item.menuCode || "----"}</p>
                     </div>
                     <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${item.isAvailable ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}>
                       {item.isAvailable ? "Available" : "Unavailable"}
@@ -515,6 +534,7 @@ export default function AdminMenuManagement() {
                 <thead className="bg-slate-100">
                   <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                     <th className="px-5 py-4">Dish</th>
+                    <th className="px-5 py-4">Code</th>
                     <th className="px-5 py-4">Cuisine</th>
                     <th className="px-5 py-4">Course</th>
                     <th className="px-5 py-4">Price</th>
@@ -529,6 +549,7 @@ export default function AdminMenuManagement() {
                       <td className="px-5 py-4">
                         <p className="font-semibold text-slate-900">{item.name}</p>
                       </td>
+                      <td className="px-5 py-4 text-sm font-bold text-slate-700">{item.menuCode || "-"}</td>
                       <td className="px-5 py-4 text-sm text-slate-700">{item.cuisine || "-"}</td>
                       <td className="px-5 py-4 text-sm text-slate-700">{item.courseType || "-"}</td>
                       <td className="px-5 py-4 text-sm font-semibold text-emerald-700">Rs. {item.price}</td>

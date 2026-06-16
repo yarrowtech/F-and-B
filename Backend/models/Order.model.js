@@ -165,6 +165,22 @@ const orderItemSchema = new mongoose.Schema(
     acceptedAt: Date,
     readyAt: Date,
     servedAt: Date,
+    cancelledAt: Date,
+    cancellationReason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    cancellationStage: {
+      type: String,
+      enum: ["", "BEFORE_PREPARATION", "AFTER_PREPARATION"],
+      default: "",
+    },
+    cancelledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employee",
+      default: null,
+    },
   },
   { timestamps: true }
 );
