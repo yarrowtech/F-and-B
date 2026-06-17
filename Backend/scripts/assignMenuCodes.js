@@ -3,14 +3,14 @@ import connectDB from "../config/db.js";
 import Menu from "../models/Menu.model.js";
 
 const normalizeMenuCode = (value) => String(value || "").trim();
-const isValidMenuCode = (value) => /^\d{4}$/.test(normalizeMenuCode(value));
+const isValidMenuCode = (value) => /^\d+$/.test(normalizeMenuCode(value));
 
 const getNextAvailableCode = (usedCodes) => {
-  for (let code = 1001; code <= 9999; code += 1) {
+  for (let code = 1; code <= 999999; code += 1) {
     const nextCode = String(code);
     if (!usedCodes.has(nextCode)) return nextCode;
   }
-  throw new Error("No 4-digit menu codes available");
+  throw new Error("No menu codes available");
 };
 
 const run = async () => {

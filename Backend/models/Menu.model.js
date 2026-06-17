@@ -98,7 +98,7 @@ const menuSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      match: /^\d{4}$/,
+      match: /^\d+$/,
     },
 
     // 🔥 Cuisine Type (Indian, Chinese, etc.)

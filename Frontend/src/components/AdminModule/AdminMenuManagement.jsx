@@ -166,8 +166,8 @@ export default function AdminMenuManagement() {
     if (!form.price || Number(form.price) < 0) return alert("Enter valid price"), null;
     if (!cuisine) return alert("Enter cuisine"), null;
     if (!courseType) return alert("Enter course type"), null;
-    if (!/^\d{4}$/.test(String(form.menuCode || "").trim())) {
-      return alert("Enter a unique 4-digit menu code"), null;
+    if (!/^\d+$/.test(String(form.menuCode || "").trim())) {
+      return alert("Enter a unique numeric menu code"), null;
     }
     return {
       name: form.name.trim(),
@@ -312,12 +312,11 @@ export default function AdminMenuManagement() {
         <input
           type="text"
           inputMode="numeric"
-          pattern="\d{4}"
-          maxLength="4"
-          placeholder="4-digit menu code"
+          pattern="\d+"
+          placeholder="Menu code"
           value={form.menuCode}
           onChange={(e) =>
-            setForm({ ...form, menuCode: e.target.value.replace(/\D/g, "").slice(0, 4) })
+            setForm({ ...form, menuCode: e.target.value.replace(/\D/g, "") })
           }
           className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white"
           required

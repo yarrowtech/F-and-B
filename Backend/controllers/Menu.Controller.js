@@ -236,7 +236,7 @@ import ExcelJS from "exceljs";
 import { invalidateCacheNamespaces } from "../utils/cacheStore.js";
 
 const normalizeMenuCode = (value) => String(value || "").trim();
-const isValidMenuCode = (value) => /^\d{4}$/.test(normalizeMenuCode(value));
+const isValidMenuCode = (value) => /^\d+$/.test(normalizeMenuCode(value));
 const generateNextMenuCode = async (restaurantId, excludeId = null) => {
   const menus = await Menu.find({
     restaurant: restaurantId,
@@ -249,12 +249,12 @@ const generateNextMenuCode = async (restaurantId, excludeId = null) => {
     menus.map((item) => normalizeMenuCode(item.menuCode)).filter(isValidMenuCode)
   );
 
-  for (let code = 1001; code <= 9999; code += 1) {
+  for (let code = 1; code <= 999999; code += 1) {
     const nextCode = String(code);
     if (!usedCodes.has(nextCode)) return nextCode;
   }
 
-  throw new Error("No 4-digit menu codes available for this restaurant");
+  throw new Error("No menu codes available for this restaurant");
 };
 
 const invalidateMenuCaches = (restaurantId) => {
@@ -292,7 +292,7 @@ export const createMenuItem = async (req, res) => {
 
     if (menuCode && !isValidMenuCode(menuCode)) {
       return res.status(400).json({
-        message: "Menu code must be a unique 4-digit number",
+        message: "Menu code must be a unique number",
       });
     }
 
@@ -546,7 +546,7 @@ export const updateMenuItem = async (req, res) => {
     if (menuCode !== undefined) {
       if (!isValidMenuCode(menuCode)) {
         return res.status(400).json({
-          message: "Menu code must be a unique 4-digit number",
+          message: "Menu code must be a unique number",
         });
       }
       item.menuCode = normalizeMenuCode(menuCode);

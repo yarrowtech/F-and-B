@@ -1363,8 +1363,8 @@ export default function AccountantOrderBilling() {
 
   const handleAddMenuByCode = () => {
     const normalizedCode = String(manualCodeInput || "").trim();
-    if (!/^\d{4}$/.test(normalizedCode)) {
-      alert("Enter a valid 4-digit menu code");
+    if (!/^\d+$/.test(normalizedCode)) {
+      alert("Enter a valid numeric menu code");
       return;
     }
 
@@ -1614,7 +1614,7 @@ export default function AccountantOrderBilling() {
                           Fast Add By Code
                         </p>
                         <p className="mt-1 text-xs font-medium text-emerald-700/80 dark:text-emerald-200/80">
-                          Type the 4-digit menu code and press Enter.
+                          Type the menu code and press Enter.
                         </p>
                       </div>
                     </div>
@@ -1622,12 +1622,11 @@ export default function AccountantOrderBilling() {
                       <input
                         type="text"
                         inputMode="numeric"
-                        pattern="\d{4}"
-                        maxLength="4"
+                        pattern="\d+"
                         value={manualCodeInput}
                         onChange={(e) =>
                           setManualCodeInput(
-                            e.target.value.replace(/\D/g, "").slice(0, 4)
+                            e.target.value.replace(/\D/g, "")
                           )
                         }
                         onKeyDown={(e) => {
@@ -1636,7 +1635,7 @@ export default function AccountantOrderBilling() {
                             handleAddMenuByCode();
                           }
                         }}
-                        placeholder="Enter 4-digit code"
+                        placeholder="Enter menu code"
                         className="min-h-12 w-full rounded-xl border border-emerald-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 dark:border-emerald-900/50 dark:bg-slate-900 dark:text-slate-100"
                       />
                       <button
