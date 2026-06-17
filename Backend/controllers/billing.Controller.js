@@ -85,10 +85,11 @@ const receiptBillDate = (value) => {
   return `${day}-${month}-${year} ${time}`;
 };
 const receiptItemRows = (name, qty, rate, amount, width = 42) => {
-  const itemWidth = 18;
-  const qtyWidth = 5;
-  const rateWidth = 8;
-  const amtWidth = 9;
+  const compact = width <= 32;
+  const itemWidth = compact ? 12 : 18;
+  const qtyWidth = compact ? 4 : 5;
+  const rateWidth = compact ? 7 : 8;
+  const amtWidth = compact ? 8 : 9;
   const wrappedName = receiptWrap(name, itemWidth);
   const firstName = receiptText(wrappedName[0] || "")
     .slice(0, itemWidth)
@@ -105,7 +106,7 @@ const receiptItemRows = (name, qty, rate, amount, width = 42) => {
   return rows;
 };
 
-const appendThermalFeed = (text, extraLines = 5) =>
+const appendThermalFeed = (text, extraLines = 9) =>
   `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 3))}\f`;
 
 const defaultBillingTemplate = {
@@ -557,7 +558,7 @@ const findBillWithOrder = (query) =>
     });
 
 const buildBillReceiptText = (bill) => {
-  const width = 42;
+  const width = 32;
   const restaurant = bill.restaurant || {};
   const template = getBillingTemplate(restaurant);
   const order = bill.order || {};
@@ -573,26 +574,21 @@ const buildBillReceiptText = (bill) => {
     Number(bill.extraCharge || 0) -
     Number(bill.discount || 0);
   const roundOff = Number(asMoney(Number(bill.totalAmount || 0) - rawTotal));
-  const lines = [receiptCenter("BILL / TAX INVOICE", width), receiptCenter(String(title).toUpperCase(), width)];
+  const lines = [receiptCenter("TAX INVOICE", width), receiptCenter(String(title).toUpperCase(), width)];
 
   receiptWrap(template.subtitle, width).forEach((line) =>
     lines.push(receiptCenter(String(line).toUpperCase(), width))
   );
-  if (restaurant.phone) {
-    lines.push(receiptCenter(`Ph - ${restaurant.phone}`, width));
-  }
-  if (restaurant.gstNo && template.showGstNo) {
-    lines.push(receiptCenter(`GST No. ${restaurant.gstNo}`, width));
+  if (restaurant.phone) lines.push(receiptPair("PH", restaurant.phone, width));
+  if (restaurant.gstNo) {
+    lines.push(receiptPair("GST NO", restaurant.gstNo, width));
   }
   lines.push("");
   lines.push(
-    receiptPair(
-      `BILL NO ${bill.billNo || bill._id || "N/A"}`,
-      receiptBillDate(bill.updatedAt || bill.createdAt),
-      width
-    ),
+    receiptPair("BILL NO", bill.billNo || bill._id || "N/A", width),
+    receiptPair("DATE", receiptBillDate(bill.updatedAt || bill.createdAt), width),
     receiptLine(width),
-    "ITEM               QTY    RATE      AMT",
+    "ITEM          QTY   RATE     AMT",
     receiptLine(width)
   );
 
@@ -658,10 +654,12 @@ const buildBillReceiptText = (bill) => {
     lines.push(receiptCenter(line, width))
   );
   lines.push(
-    "",
-    receiptCenter(template.footerMessage || "Thank you for dining with us.", width),
-    receiptCenter("Please Visit Again", width)
+    ""
   );
+  receiptWrap(template.footerMessage || "Thank you for dining with us.", width).forEach((line) =>
+    lines.push(receiptCenter(line, width))
+  );
+  lines.push(receiptCenter("PLEASE VISIT AGAIN", width));
 
   return appendThermalFeed(lines.join("\n"));
 };
@@ -670,10 +668,9 @@ const buildManualKotReceiptText = ({ order, restaurant }) => {
   const width = 32;
   const title = restaurant?.name || "Restaurant";
   const lines = [
-    receiptCenter("*** KOT DETAIL ***", width),
+    receiptCenter("KOT DETAILS", width),
     receiptCenter(String(title).toUpperCase(), width),
     receiptLine(width),
-    receiptPair("KOT NO", `MKOT-${String(order.orderNo || order._id).slice(-8)}`, width),
     receiptPair("TYPE", order.orderType || "MANUAL", width),
     receiptPair("TIME", receiptBillDate(order.createdAt || new Date()), width),
     receiptLine(width),
@@ -1513,7 +1510,7 @@ const streamBillPDF = async (bill, res) => {
       width: 220,
     });
     headerInfoY += 14;
-    if (template.showGstNo && bill.restaurant?.gstNo) {
+    if (bill.restaurant?.gstNo) {
       doc.text(`GST: ${bill.restaurant.gstNo}`, headerTextX, headerInfoY, {
         width: 220,
       });

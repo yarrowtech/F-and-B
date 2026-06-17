@@ -117,7 +117,7 @@ const RestaurantForm = ({ initial, onSave, onCancel, saving }) => {
       </div>
       {field("GST Number (optional)", "gstNo", "text", "Enter GST number")}
 
-      <div className="grid grid-cols-2 gap-3 pt-2">
+      <div className="sticky bottom-0 -mx-5 grid grid-cols-2 gap-3 border-t border-gray-100 bg-white px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 dark:border-gray-700 dark:bg-gray-800 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-2 sm:dark:bg-transparent">
         <button
           type="button"
           onClick={onCancel}
@@ -350,7 +350,7 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
         {toggleField("Show tax breakup", "showTaxBreakup")}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 pt-2">
+      <div className="sticky bottom-0 -mx-5 grid grid-cols-2 gap-3 border-t border-gray-100 bg-white px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 dark:border-gray-700 dark:bg-gray-800 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-2 sm:dark:bg-transparent">
         <button
           type="button"
           onClick={onCancel}

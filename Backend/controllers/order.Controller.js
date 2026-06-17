@@ -1371,6 +1371,8 @@ const formatKotDateTime = (value) =>
   });
 
 const KOT_WIDTH = 32;
+const appendKotFeed = (text, extraLines = 9) =>
+  `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 3))}\f`;
 const kotText = (value) => String(value || "").trim();
 const kotLine = (char = "-") => char.repeat(KOT_WIDTH);
 const kotCenter = (value) => {
@@ -1421,10 +1423,9 @@ const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt }) => {
   const waiterName = order.waiter?.name || "N/A";
   const outletName = order.restaurant?.name || "KITCHEN";
   const lines = [
-    kotCenter("*** KOT DETAIL ***"),
+    kotCenter("KOT DETAILS"),
     kotCenter(outletName),
     kotLine(),
-    kotPair("KOT NO", kotNo),
     kotPair("TABLE", tableNo),
     kotPair("SECTION", displayCuisine(cuisine)),
     kotPair("WAITER", waiterName),
@@ -1447,7 +1448,7 @@ const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt }) => {
   lines.push(kotCenter("NO PRICE ON KOT"));
   lines.push("");
   lines.push("");
-  return lines.join("\n");
+  return appendKotFeed(lines.join("\n"));
 };
 
 const groupKotItemsByCuisine = (order) => {

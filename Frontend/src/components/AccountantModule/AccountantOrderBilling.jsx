@@ -302,10 +302,11 @@ const receiptBillDate = (value) => {
   return `${day}-${month}-${year} ${time}`;
 };
 const receiptItemRows = (name, qty, rate, amount, width = 42) => {
-  const itemWidth = 18;
-  const qtyWidth = 5;
-  const rateWidth = 8;
-  const amtWidth = 9;
+  const compact = width <= 32;
+  const itemWidth = compact ? 12 : 18;
+  const qtyWidth = compact ? 4 : 5;
+  const rateWidth = compact ? 7 : 8;
+  const amtWidth = compact ? 8 : 9;
   const wrappedName = receiptWrap(name, itemWidth);
   const firstName = receiptText(wrappedName[0] || "").slice(0, itemWidth).padEnd(itemWidth, " ");
   const qtyText = String(qty).padStart(qtyWidth, " ");
@@ -321,7 +322,7 @@ const receiptItemRows = (name, qty, rate, amount, width = 42) => {
 };
 
 const buildThermalReceiptHtml = (bill, options = {}) => {
-  const width = 42;
+  const width = 32;
   const restaurant = bill?.restaurant || {};
   const template = getBillingTemplate(restaurant);
   const order = bill?.order || {};
@@ -353,24 +354,21 @@ const buildThermalReceiptHtml = (bill, options = {}) => {
   receiptWrap(template.subtitle, width).forEach((line) =>
     lines.push(receiptCenter(String(line).toUpperCase(), width))
   );
-  if (restaurant.phone) lines.push(receiptCenter(`Ph - ${restaurant.phone}`, width));
-  if (restaurant.gstNo && template.showGstNo) {
-    lines.push(receiptCenter(`GST No. ${restaurant.gstNo}`, width));
+  if (restaurant.phone) lines.push(receiptPair("PH", restaurant.phone, width));
+  if (restaurant.gstNo) {
+    lines.push(receiptPair("GST NO", restaurant.gstNo, width));
   }
 
   lines.push(
     "",
-    receiptPair(
-      `Bill No ${bill.billNo || bill._id || "N/A"}`,
-      receiptBillDate(bill.updatedAt || bill.createdAt),
-      width
-    ),
+    receiptPair("BILL NO", bill.billNo || bill._id || "N/A", width),
+    receiptPair("DATE", receiptBillDate(bill.updatedAt || bill.createdAt), width),
     receiptLine(width),
-    "ITEM               QTY    RATE      AMT",
+    "ITEM          QTY   RATE     AMT",
     receiptLine(width)
   );
 
-  items.forEach((item, index) => {
+  items.forEach((item) => {
     const name = item.menuItem?.name || item.name || "Menu Item";
     const qty = Number(item.quantity || 0);
     const rate = Number(item.price ?? item.menuItem?.price ?? 0);
@@ -446,20 +444,12 @@ const buildThermalReceiptHtml = (bill, options = {}) => {
   receiptWrap(restaurant.address, width).forEach((line) =>
     lines.push(receiptCenter(line, width))
   );
-  lines.push(
-    "",
-    receiptCenter(template.footerMessage || "Thank you for dining with us.", width),
-    receiptCenter("Please Visit Again", width),
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    ""
+  lines.push("");
+  receiptWrap(template.footerMessage || "Thank you for dining with us.", width).forEach((line) =>
+    lines.push(receiptCenter(line, width))
   );
+  lines.push(receiptCenter("PLEASE VISIT AGAIN", width));
+  lines.push("", "", "", "", "", "", "", "", "", "", "", "");
 
   return `<!doctype html>
 <html>
@@ -487,7 +477,8 @@ const buildThermalReceiptHtml = (bill, options = {}) => {
       margin: 0;
       white-space: pre;
       font-family: "Courier New", monospace;
-      font-size: 12px;
+      font-size: 13px;
+      font-weight: 900;
       line-height: 1.25;
       overflow: visible;
     }

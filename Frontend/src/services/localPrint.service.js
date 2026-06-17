@@ -42,7 +42,7 @@ export const printTextInBrowser = (receiptText, title = "Print") => {
             background: #fff;
             color: #000;
             font-family: "Courier New", monospace;
-            font-size: 16px;
+            font-size: 13px;
             font-weight: 900;
             line-height: 1.35;
             print-color-adjust: exact;
@@ -52,8 +52,8 @@ export const printTextInBrowser = (receiptText, title = "Print") => {
             width: 72mm;
             margin: 0;
             padding: 3mm;
-            white-space: pre-wrap;
-            word-break: break-word;
+            white-space: pre;
+            word-break: normal;
           }
         </style>
       </head>
@@ -117,7 +117,7 @@ export const printMultipleTextsInBrowser = (jobs = [], title = "Print") => {
             background: #fff;
             color: #000;
             font-family: "Courier New", monospace;
-            font-size: 16px;
+            font-size: 13px;
             font-weight: 900;
             line-height: 1.35;
             print-color-adjust: exact;
@@ -129,14 +129,14 @@ export const printMultipleTextsInBrowser = (jobs = [], title = "Print") => {
             padding: 3mm;
           }
           .receipt-gap {
-            padding-bottom: 14mm;
+            padding-bottom: 26mm;
             border-bottom: 1px dashed #bbb;
             margin-bottom: 6mm;
           }
           pre {
             margin: 0;
-            white-space: pre-wrap;
-            word-break: break-word;
+            white-space: pre;
+            word-break: normal;
           }
         </style>
       </head>
