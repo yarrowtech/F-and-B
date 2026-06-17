@@ -46,7 +46,7 @@ router.get(
   getPublicMenu
 );
 
-router.post("/:restaurantId", auth, allowRoles("admin"), createMenuItem);
+router.post("/:restaurantId", auth, allowRoles("admin", "manager"), createMenuItem);
 
 router.get(
   "/:restaurantId",

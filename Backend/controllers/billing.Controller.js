@@ -573,7 +573,7 @@ const buildBillReceiptText = (bill) => {
     Number(bill.extraCharge || 0) -
     Number(bill.discount || 0);
   const roundOff = Number(asMoney(Number(bill.totalAmount || 0) - rawTotal));
-  const lines = [receiptCenter("TAX INVOICE", width), receiptCenter(String(title).toUpperCase(), width)];
+  const lines = [receiptCenter("BILL / TAX INVOICE", width), receiptCenter(String(title).toUpperCase(), width)];
 
   receiptWrap(template.subtitle, width).forEach((line) =>
     lines.push(receiptCenter(String(line).toUpperCase(), width))
@@ -587,7 +587,7 @@ const buildBillReceiptText = (bill) => {
   lines.push("");
   lines.push(
     receiptPair(
-      `Bill No ${bill.billNo || bill._id || "N/A"}`,
+      `BILL NO ${bill.billNo || bill._id || "N/A"}`,
       receiptBillDate(bill.updatedAt || bill.createdAt),
       width
     ),
@@ -670,28 +670,33 @@ const buildManualKotReceiptText = ({ order, restaurant }) => {
   const width = 32;
   const title = restaurant?.name || "Restaurant";
   const lines = [
-    receiptCenter("KITCHEN ORDER TICKET", width),
+    receiptCenter("*** KOT DETAIL ***", width),
     receiptCenter(String(title).toUpperCase(), width),
     receiptLine(width),
-    `KOT: MKOT-${String(order.orderNo || order._id).slice(-8)}`,
-    `Order: ${order.orderNo || order._id}`,
-    `Type: ${order.orderType || "MANUAL"}`,
-    `Time: ${receiptBillDate(order.createdAt || new Date())}`,
+    receiptPair("KOT NO", `MKOT-${String(order.orderNo || order._id).slice(-8)}`, width),
+    receiptPair("TYPE", order.orderType || "MANUAL", width),
+    receiptPair("TIME", receiptBillDate(order.createdAt || new Date()), width),
+    receiptLine(width),
+    "QTY  DESCRIPTION",
     receiptLine(width),
   ];
 
-  getBillableOrderItems(order).forEach((item, index) => {
+  getBillableOrderItems(order).forEach((item) => {
+    const quantity = String(Number(item.quantity || 0)).padEnd(4, " ");
     const itemName = item.menuItem?.name || item.name || "Menu Item";
-    lines.push(`${index + 1}. ${itemName}`);
-    lines.push(`   Qty: ${Number(item.quantity || 0)}`);
+    const wrappedName = receiptWrap(String(itemName).toUpperCase(), width - 5);
+    lines.push(`${quantity} ${wrappedName[0] || "MENU ITEM"}`.slice(0, width));
+    wrappedName.slice(1).forEach((line) => lines.push(`     ${line}`.slice(0, width)));
 
     if (Array.isArray(item.customization) && item.customization.length > 0) {
-      lines.push(`   Note: ${item.customization.join(", ")}`);
+      receiptWrap(`NOTE: ${item.customization.join(", ")}`.toUpperCase(), width).forEach((line) =>
+        lines.push(`     ${line}`.slice(0, width))
+      );
     }
   });
 
   lines.push(receiptLine(width));
-  lines.push("No price on KOT");
+  lines.push(receiptCenter("NO PRICE ON KOT", width));
   lines.push("");
   lines.push("");
   return appendThermalFeed(lines.join("\n"));

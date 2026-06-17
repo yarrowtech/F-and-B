@@ -40,10 +40,13 @@ export const printTextInBrowser = (receiptText, title = "Print") => {
           body {
             margin: 0;
             background: #fff;
-            color: #111;
+            color: #000;
             font-family: "Courier New", monospace;
-            font-size: 12px;
-            line-height: 1.25;
+            font-size: 16px;
+            font-weight: 900;
+            line-height: 1.35;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
           }
           pre {
             width: 72mm;
@@ -112,10 +115,13 @@ export const printMultipleTextsInBrowser = (jobs = [], title = "Print") => {
           body {
             margin: 0;
             background: #fff;
-            color: #111;
+            color: #000;
             font-family: "Courier New", monospace;
-            font-size: 12px;
-            line-height: 1.25;
+            font-size: 16px;
+            font-weight: 900;
+            line-height: 1.35;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
           }
           .receipt {
             width: 72mm;

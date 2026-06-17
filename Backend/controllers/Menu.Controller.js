@@ -296,11 +296,25 @@ export const createMenuItem = async (req, res) => {
       });
     }
 
-    /* 🔒 Verify restaurant ownership (Admin only) */
-    const restaurant = await Restaurant.findOne({
-      _id: restaurantId,
-      admin: req.user.id,
-    });
+    /* Verify restaurant access */
+    let restaurant;
+
+    if (req.user.role === "admin") {
+      restaurant = await Restaurant.findOne({
+        _id: restaurantId,
+        admin: req.user.id,
+      });
+    } else if (req.user.role === "manager") {
+      const employee = await Employee.findById(req.user.id).select("restaurant");
+
+      if (
+        employee &&
+        employee.restaurant &&
+        employee.restaurant.toString() === restaurantId
+      ) {
+        restaurant = await Restaurant.findById(restaurantId);
+      }
+    }
 
     if (!restaurant) {
       return res.status(403).json({ message: "Access denied" });
@@ -526,19 +540,6 @@ export const updateMenuItem = async (req, res) => {
       isAvailable,
       ingredients,
     } = req.body;
-
-    if (isManager) {
-      if (isAvailable === undefined) {
-        return res.status(400).json({
-          message: "Availability status is required",
-        });
-      }
-
-      item.isAvailable = Boolean(isAvailable);
-      await item.save();
-      invalidateMenuCaches(restaurantId);
-      return res.json(item);
-    }
 
     if (name !== undefined) item.name = name.trim();
     if (price !== undefined) item.price = Number(price);

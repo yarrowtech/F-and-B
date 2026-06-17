@@ -1,7 +1,8 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { createElement, useEffect, useMemo, useState } from "react";
-import { FaCheckCircle, FaEdit, FaFileExcel, FaSearch, FaStore, FaTimes, FaUtensils } from "react-icons/fa";
-import { downloadMenuSalesExcel, getMenu, getMenuAnalytics, getMenuOrdersByDate, updateMenu } from "../../services/menu.service";
+import { FaCheckCircle, FaEdit, FaFileExcel, FaPlus, FaSearch, FaStore, FaTimes, FaTrash, FaUtensils } from "react-icons/fa";
+import { createMenu, downloadMenuSalesExcel, getMenu, getMenuAnalytics, getMenuOrdersByDate, updateMenu } from "../../services/menu.service";
+import { getInventory } from "../../services/inventory.service";
 import MenuQrModal, { MenuQrButton } from "../common/MenuQrModal";
 
 const Modal = ({ title, onClose, children }) => (
@@ -30,6 +31,13 @@ const ORDER_FILTERS = [
   { key: "last1month", label: "Last 1 Month" },
   { key: "date", label: "Date Wise" },
 ];
+
+const CUISINE_PRESETS = ["Indian", "Chinese", "Italian", "Continental", "Mexican", "Thai", "Arabian"];
+const COURSE_PRESETS = ["Starter", "Main Course", "Dessert", "Beverage", "Snack", "Soup"];
+const emptyForm = { name: "", price: "", menuCode: "", cuisine: "", cuisineCustom: "", courseType: "", courseTypeCustom: "", isAvailable: true };
+const emptyIngredient = () => ({ itemId: "", quantity: "" });
+const resolveCuisine = (form) => (form.cuisine === "__custom__" ? form.cuisineCustom.trim() : form.cuisine);
+const resolveCourse = (form) => (form.courseType === "__custom__" ? form.courseTypeCustom.trim() : form.courseType);
 
 const StatCard = ({ label, value, icon: Icon, tone = "slate" }) => {
   const tones = {
@@ -110,7 +118,7 @@ const MenuMobileCard = ({ item, onEdit }) => (
 
     <button onClick={() => onEdit(item)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-700">
       <FaEdit />
-      Update Status
+      Edit
     </button>
   </article>
 );
@@ -141,13 +149,17 @@ export default function ManagerMenuManagement() {
 
   const [viewTab, setViewTab] = useState("menu");
   const [menus, setMenus] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
   const [menuLoading, setMenuLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState("");
   const [activeMenuFilter, setActiveMenuFilter] = useState("all");
-  const [editingItem, setEditingItem] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [showQrModal, setShowQrModal] = useState(false);
-  const [isAvailable, setIsAvailable] = useState(true);
+  const [form, setForm] = useState(emptyForm);
+  const [ingredients, setIngredients] = useState([emptyIngredient()]);
 
   const [ordersFilter, setOrdersFilter] = useState("today");
   const [selectedStartDate, setSelectedStartDate] = useState("");
@@ -160,10 +172,12 @@ export default function ManagerMenuManagement() {
   useEffect(() => {
     if (!assignedRestaurantId) {
       setMenus([]);
+      setInventoryItems([]);
       setMenuLoading(false);
       return;
     }
     loadMenus();
+    loadInventory();
   }, [assignedRestaurantId]);
 
   useEffect(() => {
@@ -209,6 +223,8 @@ export default function ManagerMenuManagement() {
 
   const cuisines = [...new Set(menus.map((item) => item.cuisine).filter(Boolean))];
   const courseTypes = [...new Set(menus.map((item) => item.courseType).filter(Boolean))];
+  const cuisineOptions = [...new Set([...CUISINE_PRESETS, ...cuisines])];
+  const courseOptions = [...new Set([...COURSE_PRESETS, ...courseTypes])];
   const availableCount = menus.filter((item) => item.isAvailable).length;
   const totalOrders = orderAnalytics.reduce((sum, item) => sum + Number(item.totalOrders || 0), 0);
 
@@ -229,22 +245,102 @@ export default function ManagerMenuManagement() {
     );
   }, [orderAnalytics, ordersSearch]);
 
-  const openAvailabilityModal = (item) => {
-    setEditingItem(item);
-    setIsAvailable(Boolean(item.isAvailable));
+  const buildPayload = () => {
+    const cuisine = resolveCuisine(form);
+    const courseType = resolveCourse(form);
+
+    if (!form.name.trim()) return alert("Enter dish name"), null;
+    if (!form.price || Number(form.price) < 0) return alert("Enter valid price"), null;
+    if (!cuisine) return alert("Enter cuisine"), null;
+    if (!courseType) return alert("Enter course type"), null;
+    if (!/^\d{4}$/.test(String(form.menuCode || "").trim())) {
+      return alert("Enter a unique 4-digit menu code"), null;
+    }
+
+    return {
+      name: form.name.trim(),
+      price: Number(form.price),
+      menuCode: String(form.menuCode).trim(),
+      cuisine,
+      courseType,
+      isAvailable: form.isAvailable,
+      ingredients: ingredients
+        .filter((item) => item.itemId && item.quantity && Number(item.quantity) > 0)
+        .map((item) => ({ item: item.itemId, quantity: Number(item.quantity) })),
+    };
   };
 
-  const handleAvailabilityUpdate = async (e) => {
+  const updateIngredient = (index, field, value) => {
+    setIngredients((prev) => prev.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
+  };
+
+  const openAddModal = () => {
+    setForm(emptyForm);
+    setIngredients([emptyIngredient()]);
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (item) => {
+    const cuisineIsPreset = CUISINE_PRESETS.includes(item.cuisine);
+    const courseIsPreset = COURSE_PRESETS.includes(item.courseType);
+
+    setEditingId(item._id);
+    setForm({
+      name: item.name || "",
+      price: item.price || "",
+      menuCode: item.menuCode || "",
+      cuisine: cuisineIsPreset ? item.cuisine : "__custom__",
+      cuisineCustom: cuisineIsPreset ? "" : item.cuisine || "",
+      courseType: courseIsPreset ? item.courseType : "__custom__",
+      courseTypeCustom: courseIsPreset ? "" : item.courseType || "",
+      isAvailable: Boolean(item.isAvailable),
+    });
+    setIngredients(
+      item.ingredients?.length
+        ? item.ingredients.map((ingredient) => ({
+            itemId: typeof ingredient.item === "object" ? ingredient.item._id : ingredient.item,
+            quantity: ingredient.quantity,
+          }))
+        : [emptyIngredient()]
+    );
+    setShowEditModal(true);
+  };
+
+  const closeFormModals = () => {
+    setShowAddModal(false);
+    setShowEditModal(false);
+    setEditingId(null);
+  };
+
+  const handleAdd = async (e) => {
     e.preventDefault();
-    if (!editingItem) return;
+    const payload = buildPayload();
+    if (!payload) return;
 
     try {
       setSubmitting(true);
-      const updated = await updateMenu(assignedRestaurantId, editingItem._id, { isAvailable });
-      setMenus((prev) => prev.map((item) => (item._id === editingItem._id ? updated : item)));
-      setEditingItem(null);
+      const created = await createMenu(assignedRestaurantId, payload);
+      setMenus((prev) => [created, ...prev]);
+      setShowAddModal(false);
     } catch (err) {
-      alert(err?.response?.data?.message || "Failed to update availability");
+      alert(err?.response?.data?.message || "Save failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEdit = async (e) => {
+    e.preventDefault();
+    const payload = buildPayload();
+    if (!payload || !editingId) return;
+
+    try {
+      setSubmitting(true);
+      const updated = await updateMenu(assignedRestaurantId, editingId, payload);
+      setMenus((prev) => prev.map((item) => (item._id === editingId ? updated : item)));
+      closeFormModals();
+    } catch (err) {
+      alert(err?.response?.data?.message || "Update failed");
     } finally {
       setSubmitting(false);
     }
@@ -273,6 +369,87 @@ export default function ManagerMenuManagement() {
       setOrdersExporting(false);
     }
   };
+
+  const loadInventory = async () => {
+    try {
+      const data = await getInventory(assignedRestaurantId);
+      setInventoryItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      alert(err?.response?.data?.message || "Failed to load inventory");
+    }
+  };
+
+  const renderForm = (onSubmit, submitLabel) => (
+    <form onSubmit={onSubmit} className="space-y-5">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <input type="text" placeholder="Dish Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" required />
+        <input type="number" min="0" step="any" placeholder="Price" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" required />
+        <input type="text" inputMode="numeric" pattern="\d{4}" maxLength="4" placeholder="4-digit menu code" value={form.menuCode} onChange={(e) => setForm({ ...form, menuCode: e.target.value.replace(/\D/g, "").slice(0, 4) })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" required />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <select value={form.cuisine} onChange={(e) => setForm({ ...form, cuisine: e.target.value, cuisineCustom: "" })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white">
+            <option value="">Select Cuisine</option>
+            {cuisineOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+            <option value="__custom__">Other (Custom)</option>
+          </select>
+          {form.cuisine === "__custom__" && (
+            <input type="text" placeholder="Custom cuisine" value={form.cuisineCustom} onChange={(e) => setForm({ ...form, cuisineCustom: e.target.value })} className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" />
+          )}
+        </div>
+        <div>
+          <select value={form.courseType} onChange={(e) => setForm({ ...form, courseType: e.target.value, courseTypeCustom: "" })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white">
+            <option value="">Select Course Type</option>
+            {courseOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+            <option value="__custom__">Other (Custom)</option>
+          </select>
+          {form.courseType === "__custom__" && (
+            <input type="text" placeholder="Custom course type" value={form.courseTypeCustom} onChange={(e) => setForm({ ...form, courseTypeCustom: e.target.value })} className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" />
+          )}
+        </div>
+      </div>
+
+      <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 dark:bg-neutral-800 dark:text-neutral-200">
+        <input type="checkbox" checked={form.isAvailable} onChange={(e) => setForm({ ...form, isAvailable: e.target.checked })} className="h-4 w-4 accent-emerald-600" />
+        Available for ordering
+      </label>
+
+      <div className="rounded-2xl border border-slate-200 p-4 dark:border-neutral-700">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h3 className="text-base font-semibold text-slate-800 dark:text-white">Ingredients</h3>
+          <button type="button" onClick={() => setIngredients((prev) => [...prev, emptyIngredient()])} className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300">
+            <FaPlus />
+            Add Row
+          </button>
+        </div>
+        <div className="space-y-3">
+          {ingredients.map((ingredient, index) => (
+            <div key={index} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-neutral-700 dark:bg-neutral-800 sm:grid-cols-[1.4fr_0.7fr_0.35fr_auto]">
+              <select value={ingredient.itemId} onChange={(e) => updateIngredient(index, "itemId", e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
+                <option value="">Select ingredient</option>
+                {inventoryItems.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}
+              </select>
+              <input type="number" min="0.01" step="any" placeholder="Qty" value={ingredient.quantity} onChange={(e) => updateIngredient(index, "quantity", e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white" />
+              <div className="flex items-center text-sm font-medium text-slate-500 dark:text-neutral-400">{inventoryItems.find((item) => item._id === ingredient.itemId)?.unit || "-"}</div>
+              {ingredients.length > 1 && (
+                <button type="button" onClick={() => setIngredients((prev) => prev.filter((_, i) => i !== index))} className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-600 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
+                  <FaTrash />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <button type="button" onClick={closeFormModals} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800">Cancel</button>
+        <button type="submit" disabled={submitting} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">
+          {submitting ? "Saving..." : submitLabel}
+        </button>
+      </div>
+    </form>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 p-3 dark:bg-neutral-950 sm:p-6">
@@ -313,10 +490,19 @@ export default function ManagerMenuManagement() {
                     className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-white"
                   />
                 </div>
-                <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
                   <div className="inline-flex min-w-0 items-center rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                     {assignedRestaurantName}
                   </div>
+                  <button
+                    type="button"
+                    onClick={openAddModal}
+                    disabled={!assignedRestaurantId}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    <FaPlus />
+                    Add Menu Item
+                  </button>
                   <MenuQrButton
                     restaurantId={assignedRestaurantId}
                     disabled={!assignedRestaurantId}
@@ -349,7 +535,7 @@ export default function ManagerMenuManagement() {
               <>
                 <div className="grid gap-3 md:hidden">
                   {filteredMenus.map((item) => (
-                    <MenuMobileCard key={item._id} item={item} onEdit={openAvailabilityModal} />
+                    <MenuMobileCard key={item._id} item={item} onEdit={openEditModal} />
                   ))}
                 </div>
                 <div className="hidden overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700 md:block">
@@ -383,9 +569,9 @@ export default function ManagerMenuManagement() {
                           </td>
                           <td className="px-5 py-4">
                             <div className="flex justify-end">
-                              <button onClick={() => openAvailabilityModal(item)} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-700">
+                              <button onClick={() => openEditModal(item)} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-700">
                                 <FaEdit />
-                                Update Status
+                                Edit
                               </button>
                             </div>
                           </td>
@@ -503,26 +689,14 @@ export default function ManagerMenuManagement() {
           </>
         )}
 
-        {editingItem && (
-          <Modal title="Update Menu Availability" onClose={() => setEditingItem(null)}>
-            <form onSubmit={handleAvailabilityUpdate} className="space-y-5">
-              <div className="rounded-2xl bg-slate-50 p-5 dark:bg-neutral-800">
-                <p className="text-lg font-semibold text-slate-900 dark:text-white">{editingItem.name}</p>
-                <p className="mt-2 text-sm text-slate-600 dark:text-neutral-300">Cuisine: {editingItem.cuisine || "-"}</p>
-                <p className="mt-1 text-sm text-slate-600 dark:text-neutral-300">Course: {formatCourseType(editingItem.courseType)}</p>
-                <p className="mt-1 text-sm text-slate-600 dark:text-neutral-300">Price: Rs. {editingItem.price}</p>
-              </div>
-
-              <label className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700 dark:bg-neutral-800 dark:text-neutral-200">
-                <input type="checkbox" checked={isAvailable} onChange={(e) => setIsAvailable(e.target.checked)} className="h-4 w-4 accent-emerald-600" />
-                Available for ordering
-              </label>
-
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <button type="button" onClick={() => setEditingItem(null)} className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800">Cancel</button>
-                <button type="submit" disabled={submitting} className="flex-1 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">{submitting ? "Updating..." : "Save Status"}</button>
-              </div>
-            </form>
+        {showAddModal && (
+          <Modal title="Add Menu Item" onClose={closeFormModals}>
+            {renderForm(handleAdd, "Save Menu Item")}
+          </Modal>
+        )}
+        {showEditModal && (
+          <Modal title="Edit Menu Item" onClose={closeFormModals}>
+            {renderForm(handleEdit, "Update Menu Item")}
           </Modal>
         )}
         {showQrModal && assignedRestaurantId && (

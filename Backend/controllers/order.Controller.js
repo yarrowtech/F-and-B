@@ -1370,31 +1370,81 @@ const formatKotDateTime = (value) =>
     hour12: true,
   });
 
+const KOT_WIDTH = 32;
+const kotText = (value) => String(value || "").trim();
+const kotLine = (char = "-") => char.repeat(KOT_WIDTH);
+const kotCenter = (value) => {
+  const text = kotText(value).toUpperCase().slice(0, KOT_WIDTH);
+  const padding = Math.max(KOT_WIDTH - text.length, 0);
+  return `${" ".repeat(Math.floor(padding / 2))}${text}`;
+};
+const kotPair = (label, value) => {
+  const left = kotText(label).toUpperCase().slice(0, 10);
+  const right = kotText(value).toUpperCase().slice(0, KOT_WIDTH - left.length - 2);
+  return `${left}: ${right}`.slice(0, KOT_WIDTH);
+};
+const kotWrap = (value, width = KOT_WIDTH) => {
+  const text = kotText(value).toUpperCase();
+  if (!text) return [];
+
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+
+  words.forEach((word) => {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= width) {
+      current = candidate;
+      return;
+    }
+    if (current) lines.push(current);
+    current = word.slice(0, width);
+  });
+
+  if (current) lines.push(current);
+  return lines;
+};
+const kotItemRows = (quantity, name) => {
+  const qtyText = String(Number(quantity || 0)).padEnd(4, " ");
+  const wrappedName = kotWrap(name || "MENU ITEM", KOT_WIDTH - 5);
+  const rows = [`${qtyText} ${wrappedName[0] || "MENU ITEM"}`.slice(0, KOT_WIDTH)];
+
+  wrappedName.slice(1).forEach((line) => {
+    rows.push(`     ${line}`.slice(0, KOT_WIDTH));
+  });
+
+  return rows;
+};
+
 const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt }) => {
   const tableNo = order.table?.tableNumber || "N/A";
   const waiterName = order.waiter?.name || "N/A";
+  const outletName = order.restaurant?.name || "KITCHEN";
   const lines = [
-    "KITCHEN ORDER TICKET",
-    "------------------------------",
-    `KOT: ${kotNo}`,
-    `Order: ${order.orderNo || order._id}`,
-    `Table: ${tableNo}`,
-    `Section: ${displayCuisine(cuisine)}`,
-    `Waiter: ${waiterName}`,
-    `Time: ${formatKotDateTime(printedAt)}`,
-    "------------------------------",
+    kotCenter("*** KOT DETAIL ***"),
+    kotCenter(outletName),
+    kotLine(),
+    kotPair("KOT NO", kotNo),
+    kotPair("TABLE", tableNo),
+    kotPair("SECTION", displayCuisine(cuisine)),
+    kotPair("WAITER", waiterName),
+    kotPair("TIME", formatKotDateTime(printedAt)),
+    kotLine(),
+    "QTY  DESCRIPTION",
+    kotLine(),
   ];
 
-  items.forEach((item, index) => {
-    lines.push(`${index + 1}. ${item.menuItem?.name || "Menu Item"}`);
-    lines.push(`   Qty: ${Number(item.quantity || 0)}`);
+  items.forEach((item) => {
+    lines.push(...kotItemRows(item.quantity, item.menuItem?.name || "Menu Item"));
     if ((item.customization || []).length > 0) {
-      lines.push(`   Note: ${item.customization.join(", ")}`);
+      kotWrap(`NOTE: ${item.customization.join(", ")}`).forEach((line) =>
+        lines.push(`     ${line}`.slice(0, KOT_WIDTH))
+      );
     }
   });
 
-  lines.push("------------------------------");
-  lines.push("No price on KOT");
+  lines.push(kotLine());
+  lines.push(kotCenter("NO PRICE ON KOT"));
   lines.push("");
   lines.push("");
   return lines.join("\n");
@@ -1422,6 +1472,7 @@ const groupKotItemsByCuisine = (order) => {
 
 const createKotPrintJobs = async ({ order, session }) => {
   const printedAt = order.kot?.printedAt || new Date();
+  const restaurantId = order.restaurant?._id || order.restaurant;
   const groups = groupKotItemsByCuisine(order);
   const jobs = [];
 
@@ -1455,7 +1506,7 @@ const createKotPrintJobs = async ({ order, session }) => {
       { order: order._id, cuisine: group.cuisine },
       {
         $set: {
-          restaurant: order.restaurant,
+          restaurant: restaurantId,
           order: order._id,
           waiter: order.waiter?._id || order.waiter,
           cuisine: group.cuisine,
@@ -2236,6 +2287,7 @@ export const printKOT = async (req, res) => {
     })
       .populate("table", "tableNumber")
       .populate("waiter", "name")
+      .populate("restaurant", "name restaurantCode")
       .populate({
         path: "items.menuItem",
         populate: { path: "ingredients.item" },
