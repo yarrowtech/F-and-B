@@ -1,444 +1,505 @@
-// import React from "react";
-// import {
-//   LineChart, Line,
-//   BarChart, Bar,
-//   PieChart, Pie, Cell,
-//   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-//   ResponsiveContainer
-// } from "recharts";
-
-// const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#d0ed57", "#a4de6c"];
-
-// const AdminAnalytics = () => {
-//   const salesData = [
-//     { month: "Jan", sales: 40000 },
-//     { month: "Feb", sales: 30000 },
-//     { month: "Mar", sales: 50000 },
-//     { month: "Apr", sales: 45000 },
-//     { month: "May", sales: 60000 },
-//   ];
-
-//   const employeeData = [
-//     { name: "cheifs", count: 12 },
-//     { name: "Su-cheifs", count: 15 },
-//     { name: "Waiters", count: 20 },
-//     { name: "Cleaners", count: 8 },
-//     { name: "Managers", count: 4 },
-//     { name: "Inventory Managers", count: 4 },
-//   ];
-
-//   const menuData = [
-//     { item: "Burger", orders: 240 },
-//     { item: "Pizza", orders: 180 },
-//     { item: "Pasta", orders: 90 },
-//     { item: "Drinks", orders: 150 },
-//   ];
-
-//   const branchData = [
-//     { branch: "Delhi", subs: 120 },
-//     { branch: "Mumbai", subs: 200 },
-//     { branch: "Bangalore", subs: 150 },
-//     { branch: "Kolkata", subs: 100 },
-//   ];
-
-//   const profitLossData = [
-//     { month: "Jan", profit: 30000, loss: 5000 },
-//     { month: "Feb", profit: 25000, loss: 3000 },
-//     { month: "Mar", profit: 40000, loss: 2000 },
-//     { month: "Apr", profit: 35000, loss: 4000 },
-//     { month: "May", profit: 50000, loss: 2500 },
-//   ];
-
-//   const vendorPerformance = [
-//     { name: "Vendor A", orders: 40 },
-//     { name: "Vendor B", orders: 55 },
-//     { name: "Vendor C", orders: 30 },
-//     { name: "Vendor D", orders: 70 },
-//   ];
-
-//   const attendanceData = [
-//     { name: "Jan", attendance: 220 },
-//     { name: "Feb", attendance: 210 },
-//     { name: "Mar", attendance: 230 },
-//     { name: "Apr", attendance: 215 },
-//     { name: "May", attendance: 240 },
-//   ];
-
-//   const employeePerformance = [
-//     { name: "Rahul", score: 88 },
-//     { name: "Pooja", score: 92 },
-//     { name: "Ajay", score: 75 },
-//     { name: "Neha", score: 80 },
-//   ];
-
-//   return (
-//     <div className="p-6 bg-white/80 dark:bg-zinc-900 dark:text-white backdrop-blur-xl shadow-2xl rounded-2xl border border-gray-200 dark:border-zinc-800 max-w-6xl mx-auto transition-all">
-//       <h2 className="text-3xl font-bold mb-8 text-left text-gray-800 dark:text-green-400">
-//         Analytics
-//       </h2>
-
-//       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-gray-900 dark:text-gray-100 transition-colors">
-//         {/* Monthly Sales */}
-//         <ChartCard title="Monthly Sales">
-//           <LineChart data={salesData}>
-//             <CartesianGrid strokeDasharray="3 3" />
-//             <XAxis dataKey="month" />
-//             <YAxis />
-//             <Tooltip />
-//             <Line type="monotone" dataKey="sales" stroke="#00C49F" />
-//           </LineChart>
-//         </ChartCard>
-
-//         {/* Employees by Role */}
-//         <ChartCard title="Employees by Role">
-//           <BarChart data={employeeData}>
-//             <CartesianGrid strokeDasharray="3 3" />
-//             <XAxis dataKey="name" />
-//             <YAxis />
-//             <Tooltip />
-//             <Bar dataKey="count" fill="#8884d8" />
-//           </BarChart>
-//         </ChartCard>
-
-//         {/* Menu Popularity */}
-//         <ChartCard title="Menu Items Popularity">
-//           <PieChart>
-//             <Pie
-//               data={menuData}
-//               dataKey="orders"
-//               nameKey="item"
-//               cx="50%"
-//               cy="50%"
-//               outerRadius={80}
-//               label
-//             >
-//               {menuData.map((_, index) => (
-//                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-//               ))}
-//             </Pie>
-//             <Tooltip />
-//           </PieChart>
-//         </ChartCard>
-
-//         {/* Branch-wise Subscriptions */}
-//         <ChartCard title="Branch-wise Subscriptions">
-//           <BarChart data={branchData}>
-//             <CartesianGrid strokeDasharray="3 3" />
-//             <XAxis dataKey="branch" />
-//             <YAxis />
-//             <Tooltip />
-//             <Bar dataKey="subs" fill="#82ca9d" />
-//           </BarChart>
-//         </ChartCard>
-
-//         {/* Profit vs Loss */}
-//         <ChartCard title="Profit vs Loss" fullWidth>
-//           <LineChart data={profitLossData}>
-//             <CartesianGrid strokeDasharray="3 3" />
-//             <XAxis dataKey="month" />
-//             <YAxis />
-//             <Tooltip />
-//             <Legend />
-//             <Line type="monotone" dataKey="profit" stroke="#4ade80" />
-//             <Line type="monotone" dataKey="loss" stroke="#f87171" />
-//           </LineChart>
-//         </ChartCard>
-
-//         {/* Vendor Performance */}
-//         <ChartCard title="Vendor Performance">
-//           <BarChart data={vendorPerformance}>
-//             <CartesianGrid strokeDasharray="3 3" />
-//             <XAxis dataKey="name" />
-//             <YAxis />
-//             <Tooltip />
-//             <Bar dataKey="orders" fill="#6366f1" />
-//           </BarChart>
-//         </ChartCard>
-
-//         {/* Attendance */}
-//         <ChartCard title="Monthly Attendance">
-//           <LineChart data={attendanceData}>
-//             <CartesianGrid strokeDasharray="3 3" />
-//             <XAxis dataKey="name" />
-//             <YAxis />
-//             <Tooltip />
-//             <Line type="monotone" dataKey="attendance" stroke="#10b981" />
-//           </LineChart>
-//         </ChartCard>
-
-//         {/* Employee Performance */}
-//         <ChartCard title="Employee Performance">
-//           <BarChart data={employeePerformance}>
-//             <CartesianGrid strokeDasharray="3 3" />
-//             <XAxis dataKey="name" />
-//             <YAxis />
-//             <Tooltip />
-//             <Bar dataKey="score" fill="#f59e0b" />
-//           </BarChart>
-//         </ChartCard>
-//       </div>
-//     </div>
-//   );
-// };
-
-// const ChartCard = ({ title, children, fullWidth = false }) => (
-//   <div className={`${fullWidth ? "lg:col-span-2" : ""} bg-white dark:bg-gray-800 p-5 rounded-xl shadow transition-all`}>
-//     <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">{title}</h3>
-//     <ResponsiveContainer width="100%" height={300}>
-//       {children}
-//     </ResponsiveContainer>
-//   </div>
-// );
-
-// export default AdminAnalytics;
-
-
-import React, { useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  LineChart, Line,
-  BarChart, Bar,
-  PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
+import {
+  getAdminSummary,
+  getDailySales,
+  getMonthlyChart,
+  getRestaurantBreakdown,
+  getTopItems,
+} from "../../services/adminDashboard.service";
+import { getAdminReportRestaurants } from "../../services/adminReports.service";
 
-const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#d0ed57", "#a4de6c"];
+const COLORS = ["#059669", "#2563eb", "#f59e0b", "#e11d48", "#7c3aed", "#0891b2"];
 
-const SALES_DATA = [
-  { month: "Jan", sales: 40000 },
-  { month: "Feb", sales: 30000 },
-  { month: "Mar", sales: 50000 },
-  { month: "Apr", sales: 45000 },
-  { month: "May", sales: 60000 },
+const PRESETS = [
+  { label: "All Time", key: "all" },
+  { label: "Today", key: "today" },
+  { label: "Last 7 Days", key: "7days" },
+  { label: "This Month", key: "month" },
+  { label: "Last Month", key: "lastmonth" },
 ];
 
-const EMPLOYEE_DATA = [
-  { name: "Chefs", count: 12 },
-  { name: "Su-chefs", count: 15 },
-  { name: "Waiters", count: 20 },
-  { name: "Cleaners", count: 8 },
-  { name: "Managers", count: 4 },
-  { name: "Inventory", count: 4 },
-];
+const formatCurrency = (value) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
 
-const MENU_DATA = [
-  { item: "Burger", orders: 240 },
-  { item: "Pizza", orders: 180 },
-  { item: "Pasta", orders: 90 },
-  { item: "Drinks", orders: 150 },
-];
+const formatNumber = (value) =>
+  new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Number(value || 0));
 
-const BRANCH_DATA = [
-  { branch: "Delhi", subs: 120 },
-  { branch: "Mumbai", subs: 200 },
-  { branch: "Bangalore", subs: 150 },
-  { branch: "Kolkata", subs: 100 },
-];
+const formatRole = (role = "") =>
+  String(role || "Staff")
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 
-/* Small helper to detect mobile without extra deps */
-const useIsMobile = () => {
-  const [isMobile, setIsMobile] = React.useState(() => window.matchMedia("(max-width: 640px)").matches);
-  React.useEffect(() => {
-    const m = window.matchMedia("(max-width: 640px)");
-    const onChange = (e) => setIsMobile(e.matches);
-    m.addEventListener?.("change", onChange);
-    return () => m.removeEventListener?.("change", onChange);
-  }, []);
-  return isMobile;
+const toDateInput = (date) => date.toISOString().slice(0, 10);
+
+const getDateRange = (key) => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  switch (key) {
+    case "today":
+      return { startDate: toDateInput(today), endDate: toDateInput(today) };
+    case "7days": {
+      const start = new Date(today);
+      start.setDate(start.getDate() - 6);
+      return { startDate: toDateInput(start), endDate: toDateInput(today) };
+    }
+    case "month": {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { startDate: toDateInput(start), endDate: toDateInput(today) };
+    }
+    case "lastmonth": {
+      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const end = new Date(today.getFullYear(), today.getMonth(), 0);
+      return { startDate: toDateInput(start), endDate: toDateInput(end) };
+    }
+    default:
+      return { startDate: "", endDate: "" };
+  }
 };
 
-const AdminAnalytics = () => {
-  const isMobile = useIsMobile();
+const getResponseData = (response, fallback) => response?.data?.data ?? response?.data ?? fallback;
 
-  const salesData = SALES_DATA;
-  const employeeData = EMPLOYEE_DATA;
-  const menuData = MENU_DATA;
-  const branchData = BRANCH_DATA;
+const EmptyState = ({ label = "No data for this selection." }) => (
+  <div className="flex h-full min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 text-center text-sm font-semibold text-slate-400 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-500">
+    {label}
+  </div>
+);
 
-  const profitLossData = [
-    { month: "Jan", profit: 30000, loss: 5000 },
-    { month: "Feb", profit: 25000, loss: 3000 },
-    { month: "Mar", profit: 40000, loss: 2000 },
-    { month: "Apr", profit: 35000, loss: 4000 },
-    { month: "May", profit: 50000, loss: 2500 },
-  ];
-
-  const vendorPerformance = [
-    { name: "Vendor A", orders: 40 },
-    { name: "Vendor B", orders: 55 },
-    { name: "Vendor C", orders: 30 },
-    { name: "Vendor D", orders: 70 },
-  ];
-
-  const attendanceData = [
-    { name: "Jan", attendance: 220 },
-    { name: "Feb", attendance: 210 },
-    { name: "Mar", attendance: 230 },
-    { name: "Apr", attendance: 215 },
-    { name: "May", attendance: 240 },
-  ];
-
-  const employeePerformance = [
-    { name: "Rahul", score: 88 },
-    { name: "Pooja", score: 92 },
-    { name: "Ajay", score: 75 },
-    { name: "Neha", score: 80 },
-  ];
-
-  /* KPIs for the summary row */
-  const kpis = useMemo(() => {
-    const totalSales = salesData.reduce((s, d) => s + d.sales, 0);
-    const totalEmployees = employeeData.reduce((s, d) => s + d.count, 0);
-    const topMenu = [...menuData].sort((a, b) => b.orders - a.orders)[0]?.item ?? "-";
-    const activeSubs = branchData.reduce((s, d) => s + d.subs, 0);
-    return [
-      { label: "Total Sales (Jan–May)", value: `₹${(totalSales/1000).toFixed(1)}k` },
-      { label: "Employees", value: totalEmployees },
-      { label: "Top Menu", value: topMenu },
-      { label: "Active Subscriptions", value: activeSubs },
-    ];
-  }, [salesData, employeeData, menuData, branchData]);
-
-  /* Common axis/tooltip styles that adapt to mobile */
-  const xTick = isMobile ? { angle: -30, textAnchor: "end", fontSize: 10 } : { fontSize: 12 };
-  const yTick = { fontSize: isMobile ? 10 : 12 };
-  const chartHeight = isMobile ? 240 : 320;
-  const barSize = isMobile ? 28 : 36;
-  const margin = isMobile ? { top: 10, right: 10, left: 0, bottom: 30 } : { top: 16, right: 16, left: 8, bottom: 12 };
+const MetricCard = ({ label, value, helper, tone = "emerald" }) => {
+  const tones = {
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300",
+    blue: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300",
+    amber: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300",
+    rose: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300",
+  };
 
   return (
-    <div className="p-4 sm:p-6 bg-white/80 dark:bg-zinc-900 dark:text-white backdrop-blur-xl shadow-2xl rounded-2xl border border-gray-200 dark:border-zinc-800 max-w-7xl mx-auto transition-all">
-      <h2 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 text-left text-gray-800 dark:text-green-400">
-        Analytics
-      </h2>
-
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
-        {kpis.map((k) => (
-          <div
-            key={k.label}
-            className="rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-3 sm:p-4 shadow-sm"
-          >
-            <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-300">{k.label}</div>
-            <div className="text-lg sm:text-2xl font-semibold mt-1 text-gray-900 dark:text-white">
-              {k.value}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 text-gray-900 dark:text-gray-100 transition-colors">
-        {/* Monthly Sales */}
-        <ChartCard title="Monthly Sales" height={chartHeight}>
-          <LineChart data={salesData} margin={margin}>
-            <CartesianGrid strokeDasharray="3 3" opacity={isMobile ? 0.35 : 0.5} />
-            <XAxis dataKey="month" tick={xTick} />
-            <YAxis tick={yTick} />
-            <Tooltip />
-            <Line type="monotone" dataKey="sales" stroke="#00C49F" strokeWidth={2} dot={!isMobile} />
-          </LineChart>
-        </ChartCard>
-
-        {/* Employees by Role */}
-        <ChartCard title="Employees by Role" height={chartHeight}>
-          <BarChart data={employeeData} margin={margin} barSize={barSize}>
-            <CartesianGrid strokeDasharray="3 3" opacity={isMobile ? 0.35 : 0.5} />
-            <XAxis dataKey="name" tick={xTick} />
-            <YAxis tick={yTick} allowDecimals={false} />
-            <Tooltip />
-            <Bar dataKey="count" fill="#8884d8" radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ChartCard>
-
-        {/* Menu Popularity */}
-        <ChartCard title="Menu Items Popularity" height={chartHeight}>
-          <PieChart margin={margin}>
-            <Pie
-              data={menuData}
-              dataKey="orders"
-              nameKey="item"
-              cx="50%"
-              cy="50%"
-              outerRadius={isMobile ? 70 : 90}
-              label={!isMobile}
-            >
-              {menuData.map((_, index) => (
-                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip />
-            { !isMobile && <Legend /> }
-          </PieChart>
-        </ChartCard>
-
-        {/* Branch-wise Subscriptions */}
-        <ChartCard title="Branch-wise Subscriptions" height={chartHeight}>
-          <BarChart data={branchData} margin={margin} barSize={barSize}>
-            <CartesianGrid strokeDasharray="3 3" opacity={isMobile ? 0.35 : 0.5} />
-            <XAxis dataKey="branch" tick={xTick} />
-            <YAxis tick={yTick} allowDecimals={false} />
-            <Tooltip />
-            <Bar dataKey="subs" fill="#82ca9d" radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ChartCard>
-
-        {/* Profit vs Loss */}
-        <ChartCard title="Profit vs Loss" fullWidth height={chartHeight}>
-          <LineChart data={profitLossData} margin={margin}>
-            <CartesianGrid strokeDasharray="3 3" opacity={isMobile ? 0.35 : 0.5} />
-            <XAxis dataKey="month" tick={xTick} />
-            <YAxis tick={yTick} />
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: isMobile ? 10 : 12 }} />
-            <Line type="monotone" dataKey="profit" stroke="#4ade80" strokeWidth={2} dot={!isMobile} />
-            <Line type="monotone" dataKey="loss" stroke="#f87171" strokeWidth={2} dot={!isMobile} />
-          </LineChart>
-        </ChartCard>
-
-        {/* Vendor Performance */}
-        <ChartCard title="Vendor Performance" height={chartHeight}>
-          <BarChart data={vendorPerformance} margin={margin} barSize={barSize}>
-            <CartesianGrid strokeDasharray="3 3" opacity={isMobile ? 0.35 : 0.5} />
-            <XAxis dataKey="name" tick={xTick} />
-            <YAxis tick={yTick} allowDecimals={false} />
-            <Tooltip />
-            <Bar dataKey="orders" fill="#6366f1" radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ChartCard>
-
-        {/* Monthly Attendance */}
-        <ChartCard title="Monthly Attendance" height={chartHeight}>
-          <LineChart data={attendanceData} margin={margin}>
-            <CartesianGrid strokeDasharray="3 3" opacity={isMobile ? 0.35 : 0.5} />
-            <XAxis dataKey="name" tick={xTick} />
-            <YAxis tick={yTick} />
-            <Tooltip />
-            <Line type="monotone" dataKey="attendance" stroke="#10b981" strokeWidth={2} dot={!isMobile} />
-          </LineChart>
-        </ChartCard>
-
-        {/* Employee Performance */}
-        <ChartCard title="Employee Performance" height={chartHeight}>
-          <BarChart data={employeePerformance} margin={margin} barSize={barSize}>
-            <CartesianGrid strokeDasharray="3 3" opacity={isMobile ? 0.35 : 0.5} />
-            <XAxis dataKey="name" tick={xTick} />
-            <YAxis tick={yTick} allowDecimals={false} />
-            <Tooltip />
-            <Bar dataKey="score" fill="#f59e0b" radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ChartCard>
-      </div>
+    <div className={`rounded-xl border p-4 shadow-sm ${tones[tone]}`}>
+      <p className="text-xs font-bold uppercase tracking-wide opacity-80">{label}</p>
+      <p className="mt-3 text-2xl font-black text-slate-950 dark:text-white">{value}</p>
+      {helper && <p className="mt-1 text-xs font-semibold opacity-75">{helper}</p>}
     </div>
   );
 };
 
-const ChartCard = ({ title, children, fullWidth = false, height = 300 }) => (
-  <div className={`${fullWidth ? "lg:col-span-2" : ""} bg-white dark:bg-gray-800 p-4 sm:p-5 rounded-xl shadow transition-all`}>
-    <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-gray-800 dark:text-white">{title}</h3>
-    <ResponsiveContainer width="100%" height={height}>
-      {children}
-    </ResponsiveContainer>
-  </div>
+const ChartCard = ({ title, subtitle, children, fullWidth = false, data = [] }) => (
+  <section
+    className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 ${
+      fullWidth ? "xl:col-span-2" : ""
+    }`}
+  >
+    <div className="mb-4">
+      <h3 className="text-base font-bold text-slate-950 dark:text-white">{title}</h3>
+      {subtitle && <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">{subtitle}</p>}
+    </div>
+    {data.length === 0 ? (
+      <EmptyState />
+    ) : (
+      <div className="h-[290px] sm:h-[330px]">
+        <ResponsiveContainer width="100%" height="100%">
+          {children}
+        </ResponsiveContainer>
+      </div>
+    )}
+  </section>
 );
 
-export default AdminAnalytics;
+export default function AdminAnalytics() {
+  const [summary, setSummary] = useState({});
+  const [monthlyData, setMonthlyData] = useState([]);
+  const [dailyData, setDailyData] = useState([]);
+  const [topItems, setTopItems] = useState([]);
+  const [breakdown, setBreakdown] = useState([]);
+  const [restaurants, setRestaurants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [preset, setPreset] = useState("month");
+  const [restaurantId, setRestaurantId] = useState("");
+  const [startDate, setStartDate] = useState(getDateRange("month").startDate);
+  const [endDate, setEndDate] = useState(getDateRange("month").endDate);
+
+  const loadRestaurants = useCallback(async () => {
+    try {
+      const data = await getAdminReportRestaurants();
+      setRestaurants(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("FETCH RESTAURANTS ERROR:", err);
+      setRestaurants([]);
+    }
+  }, []);
+
+  const loadAnalytics = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const params = {
+        restaurantId: restaurantId || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      };
+
+      const [summaryRes, monthlyRes, dailyRes, topItemsRes, breakdownRes] = await Promise.all([
+        getAdminSummary(params),
+        getMonthlyChart(params),
+        getDailySales(params),
+        getTopItems(params),
+        getRestaurantBreakdown(params),
+      ]);
+
+      setSummary(getResponseData(summaryRes, {}));
+      setMonthlyData(Array.isArray(getResponseData(monthlyRes, [])) ? getResponseData(monthlyRes, []) : []);
+      setDailyData(Array.isArray(getResponseData(dailyRes, [])) ? getResponseData(dailyRes, []) : []);
+      setTopItems(Array.isArray(getResponseData(topItemsRes, [])) ? getResponseData(topItemsRes, []) : []);
+      setBreakdown(Array.isArray(getResponseData(breakdownRes, [])) ? getResponseData(breakdownRes, []) : []);
+    } catch (err) {
+      console.error("FETCH ANALYTICS ERROR:", err);
+      setError(err.response?.data?.message || err.message || "Failed to load analytics");
+    } finally {
+      setLoading(false);
+    }
+  }, [endDate, restaurantId, startDate]);
+
+  useEffect(() => {
+    loadRestaurants();
+  }, [loadRestaurants]);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, [loadAnalytics]);
+
+  const applyPreset = (key) => {
+    const range = getDateRange(key);
+    setPreset(key);
+    setStartDate(range.startDate);
+    setEndDate(range.endDate);
+  };
+
+  const applyCustomRange = () => {
+    setPreset("custom");
+    loadAnalytics();
+  };
+
+  const selectedRestaurantName =
+    restaurants.find((restaurant) => restaurant._id === restaurantId)?.name || "All Restaurants";
+
+  const averageBill = summary.totalOrders
+    ? Number(summary.totalRevenue || 0) / Number(summary.totalOrders || 1)
+    : 0;
+
+  const restaurantChartData = useMemo(
+    () =>
+      breakdown
+        .map((item) => ({
+          name: item.name || "Restaurant",
+          revenue: Number(item.totalRevenue || 0),
+          orders: Number(item.totalOrders || 0),
+          employees: Number(item.totalEmployees || 0),
+        }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 8),
+    [breakdown]
+  );
+
+  const roleData = useMemo(() => {
+    const roles = new Map();
+    breakdown.forEach((restaurant) => {
+      (restaurant.employeeRoles || []).forEach((entry) => {
+        const key = formatRole(entry.role);
+        roles.set(key, (roles.get(key) || 0) + Number(entry.count || 0));
+      });
+    });
+    return Array.from(roles, ([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+  }, [breakdown]);
+
+  const topItemsChartData = topItems.map((item) => ({
+    name: item.name || "Item",
+    sold: Number(item.totalSold || 0),
+    revenue: Number(item.revenue || 0),
+  }));
+
+  const hasAnyData =
+    Number(summary.totalOrders || 0) > 0 ||
+    Number(summary.totalRevenue || 0) > 0 ||
+    monthlyData.length > 0 ||
+    dailyData.length > 0 ||
+    topItems.length > 0;
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-3 text-slate-950 dark:bg-slate-950 dark:text-white sm:p-5">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <header className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+              Admin Analytics
+            </p>
+            <h1 className="mt-1 text-2xl font-black">Analytical Page</h1>
+            <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
+              Live sales, orders, menu, restaurant, and staff performance for {selectedRestaurantName}.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={loadAnalytics}
+            className="min-h-11 rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700"
+          >
+            Refresh
+          </button>
+        </header>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Restaurant
+                </label>
+                <select
+                  value={restaurantId}
+                  onChange={(e) => setRestaurantId(e.target.value)}
+                  className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950"
+                >
+                  <option value="">All Restaurants</option>
+                  {restaurants.map((restaurant) => (
+                    <option key={restaurant._id} value={restaurant._id}>
+                      {restaurant.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                  From
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setPreset("custom");
+                  }}
+                  className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                  To
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setPreset("custom");
+                  }}
+                  className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950"
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={applyCustomRange}
+              className="min-h-11 rounded-xl bg-slate-950 px-5 text-sm font-bold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950"
+            >
+              Run Analysis
+            </button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {PRESETS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => applyPreset(item.key)}
+                className={`rounded-full px-4 py-2 text-sm font-bold ${
+                  preset === item.key
+                    ? "bg-emerald-600 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-32 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800"
+              />
+            ))}
+          </div>
+        ) : (
+          <>
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="Paid Revenue" value={formatCurrency(summary.totalRevenue)} tone="emerald" />
+              <MetricCard label="Orders" value={formatNumber(summary.totalOrders)} tone="blue" />
+              <MetricCard label="Average Bill" value={formatCurrency(averageBill)} helper="Revenue divided by orders" tone="amber" />
+              <MetricCard label="Employees" value={formatNumber(summary.totalEmployees)} helper={`${formatNumber(summary.totalRestaurants)} restaurants`} tone="rose" />
+            </section>
+
+            {!hasAnyData && <EmptyState label="No analytics data found for the selected filters." />}
+
+            <section className="grid gap-4 xl:grid-cols-2">
+              <ChartCard
+                title="Monthly Revenue"
+                subtitle="Paid bill revenue and order count by month"
+                data={monthlyData}
+              >
+                <LineChart data={monthlyData} margin={{ top: 12, right: 20, left: 0, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.35} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value, name) => (name === "revenue" ? formatCurrency(value) : value)} />
+                  <Legend />
+                  <Line yAxisId="left" type="monotone" dataKey="revenue" stroke="#059669" strokeWidth={3} dot={false} />
+                  <Line yAxisId="right" type="monotone" dataKey="orders" stroke="#2563eb" strokeWidth={3} dot={false} />
+                </LineChart>
+              </ChartCard>
+
+              <ChartCard title="Daily Sales" subtitle="Day-wise paid revenue" data={dailyData}>
+                <BarChart data={dailyData} margin={{ top: 12, right: 20, left: 0, bottom: 28 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.35} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, angle: -25, textAnchor: "end" }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value, name) => (name === "revenue" ? formatCurrency(value) : value)} />
+                  <Bar dataKey="revenue" fill="#059669" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ChartCard>
+
+              <ChartCard title="Top Selling Items" subtitle="Most sold menu items" data={topItemsChartData}>
+                <BarChart data={topItemsChartData} margin={{ top: 12, right: 20, left: 0, bottom: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.35} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, angle: -25, textAnchor: "end" }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value, name) => (name === "revenue" ? formatCurrency(value) : value)} />
+                  <Legend />
+                  <Bar dataKey="sold" fill="#f59e0b" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ChartCard>
+
+              <ChartCard title="Employee Roles" subtitle="Active staff by role" data={roleData}>
+                <PieChart>
+                  <Pie data={roleData} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={105} label>
+                    {roleData.map((_, index) => (
+                      <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ChartCard>
+
+              <ChartCard
+                title="Restaurant Revenue"
+                subtitle="Top restaurants by paid revenue"
+                data={restaurantChartData}
+                fullWidth
+              >
+                <BarChart data={restaurantChartData} margin={{ top: 12, right: 20, left: 0, bottom: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.35} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, angle: -20, textAnchor: "end" }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value, name) => (name === "revenue" ? formatCurrency(value) : value)} />
+                  <Legend />
+                  <Bar dataKey="revenue" fill="#2563eb" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="orders" fill="#7c3aed" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ChartCard>
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+                <h3 className="text-base font-bold">Restaurant Performance</h3>
+                <p className="mt-1 text-xs font-medium text-slate-500">
+                  Orders, revenue, employees, and top menu items from live data.
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800">
+                    <tr>
+                      <th className="px-4 py-3">Restaurant</th>
+                      <th className="px-4 py-3">Orders</th>
+                      <th className="px-4 py-3">Revenue</th>
+                      <th className="px-4 py-3">Employees</th>
+                      <th className="px-4 py-3">Top Items</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {breakdown.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="px-4 py-8 text-center font-semibold text-slate-400">
+                          No restaurant data found.
+                        </td>
+                      </tr>
+                    ) : (
+                      breakdown.map((restaurant) => (
+                        <tr key={restaurant._id} className="align-top">
+                          <td className="px-4 py-3 font-bold">{restaurant.name}</td>
+                          <td className="px-4 py-3">{formatNumber(restaurant.totalOrders)}</td>
+                          <td className="px-4 py-3 font-bold text-emerald-700 dark:text-emerald-300">
+                            {formatCurrency(restaurant.totalRevenue)}
+                          </td>
+                          <td className="px-4 py-3">{formatNumber(restaurant.totalEmployees)}</td>
+                          <td className="px-4 py-3">
+                            {(restaurant.topItems || []).length === 0 ? (
+                              <span className="text-slate-400">-</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {restaurant.topItems.slice(0, 4).map((item) => (
+                                  <span
+                                    key={`${restaurant._id}-${item._id}`}
+                                    className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                  >
+                                    {item.name} ({formatNumber(item.totalSold)})
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

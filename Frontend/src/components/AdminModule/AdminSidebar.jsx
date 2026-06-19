@@ -60,6 +60,8 @@ const Sidebar = ({
     { name: "Menu Management",     icon: FaClipboardList, key: "menu" },
     { name: "Table Management",    icon: FaUtensils,      key: "table" },
     { name: "Account",             icon: FaUserCircle,    key: "account" },
+    { name: "Analytical",          icon: FaChartBar,      key: "analytical" },
+    { name: "Reports",             icon: FaChartBar,      key: "reports" },
     { name: "Notes",               icon: FaStickyNote,    key: "notes" },
   ];
 

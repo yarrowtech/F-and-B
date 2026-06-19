@@ -207,7 +207,7 @@ const Waiter = () => {
   return (
     <div className="h-screen w-full bg-green-50 dark:bg-neutral-900">
       {/* ===== Mobile Header ===== */}
-      <div className="lg:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
+      <div className="2xl:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between px-4 py-3">
           <span className="text-base font-bold text-green-700 dark:text-green-400 capitalize">
             {BOTTOM_NAV.find((n) => n.key === active)?.label ?? "Waiter"}
@@ -228,7 +228,7 @@ const Waiter = () => {
 
       <div className="flex h-full">
         {/* ===== Sidebar (desktop) ===== */}
-        <aside className="hidden lg:block w-72 shrink-0">
+        <aside className="hidden 2xl:block w-72 shrink-0">
           <WaiterSidebar
             active={active}
             setActive={handleSetActive}
@@ -239,7 +239,7 @@ const Waiter = () => {
         {/* ===== Right Column ===== */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* ── Top Bar (desktop) ── */}
-          <div className="hidden lg:flex items-center justify-between px-6 py-3 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+          <div className="hidden 2xl:flex items-center justify-between px-6 py-3 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
             <p className="text-sm font-medium text-gray-500 dark:text-gray-400 capitalize">
               {active.replace(/-/g, " ")}
             </p>
@@ -259,7 +259,7 @@ const Waiter = () => {
           {/* ===== Main Content ===== */}
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto bg-white p-3 pb-24 dark:bg-neutral-800 sm:p-4 lg:p-6 lg:pb-6"
+            className="flex-1 overflow-y-auto bg-white p-3 pb-24 dark:bg-neutral-800 sm:p-4 2xl:p-6 2xl:pb-6"
           >
             {renderContent()}
           </main>
@@ -267,7 +267,7 @@ const Waiter = () => {
       </div>
 
       {/* ===== Bottom Navigation (mobile & tablet only) ===== */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
+      <nav className="2xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
         {BOTTOM_NAV.map(({ key, label, icon: Icon }) => {
           const isActive = active === key;
           return (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUtensils } from "react-icons/fa";
+import { FaChartBar, FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUtensils } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import AccountantSidebar from "./AccountantSidebar";
@@ -13,6 +13,7 @@ import AccountantOrderBilling from "./AccountantOrderBilling";
 import AccountantDashboard from "./AccountantDashboard";
 import AccountantMessage from "./AccountantMessage";
 import AccountantNotification from "./AccountantNotification";
+import AccountantDailySalesReport from "./AccountantDailySalesReport";
 
 /* ─── Profile Popup ─── */
 function AccountantProfileButton() {
@@ -108,6 +109,7 @@ function AccountantProfileButton() {
 const BOTTOM_NAV = [
   { key: "dashboard",    label: "Dashboard",  icon: FaTachometerAlt },
   { key: "orderbilling", label: "Billing",    icon: FaUtensils },
+  { key: "daily-sales",  label: "Sales",      icon: FaChartBar },
   { key: "attendance",   label: "Attendance", icon: FaClipboardCheck },
   { key: "profile",      label: "Profile",    icon: FaUserCircle },
   { key: "notes",        label: "Notes",      icon: FaStickyNote },
@@ -145,6 +147,7 @@ const Accountant = () => {
       case "dashboard":    return <AccountantDashboard />;
       case "orderbilling": return <AccountantOrderBilling />;
       case "vendorbilling":return <AccountantVendorBilling />;
+      case "daily-sales":  return <AccountantDailySalesReport />;
       case "attendance":   return <AccountantAttendance />;
       case "notes":        return <AccountantNotes />;
       case "profile":      return <AccountantProfile />;
@@ -158,7 +161,7 @@ const Accountant = () => {
   return (
     <div className="h-screen w-full bg-green-50 dark:bg-neutral-900">
       {/* ===== Mobile Header ===== */}
-      <div className="lg:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
+      <div className="2xl:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between px-4 py-3">
           <span className="text-base font-bold text-green-700 dark:text-green-400 capitalize">
             {BOTTOM_NAV.find((n) => n.key === active)?.label ?? "Accountant"}
@@ -179,14 +182,14 @@ const Accountant = () => {
 
       <div className="flex h-full">
         {/* ===== Sidebar (desktop) ===== */}
-        <aside className="hidden lg:block w-72 shrink-0">
+        <aside className="hidden 2xl:block w-72 shrink-0">
           <AccountantSidebar active={active} setActive={handleSetActive} />
         </aside>
 
         {/* ===== Right Column ===== */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* ── Top Bar (desktop) ── */}
-          <div className="hidden lg:flex items-center justify-between px-6 py-3 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+          <div className="hidden 2xl:flex items-center justify-between px-6 py-3 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
             <p className="text-sm font-medium text-gray-500 dark:text-gray-400 capitalize">
               {active.replace(/-/g, " ")}
             </p>
@@ -206,7 +209,7 @@ const Accountant = () => {
           {/* ===== Main Content ===== */}
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-6 pb-24 lg:pb-6"
+            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-3 sm:p-4 2xl:p-6 pb-24 2xl:pb-6"
           >
             {renderContent()}
           </main>
@@ -214,7 +217,7 @@ const Accountant = () => {
       </div>
 
       {/* ===== Bottom Navigation (mobile & tablet only) ===== */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
+      <nav className="2xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
         {BOTTOM_NAV.map(({ key, label, icon: Icon }) => {
           const isActive = active === key;
           return (

@@ -1103,6 +1103,7 @@ import Inventory from "../models/Inventory.model.js";
 import InventoryLog from "../models/InventoryLog.model.js";
 import Employee from "../models/Employee.model.js";
 import KotPrintJob from "../models/KotPrintJob.model.js";
+import Restaurant from "../models/Restaurant.model.js";
 import { getIO } from "../socket.js";
 
 /* 🔥 LOGGER */
@@ -1171,15 +1172,20 @@ const getKotPrinterName = (cuisine) => {
   );
 };
 
-const calculateOrderBillTotals = (order) => {
+const getTaxRate = (value, fallback = 2.5) => {
+  const rate = Number(value);
+  return Number.isFinite(rate) && rate >= 0 && rate <= 100 ? rate : fallback;
+};
+
+const calculateOrderBillTotals = (order, billingTemplate = {}) => {
   const itemsTotal = (order.items || [])
     .filter((item) => item.status !== "CANCELLED")
     .reduce(
     (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
     0
   );
-  const cgstRate = 2.5;
-  const sgstRate = 2.5;
+  const cgstRate = getTaxRate(billingTemplate.cgstRate);
+  const sgstRate = getTaxRate(billingTemplate.sgstRate);
   const cgst = Math.round(itemsTotal * (cgstRate / 100));
   const sgst = Math.round(itemsTotal * (sgstRate / 100));
 
@@ -1200,7 +1206,12 @@ const ensurePendingBillForOrder = async (order, session = null) => {
 
   if (existingBill) return existingBill;
 
-  const totals = calculateOrderBillTotals(order);
+  const restaurantQuery = Restaurant.findById(order.restaurant)
+    .select("billingTemplate.cgstRate billingTemplate.sgstRate")
+    .lean();
+  if (session) restaurantQuery.session(session);
+  const restaurant = await restaurantQuery;
+  const totals = calculateOrderBillTotals(order, restaurant?.billingTemplate || {});
   const [bill] = await Bill.create(
     [
       {

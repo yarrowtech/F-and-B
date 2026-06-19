@@ -146,6 +146,22 @@ const billingTemplateSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    cgstRate: {
+      type: Number,
+      default: 2.5,
+      min: 0,
+      max: 100,
+    },
+    sgstRate: {
+      type: Number,
+      default: 2.5,
+      min: 0,
+      max: 100,
+    },
+    paymentMethods: {
+      type: [String],
+      default: ["CASH", "CARD", "UPI"],
+    },
   },
   { _id: false }
 );

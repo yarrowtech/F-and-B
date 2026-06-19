@@ -319,13 +319,15 @@ const RestaurantEmployees = lazy(() => import("./RestaurantEmployees"));
 const AdminInventory = lazy(() => import("../AdminModule/AdminInventory"));
 const MenuManagement = lazy(() => import("./AdminMenuManagement"));
 const Account = lazy(() => import("./AdminAccount"));
+const Analytical = lazy(() => import("./AdminAnalytics"));
+const Reports = lazy(() => import("./AdminReports"));
 const Notes = lazy(() => import("./AdminNotes"));
 const Settings = lazy(() => import("./AdminSettings"));
 const Message = lazy(() => import("./AdminMessage"));
 const Notification = lazy(() => import("./AdminNotification"));
 const TableManagement = lazy(() => import("./AdminTableManagement"));
 
-import { FaBox, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList } from "react-icons/fa";
+import { FaBox, FaChartBar, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 /* ─── Avatar + Profile Popup ─── */
@@ -433,6 +435,8 @@ const BOTTOM_NAV = [
   { key: "menu",       label: "Menu",       icon: FaClipboardList },
   { key: "table",      label: "Table",      icon: FaUtensils },
   { key: "account",    label: "Account",    icon: FaUserCircle },
+  { key: "analytical", label: "Analytical", icon: FaChartBar },
+  { key: "reports",    label: "Reports",    icon: FaChartBar },
   { key: "notes",      label: "Notes",      icon: FaStickyNote },
 ];
 
@@ -515,6 +519,12 @@ const Admin = () => {
       case "account":
         return <Account />;
 
+      case "analytical":
+        return <Analytical />;
+
+      case "reports":
+        return <Reports />;
+
       case "notes":
         return <Notes />;
 
@@ -535,7 +545,7 @@ const Admin = () => {
   return (
     <div className="h-screen w-full bg-green-50 dark:bg-neutral-900">
       {/* ===== Mobile Header ===== */}
-      <div className="lg:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
+      <div className="2xl:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between px-4 py-3">
           <span className="text-base font-bold text-green-700 dark:text-green-400 capitalize">
             {BOTTOM_NAV.find((n) => n.key === active)?.label ?? "Admin"}
@@ -556,7 +566,7 @@ const Admin = () => {
 
       <div className="flex h-full">
         {/* ===== Sidebar ===== */}
-        <aside className="hidden lg:block w-72 shrink-0">
+        <aside className="hidden 2xl:block w-72 shrink-0">
           <Sidebar active={active} setActive={handleSetActive} />
         </aside>
 
@@ -564,7 +574,7 @@ const Admin = () => {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
           {/* ── Top Bar (desktop) ── */}
-          <div className="hidden lg:flex items-center justify-between px-6 py-3 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+          <div className="hidden 2xl:flex items-center justify-between px-6 py-3 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
             <p className="text-sm font-medium text-gray-500 dark:text-gray-400 capitalize">{active.replace(/([A-Z])/g, " $1")}</p>
             <div className="flex items-center gap-3">
               <button
@@ -582,7 +592,7 @@ const Admin = () => {
           {/* ===== Main Content ===== */}
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-4 sm:p-6 pb-24 lg:pb-6"
+            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-4 sm:p-6 pb-24 2xl:pb-6"
           >
             {selectedRestaurantId && active === "restaurantEmployees" && (
               <div className="mb-4 text-sm text-green-600 font-semibold">
@@ -598,7 +608,7 @@ const Admin = () => {
       </div>
 
       {/* ===== Bottom Navigation (mobile & tablet only) ===== */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch overflow-x-auto shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
+      <nav className="2xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch overflow-x-auto shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
         {BOTTOM_NAV.map(({ key, label, icon: Icon }) => {
           const isActive = active === key;
           const icon = React.createElement(Icon, { size: 18 });

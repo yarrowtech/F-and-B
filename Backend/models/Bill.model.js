@@ -262,6 +262,10 @@ const billSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+billSchema.index({ restaurant: 1, paymentStatus: 1, paidAt: 1 });
+billSchema.index({ restaurant: 1, paymentStatus: 1, paymentMethod: 1, paidAt: 1 });
+billSchema.index({ restaurant: 1, accountant: 1, paidAt: 1 });
+
 const normalizeBillSequenceNumber = (value, fallback = 1) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;

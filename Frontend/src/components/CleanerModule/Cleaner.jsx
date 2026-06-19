@@ -85,7 +85,7 @@ const Cleaner = () => {
 
   // Desktop header
   const DesktopHeader = () => (
-    <header className="hidden lg:block sticky top-4 z-30 mx-4 lg:mx-0 bg-white dark:bg-neutral-800 shadow px-4 py-3 rounded-xl">
+    <header className="hidden 2xl:block sticky top-4 z-30 mx-4 2xl:mx-0 bg-white dark:bg-neutral-800 shadow px-4 py-3 rounded-xl">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-black dark:text-green-100">Cleaner Panel</h1>
@@ -145,7 +145,7 @@ const Cleaner = () => {
 
   // Mobile top bar (⚡️ Settings removed here)
   const MobileTopBar = () => (
-    <div className="lg:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-black/5 dark:border-white/10">
+    <div className="2xl:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-black/5 dark:border-white/10">
       <div className="flex items-center justify-between px-4 py-3">
         <button
           onClick={() => setSidebarOpen(true)}
@@ -180,9 +180,9 @@ const Cleaner = () => {
       <MobileTopBar />
 
       {/* Layout */}
-      <div className="flex h-[calc(100vh-0px)] lg:h-screen gap-0 lg:gap-6 px-0 lg:px-4 py-0 lg:py-4 overflow-hidden">
+      <div className="flex h-[calc(100vh-0px)] 2xl:h-screen gap-0 2xl:gap-6 px-0 2xl:px-4 py-0 2xl:py-4 overflow-hidden">
         {/* Sidebar (Desktop) */}
-        <aside className="hidden lg:block w-64 shrink-0">
+        <aside className="hidden 2xl:block w-64 shrink-0">
           <div className="h-full bg-white dark:bg-neutral-800 shadow rounded-xl overflow-hidden">
             <CleanerSidebar activeSection={active} setActiveSection={handleSetActive} />
           </div>
@@ -202,20 +202,20 @@ const Cleaner = () => {
         )}
 
         {/* Main */}
-        <div className="flex-1 min-w-0 flex flex-col gap-4 lg:gap-6">
+        <div className="flex-1 min-w-0 flex flex-col gap-4 2xl:gap-6">
           {/* Desktop Header */}
           <DesktopHeader />
 
           {/* Page Content */}
           <main
             ref={mainRef}
-            className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-neutral-800 rounded-none lg:rounded-xl shadow-none lg:shadow p-4 lg:p-6 pb-16"
+            className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-neutral-800 rounded-none 2xl:rounded-xl shadow-none 2xl:shadow p-4 2xl:p-6 pb-16"
           >
             {renderContent()}
           </main>
 
           {/* Mobile Bottom Tab Bar */}
-          <nav className="lg:hidden sticky bottom-0 z-40 bg-white/95 dark:bg-neutral-800/95 backdrop-blur border-t border-black/5 dark:border-white/10">
+          <nav className="2xl:hidden sticky bottom-0 z-40 bg-white/95 dark:bg-neutral-800/95 backdrop-blur border-t border-black/5 dark:border-white/10">
             <div className="grid grid-cols-6">
               <TabItem
                 label="Home"

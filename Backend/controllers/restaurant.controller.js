@@ -163,8 +163,36 @@ const defaultBillingTemplate = {
   showCustomerContact: true,
   showTaxBreakup: true,
   showServiceCharge: true,
+  cgstRate: 2.5,
+  sgstRate: 2.5,
+  paymentMethods: ["CASH", "CARD", "UPI"],
 };
 const maxLogoDataLength = 1000000;
+const defaultPaymentMethods = ["CASH", "CARD", "UPI"];
+
+const normalizePaymentMethod = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_]/g, "")
+    .toUpperCase()
+    .slice(0, 32);
+
+const sanitizePaymentMethods = (value) => {
+  const source = Array.isArray(value) ? value : defaultPaymentMethods;
+  const methods = Array.from(
+    new Set(source.map(normalizePaymentMethod).filter(Boolean))
+  ).slice(0, 12);
+
+  return methods.length > 0 ? methods : defaultPaymentMethods;
+};
+
+const sanitizeRate = (value, fallback = 0) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, 0), 100);
+};
+
 const normalizeBillingNumber = (value, fallback = 1) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -194,6 +222,9 @@ const sanitizeBillingTemplate = (payload = {}) => {
     showCustomerContact: payload.showCustomerContact !== false,
     showTaxBreakup: payload.showTaxBreakup !== false,
     showServiceCharge: payload.showServiceCharge !== false,
+    cgstRate: sanitizeRate(payload.cgstRate, defaultBillingTemplate.cgstRate),
+    sgstRate: sanitizeRate(payload.sgstRate, defaultBillingTemplate.sgstRate),
+    paymentMethods: sanitizePaymentMethods(payload.paymentMethods),
   };
 };
 

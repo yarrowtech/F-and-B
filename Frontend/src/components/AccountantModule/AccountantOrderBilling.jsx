@@ -48,6 +48,9 @@ const defaultBillingTemplate = {
   showCustomerContact: true,
   showTaxBreakup: true,
   showServiceCharge: true,
+  cgstRate: 2.5,
+  sgstRate: 2.5,
+  paymentMethods: ["CASH", "CARD", "UPI"],
 };
 
 const getBillingTemplate = (restaurant) => ({
@@ -66,7 +69,30 @@ const sanitizeNumber = (value) => {
 };
 
 const roundNetPayableUp = (value) => Math.ceil(Number(value || 0));
-const PAYMENT_METHODS = ["CASH", "UPI", "CARD"];
+const DEFAULT_PAYMENT_METHODS = ["CASH", "CARD", "UPI"];
+const paymentMethodLabel = (method) =>
+  String(method || "")
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+    .replace("Upi", "UPI")
+    .replace("Phonepe", "PhonePe");
+
+const getRestaurantPaymentMethods = (restaurant) => {
+  const methods = restaurant?.billingTemplate?.paymentMethods;
+  return Array.isArray(methods) && methods.length > 0
+    ? methods
+    : DEFAULT_PAYMENT_METHODS;
+};
+
+const getRestaurantTaxDefaults = (restaurant) => {
+  const template = getBillingTemplate(restaurant);
+  return {
+    cgstRate: sanitizeNumber(template.cgstRate ?? 2.5),
+    sgstRate: sanitizeNumber(template.sgstRate ?? 2.5),
+  };
+};
+
 const DISCOUNT_TYPE_OPTIONS = [
   { value: "AMOUNT", label: "Amount" },
   { value: "PERCENT", label: "%" },
@@ -242,6 +268,7 @@ const formatDate = (value) => {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: true,
   });
 };
 
@@ -520,7 +547,8 @@ function BillCard({
   payBill,
   printBill,
 }) {
-  const selectedPaymentMethod = paymentMethod[bill._id] || "CASH";
+  const billPaymentMethods = getRestaurantPaymentMethods(bill.restaurant);
+  const selectedPaymentMethod = paymentMethod[bill._id] || billPaymentMethods[0] || "CASH";
   const receivedAmount = Number(cashReceived[bill._id] || 0);
   const changeDue = Math.max(receivedAmount - Number(bill.totalAmount || 0), 0);
 
@@ -587,9 +615,11 @@ function BillCard({
             }
             className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base font-bold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           >
-            <option value="CASH">Cash</option>
-            <option value="UPI">UPI</option>
-            <option value="CARD">Card</option>
+            {billPaymentMethods.map((method) => (
+              <option key={method} value={method}>
+                {paymentMethodLabel(method)}
+              </option>
+            ))}
           </select>
 
           {selectedPaymentMethod === "CASH" && (
@@ -780,6 +810,17 @@ export default function AccountantOrderBilling() {
   const selectedTemplate = selectedBill
     ? getBillingTemplate(selectedBill.restaurant)
     : defaultBillingTemplate;
+  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const userRestaurant =
+    typeof storedUser?.restaurant === "object" ? storedUser.restaurant : null;
+  const loadedRestaurant =
+    bills.find((bill) => typeof bill?.restaurant === "object")?.restaurant || null;
+  const manualPaymentMethods = getRestaurantPaymentMethods(
+    selectedBill?.restaurant || loadedRestaurant || userRestaurant
+  );
+  const manualTaxDefaults = getRestaurantTaxDefaults(
+    selectedBill?.restaurant || loadedRestaurant || userRestaurant
+  );
   const previewPrimaryColor = getSafeColor(
     selectedTemplate.primaryColor,
     defaultBillingTemplate.primaryColor
@@ -788,6 +829,35 @@ export default function AccountantOrderBilling() {
     selectedTemplate.accentColor,
     defaultBillingTemplate.accentColor
   );
+
+  useEffect(() => {
+    if (manualPaymentMethods.includes(manualBill.paymentMethod)) return;
+    updateManualBill("paymentMethod", manualPaymentMethods[0] || "CASH");
+  }, [manualPaymentMethods, manualBill.paymentMethod]);
+
+  useEffect(() => {
+    if (!loadedRestaurant && !userRestaurant) return;
+    setManualBill((current) => {
+      const nextCgstRate =
+        current.cgstRate === 2.5 && current.cgstRate !== manualTaxDefaults.cgstRate
+          ? manualTaxDefaults.cgstRate
+          : current.cgstRate;
+      const nextSgstRate =
+        current.sgstRate === 2.5 && current.sgstRate !== manualTaxDefaults.sgstRate
+          ? manualTaxDefaults.sgstRate
+          : current.sgstRate;
+
+      if (nextCgstRate === current.cgstRate && nextSgstRate === current.sgstRate) {
+        return current;
+      }
+
+      return {
+        ...current,
+        cgstRate: nextCgstRate,
+        sgstRate: nextSgstRate,
+      };
+    });
+  }, [manualTaxDefaults.cgstRate, manualTaxDefaults.sgstRate, loadedRestaurant, userRestaurant]);
   const previewTitle =
     selectedTemplate.headerTitle ||
     selectedBill?.restaurant?.name ||
@@ -1137,7 +1207,10 @@ export default function AccountantOrderBilling() {
 
   const payBill = async (bill) => {
     try {
-      const method = paymentMethod[bill._id] || "CASH";
+      const method =
+        paymentMethod[bill._id] ||
+        getRestaurantPaymentMethods(bill.restaurant)[0] ||
+        "CASH";
 
       await markBillPaid(bill._id, method);
       setCashReceived((prev) => {
@@ -1272,11 +1345,11 @@ export default function AccountantOrderBilling() {
       setBills((prev) => [createdBill, ...prev]);
       setManualBill({
         orderType: "TAKEAWAY",
-        paymentMethod: "CASH",
+        paymentMethod: manualPaymentMethods[0] || "CASH",
         customerPhone: "",
         customerEmail: "",
-        cgstRate: 2.5,
-        sgstRate: 2.5,
+        cgstRate: manualTaxDefaults.cgstRate,
+        sgstRate: manualTaxDefaults.sgstRate,
         serviceCharge: 0,
         showServiceCharge: true,
         packagingCharge: 0,
@@ -1558,9 +1631,9 @@ export default function AccountantOrderBilling() {
                       onChange={(e) => updateManualBill("paymentMethod", e.target.value)}
                       className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     >
-                      {PAYMENT_METHODS.map((method) => (
+                      {manualPaymentMethods.map((method) => (
                         <option key={method} value={method}>
-                          {method}
+                          {paymentMethodLabel(method)}
                         </option>
                       ))}
                     </select>
@@ -2008,7 +2081,7 @@ export default function AccountantOrderBilling() {
               </span>
 
               <div className="flex flex-wrap items-center gap-1">
-                {["", "CASH", "UPI", "CARD"].map((m) => (
+                {["", ...manualPaymentMethods].map((m) => (
                   <button
                     key={m}
                     type="button"
@@ -2019,7 +2092,7 @@ export default function AccountantOrderBilling() {
                         : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"
                     }`}
                   >
-                    {m || "All Methods"}
+                    {m ? paymentMethodLabel(m) : "All Methods"}
                   </button>
                 ))}
               </div>
@@ -2185,7 +2258,11 @@ export default function AccountantOrderBilling() {
                         {tab === "INBOX" ? (
                           <div className="space-y-2">
                             <select
-                              value={paymentMethod[bill._id] || "CASH"}
+                              value={
+                                paymentMethod[bill._id] ||
+                                getRestaurantPaymentMethods(bill.restaurant)[0] ||
+                                "CASH"
+                              }
                               onChange={(e) =>
                                 setPaymentMethod((prev) => ({
                                   ...prev,
@@ -2194,11 +2271,15 @@ export default function AccountantOrderBilling() {
                               }
                               className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                             >
-                              <option value="CASH">Cash</option>
-                              <option value="UPI">UPI</option>
-                              <option value="CARD">Card</option>
+                              {getRestaurantPaymentMethods(bill.restaurant).map((method) => (
+                                <option key={method} value={method}>
+                                  {paymentMethodLabel(method)}
+                                </option>
+                              ))}
                             </select>
-                            {(paymentMethod[bill._id] || "CASH") === "CASH" && (
+                            {(paymentMethod[bill._id] ||
+                              getRestaurantPaymentMethods(bill.restaurant)[0] ||
+                              "CASH") === "CASH" && (
                               <CashChangeCalculator
                                 totalAmount={bill.totalAmount}
                                 received={cashReceived[bill._id] || ""}
@@ -2240,7 +2321,10 @@ export default function AccountantOrderBilling() {
                                 type="button"
                                 onClick={() =>
                                   printBill(bill, {
-                                    paymentMethod: paymentMethod[bill._id] || "CASH",
+                                    paymentMethod:
+                                      paymentMethod[bill._id] ||
+                                      getRestaurantPaymentMethods(bill.restaurant)[0] ||
+                                      "CASH",
                                     cashReceived: Number(cashReceived[bill._id] || 0),
                                   })
                                 }

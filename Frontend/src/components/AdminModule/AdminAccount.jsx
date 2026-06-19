@@ -532,8 +532,8 @@ export default function AdminAccount() {
 
         <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 sm:rounded-3xl">
           <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="shrink-0">
                 <h2 className="text-lg font-semibold text-slate-800">
                   Payment History
                 </h2>
@@ -541,30 +541,28 @@ export default function AdminAccount() {
                   {filteredBills.length} of {data.bills.length} paid bills visible.
                 </p>
               </div>
-              <div className="grid w-full gap-2 sm:grid-cols-[220px_1fr] lg:max-w-2xl">
-                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                  <select
-                    value={complimentaryFilter}
-                    onChange={(e) => setComplimentaryFilter(e.target.value)}
-                    className="min-h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400"
-                  >
-                    {complimentaryFilters.map((filter) => (
-                      <option key={filter.key} value={filter.key}>
-                        {filter.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleDownloadExcel}
-                    disabled={loading || !selectedRestaurantId}
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <FaFileExcel />
-                    Excel
-                  </button>
-                </div>
-                <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4">
+              <div className="grid w-full min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] xl:max-w-4xl xl:grid-cols-[220px_auto_minmax(320px,1fr)]">
+                <select
+                  value={complimentaryFilter}
+                  onChange={(e) => setComplimentaryFilter(e.target.value)}
+                  className="min-h-12 min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400"
+                >
+                  {complimentaryFilters.map((filter) => (
+                    <option key={filter.key} value={filter.key}>
+                      {filter.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleDownloadExcel}
+                  disabled={loading || !selectedRestaurantId}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <FaFileExcel />
+                  Excel
+                </button>
+                <div className="flex min-h-12 min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 sm:col-span-2 xl:col-span-1">
                   <FaSearch className="shrink-0 text-slate-400" />
                   <input
                     type="text"

@@ -8,6 +8,7 @@ import {
   FaBars,
   FaTimes,
   FaUtensils,
+  FaChartBar,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
@@ -21,6 +22,7 @@ const AccountantSidebar = ({ active, setActive }) => {
   const menuItems = [
     { name: "Dashboard",     icon: FaTachometerAlt, key: "dashboard" },
     { name: "Order Billing", icon: FaUtensils,      key: "orderbilling" },
+    { name: "Daily Sales Report", icon: FaChartBar, key: "daily-sales" },
     { name: "Attendance",    icon: FaClipboardCheck,key: "attendance" },
     { name: "Profile",       icon: FaUserCircle,    key: "profile" },
     { name: "Notes",         icon: FaStickyNote,    key: "notes" },

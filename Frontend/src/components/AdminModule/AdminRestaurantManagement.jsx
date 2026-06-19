@@ -38,6 +38,33 @@ const Modal = ({ title, onClose, children, wide }) => (
    RESTAURANT FORM (shared by add/edit)
 ═══════════════════════════════════ */
 const emptyForm = { name: "", address: "", phone: "", gstNo: "" };
+const DEFAULT_PAYMENT_METHODS = ["CASH", "CARD", "UPI"];
+const SUGGESTED_PAYMENT_METHODS = [
+  "CASH",
+  "CARD",
+  "UPI",
+  "PHONEPE",
+  "GOOGLE_PAY",
+  "PAYTM",
+  "BANK_TRANSFER",
+];
+
+const paymentMethodLabel = (method) =>
+  String(method || "")
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+    .replace("Upi", "UPI")
+    .replace("Phonepe", "PhonePe");
+
+const normalizePaymentMethod = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_]/g, "")
+    .toUpperCase()
+    .slice(0, 32);
+
 const defaultBillingTemplate = {
   headerTitle: "",
   subtitle: "",
@@ -52,6 +79,9 @@ const defaultBillingTemplate = {
   showCustomerContact: true,
   showTaxBreakup: true,
   showServiceCharge: true,
+  cgstRate: 2.5,
+  sgstRate: 2.5,
+  paymentMethods: DEFAULT_PAYMENT_METHODS,
 };
 const maxLogoBytes = 700 * 1024;
 
@@ -141,20 +171,67 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
   const [form, setForm] = useState({
     ...defaultBillingTemplate,
     ...(restaurant?.billingTemplate || {}),
+    paymentMethods:
+      Array.isArray(restaurant?.billingTemplate?.paymentMethods) &&
+      restaurant.billingTemplate.paymentMethods.length > 0
+        ? restaurant.billingTemplate.paymentMethods
+        : DEFAULT_PAYMENT_METHODS,
     billingStartNumber:
       Number(restaurant?.billingStartNumber) > 0
         ? Number(restaurant.billingStartNumber)
         : 1,
   });
   const [logoError, setLogoError] = useState("");
+  const [customPaymentMethod, setCustomPaymentMethod] = useState("");
 
   const change = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
+  const togglePaymentMethod = (method) => {
+    const normalized = normalizePaymentMethod(method);
+    if (!normalized) return;
+
+    setForm((current) => {
+      const existing = Array.isArray(current.paymentMethods)
+        ? current.paymentMethods
+        : DEFAULT_PAYMENT_METHODS;
+      const next = existing.includes(normalized)
+        ? existing.filter((item) => item !== normalized)
+        : [...existing, normalized];
+
+      return {
+        ...current,
+        paymentMethods: next.length > 0 ? next : existing,
+      };
+    });
+  };
+
+  const addCustomPaymentMethod = () => {
+    const normalized = normalizePaymentMethod(customPaymentMethod);
+    if (!normalized) return;
+
+    setForm((current) => {
+      const existing = Array.isArray(current.paymentMethods)
+        ? current.paymentMethods
+        : DEFAULT_PAYMENT_METHODS;
+      return {
+        ...current,
+        paymentMethods: Array.from(new Set([...existing, normalized])),
+      };
+    });
+    setCustomPaymentMethod("");
+  };
+
   const submit = (e) => {
     e.preventDefault();
-    onSave(form);
+    onSave({
+      ...form,
+      paymentMethods:
+        Array.isArray(form.paymentMethods) && form.paymentMethods.length > 0
+          ? form.paymentMethods
+          : DEFAULT_PAYMENT_METHODS,
+    });
   };
 
   const handleLogoUpload = (file) => {
@@ -273,6 +350,121 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
             Example: enter 5000 to make future bills start from 5000.
           </p>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
+          Default GST
+        </p>
+        <p className="mt-1 text-sm text-amber-900 dark:text-amber-100">
+          These rates will be used as the default CGST and SGST in Accountant Billing.
+        </p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+              CGST %
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={form.cgstRate}
+              onChange={(e) => change("cgstRate", e.target.value)}
+              className="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-900 dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+              SGST %
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={form.sgstRate}
+              onChange={(e) => change("sgstRate", e.target.value)}
+              className="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-900 dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-900/40 dark:bg-sky-900/10">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700 dark:text-sky-300">
+              Payment Methods
+            </p>
+            <p className="mt-1 text-sm text-sky-900 dark:text-sky-100">
+              Selected methods will appear in Accountant Billing for this restaurant.
+            </p>
+          </div>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-sky-700 shadow-sm dark:bg-sky-950 dark:text-sky-200">
+            {(form.paymentMethods || []).length} active
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {SUGGESTED_PAYMENT_METHODS.map((method) => {
+            const checked = (form.paymentMethods || []).includes(method);
+            return (
+              <label
+                key={method}
+                className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-semibold transition ${
+                  checked
+                    ? "border-sky-300 bg-white text-sky-800 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-100"
+                    : "border-sky-100 bg-white/60 text-slate-600 dark:border-sky-900/30 dark:bg-slate-900/40 dark:text-slate-300"
+                }`}
+              >
+                <span>{paymentMethodLabel(method)}</span>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => togglePaymentMethod(method)}
+                  className="h-5 w-5 rounded border-sky-300 text-sky-600 focus:ring-sky-500"
+                />
+              </label>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <input
+            value={customPaymentMethod}
+            onChange={(e) => setCustomPaymentMethod(e.target.value)}
+            placeholder="Add custom method, e.g. Swiggy Pay"
+            className="min-h-11 flex-1 rounded-xl border border-sky-200 bg-white px-4 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-sky-500 dark:border-sky-900 dark:bg-slate-950 dark:text-white"
+          />
+          <button
+            type="button"
+            onClick={addCustomPaymentMethod}
+            className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-sky-700"
+          >
+            Add Method
+          </button>
+        </div>
+
+        {(form.paymentMethods || []).some(
+          (method) => !SUGGESTED_PAYMENT_METHODS.includes(method)
+        ) && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(form.paymentMethods || [])
+              .filter((method) => !SUGGESTED_PAYMENT_METHODS.includes(method))
+              .map((method) => (
+                <button
+                  key={method}
+                  type="button"
+                  onClick={() => togglePaymentMethod(method)}
+                  className="rounded-full bg-sky-100 px-3 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-200"
+                >
+                  {paymentMethodLabel(method)} x
+                </button>
+              ))}
+          </div>
+        )}
       </div>
 
       <div>

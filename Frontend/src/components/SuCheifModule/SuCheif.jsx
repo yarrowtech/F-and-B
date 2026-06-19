@@ -155,13 +155,13 @@ const SuCheif = () => {
   return (
     <div className="flex h-screen bg-green-50 dark:bg-neutral-900 text-gray-800 dark:text-gray-200 overflow-hidden gap-6 px-4 py-4">
       {/* Desktop Sidebar */}
-      <nav className="hidden lg:block w-64 bg-white dark:bg-neutral-800 shadow rounded-xl">
+      <nav className="hidden 2xl:block w-64 bg-white dark:bg-neutral-800 shadow rounded-xl">
         <Sidebar activeSection={active} setActiveSection={handleSetActive} />
       </nav>
 
       {/* Mobile Sidebar */}
       <div
-        className={`fixed top-0 left-0 z-[1001] w-64 h-full bg-white dark:bg-neutral-700 shadow-lg transform transition-transform duration-300 rounded-r-xl lg:hidden ${
+        className={`fixed top-0 left-0 z-[1001] w-64 h-full bg-white dark:bg-neutral-700 shadow-lg transform transition-transform duration-300 rounded-r-xl 2xl:hidden ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -171,7 +171,7 @@ const SuCheif = () => {
       {/* Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-40 z-[1000] cursor-pointer lg:hidden backdrop-blur-sm"
+          className="fixed inset-0 bg-black bg-opacity-40 z-[1000] cursor-pointer 2xl:hidden backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -179,17 +179,17 @@ const SuCheif = () => {
       {/* Sidebar Toggle Button */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-[1002] p-2 bg-white dark:bg-neutral-800 shadow-md rounded-md"
+        className="2xl:hidden fixed top-4 left-4 z-[1002] p-2 bg-white dark:bg-neutral-800 shadow-md rounded-md"
       >
         <FaBars size={18} />
       </button>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col gap-6">
+      <div className="flex-1 flex flex-col gap-4 2xl:gap-6 min-w-0">
         <Header />
         <main
           ref={mainRef}
-          className="flex-1 flex flex-col gap-6 overflow-y-auto bg-white dark:bg-neutral-800 rounded-xl shadow p-6 transition-colors"
+          className="flex-1 flex flex-col gap-4 2xl:gap-6 overflow-y-auto bg-white dark:bg-neutral-800 rounded-xl shadow p-4 2xl:p-6 transition-colors"
         >
           {renderContent()}
         </main>

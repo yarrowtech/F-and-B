@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --breakpoint-lg: 96rem;
+  --breakpoint-xl: 96rem;
+}
+
 @keyframes hero-reveal {
   from {
     opacity: 0;

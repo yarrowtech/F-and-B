@@ -15,6 +15,15 @@ const STATUS_STYLE = {
   LEAVE:   "bg-amber-100 text-amber-700",
 };
 
+const formatTime12 = (value) =>
+  value
+    ? new Date(value).toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : "--";
+
 const AccountantAttendance = () => {
   const today = new Date();
 
@@ -140,7 +149,7 @@ const AccountantAttendance = () => {
             <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Check-In</span>
             <span className="text-2xl font-bold text-gray-800 dark:text-white">
               {todayRecord?.checkIn
-                ? new Date(todayRecord.checkIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                ? formatTime12(todayRecord.checkIn)
                 : "--:--"}
             </span>
           </div>
@@ -148,7 +157,7 @@ const AccountantAttendance = () => {
             <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Check-Out</span>
             <span className="text-2xl font-bold text-gray-800 dark:text-white">
               {todayRecord?.checkOut
-                ? new Date(todayRecord.checkOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                ? formatTime12(todayRecord.checkOut)
                 : "--:--"}
             </span>
           </div>
@@ -269,10 +278,10 @@ const AccountantAttendance = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-base text-gray-700 dark:text-gray-300">
-                        {checkInTime ? checkInTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--"}
+                        {checkInTime ? formatTime12(checkInTime) : "--"}
                       </td>
                       <td className="px-6 py-4 text-base text-gray-700 dark:text-gray-300">
-                        {checkOutTime ? checkOutTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--"}
+                        {checkOutTime ? formatTime12(checkOutTime) : "--"}
                       </td>
                       <td className="px-6 py-4 text-base font-medium text-violet-600 dark:text-violet-400">
                         {workHours}

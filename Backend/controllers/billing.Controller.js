@@ -26,6 +26,37 @@ const sendSuccess = (res, data, status = 200) =>
 const sendError = (res, message, status = 400) =>
   res.status(status).json({ success: false, message });
 
+const DEFAULT_PAYMENT_METHODS = ["CASH", "CARD", "UPI"];
+const normalizePaymentMethod = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_]/g, "")
+    .toUpperCase()
+    .slice(0, 32);
+
+const getEnabledPaymentMethods = async (restaurantId) => {
+  const restaurant = await Restaurant.findById(restaurantId)
+    .select("billingTemplate.paymentMethods")
+    .lean();
+  const methods = Array.isArray(restaurant?.billingTemplate?.paymentMethods)
+    ? restaurant.billingTemplate.paymentMethods.map(normalizePaymentMethod).filter(Boolean)
+    : [];
+
+  return methods.length > 0 ? methods : DEFAULT_PAYMENT_METHODS;
+};
+
+const resolvePaymentMethod = async (restaurantId, value) => {
+  const enabledMethods = await getEnabledPaymentMethods(restaurantId);
+  const normalized = normalizePaymentMethod(value) || enabledMethods[0] || "CASH";
+
+  if (!enabledMethods.includes(normalized)) {
+    throw new Error("Selected payment method is not enabled for this restaurant");
+  }
+
+  return normalized;
+};
+
 const asMoney = (value) => Number(value || 0).toFixed(2);
 const formatHistoryDate = (value) =>
   value
@@ -122,6 +153,8 @@ const defaultBillingTemplate = {
   showCustomerContact: true,
   showTaxBreakup: true,
   showServiceCharge: true,
+  cgstRate: 2.5,
+  sgstRate: 2.5,
 };
 
 const getBillingTemplate = (restaurant) => ({
@@ -886,8 +919,8 @@ const createManualBill = async (req, res) => {
       customerPhone = "",
       customerEmail = "",
       paymentMethod = "CASH",
-      cgstRate = 2.5,
-      sgstRate = 2.5,
+      cgstRate,
+      sgstRate,
       serviceCharge = 0,
       packagingCharge = 0,
       showPackagingCharge,
@@ -924,9 +957,14 @@ const createManualBill = async (req, res) => {
     ].includes(orderType)
       ? orderType
       : "TAKEAWAY";
-    const normalizedPaymentMethod = ["CASH", "UPI", "CARD"].includes(paymentMethod)
-      ? paymentMethod
-      : "CASH";
+    const normalizedPaymentMethod = await resolvePaymentMethod(
+      req.user.restaurant,
+      paymentMethod
+    );
+    const restaurantSettings = await Restaurant.findById(req.user.restaurant)
+      .select("billingTemplate")
+      .lean();
+    const restaurantBillingTemplate = getBillingTemplate(restaurantSettings);
 
     session = await mongoose.startSession();
     session.startTransaction();
@@ -1002,8 +1040,8 @@ const createManualBill = async (req, res) => {
       orderItems: billableOrderItems,
       complimentaryType,
       complimentaryItems,
-      cgstRate,
-      sgstRate,
+      cgstRate: cgstRate ?? restaurantBillingTemplate.cgstRate,
+      sgstRate: sgstRate ?? restaurantBillingTemplate.sgstRate,
       serviceCharge,
       packagingCharge,
       extraCharge,
@@ -1406,7 +1444,7 @@ const markPaid = async (req, res) => {
     if (!bill) return sendError(res, "Bill not found", 404);
 
     bill.paymentStatus = "PAID";
-    bill.paymentMethod = paymentMethod;
+    bill.paymentMethod = await resolvePaymentMethod(bill.restaurant, paymentMethod);
     bill.accountant = req.user.id;
     bill.paidAt = new Date();
 

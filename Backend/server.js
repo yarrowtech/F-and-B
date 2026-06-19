@@ -1067,6 +1067,7 @@ import printAgentRoutes from "./routes/printAgent.routes.js";
 
 // dashboards
 import adminDashboardRoutes from "./routes/adminDashboard.routes.js";
+import adminReportsRoutes from "./routes/adminReports.routes.js";
 import managerDashboardRoutes from "./routes/managerDashboard.routes.js";
 import waiterDashboardRoutes from "./routes/waiterDashboard.routes.js";
 import accountantDashboardRoutes from "./routes/accountantDashboard.routes.js";
@@ -1172,6 +1173,7 @@ app.use("/api/print-agent", printAgentRoutes);
 
 // 📊 DASHBOARDS
 app.use("/api/admin-dashboard", adminDashboardRoutes);
+app.use("/api/admin-reports", adminReportsRoutes);
 app.use("/api/manager", managerDashboardRoutes);
 app.use("/api/waiter", waiterDashboardRoutes);
 app.use("/api/accountant", accountantDashboardRoutes);

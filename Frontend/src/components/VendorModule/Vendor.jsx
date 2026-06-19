@@ -137,7 +137,7 @@ const VendorPanel = () => {
 
   const handleSetActive = (section) => {
     setActive(section);
-    if (window.innerWidth < 1024) setSidebarOpen(false);
+    if (window.innerWidth < 1536) setSidebarOpen(false);
     requestAnimationFrame(() => mainRef.current?.scrollTo({ top: 0, behavior: "smooth" }));
   };
 
@@ -188,19 +188,19 @@ const VendorPanel = () => {
       {/* Mobile Hamburger */}
       <button
         onClick={() => setSidebarOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-[1002] p-2 bg-white dark:bg-neutral-800 shadow-md rounded-md"
+        className="2xl:hidden fixed top-4 left-4 z-[1002] p-2 bg-white dark:bg-neutral-800 shadow-md rounded-md"
         aria-label="Open Sidebar"
       >
         <FaBars size={18} />
       </button>
 
       {/* Desktop Sidebar */}
-      <div className="hidden lg:flex w-64 bg-white dark:bg-neutral-800 shadow rounded-xl">
+      <div className="hidden 2xl:flex w-64 bg-white dark:bg-neutral-800 shadow rounded-xl">
         <Sidebar activeSection={active} setActiveSection={handleSetActive} />
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col gap-6">
+      <div className="flex-1 flex flex-col gap-4 2xl:gap-6 min-w-0">
         <Header
           active={active}
           darkMode={darkMode}
@@ -210,7 +210,7 @@ const VendorPanel = () => {
         />
         <main
           ref={mainRef}
-          className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 rounded-xl shadow p-6"
+          className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 rounded-xl shadow p-4 2xl:p-6"
         >
           {renderContent()}
         </main>
