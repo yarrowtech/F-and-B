@@ -2,8 +2,10 @@ import "dotenv/config";
 import connectDB from "../config/db.js";
 import Menu from "../models/Menu.model.js";
 
-const normalizeMenuCode = (value) => String(value || "").trim();
-const isValidMenuCode = (value) => /^\d+$/.test(normalizeMenuCode(value));
+const normalizeMenuCode = (value) =>
+  String(value || "").trim().toUpperCase();
+const isValidMenuCode = (value) =>
+  /^[A-Z0-9]{1,20}$/.test(normalizeMenuCode(value));
 
 const getNextAvailableCode = (usedCodes) => {
   for (let code = 1; code <= 999999; code += 1) {
@@ -28,8 +30,10 @@ const run = async () => {
     const usedCodes =
       usedByRestaurant.get(restaurantId) || new Set();
 
-    if (isValidMenuCode(menu.menuCode) && !usedCodes.has(menu.menuCode)) {
-      usedCodes.add(menu.menuCode);
+    const normalizedCode = normalizeMenuCode(menu.menuCode);
+    if (isValidMenuCode(normalizedCode) && !usedCodes.has(normalizedCode)) {
+      menu.menuCode = normalizedCode;
+      usedCodes.add(normalizedCode);
       usedByRestaurant.set(restaurantId, usedCodes);
       continue;
     }

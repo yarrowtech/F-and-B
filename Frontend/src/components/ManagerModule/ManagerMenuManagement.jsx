@@ -253,14 +253,14 @@ export default function ManagerMenuManagement() {
     if (!form.price || Number(form.price) < 0) return alert("Enter valid price"), null;
     if (!cuisine) return alert("Enter cuisine"), null;
     if (!courseType) return alert("Enter course type"), null;
-    if (!/^\d+$/.test(String(form.menuCode || "").trim())) {
-      return alert("Enter a unique numeric menu code"), null;
+    if (!/^[A-Z0-9]{1,20}$/.test(String(form.menuCode || "").trim().toUpperCase())) {
+      return alert("Enter a unique menu code using letters and numbers"), null;
     }
 
     return {
       name: form.name.trim(),
       price: Number(form.price),
-      menuCode: String(form.menuCode).trim(),
+      menuCode: String(form.menuCode).trim().toUpperCase(),
       cuisine,
       courseType,
       isAvailable: form.isAvailable,
@@ -384,7 +384,7 @@ export default function ManagerMenuManagement() {
       <div className="grid gap-4 sm:grid-cols-2">
         <input type="text" placeholder="Dish Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" required />
         <input type="number" min="0" step="any" placeholder="Price" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" required />
-        <input type="text" inputMode="numeric" pattern="\d+" placeholder="Menu code" value={form.menuCode} onChange={(e) => setForm({ ...form, menuCode: e.target.value.replace(/\D/g, "") })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" required />
+        <input type="text" inputMode="text" pattern="[A-Za-z0-9]+" placeholder="Menu code" value={form.menuCode} onChange={(e) => setForm({ ...form, menuCode: e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase() })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" required />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

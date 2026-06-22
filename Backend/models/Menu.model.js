@@ -98,7 +98,9 @@ const menuSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      match: /^\d+$/,
+      uppercase: true,
+      maxlength: 20,
+      match: /^[A-Z0-9]+$/,
     },
 
     // 🔥 Cuisine Type (Indian, Chinese, etc.)

@@ -166,13 +166,13 @@ export default function AdminMenuManagement() {
     if (!form.price || Number(form.price) < 0) return alert("Enter valid price"), null;
     if (!cuisine) return alert("Enter cuisine"), null;
     if (!courseType) return alert("Enter course type"), null;
-    if (!/^\d+$/.test(String(form.menuCode || "").trim())) {
-      return alert("Enter a unique numeric menu code"), null;
+    if (!/^[A-Z0-9]{1,20}$/.test(String(form.menuCode || "").trim().toUpperCase())) {
+      return alert("Enter a unique menu code using letters and numbers"), null;
     }
     return {
       name: form.name.trim(),
       price: Number(form.price),
-      menuCode: String(form.menuCode).trim(),
+      menuCode: String(form.menuCode).trim().toUpperCase(),
       cuisine,
       courseType,
       isAvailable: form.isAvailable,
@@ -311,12 +311,15 @@ export default function AdminMenuManagement() {
         />
         <input
           type="text"
-          inputMode="numeric"
-          pattern="\d+"
+          inputMode="text"
+          pattern="[A-Za-z0-9]+"
           placeholder="Menu code"
           value={form.menuCode}
           onChange={(e) =>
-            setForm({ ...form, menuCode: e.target.value.replace(/\D/g, "") })
+            setForm({
+              ...form,
+              menuCode: e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase(),
+            })
           }
           className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white"
           required

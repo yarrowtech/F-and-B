@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   FaCheck,
   FaFileExcel,
@@ -760,6 +760,7 @@ export default function AccountantOrderBilling() {
   const [manualSearch, setManualSearch] = useState("");
   const [manualCodeInput, setManualCodeInput] = useState("");
   const [creatingManualBill, setCreatingManualBill] = useState(false);
+  const [showAllFastAddItems, setShowAllFastAddItems] = useState(false);
   const [showManualAdvanced, setShowManualAdvanced] = useState(false);
   const [showManualComplimentary, setShowManualComplimentary] = useState(false);
   const [manualBill, setManualBill] = useState({
@@ -804,6 +805,7 @@ export default function AccountantOrderBilling() {
   const [savingBill, setSavingBill] = useState(false);
   const [billTables, setBillTables] = useState([]);
   const [billTableId, setBillTableId] = useState("");
+  const manualCodeInputRef = useRef(null);
   const [historyFilter, setHistoryFilter] = useState({
     paymentMethod: "",
     orderType: "",
@@ -1390,6 +1392,8 @@ export default function AccountantOrderBilling() {
         complimentaryNote: "",
         items: [],
       });
+      setManualCodeInput("");
+      setShowAllFastAddItems(false);
     } catch (err) {
       console.error("CREATE MANUAL BILL ERROR:", err);
       alert(err.response?.data?.message || err.message || "Failed to create bill");
@@ -1462,16 +1466,16 @@ export default function AccountantOrderBilling() {
   );
 
   const handleAddMenuByCode = () => {
-    const normalizedCode = String(manualCodeInput || "").trim();
-    if (!/^\d+$/.test(normalizedCode)) {
-      alert("Enter a valid numeric menu code");
+    const normalizedCode = String(manualCodeInput || "").trim().toUpperCase();
+    if (!/^[A-Z0-9]{1,20}$/.test(normalizedCode)) {
+      alert("Enter a valid menu code using letters and numbers");
       return;
     }
 
     const matchedItem = menuItems.find(
       (item) =>
         item.isAvailable !== false &&
-        String(item.menuCode || "").trim() === normalizedCode
+        String(item.menuCode || "").trim().toUpperCase() === normalizedCode
     );
 
     if (!matchedItem) {
@@ -1481,6 +1485,7 @@ export default function AccountantOrderBilling() {
 
     addManualItem(matchedItem);
     setManualCodeInput("");
+    window.setTimeout(() => manualCodeInputRef.current?.focus(), 0);
   };
 
   const manualItemsTotal = manualBill.items.reduce(
@@ -1488,6 +1493,7 @@ export default function AccountantOrderBilling() {
     0
   );
   const manualTotals = buildManualTotals(manualBill);
+  const justAddedItem = null;
 
   const menuGroups = filteredMenuItems.reduce((groups, item) => {
     const cuisine = item.cuisine || "Other Cuisine";
@@ -1893,7 +1899,167 @@ export default function AccountantOrderBilling() {
                   </div>
                 </div>
 
-                <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                <div className="relative mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                  {manualBill.items.length > 0 && (
+                    <div className="absolute bottom-[calc(100%+0.5rem)] left-0 right-0 z-30 overflow-hidden rounded-2xl border border-emerald-300 bg-white shadow-xl dark:border-emerald-800 dark:bg-slate-900">
+                      <div className="flex items-center justify-between gap-3 border-b border-emerald-100 px-4 py-3 dark:border-emerald-900/50">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-wide text-emerald-600">
+                            Current order
+                          </p>
+                          <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                            {manualBill.items.length} item
+                            {manualBill.items.length === 1 ? "" : "s"} added
+                          </p>
+                        </div>
+                        <p className="text-sm font-black text-emerald-700 dark:text-emerald-300">
+                          {formatCurrency(manualTotals.totalAmount)}
+                        </p>
+                      </div>
+
+                      <div className="max-h-64 divide-y divide-slate-100 overflow-y-auto dark:divide-slate-800">
+                        {(showAllFastAddItems
+                          ? manualBill.items
+                          : manualBill.items.slice(0, 7)
+                        ).map((item) => (
+                          <div
+                            key={`fast-add-cart-${item.menuItem}`}
+                            className="flex items-center justify-between gap-2 px-3 py-1.5"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-black text-slate-900 dark:text-white">
+                                {item.name}
+                              </p>
+                              <p className="truncate text-[10px] font-semibold text-slate-500">
+                                Code{" "}
+                                {menuItems.find(
+                                  (menu) => menu._id === item.menuItem
+                                )?.menuCode || "----"}
+                                {" · "}
+                                {formatCurrency(
+                                  Number(item.price || 0) *
+                                    Number(item.quantity || 0)
+                                )}
+                              </p>
+                            </div>
+
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  changeManualItemQuantity(item.menuItem, -1)
+                                }
+                                className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                              >
+                                <FaMinus />
+                              </button>
+                              <span className="w-5 text-center text-xs font-black text-slate-900 dark:text-white">
+                                {item.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  changeManualItemQuantity(item.menuItem, 1)
+                                }
+                                className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-600 text-[10px] text-white hover:bg-emerald-700"
+                              >
+                                <FaPlus />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  changeManualItemQuantity(
+                                    item.menuItem,
+                                    -item.quantity
+                                  );
+                                  manualCodeInputRef.current?.focus();
+                                }}
+                                className="ml-0.5 min-h-7 rounded-md bg-rose-50 px-1.5 text-[9px] font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {manualBill.items.length > 7 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowAllFastAddItems((current) => !current)
+                          }
+                          className="w-full border-t border-emerald-100 bg-emerald-50/70 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                        >
+                          {showAllFastAddItems
+                            ? "Show less"
+                            : `+ ${manualBill.items.length - 7} more items`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {justAddedItem && (
+                    <div className="absolute bottom-[calc(100%+0.5rem)] left-0 right-0 z-30 rounded-2xl border border-emerald-300 bg-white p-3 shadow-xl dark:border-emerald-800 dark:bg-slate-900">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase tracking-wide text-emerald-600">
+                            Added successfully
+                          </p>
+                          <p className="mt-1 truncate text-sm font-black text-slate-900 dark:text-white">
+                            {justAddedItem.name}
+                          </p>
+                          <p className="mt-1 text-xs font-semibold text-slate-500">
+                            Code{" "}
+                            {menuItems.find(
+                              (menu) => menu._id === justAddedItem.menuItem
+                            )?.menuCode || "----"}
+                            {" · "}Cart total {formatCurrency(manualTotals.totalAmount)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              changeManualItemQuantity(justAddedItem.menuItem, -1)
+                            }
+                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                          >
+                            <FaMinus />
+                          </button>
+                          <span className="w-8 text-center text-sm font-black text-slate-900 dark:text-white">
+                            {justAddedItem.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              changeManualItemQuantity(justAddedItem.menuItem, 1)
+                            }
+                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                          >
+                            <FaPlus />
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            changeManualItemQuantity(
+                              justAddedItem.menuItem,
+                              -justAddedItem.quantity
+                            );
+                            manualCodeInputRef.current?.focus();
+                          }}
+                          className="min-h-9 rounded-lg bg-rose-50 px-3 text-xs font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
@@ -1906,13 +2072,18 @@ export default function AccountantOrderBilling() {
                   </div>
                   <div className="mt-3 flex gap-2">
                     <input
+                      ref={manualCodeInputRef}
                       type="text"
-                      inputMode="numeric"
-                      pattern="\d+"
+                      inputMode="text"
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                      maxLength={20}
                       value={manualCodeInput}
                       onChange={(e) =>
                         setManualCodeInput(
-                          e.target.value.replace(/\D/g, "")
+                          e.target.value
+                            .replace(/[^a-zA-Z0-9]/g, "")
+                            .toUpperCase()
                         )
                       }
                       onKeyDown={(e) => {
@@ -1921,7 +2092,7 @@ export default function AccountantOrderBilling() {
                           handleAddMenuByCode();
                         }
                       }}
-                      placeholder="Enter menu code"
+                      placeholder="Enter code, e.g. A1 or TEA10"
                       className="min-h-12 w-full rounded-xl border border-emerald-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 dark:border-emerald-900/50 dark:bg-slate-900 dark:text-slate-100"
                     />
                     <button

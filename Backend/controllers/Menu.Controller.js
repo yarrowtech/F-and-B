@@ -235,8 +235,10 @@ import mongoose from "mongoose";
 import ExcelJS from "exceljs";
 import { invalidateCacheNamespaces } from "../utils/cacheStore.js";
 
-const normalizeMenuCode = (value) => String(value || "").trim();
-const isValidMenuCode = (value) => /^\d+$/.test(normalizeMenuCode(value));
+const normalizeMenuCode = (value) =>
+  String(value || "").trim().toUpperCase();
+const isValidMenuCode = (value) =>
+  /^[A-Z0-9]{1,20}$/.test(normalizeMenuCode(value));
 const generateNextMenuCode = async (restaurantId, excludeId = null) => {
   const menus = await Menu.find({
     restaurant: restaurantId,
@@ -292,7 +294,7 @@ export const createMenuItem = async (req, res) => {
 
     if (menuCode && !isValidMenuCode(menuCode)) {
       return res.status(400).json({
-        message: "Menu code must be a unique number",
+        message: "Menu code must contain only letters and numbers",
       });
     }
 
@@ -546,7 +548,7 @@ export const updateMenuItem = async (req, res) => {
     if (menuCode !== undefined) {
       if (!isValidMenuCode(menuCode)) {
         return res.status(400).json({
-          message: "Menu code must be a unique number",
+          message: "Menu code must contain only letters and numbers",
         });
       }
       item.menuCode = normalizeMenuCode(menuCode);
