@@ -1,14 +1,7 @@
-import { randomUUID } from "crypto";
-import { execFile } from "child_process";
-import { writeFile, unlink } from "fs/promises";
-import os from "os";
-import path from "path";
-import { promisify } from "util";
 import dotenv from "dotenv";
+import { printRawReceipt } from "./rawWindowsPrinter.js";
 
 dotenv.config();
-
-const execFileAsync = promisify(execFile);
 
 const API_BASE_URL = process.env.PRINT_AGENT_API_URL || "http://localhost:5000/api";
 const USERNAME = process.env.BILL_PRINT_AGENT_USERNAME;
@@ -54,22 +47,11 @@ const login = async () => {
 };
 
 const printToWindowsQueue = async (job) => {
-  const filePath = path.join(os.tmpdir(), `bill-${job._id}-${randomUUID()}.txt`);
-  await writeFile(filePath, job.receiptText, "utf8");
-
-  try {
-    await execFileAsync("powershell.exe", [
-      "-NoProfile",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-Command",
-      "Get-Content -LiteralPath $args[0] -Raw | Out-Printer -Name $args[1]",
-      filePath,
-      job.printerName,
-    ]);
-  } finally {
-    await unlink(filePath).catch(() => {});
-  }
+  await printRawReceipt({
+    receiptText: job.receiptText,
+    printerName: job.printerName,
+    jobName: `bill-${job._id}`,
+  });
 };
 
 const markPrinted = (jobId) =>

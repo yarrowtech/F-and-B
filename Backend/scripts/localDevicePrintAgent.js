@@ -1,10 +1,7 @@
-import { randomUUID } from "crypto";
 import { execFile } from "child_process";
 import http from "http";
-import { writeFile, unlink } from "fs/promises";
-import os from "os";
-import path from "path";
 import { promisify } from "util";
+import { printRawReceipt } from "./rawWindowsPrinter.js";
 
 const execFileAsync = promisify(execFile);
 const HOST = "127.0.0.1";
@@ -41,31 +38,11 @@ const readJson = (req) =>
   });
 
 const printText = async ({ receiptText, printerName = "" }) => {
-  const text = String(receiptText || "").trim();
-  if (!text) throw new Error("Nothing to print");
-
-  const filePath = path.join(os.tmpdir(), `device-print-${randomUUID()}.txt`);
-  await writeFile(filePath, text, "utf8");
-
-  const command = printerName
-    ? "Get-Content -LiteralPath $args[0] -Raw | Out-Printer -Name $args[1]"
-    : "Get-Content -LiteralPath $args[0] -Raw | Out-Printer";
-  const args = [
-    "-NoProfile",
-    "-ExecutionPolicy",
-    "Bypass",
-    "-Command",
-    command,
-    filePath,
-  ];
-
-  if (printerName) args.push(printerName);
-
-  try {
-    await execFileAsync("powershell.exe", args);
-  } finally {
-    await unlink(filePath).catch(() => {});
-  }
+  await printRawReceipt({
+    receiptText,
+    printerName,
+    jobName: "device-print",
+  });
 };
 
 const getPrinters = async () => {
