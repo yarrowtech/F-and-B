@@ -27,7 +27,7 @@ const getStatusClass = (status) =>
     ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
     : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200";
 
-function SummaryCard({ title, value, tone = "slate", icon, onClick }) {
+function SummaryCard({ title, value, detail, tone = "slate", icon, onClick }) {
   const toneMap = {
     slate: {
       wrap: "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900",
@@ -72,6 +72,11 @@ function SummaryCard({ title, value, tone = "slate", icon, onClick }) {
           <p className={`mt-3 break-words text-2xl font-black leading-tight sm:text-3xl ${palette.value}`}>
             {value}
           </p>
+          {detail ? (
+            <p className="mt-2 text-sm font-black text-slate-700 dark:text-slate-200">
+              {detail}
+            </p>
+          ) : null}
         </div>
         <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${palette.icon}`}>
           {icon}
@@ -226,8 +231,11 @@ const AccountantDashboard = () => {
       totalBillsGenerated: 0,
       totalRevenue: 0,
       cashCount: 0,
+      cashAmount: 0,
       cardCount: 0,
+      cardAmount: 0,
       upiCount: 0,
+      upiAmount: 0,
     },
     generatedBills: [],
     paidBills: [],
@@ -371,9 +379,9 @@ const AccountantDashboard = () => {
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <SummaryCard title="Generated Bills" value={loading ? "..." : summary.totalBillsGenerated || 0} tone="slate" icon={<FaReceipt />} onClick={() => openModal("totalBillsGenerated")} />
           <SummaryCard title="Revenue" value={loading ? "..." : formatCurrency(summary.totalRevenue)} tone="emerald" icon={<FaRupeeSign />} onClick={() => openModal("totalRevenue")} />
-          <SummaryCard title="Cash" value={loading ? "..." : summary.cashCount || 0} tone="amber" icon={<FaMoneyBillWave />} onClick={() => openModal("cashCount")} />
-          <SummaryCard title="Card" value={loading ? "..." : summary.cardCount || 0} tone="blue" icon={<FaCreditCard />} onClick={() => openModal("cardCount")} />
-          <SummaryCard title="UPI" value={loading ? "..." : summary.upiCount || 0} tone="rose" icon={<FaUniversity />} onClick={() => openModal("upiCount")} />
+          <SummaryCard title="Cash" value={loading ? "..." : `${summary.cashCount || 0} orders`} detail={loading ? "" : formatCurrency(summary.cashAmount)} tone="amber" icon={<FaMoneyBillWave />} onClick={() => openModal("cashCount")} />
+          <SummaryCard title="Card" value={loading ? "..." : `${summary.cardCount || 0} orders`} detail={loading ? "" : formatCurrency(summary.cardAmount)} tone="blue" icon={<FaCreditCard />} onClick={() => openModal("cardCount")} />
+          <SummaryCard title="UPI" value={loading ? "..." : `${summary.upiCount || 0} orders`} detail={loading ? "" : formatCurrency(summary.upiAmount)} tone="rose" icon={<FaUniversity />} onClick={() => openModal("upiCount")} />
         </section>
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">

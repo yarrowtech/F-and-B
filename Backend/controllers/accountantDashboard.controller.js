@@ -87,15 +87,31 @@ export const getAccountantDashboard = async (req, res) => {
       0
     );
 
-    const paymentCounts = paidBills.reduce(
+    const paymentSummary = paidBills.reduce(
       (acc, bill) => {
         const method = String(bill.paymentMethod || "").toUpperCase();
-        if (method === "CARD") acc.card += 1;
-        else if (method === "CASH") acc.cash += 1;
-        else if (method === "UPI") acc.upi += 1;
+        const amount = Number(bill.totalAmount || 0);
+
+        if (method === "CARD") {
+          acc.cardCount += 1;
+          acc.cardAmount += amount;
+        } else if (method === "CASH") {
+          acc.cashCount += 1;
+          acc.cashAmount += amount;
+        } else if (method === "UPI") {
+          acc.upiCount += 1;
+          acc.upiAmount += amount;
+        }
         return acc;
       },
-      { cash: 0, card: 0, upi: 0 }
+      {
+        cashCount: 0,
+        cashAmount: 0,
+        cardCount: 0,
+        cardAmount: 0,
+        upiCount: 0,
+        upiAmount: 0,
+      }
     );
 
     res.json({
@@ -108,9 +124,12 @@ export const getAccountantDashboard = async (req, res) => {
       summary: {
         totalBillsGenerated: uniqueGeneratedBills.length,
         totalRevenue,
-        cashCount: paymentCounts.cash,
-        cardCount: paymentCounts.card,
-        upiCount: paymentCounts.upi,
+        cashCount: paymentSummary.cashCount,
+        cashAmount: paymentSummary.cashAmount,
+        cardCount: paymentSummary.cardCount,
+        cardAmount: paymentSummary.cardAmount,
+        upiCount: paymentSummary.upiCount,
+        upiAmount: paymentSummary.upiAmount,
       },
       generatedBills: uniqueGeneratedBills,
       paidBills,
