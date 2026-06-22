@@ -3,7 +3,7 @@ const LOCAL_PRINT_AGENT_URL =
 const USE_SERVER_PRINTER_NAME =
   String(import.meta.env.VITE_USE_SERVER_PRINTER_NAME || "").toLowerCase() === "true";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const ESC_POS_PARTIAL_CUT = "\x1D\x56\x42\x00";
+const ESC_POS_FULL_CUT = "\x1D\x56\x00";
 
 const escapeHtml = (value) =>
   String(value ?? "")
@@ -182,9 +182,9 @@ export const printOnThisDevice = async ({ receiptText, printerName = "" }) => {
 const ensureReceiptCut = (receiptText) => {
   const text = String(receiptText || "");
   const trimmedText = text.replace(/\s+$/, "");
-  return trimmedText.endsWith(ESC_POS_PARTIAL_CUT)
+  return trimmedText.endsWith(ESC_POS_FULL_CUT)
     ? text
-    : `${trimmedText}\n\n\n${ESC_POS_PARTIAL_CUT}\f`;
+    : `${trimmedText}\n\n\n${ESC_POS_FULL_CUT}\f`;
 };
 
 const combinePrintJobs = (jobs, ensureCutAfterEach) => {

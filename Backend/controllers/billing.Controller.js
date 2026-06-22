@@ -139,20 +139,20 @@ const receiptItemRows = (name, qty, rate, amount, width = 42) => {
 };
 
 const appendThermalFeed = (text, extraLines = 9, options = {}) =>
-  `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 3))}${options.cut ? ESC_POS_PARTIAL_CUT : ""}\f`;
+  `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 3))}${options.cut ? ESC_POS_FULL_CUT : ""}\f`;
 
 const getKotCopyCount = (value, fallback = 1) => {
   const count = Math.floor(Number(value));
   return Number.isFinite(count) ? Math.min(Math.max(count, 1), 10) : fallback;
 };
 
-const ESC_POS_PARTIAL_CUT = "\x1D\x56\x42\x00";
+const ESC_POS_FULL_CUT = "\x1D\x56\x00";
 
 const kotCopyHeader = (copyNumber, copyCount, width = 32) =>
   `${receiptCenter(`COPY ${copyNumber} OF ${copyCount}`, width)}\n${receiptLine(width)}\n`;
 
 const kotCopySeparator = (width = 32) =>
-  `\n${receiptLine(width)}\n${receiptCenter("CUT HERE", width)}\n${receiptLine(width)}\n\n\n${ESC_POS_PARTIAL_CUT}\f`;
+  `\n${receiptLine(width)}\n${receiptCenter("CUT HERE", width)}\n${receiptLine(width)}\n\n\n${ESC_POS_FULL_CUT}\f`;
 
 const repeatKotReceiptText = (receiptText, copyCount = 1) => {
   const count = getKotCopyCount(copyCount);

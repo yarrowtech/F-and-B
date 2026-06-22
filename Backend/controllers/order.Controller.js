@@ -1182,13 +1182,13 @@ const getKotCopyCount = (value, fallback = 1) => {
   return Number.isFinite(count) ? Math.min(Math.max(count, 1), 10) : fallback;
 };
 
-const ESC_POS_PARTIAL_CUT = "\x1D\x56\x42\x00";
+const ESC_POS_FULL_CUT = "\x1D\x56\x00";
 
 const kotCopyHeader = (copyNumber, copyCount) =>
   `${kotCenter(`COPY ${copyNumber} OF ${copyCount}`)}\n${kotLine()}\n`;
 
 const kotCopySeparator = () =>
-  `\n${kotLine()}\n${kotCenter("CUT HERE")}\n${kotLine()}\n\n\n${ESC_POS_PARTIAL_CUT}\f`;
+  `\n${kotLine()}\n${kotCenter("CUT HERE")}\n${kotLine()}\n\n\n${ESC_POS_FULL_CUT}\f`;
 
 const repeatKotReceiptText = (receiptText, copyCount = 1) => {
   const count = getKotCopyCount(copyCount);
@@ -1417,7 +1417,7 @@ const formatKotDateTime = (value) =>
 
 const KOT_WIDTH = 32;
 const appendKotFeed = (text, extraLines = 9) =>
-  `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 3))}${ESC_POS_PARTIAL_CUT}\f`;
+  `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 3))}${ESC_POS_FULL_CUT}\f`;
 const kotText = (value) => String(value || "").trim();
 const kotLine = (char = "-") => char.repeat(KOT_WIDTH);
 const kotCenter = (value) => {
