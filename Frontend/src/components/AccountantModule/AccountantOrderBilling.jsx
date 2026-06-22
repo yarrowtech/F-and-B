@@ -19,6 +19,7 @@ import {
   customizeBill,
   downloadBillingHistoryExcel,
   downloadBillPdf,
+  getBillPrintBundle,
   getBillingHistory,
   getBillingInbox,
   markBillPaid,
@@ -759,6 +760,8 @@ export default function AccountantOrderBilling() {
   const [manualSearch, setManualSearch] = useState("");
   const [manualCodeInput, setManualCodeInput] = useState("");
   const [creatingManualBill, setCreatingManualBill] = useState(false);
+  const [showManualAdvanced, setShowManualAdvanced] = useState(false);
+  const [showManualComplimentary, setShowManualComplimentary] = useState(false);
   const [manualBill, setManualBill] = useState({
     orderType: "TAKEAWAY",
     paymentMethod: "CASH",
@@ -1109,7 +1112,7 @@ export default function AccountantOrderBilling() {
     }
   };
 
-  const printBill = (bill, options = {}, targetWindow = null) => {
+  const printBillInBrowser = (bill, options = {}, targetWindow = null) => {
     if (!bill?._id) return;
 
     const printWindow =
@@ -1124,15 +1127,33 @@ export default function AccountantOrderBilling() {
     printWindow.document.close();
   };
 
+  const printBill = async (bill, options = {}) => {
+    if (!bill?._id) return;
+
+    try {
+      const bundle = await getBillPrintBundle(bill._id);
+      const printJobs = Array.isArray(bundle?.printJobs)
+        ? bundle.printJobs
+        : [];
+
+      if (printJobs.length === 0) {
+        printBillInBrowser(bill, options);
+        return;
+      }
+
+      await printJobsOnThisDevice(printJobs, {
+        combineBrowserFallback: true,
+        combineLocalJobs: true,
+        ensureCutAfterEach: true,
+      });
+    } catch (err) {
+      console.error("PRINT BILL AND KOT ERROR:", err);
+      alert(err.response?.data?.message || err.message || "Failed to print bill and KOT");
+    }
+  };
+
   const handlePrintSelectedBill = async () => {
     if (!selectedBill?._id) return;
-
-    const printWindow = window.open("", "_blank", "width=420,height=720");
-    if (!printWindow) {
-      alert("Allow popup windows to print the bill");
-      return;
-    }
-    printWindow.document.write("<p style=\"font-family:Arial,sans-serif;padding:24px;\">Preparing print bill...</p>");
 
     try {
       setSavingBill(true);
@@ -1186,19 +1207,21 @@ export default function AccountantOrderBilling() {
         )
       );
       setSelectedBill(finalBill);
-      if (response?.printJob) {
-        await printJobsOnThisDevice([response.printJob]);
-        if (printWindow && !printWindow.closed) {
-          printWindow.close();
-        }
+      const printJobs = [
+        response?.printJob,
+        ...(Array.isArray(response?.kotPrintJobs) ? response.kotPrintJobs : []),
+      ].filter(Boolean);
+      if (printJobs.length > 0) {
+        await printJobsOnThisDevice(printJobs, {
+          combineBrowserFallback: true,
+          combineLocalJobs: true,
+          ensureCutAfterEach: true,
+        });
       } else {
-        printBill(finalBill, { totals: selectedTotals || finalBill }, printWindow);
+        printBillInBrowser(finalBill, { totals: selectedTotals || finalBill });
       }
     } catch (err) {
       console.error("PRINT BILL ERROR:", err);
-      if (printWindow && !printWindow.closed) {
-        printWindow.close();
-      }
       alert("Failed to print bill");
     } finally {
       setSavingBill(false);
@@ -1339,7 +1362,11 @@ export default function AccountantOrderBilling() {
       const createdBill = bill?.bill || bill;
         const manualPrintJobs = [bill?.printJob, bill?.kotPrintJob].filter(Boolean);
         if (manualPrintJobs.length > 0) {
-          await printJobsOnThisDevice(manualPrintJobs);
+          await printJobsOnThisDevice(manualPrintJobs, {
+            combineBrowserFallback: true,
+            combineLocalJobs: true,
+            ensureCutAfterEach: true,
+          });
         }
 
       setBills((prev) => [createdBill, ...prev]);
@@ -1573,7 +1600,7 @@ export default function AccountantOrderBilling() {
         </div>
 
         {tab === "NEW" && (
-          <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-emerald-200 dark:bg-slate-900 dark:ring-emerald-900/50 sm:p-5">
+          <div className="rounded-2xl bg-white p-4 pb-3 shadow-sm ring-1 ring-emerald-200 dark:bg-slate-900 dark:ring-emerald-900/50 sm:p-5">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="text-lg font-black text-slate-900 dark:text-white">
@@ -1612,6 +1639,47 @@ export default function AccountantOrderBilling() {
                       <p className="text-lg font-black text-emerald-700 dark:text-emerald-200">
                         {manualBill.items.length}
                       </p>
+                    </div>
+                  </div>
+
+                  <div className="mb-4 rounded-2xl border border-emerald-200 bg-white p-3 shadow-sm dark:border-emerald-900/50 dark:bg-slate-900">
+                    <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-950">
+                          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                            Items
+                          </p>
+                          <p className="mt-1 text-sm font-black text-slate-900 dark:text-white">
+                            {manualBill.items.length}
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-950">
+                          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                            Payment
+                          </p>
+                          <p className="mt-1 truncate text-sm font-black text-slate-900 dark:text-white">
+                            {paymentMethodLabel(manualBill.paymentMethod)}
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-emerald-50 px-3 py-2 dark:bg-emerald-950/30">
+                          <p className="text-[10px] font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
+                            Total
+                          </p>
+                          <p className="mt-1 text-sm font-black text-emerald-700 dark:text-emerald-200">
+                            {formatCurrency(manualTotals.totalAmount)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={submitManualBill}
+                        disabled={creatingManualBill || manualBill.items.length === 0}
+                        className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                      >
+                        <FaReceipt />
+                        {creatingManualBill ? "Generating..." : "Generate Bill"}
+                      </button>
                     </div>
                   </div>
 
@@ -1680,47 +1748,6 @@ export default function AccountantOrderBilling() {
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
-                          Fast Add By Code
-                        </p>
-                        <p className="mt-1 text-xs font-medium text-emerald-700/80 dark:text-emerald-200/80">
-                          Type the menu code and press Enter.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex gap-2">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="\d+"
-                        value={manualCodeInput}
-                        onChange={(e) =>
-                          setManualCodeInput(
-                            e.target.value.replace(/\D/g, "")
-                          )
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddMenuByCode();
-                          }
-                        }}
-                        placeholder="Enter menu code"
-                        className="min-h-12 w-full rounded-xl border border-emerald-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 dark:border-emerald-900/50 dark:bg-slate-900 dark:text-slate-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddMenuByCode}
-                        className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  </div>
-
                   <button
                     type="button"
                     onClick={() => setShowMenuPicker(true)}
@@ -1731,84 +1758,105 @@ export default function AccountantOrderBilling() {
                   </button>
                 </div>
 
-                <div className="rounded-2xl border border-emerald-100 bg-white p-4 dark:border-emerald-900/50 dark:bg-slate-950">
-                  <div className="mb-3">
-                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                      Complimentary
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      Apply free dishes or make the full bill complimentary before generating.
-                    </p>
-                  </div>
+                <div className="rounded-2xl border border-emerald-100 bg-white dark:border-emerald-900/50 dark:bg-slate-950">
+                  <button
+                    type="button"
+                    onClick={() => setShowManualComplimentary((value) => !value)}
+                    className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                  >
+                    <span>
+                      <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">
+                        Complimentary
+                      </span>
+                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                        {manualBill.complimentaryType === "NONE"
+                          ? "No free items applied"
+                          : `${manualBill.complimentaryType.replace("_", " ")} | ${formatCurrency(manualTotals.complimentaryAmount)}`}
+                      </span>
+                    </span>
+                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
+                      {showManualComplimentary ? "Hide" : "Open"}
+                    </span>
+                  </button>
 
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {[
-                      ["NONE", "None"],
-                      ["ITEMS", "Dish"],
-                      ["FULL_ORDER", "Full Order"],
-                    ].map(([value, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => handleManualComplimentaryTypeChange(value)}
-                        className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-bold transition ${
-                          manualBill.complimentaryType === value
-                            ? "border-emerald-500 bg-emerald-600 text-white"
-                            : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {manualBill.complimentaryType === "ITEMS" && (
-                    <div className="mt-3 space-y-2">
-                      {manualBill.items.length === 0 && (
-                        <p className="rounded-xl bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-500 dark:bg-slate-900">
-                          Select menu items first.
+                  {showManualComplimentary && (
+                    <div className="border-t border-emerald-100 p-4 dark:border-emerald-900/50">
+                      <div className="mb-3">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Apply free dishes or make the full bill complimentary before generating.
                         </p>
+                      </div>
+
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {[
+                          ["NONE", "None"],
+                          ["ITEMS", "Dish"],
+                          ["FULL_ORDER", "Full Order"],
+                        ].map(([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => handleManualComplimentaryTypeChange(value)}
+                            className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-bold transition ${
+                              manualBill.complimentaryType === value
+                                ? "border-emerald-500 bg-emerald-600 text-white"
+                                : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {manualBill.complimentaryType === "ITEMS" && (
+                        <div className="mt-3 space-y-2">
+                          {manualBill.items.length === 0 && (
+                            <p className="rounded-xl bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-500 dark:bg-slate-900">
+                              Select menu items first.
+                            </p>
+                          )}
+
+                          {manualBill.items.map((item) => {
+                            const isSelected = manualBill.complimentaryItems.includes(item.menuItem);
+
+                            return (
+                              <label
+                                key={`${item.menuItem}-manual-complimentary`}
+                                className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                              >
+                                <span className="min-w-0">
+                                  <span className="block break-words leading-snug">{item.name}</span>
+                                  <span className="text-xs font-medium text-slate-400">
+                                    Qty {item.quantity} | {formatCurrency(getManualRoundedLineTotal(item, manualBill))}
+                                  </span>
+                                </span>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleManualComplimentaryItem(item.menuItem)}
+                                  className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                              </label>
+                            );
+                          })}
+                        </div>
                       )}
 
-                      {manualBill.items.map((item) => {
-                        const isSelected = manualBill.complimentaryItems.includes(item.menuItem);
-
-                        return (
-                          <label
-                            key={`${item.menuItem}-manual-complimentary`}
-                            className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                          >
-                            <span className="min-w-0">
-                              <span className="block break-words leading-snug">{item.name}</span>
-                              <span className="text-xs font-medium text-slate-400">
-                                Qty {item.quantity} | {formatCurrency(getManualRoundedLineTotal(item, manualBill))}
-                              </span>
-                            </span>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleManualComplimentaryItem(item.menuItem)}
-                              className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                            />
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {manualBill.complimentaryType !== "NONE" && (
-                    <div className="mt-3 space-y-3">
-                      <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200">
-                        Complimentary amount: {formatCurrency(manualTotals.complimentaryAmount)}
-                      </p>
-                      <textarea
-                        rows="3"
-                        maxLength="300"
-                        value={manualBill.complimentaryNote}
-                        onChange={(e) => updateManualBill("complimentaryNote", e.target.value)}
-                        placeholder="Complimentary reason"
-                        className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                      />
+                      {manualBill.complimentaryType !== "NONE" && (
+                        <div className="mt-3 space-y-3">
+                          <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200">
+                            Complimentary amount: {formatCurrency(manualTotals.complimentaryAmount)}
+                          </p>
+                          <textarea
+                            rows="3"
+                            maxLength="300"
+                            value={manualBill.complimentaryNote}
+                            onChange={(e) => updateManualBill("complimentaryNote", e.target.value)}
+                            placeholder="Complimentary reason"
+                            className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1845,13 +1893,48 @@ export default function AccountantOrderBilling() {
                   </div>
                 </div>
 
-                <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
-                  {manualBill.items.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-emerald-300 bg-emerald-50 p-8 text-center text-sm font-semibold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-200">
-                      Open Browse Menu and select dishes to build this bill.
+                <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
+                        Fast Add By Code
+                      </p>
+                      <p className="mt-1 text-xs font-medium text-emerald-700/80 dark:text-emerald-200/80">
+                        Type the menu code and press Enter.
+                      </p>
                     </div>
-                  )}
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="\d+"
+                      value={manualCodeInput}
+                      onChange={(e) =>
+                        setManualCodeInput(
+                          e.target.value.replace(/\D/g, "")
+                        )
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddMenuByCode();
+                        }
+                      }}
+                      placeholder="Enter menu code"
+                      className="min-h-12 w-full rounded-xl border border-emerald-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 dark:border-emerald-900/50 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddMenuByCode}
+                      className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
 
+                <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
                   {manualBill.items.map((item) => (
                     <div
                       key={item.menuItem}
@@ -1905,93 +1988,117 @@ export default function AccountantOrderBilling() {
                   ))}
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  {[
-                    ["cgstRate", "CGST %"],
-                    ["sgstRate", "SGST %"],
-                    ["serviceCharge", "Service"],
-                    ["packagingCharge", "Packaging"],
-                    ["extraCharge", "Extra Charge"],
-                  ].map(([field, label]) => (
-                    <label key={field} className="text-xs font-bold text-slate-500">
-                      {label}
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={manualBill[field]}
-                        onChange={(e) => updateManualBill(field, e.target.value)}
-                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                      />
-                    </label>
-                  ))}
-                </div>
-                <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-950">
-                  <div className="flex items-center justify-between gap-3">
-                    <label className="text-xs font-bold text-slate-500">
-                      Discount
-                    </label>
-                    <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900">
-                      {DISCOUNT_TYPE_OPTIONS.map((option) => (
-                        <button
-                          key={`manual-${option.value}`}
-                          type="button"
-                          onClick={() => updateManualBill("discountType", option.value)}
-                          className={`min-h-8 rounded-md px-3 text-xs font-bold ${
-                            manualBill.discountType === option.value
-                              ? "bg-emerald-600 text-white"
-                              : "text-slate-600 dark:text-slate-300"
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
+                  <button
+                    type="button"
+                    onClick={() => setShowManualAdvanced((value) => !value)}
+                    className="flex min-h-12 w-full items-center justify-between gap-3 px-3 text-left"
+                  >
+                    <span>
+                      <span className="block text-sm font-black text-slate-800 dark:text-slate-100">
+                        Advanced Bill Options
+                      </span>
+                      <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        GST, discount, service, packaging, and extra charge
+                      </span>
+                    </span>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:bg-slate-950 dark:text-slate-200">
+                      {showManualAdvanced ? "Hide" : "Open"}
+                    </span>
+                  </button>
+
+                  {showManualAdvanced && (
+                    <div className="border-t border-slate-200 p-3 dark:border-slate-700">
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          ["cgstRate", "CGST %"],
+                          ["sgstRate", "SGST %"],
+                          ["serviceCharge", "Service"],
+                          ["packagingCharge", "Packaging"],
+                          ["extraCharge", "Extra Charge"],
+                        ].map(([field, label]) => (
+                          <label key={field} className="text-xs font-bold text-slate-500">
+                            {label}
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={manualBill[field]}
+                              onChange={(e) => updateManualBill(field, e.target.value)}
+                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-950">
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="text-xs font-bold text-slate-500">
+                            Discount
+                          </label>
+                          <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900">
+                            {DISCOUNT_TYPE_OPTIONS.map((option) => (
+                              <button
+                                key={`manual-${option.value}`}
+                                type="button"
+                                onClick={() => updateManualBill("discountType", option.value)}
+                                className={`min-h-8 rounded-md px-3 text-xs font-bold ${
+                                  manualBill.discountType === option.value
+                                    ? "bg-emerald-600 text-white"
+                                    : "text-slate-600 dark:text-slate-300"
+                                }`}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={manualBill.discount}
+                          onChange={(e) => updateManualBill("discount", e.target.value)}
+                          className="mt-2 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                          placeholder={manualBill.discountType === "PERCENT" ? "Enter % discount" : "Enter amount discount"}
+                        />
+                      </div>
+                      <label className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-white px-3 text-sm font-bold text-slate-700 dark:bg-slate-950 dark:text-slate-200">
+                        <span>Show service charge on bill</span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(manualBill.showServiceCharge)}
+                          onChange={(e) =>
+                            updateManualBill("showServiceCharge", e.target.checked)
+                          }
+                          className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                      </label>
+                      <label className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-white px-3 text-sm font-bold text-slate-700 dark:bg-slate-950 dark:text-slate-200">
+                        <span>Show packaging charge on bill</span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(manualBill.showPackagingCharge)}
+                          onChange={(e) =>
+                            updateManualBill("showPackagingCharge", e.target.checked)
+                          }
+                          className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                      </label>
+                      <label className="mt-3 block text-xs font-bold text-slate-500">
+                        Extra Charge Reason
+                        <textarea
+                          rows="2"
+                          value={manualBill.extraChargeReason}
+                          onChange={(e) =>
+                            updateManualBill("extraChargeReason", e.target.value)
+                          }
+                          placeholder="Example: late-night packing, rush delivery, special handling..."
+                          className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                        />
+                      </label>
                     </div>
-                  </div>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={manualBill.discount}
-                    onChange={(e) => updateManualBill("discount", e.target.value)}
-                    className="mt-2 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                    placeholder={manualBill.discountType === "PERCENT" ? "Enter % discount" : "Enter amount discount"}
-                  />
+                  )}
                 </div>
-                <label className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-slate-100 px-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                  <span>Show service charge on bill</span>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(manualBill.showServiceCharge)}
-                    onChange={(e) =>
-                      updateManualBill("showServiceCharge", e.target.checked)
-                    }
-                    className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                  />
-                </label>
-                <label className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-slate-100 px-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                  <span>Show packaging charge on bill</span>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(manualBill.showPackagingCharge)}
-                    onChange={(e) =>
-                      updateManualBill("showPackagingCharge", e.target.checked)
-                    }
-                    className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                  />
-                </label>
-                <label className="mt-3 block text-xs font-bold text-slate-500">
-                  Extra Charge Reason
-                  <textarea
-                    rows="2"
-                    value={manualBill.extraChargeReason}
-                    onChange={(e) =>
-                      updateManualBill("extraChargeReason", e.target.value)
-                    }
-                    placeholder="Example: late-night packing, rush delivery, special handling..."
-                    className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                  />
-                </label>
 
                 <div className="mt-4 space-y-2 rounded-xl bg-white p-3 text-sm dark:bg-slate-900">
                   <div className="flex justify-between text-slate-600 dark:text-slate-300">
@@ -2047,7 +2154,36 @@ export default function AccountantOrderBilling() {
                   type="button"
                   onClick={submitManualBill}
                   disabled={creatingManualBill || manualBill.items.length === 0}
-                  className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-4 hidden min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 2xl:inline-flex"
+                >
+                  <FaReceipt />
+                  {creatingManualBill ? "Generating..." : "Generate Bill"}
+                </button>
+              </div>
+            </div>
+
+            <div className="sticky bottom-20 z-30 mt-4 rounded-2xl border border-emerald-200 bg-white/95 p-3 shadow-2xl shadow-slate-900/10 backdrop-blur dark:border-emerald-900/60 dark:bg-slate-950/95 2xl:bottom-0">
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div className="grid grid-cols-3 gap-2 text-center sm:max-w-lg">
+                  <div className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-900">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Items</p>
+                    <p className="mt-1 text-sm font-black text-slate-900 dark:text-white">{manualBill.items.length}</p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-900">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Payment</p>
+                    <p className="mt-1 truncate text-sm font-black text-slate-900 dark:text-white">{paymentMethodLabel(manualBill.paymentMethod)}</p>
+                  </div>
+                  <div className="rounded-xl bg-emerald-50 px-3 py-2 dark:bg-emerald-950/30">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-300">Total</p>
+                    <p className="mt-1 text-sm font-black text-emerald-700 dark:text-emerald-200">{formatCurrency(manualTotals.totalAmount)}</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={submitManualBill}
+                  disabled={creatingManualBill || manualBill.items.length === 0}
+                  className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-base font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   <FaReceipt />
                   {creatingManualBill ? "Generating..." : "Generate Bill"}

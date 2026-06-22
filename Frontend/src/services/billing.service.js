@@ -161,6 +161,11 @@ export const customizeBill = async (billId, payload) => {
   return res.data.data;
 };
 
+export const getBillPrintBundle = async (billId) => {
+  const res = await API.get(`/billing/${billId}/print-bundle`);
+  return res.data.data;
+};
+
 export const downloadBillPdf = async (billId, targetWindow = null) => {
   try {
     const res = await API.get(

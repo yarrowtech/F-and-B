@@ -82,6 +82,7 @@ const defaultBillingTemplate = {
   cgstRate: 2.5,
   sgstRate: 2.5,
   paymentMethods: DEFAULT_PAYMENT_METHODS,
+  kotCopyCount: 1,
 };
 const maxLogoBytes = 700 * 1024;
 
@@ -227,6 +228,10 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
     e.preventDefault();
     onSave({
       ...form,
+      kotCopyCount: Math.min(
+        Math.max(Math.floor(Number(form.kotCopyCount) || 1), 1),
+        10
+      ),
       paymentMethods:
         Array.isArray(form.paymentMethods) && form.paymentMethods.length > 0
           ? form.paymentMethods
@@ -389,6 +394,43 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
               className="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-900 dark:bg-gray-700 dark:text-white"
             />
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-900/10">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">
+              KOT Copies
+            </p>
+            <p className="mt-1 text-sm text-emerald-900 dark:text-emerald-100">
+              Each generated KOT group will print this many copies, including cuisine-wise chef KOTs.
+            </p>
+          </div>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-700 shadow-sm dark:bg-emerald-950 dark:text-emerald-200">
+            {Math.min(Math.max(Math.floor(Number(form.kotCopyCount) || 1), 1), 10)}{" "}
+            {Math.min(Math.max(Math.floor(Number(form.kotCopyCount) || 1), 1), 10) === 1
+              ? "copy"
+              : "copies"}
+          </span>
+        </div>
+
+        <div className="mt-4 max-w-xs">
+          <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+            KOT Copy Count
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="10"
+            step="1"
+            value={form.kotCopyCount}
+            onChange={(e) => change("kotCopyCount", e.target.value)}
+            className="w-full rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-emerald-900 dark:bg-gray-700 dark:text-white"
+          />
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Example: 2 means every kitchen or cuisine KOT prints twice.
+          </p>
         </div>
       </div>
 

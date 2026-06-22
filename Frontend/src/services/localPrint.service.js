@@ -3,6 +3,7 @@ const LOCAL_PRINT_AGENT_URL =
 const USE_SERVER_PRINTER_NAME =
   String(import.meta.env.VITE_USE_SERVER_PRINTER_NAME || "").toLowerCase() === "true";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const ESC_POS_PARTIAL_CUT = "\x1D\x56\x42\x00";
 
 const escapeHtml = (value) =>
   String(value ?? "")
@@ -178,21 +179,61 @@ export const printOnThisDevice = async ({ receiptText, printerName = "" }) => {
   return data;
 };
 
+const ensureReceiptCut = (receiptText) => {
+  const text = String(receiptText || "");
+  const trimmedText = text.replace(/\s+$/, "");
+  return trimmedText.endsWith(ESC_POS_PARTIAL_CUT)
+    ? text
+    : `${trimmedText}\n\n\n${ESC_POS_PARTIAL_CUT}\f`;
+};
+
+const combinePrintJobs = (jobs, ensureCutAfterEach) => {
+  if (jobs.length <= 1) return jobs;
+
+  const printerNames = new Set(
+    jobs.map((job) =>
+      USE_SERVER_PRINTER_NAME ? String(job.printerName || "").trim() : ""
+    )
+  );
+
+  if (printerNames.size > 1) return jobs;
+
+  return [
+    {
+      ...jobs[0],
+      receiptText: jobs
+        .map((job) =>
+          ensureCutAfterEach
+            ? ensureReceiptCut(job.receiptText)
+            : String(job.receiptText || "")
+        )
+        .join("\n"),
+    },
+  ];
+};
+
 export const printJobsOnThisDevice = async (jobs = [], options = {}) => {
   const printableJobs = jobs.filter((job) => job?.receiptText);
   const fallbackToBrowser = options.fallbackToBrowser !== false;
   const combineBrowserFallback = options.combineBrowserFallback === true;
+  const localPrintJobs =
+    options.combineLocalJobs === true
+      ? combinePrintJobs(printableJobs, options.ensureCutAfterEach === true)
+      : printableJobs;
   let printedCount = 0;
   let shouldUseCombinedBrowserFallback = false;
 
-  for (const job of printableJobs) {
+  for (const job of localPrintJobs) {
     try {
       await printOnThisDevice({
         receiptText: job.receiptText,
         printerName: job.printerName || "",
       });
-      printedCount += 1;
-      if (printableJobs.length > 1 && printedCount < printableJobs.length) {
+      printedCount +=
+        localPrintJobs.length === 1 && printableJobs.length > 1
+          ? printableJobs.length
+          : 1;
+      if (localPrintJobs.length > 1 && printedCount < printableJobs.length) {
         await sleep(700);
       }
     } catch (err) {

@@ -162,6 +162,12 @@ const billingTemplateSchema = new mongoose.Schema(
       type: [String],
       default: ["CASH", "CARD", "UPI"],
     },
+    kotCopyCount: {
+      type: Number,
+      default: 1,
+      min: 1,
+      max: 10,
+    },
   },
   { _id: false }
 );

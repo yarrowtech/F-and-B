@@ -2,6 +2,7 @@ import Bill, { allocateBillNumber } from "../models/Bill.model.js";
 import BillPrintJob from "../models/BillPrintJob.model.js";
 import Inventory from "../models/Inventory.model.js";
 import InventoryLog from "../models/InventoryLog.model.js";
+import KotPrintJob from "../models/KotPrintJob.model.js";
 import Menu from "../models/Menu.model.js";
 import Order from "../models/Order.model.js";
 import PrintAgent from "../models/PrintAgent.model.js";
@@ -137,8 +138,32 @@ const receiptItemRows = (name, qty, rate, amount, width = 42) => {
   return rows;
 };
 
-const appendThermalFeed = (text, extraLines = 9) =>
-  `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 3))}\f`;
+const appendThermalFeed = (text, extraLines = 9, options = {}) =>
+  `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 3))}${options.cut ? ESC_POS_PARTIAL_CUT : ""}\f`;
+
+const getKotCopyCount = (value, fallback = 1) => {
+  const count = Math.floor(Number(value));
+  return Number.isFinite(count) ? Math.min(Math.max(count, 1), 10) : fallback;
+};
+
+const ESC_POS_PARTIAL_CUT = "\x1D\x56\x42\x00";
+
+const kotCopyHeader = (copyNumber, copyCount, width = 32) =>
+  `${receiptCenter(`COPY ${copyNumber} OF ${copyCount}`, width)}\n${receiptLine(width)}\n`;
+
+const kotCopySeparator = (width = 32) =>
+  `\n${receiptLine(width)}\n${receiptCenter("CUT HERE", width)}\n${receiptLine(width)}\n\n\n${ESC_POS_PARTIAL_CUT}\f`;
+
+const repeatKotReceiptText = (receiptText, copyCount = 1) => {
+  const count = getKotCopyCount(copyCount);
+  if (count === 1) return receiptText;
+
+  return Array.from({ length: count }, (_, index) => {
+    const copyNumber = index + 1;
+    const copyText = `${kotCopyHeader(copyNumber, count)}${receiptText}`;
+    return index < count - 1 ? `${copyText}${kotCopySeparator()}` : copyText;
+  }).join("");
+};
 
 const defaultBillingTemplate = {
   headerTitle: "",
@@ -155,6 +180,7 @@ const defaultBillingTemplate = {
   showServiceCharge: true,
   cgstRate: 2.5,
   sgstRate: 2.5,
+  kotCopyCount: 1,
 };
 
 const getBillingTemplate = (restaurant) => ({
@@ -694,7 +720,7 @@ const buildBillReceiptText = (bill) => {
   );
   lines.push(receiptCenter("PLEASE VISIT AGAIN", width));
 
-  return appendThermalFeed(lines.join("\n"));
+  return appendThermalFeed(lines.join("\n"), 9, { cut: true });
 };
 
 const buildManualKotReceiptText = ({ order, restaurant }) => {
@@ -729,12 +755,14 @@ const buildManualKotReceiptText = ({ order, restaurant }) => {
   lines.push(receiptCenter("NO PRICE ON KOT", width));
   lines.push("");
   lines.push("");
-  return appendThermalFeed(lines.join("\n"));
+  return appendThermalFeed(lines.join("\n"), 9, { cut: true });
 };
 
 const buildManualKotPrintJob = async (bill, requestedBy = null) => {
   if (!bill?.order) return null;
 
+  const template = getBillingTemplate(bill.restaurant);
+  const kotCopyCount = getKotCopyCount(template.kotCopyCount);
   const receiptText = buildManualKotReceiptText({
     order: bill.order,
     restaurant: bill.restaurant,
@@ -754,8 +782,9 @@ const buildManualKotPrintJob = async (bill, requestedBy = null) => {
       String(process.env.KOT_DEFAULT_PRINTER || "").trim() ||
       agent?.billPrinterName ||
       "",
-    receiptText,
+    receiptText: repeatKotReceiptText(receiptText, kotCopyCount),
     cuisine: "",
+    copyCount: kotCopyCount,
     status: "LOCAL",
   };
 };
@@ -791,6 +820,49 @@ const queueBillPrintJob = async (billId, requestedBy = null) => {
     receiptText,
     status: "PENDING",
   });
+};
+
+const getBillPrintBundle = async (req, res) => {
+  try {
+    const bill = await findBillWithOrder({
+      _id: req.params.id,
+      restaurant: req.user.restaurant,
+    });
+
+    if (!bill) return sendError(res, "Bill not found", 404);
+
+    const agent = await PrintAgent.findOne({
+      restaurant: bill.restaurant?._id || bill.restaurant,
+      isActive: true,
+    }).sort({ updatedAt: -1 });
+
+    const billPrintJob = {
+      _id: `local-bill-${bill._id}`,
+      restaurant: bill.restaurant?._id || bill.restaurant,
+      bill: bill._id,
+      requestedBy: req.user.id,
+      printerName: agent?.billPrinterName || "",
+      receiptText: buildBillReceiptText(bill),
+      status: "LOCAL",
+    };
+
+    const kotPrintJobs = bill.order?._id
+      ? await KotPrintJob.find({
+          restaurant: req.user.restaurant,
+          order: bill.order._id,
+        })
+          .sort({ createdAt: 1, cuisine: 1 })
+          .lean()
+      : [];
+
+    return sendSuccess(res, {
+      bill,
+      printJobs: [billPrintJob, ...kotPrintJobs],
+    });
+  } catch (err) {
+    console.error(err);
+    return sendError(res, err.message);
+  }
 };
 
 const getAuthorizedRestaurantIds = async (req) => {
@@ -1335,6 +1407,14 @@ const customizeBill = async (req, res) => {
 
     await bill.save();
     const printJob = await queueBillPrintJob(bill._id, req.user.id);
+    const kotPrintJobs = bill.order?._id
+      ? await KotPrintJob.find({
+          restaurant: req.user.restaurant,
+          order: bill.order._id,
+        })
+          .sort({ createdAt: 1, cuisine: 1 })
+          .lean()
+      : [];
 
     const sendToEmail = Boolean(req.body.sendToEmail);
     const sendToPhone = Boolean(req.body.sendToPhone);
@@ -1419,6 +1499,7 @@ const customizeBill = async (req, res) => {
     return sendSuccess(res, {
       bill,
       printJob,
+      kotPrintJobs,
       deliveryMessage,
       delivery,
     });
@@ -1833,6 +1914,7 @@ export default {
   exportBillingHistoryExcel,
   createManualBill,
   customizeBill,
+  getBillPrintBundle,
   markPaid,
   generateBillPDF,
   generatePublicBillPDF,

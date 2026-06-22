@@ -166,6 +166,7 @@ const defaultBillingTemplate = {
   cgstRate: 2.5,
   sgstRate: 2.5,
   paymentMethods: ["CASH", "CARD", "UPI"],
+  kotCopyCount: 1,
 };
 const maxLogoDataLength = 1000000;
 const defaultPaymentMethods = ["CASH", "CARD", "UPI"];
@@ -201,6 +202,14 @@ const normalizeBillingNumber = (value, fallback = 1) => {
   return normalized > 0 ? normalized : fallback;
 };
 
+const sanitizeKotCopyCount = (value, fallback = 1) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+
+  const normalized = Math.floor(parsed);
+  return Math.min(Math.max(normalized, 1), 10);
+};
+
 const sanitizeBillingTemplate = (payload = {}) => {
   const text = (value, max) => String(value || "").trim().slice(0, max);
   const color = (value, fallback) => {
@@ -225,6 +234,10 @@ const sanitizeBillingTemplate = (payload = {}) => {
     cgstRate: sanitizeRate(payload.cgstRate, defaultBillingTemplate.cgstRate),
     sgstRate: sanitizeRate(payload.sgstRate, defaultBillingTemplate.sgstRate),
     paymentMethods: sanitizePaymentMethods(payload.paymentMethods),
+    kotCopyCount: sanitizeKotCopyCount(
+      payload.kotCopyCount,
+      defaultBillingTemplate.kotCopyCount
+    ),
   };
 };
 

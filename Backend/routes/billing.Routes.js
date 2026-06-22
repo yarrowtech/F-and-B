@@ -93,6 +93,13 @@ router.post(
   billingController.customizeBill
 );
 
+router.get(
+  "/:id/print-bundle",
+  auth,
+  allowRoles("accountant"),
+  billingController.getBillPrintBundle
+);
+
 router.post(
   "/:id/pay",
   auth,

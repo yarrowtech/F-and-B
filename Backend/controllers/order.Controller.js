@@ -1177,6 +1177,40 @@ const getTaxRate = (value, fallback = 2.5) => {
   return Number.isFinite(rate) && rate >= 0 && rate <= 100 ? rate : fallback;
 };
 
+const getKotCopyCount = (value, fallback = 1) => {
+  const count = Math.floor(Number(value));
+  return Number.isFinite(count) ? Math.min(Math.max(count, 1), 10) : fallback;
+};
+
+const ESC_POS_PARTIAL_CUT = "\x1D\x56\x42\x00";
+
+const kotCopyHeader = (copyNumber, copyCount) =>
+  `${kotCenter(`COPY ${copyNumber} OF ${copyCount}`)}\n${kotLine()}\n`;
+
+const kotCopySeparator = () =>
+  `\n${kotLine()}\n${kotCenter("CUT HERE")}\n${kotLine()}\n\n\n${ESC_POS_PARTIAL_CUT}\f`;
+
+const repeatKotReceiptText = (receiptText, copyCount = 1) => {
+  const count = getKotCopyCount(copyCount);
+  if (count === 1) return receiptText;
+
+  return Array.from({ length: count }, (_, index) => {
+    const copyNumber = index + 1;
+    const copyText = `${kotCopyHeader(copyNumber, count)}${receiptText}`;
+    return index < count - 1 ? `${copyText}${kotCopySeparator()}` : copyText;
+  }).join("");
+};
+
+const getRestaurantKotCopyCount = async (restaurantId, session = null) => {
+  const query = Restaurant.findById(restaurantId)
+    .select("billingTemplate.kotCopyCount")
+    .lean();
+  if (session) query.session(session);
+
+  const restaurant = await query;
+  return getKotCopyCount(restaurant?.billingTemplate?.kotCopyCount);
+};
+
 const calculateOrderBillTotals = (order, billingTemplate = {}) => {
   const itemsTotal = (order.items || [])
     .filter((item) => item.status !== "CANCELLED")
@@ -1383,7 +1417,7 @@ const formatKotDateTime = (value) =>
 
 const KOT_WIDTH = 32;
 const appendKotFeed = (text, extraLines = 9) =>
-  `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 3))}\f`;
+  `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 3))}${ESC_POS_PARTIAL_CUT}\f`;
 const kotText = (value) => String(value || "").trim();
 const kotLine = (char = "-") => char.repeat(KOT_WIDTH);
 const kotCenter = (value) => {
@@ -1485,6 +1519,7 @@ const groupKotItemsByCuisine = (order) => {
 const createKotPrintJobs = async ({ order, session }) => {
   const printedAt = order.kot?.printedAt || new Date();
   const restaurantId = order.restaurant?._id || order.restaurant;
+  const kotCopyCount = await getRestaurantKotCopyCount(restaurantId, session);
   const groups = groupKotItemsByCuisine(order);
   const jobs = [];
 
@@ -1498,6 +1533,7 @@ const createKotPrintJobs = async ({ order, session }) => {
       tableNumber: order.table?.tableNumber || "",
       waiterName: order.waiter?.name || "",
       cuisine: group.cuisine,
+      copyCount: kotCopyCount,
       printedAt,
       items: group.items.map((item) => ({
         name: item.menuItem?.name || "Menu Item",
@@ -1513,6 +1549,7 @@ const createKotPrintJobs = async ({ order, session }) => {
       kotNo,
       printedAt,
     });
+    const receiptTextWithCopies = repeatKotReceiptText(receiptText, kotCopyCount);
 
     const job = await KotPrintJob.findOneAndUpdate(
       { order: order._id, cuisine: group.cuisine },
@@ -1524,7 +1561,7 @@ const createKotPrintJobs = async ({ order, session }) => {
           cuisine: group.cuisine,
           printerName: getKotPrinterName(group.cuisine),
           payload,
-          receiptText,
+          receiptText: receiptTextWithCopies,
           status: "PENDING",
           printedAt: null,
           lastError: "",
