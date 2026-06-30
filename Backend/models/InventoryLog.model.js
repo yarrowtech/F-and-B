@@ -33,6 +33,12 @@ const inventoryLogSchema = new mongoose.Schema(
       enum: ["ADD", "UPDATE", "DELETE"],
       default: "ADD",
     },
+
+    effectiveDate: {
+      type: Date,
+      default: Date.now,
+      index: true,
+    },
   },
   { timestamps: true }
 );

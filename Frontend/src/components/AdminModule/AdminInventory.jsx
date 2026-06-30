@@ -9,9 +9,13 @@ import {
   getInventoryCategories,
   addInventoryCategory,
   downloadInventoryDayWiseExcel,
+  getStockApprovalRequests,
+  approveStockApprovalRequest,
+  rejectStockApprovalRequest,
 } from "../../services/inventory.service";
 import { FaFileExcel } from "react-icons/fa";
 import { getRestaurants } from "../../services/restaurant.service";
+import StockApprovalNotice from "../common/StockApprovalNotice";
 
 /* ─────────────────────────────────────
    CONSTANTS
@@ -30,6 +34,19 @@ const emptyForm = {
 
 const inputCls = "w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700/60 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition";
 const formatQuantity = (value) => Number(value || 0).toFixed(3);
+const getTodayInputDate = () => {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
+};
+const isLateStockLog = (log) => {
+  if (!log.effectiveDate || !log.createdAt) return false;
+  const effective = new Date(log.effectiveDate);
+  const entry = new Date(log.createdAt);
+  effective.setHours(0, 0, 0, 0);
+  entry.setHours(0, 0, 0, 0);
+  return entry > effective;
+};
 
 /* ─────────────────────────────────────
    FIELD HELPER
@@ -135,10 +152,12 @@ function SummaryCard({ label, value, hint, tone = "slate" }) {
   };
 
   return (
-    <div className={`rounded-2xl border p-4 ${toneMap[tone] || toneMap.slate}`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.18em]">{label}</p>
-      <p className="mt-3 text-2xl font-bold">{value}</p>
-      {hint ? <p className="mt-1 text-sm opacity-80">{hint}</p> : null}
+    <div className={`rounded-xl border px-4 py-3 ${toneMap[tone] || toneMap.slate}`}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em]">{label}</p>
+        <p className="text-xl font-bold">{value}</p>
+      </div>
+      {hint ? <p className="mt-1 text-xs opacity-80">{hint}</p> : null}
     </div>
   );
 }
@@ -146,7 +165,7 @@ function SummaryCard({ label, value, hint, tone = "slate" }) {
 /* ═════════════════════════════════════
    MAIN COMPONENT
 ═════════════════════════════════════ */
-const AdminInventory = () => {
+const AdminInventory = ({ onPendingApprovalCountChange }) => {
   const [restaurants, setRestaurants]         = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState("");
 
@@ -176,6 +195,10 @@ const AdminInventory = () => {
   const [stockTarget, setStockTarget]             = useState(null);
   const [stockMode, setStockMode]                 = useState("set");
   const [stockQty, setStockQty]                   = useState("");
+  const [stockDate, setStockDate]                 = useState(getTodayInputDate);
+  const [stockApprovals, setStockApprovals]       = useState([]);
+  const [approvalLoading, setApprovalLoading]     = useState(false);
+  const [approvalNotice, setApprovalNotice]       = useState("");
   const [form, setForm]                           = useState(emptyForm);
 
   const resolveUnit = (f) => f.unit === "__custom__" ? f.unitCustom.trim() : f.unit;
@@ -197,8 +220,10 @@ const AdminInventory = () => {
     if (selectedRestaurant) {
       loadInventory(selectedRestaurant);
       loadCategories(selectedRestaurant);
+      loadStockApprovals(selectedRestaurant);
       setLogs([]); setLogsItemName(""); setSearch(""); setCategoryFilter("all");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRestaurant]);
 
   const loadInventory = async (rId) => {
@@ -295,7 +320,55 @@ const AdminInventory = () => {
     setStockTarget(item);
     setStockMode("set");
     setStockQty(String(Number(item.quantity || 0)));
+    setStockDate(getTodayInputDate());
     setShowAddStockModal(true);
+  };
+
+  const loadStockApprovals = async (rId = selectedRestaurant) => {
+    if (!rId) return;
+    try {
+      setApprovalLoading(true);
+      const data = await getStockApprovalRequests({ restaurantId: rId });
+      const approvals = Array.isArray(data) ? data : [];
+      setStockApprovals(approvals);
+      onPendingApprovalCountChange?.(approvals.length);
+    } catch {
+      alert("Failed to load stock approvals");
+    } finally {
+      setApprovalLoading(false);
+    }
+  };
+
+  const handleApproveStockApproval = async (approvalId) => {
+    try {
+      setSubmitting(true);
+      const result = await approveStockApprovalRequest(approvalId, selectedRestaurant);
+      if (result?.item) {
+        setInventory((p) => p.map((i) => i._id === result.item._id ? result.item : i));
+      }
+      await loadStockApprovals();
+      await loadInventory(selectedRestaurant);
+    } catch (err) {
+      alert(err?.response?.data?.message || "Failed to approve stock request");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRejectStockApproval = async (approvalId) => {
+    try {
+      setSubmitting(true);
+      await rejectStockApprovalRequest(approvalId, "", selectedRestaurant);
+      setStockApprovals((p) => {
+        const next = p.filter((approval) => approval._id !== approvalId);
+        onPendingApprovalCountChange?.(next.length);
+        return next;
+      });
+    } catch (err) {
+      alert(err?.response?.data?.message || "Failed to reject stock request");
+    } finally {
+      setSubmitting(false);
+    }
   };
   const handleAddStock = async (e) => {
     e.preventDefault();
@@ -308,14 +381,26 @@ const AdminInventory = () => {
     if (stockMode === "set" && Number(stockQty) < 0) {
       return alert("Stock quantity cannot be negative");
     }
+    if (!stockDate) {
+      return alert("Select an effective date");
+    }
+    if (stockDate > getTodayInputDate()) {
+      return alert("Future stock dates are not allowed");
+    }
     try {
       setSubmitting(true);
       const updated =
         stockMode === "add"
-          ? await addStock(selectedRestaurant, stockTarget._id, Number(stockQty))
+          ? await addStock(selectedRestaurant, stockTarget._id, Number(stockQty), stockDate)
           : await updateInventoryItem(selectedRestaurant, stockTarget._id, {
               quantity: Number(stockQty),
+              effectiveDate: stockDate,
             });
+      if (updated?.pendingApproval) {
+        setApprovalNotice("Backdated stock change sent for admin approval");
+        setShowAddStockModal(false); setStockTarget(null);
+        return;
+      }
       if (updated) { setInventory((p) => p.map((i) => i._id === stockTarget._id ? updated : i)); await refreshLogsIfOpen(stockTarget._id); }
       setShowAddStockModal(false); setStockTarget(null);
     } catch (err) { alert(err?.response?.data?.message || "Stock update failed"); }
@@ -350,8 +435,6 @@ const AdminInventory = () => {
   const totalItems = inventory.length;
   const lowCount   = inventory.filter((i) => i.quantity <= i.lowStockThreshold).length;
   const okCount    = totalItems - lowCount;
-  const selectedRestaurantName = restaurants.find((r) => r._id === selectedRestaurant)?.name || "";
-
   const catProps = {
     allCategories: categories, customValue: catCustom,
     onChange: (v) => { setForm((f) => ({ ...f, category: v })); if (v !== "__new__") setCatCustom(""); },
@@ -360,19 +443,15 @@ const AdminInventory = () => {
   const categoryOptions = ["all", ...new Set(inventory.map((item) => item.category || "Uncategorized"))];
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 dark:bg-gray-900 sm:p-4 lg:p-6">
-      <div className="max-w-7xl mx-auto space-y-5">
+    <div className="min-h-screen bg-gray-50 p-2 dark:bg-gray-900 sm:p-4 2xl:p-5">
+      <div className="max-w-7xl mx-auto space-y-3">
 
         {/* HEADER */}
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white sm:text-3xl">Inventory Management</h1>
-            {selectedRestaurantName && <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">{selectedRestaurantName}</p>}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto] lg:flex lg:items-center lg:flex-wrap">
+        <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100 dark:bg-gray-800 dark:ring-gray-700 sm:p-4">
+          <div className="grid gap-2 sm:grid-cols-[minmax(180px,1fr)_repeat(4,auto)] sm:items-center">
             {/* restaurant selector */}
             <select value={selectedRestaurant} onChange={(e) => setSelectedRestaurant(e.target.value)}
-              className="min-h-11 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm transition focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white sm:w-auto">
+              className="min-h-10 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
               <option value="">— Select Restaurant —</option>
               {restaurants.map((r) => <option key={r._id} value={r._id}>{r.name}</option>)}
             </select>
@@ -383,24 +462,24 @@ const AdminInventory = () => {
                   value={exportFrom}
                   onChange={(e) => setExportFrom(e.target.value)}
                   aria-label="Export from date"
-                  className="min-h-11 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  className="min-h-10 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 />
                 <input
                   type="date"
                   value={exportTo}
                   onChange={(e) => setExportTo(e.target.value)}
                   aria-label="Export to date"
-                  className="min-h-11 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  className="min-h-10 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 />
                 <button
                   onClick={handleDownloadDayWiseExcel}
                   disabled={exporting}
-                  className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition-all hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200"
+                  className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition-all hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200"
                 >
                   <FaFileExcel /> {exporting ? "Downloading..." : "Excel"}
                 </button>
                 <button onClick={openAddModal}
-                  className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-green-200 transition-all hover:-translate-y-0.5 hover:bg-green-700 dark:shadow-green-900/30">
+                  className="flex min-h-10 items-center justify-center gap-2 rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-green-200 transition-all hover:bg-green-700 dark:shadow-green-900/30">
                   <span className="text-lg leading-none">+</span> Add Item
                 </button>
               </>
@@ -409,23 +488,90 @@ const AdminInventory = () => {
         </div>
 
         {selectedRestaurant && (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <SummaryCard label="Selected Restaurant" value={selectedRestaurantName || "Restaurant"} hint="Current inventory workspace" />
-            <SummaryCard label="In Stock" value={okCount} hint={`${totalItems} total items`} tone="emerald" />
-            <SummaryCard label="Low Stock" value={lowCount} hint="Needs restock attention" tone="rose" />
+          <div className="grid gap-2 xl:grid-cols-[minmax(360px,0.8fr)_minmax(420px,1.2fr)] xl:items-start">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <SummaryCard label="In Stock" value={okCount} hint={`${totalItems} total items`} tone="emerald" />
+              <SummaryCard label="Low Stock" value={lowCount} hint="Needs restock attention" tone="rose" />
+            </div>
+
+            <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100 dark:bg-gray-800 dark:ring-gray-700">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-gray-800 dark:text-white">Pending Stock Approvals</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">Backdated stock changes waiting for admin review</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => loadStockApprovals()}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {approvalLoading ? (
+                <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">Loading approvals...</p>
+              ) : stockApprovals.length === 0 ? (
+                <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">No pending stock approvals.</p>
+              ) : (
+                <div className="mt-2 grid max-h-44 gap-2 overflow-y-auto pr-1">
+                  {stockApprovals.map((approval) => (
+                    <div
+                      key={approval._id}
+                      className="grid gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 dark:border-amber-900/50 dark:bg-amber-950/30 md:grid-cols-[1fr_auto]"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-bold text-gray-900 dark:text-white">
+                            {approval.item?.name || approval.itemName || "Inventory item"}
+                          </span>
+                          <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:bg-gray-800 dark:text-amber-300">
+                            {approval.mode === "ADD" ? "Add Stock" : "Set Current Stock"}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                          {approval.requestedQuantity} {approval.unit || approval.item?.unit || ""} for {new Date(approval.effectiveDate).toLocaleDateString()}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                          Requested by {approval.requestedByName || approval.requestedBy?.name || "Staff"} on {new Date(approval.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 md:flex md:items-center">
+                        <button
+                          type="button"
+                          disabled={submitting}
+                          onClick={() => handleApproveStockApproval(approval._id)}
+                          className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          disabled={submitting}
+                          onClick={() => handleRejectStockApproval(approval._id)}
+                          className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60 dark:border-rose-900/50 dark:bg-gray-800 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {/* STATUS PILLS */}
         {selectedRestaurant && !loading && (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2">
             {[
-              { key: "all", label: `All Items · ${totalItems}`, active: "bg-gray-800 dark:bg-white text-white dark:text-gray-900 border-transparent shadow", inactive: "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700" },
-              { key: "ok",  label: `In Stock · ${okCount}`,     active: "bg-emerald-600 text-white border-transparent shadow", inactive: "bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50" },
-              { key: "low", label: `Low Stock · ${lowCount}`,   active: "bg-rose-600 text-white border-transparent shadow",    inactive: "bg-white dark:bg-gray-800 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50" },
+              { key: "all", label: `All · ${totalItems}`, active: "bg-gray-800 dark:bg-white text-white dark:text-gray-900 border-transparent shadow", inactive: "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700" },
+              { key: "ok", label: `Stock · ${okCount}`, active: "bg-emerald-600 text-white border-transparent shadow", inactive: "bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50" },
+              { key: "low", label: `Low · ${lowCount}`, active: "bg-rose-600 text-white border-transparent shadow", inactive: "bg-white dark:bg-gray-800 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50" },
             ].map(({ key, label, active, inactive }) => (
               <button key={key} onClick={() => setStatusFilter(key)}
-                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-all ${statusFilter === key ? active : inactive}`}>
+                className={`min-h-10 rounded-lg border px-2 py-2 text-xs font-semibold transition-all sm:text-sm ${statusFilter === key ? active : inactive}`}>
                 {label}
               </button>
             ))}
@@ -441,14 +587,14 @@ const AdminInventory = () => {
         )}
 
         {selectedRestaurant && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
             {/* search bar */}
-            <div className="grid gap-3 border-b border-gray-100 px-4 py-4 dark:border-gray-700 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:px-5">
-              <div className="relative w-full flex-1 min-w-0 sm:min-w-[200px] sm:max-w-sm">
+            <div className="grid gap-2 border-b border-gray-100 px-3 py-3 dark:border-gray-700 md:grid-cols-[minmax(220px,420px)_220px_1fr] md:items-center sm:px-4">
+              <div className="relative w-full flex-1 min-w-0">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 select-none">🔍</span>
                 <input type="text" placeholder="Search by name or category…" value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-9 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700/60 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition" />
+                  className="w-full pl-9 pr-9 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/60 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition" />
                 {search && (
                   <button onClick={() => setSearch("")}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
@@ -457,7 +603,7 @@ const AdminInventory = () => {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full px-4 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 transition sm:w-auto sm:min-w-[180px]"
+                className="w-full px-4 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 transition"
               >
                 {categoryOptions.map((category) => (
                   <option key={category} value={category}>
@@ -472,10 +618,10 @@ const AdminInventory = () => {
 
             {loading ? (
               <div className="overflow-x-auto">
-                <table className="min-w-[860px] w-full">
+                <table className="min-w-[760px] w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
                     <tr>{["#","Item","Category","Unit","Qty","Low Stock","Status","Actions"].map((h) => (
-                      <th key={h} className={`px-4 py-3.5 font-semibold ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
+                      <th key={h} className={`px-3 py-2.5 font-semibold ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
                     ))}</tr>
                   </thead>
                   <tbody>{[...Array(5)].map((_, i) => <SkeletonRow key={i} />)}</tbody>
@@ -491,13 +637,13 @@ const AdminInventory = () => {
               </div>
             ) : (
               <>
-              <div className="grid gap-3 p-3 md:hidden">
+              <div className="grid gap-2 p-3 md:hidden">
                 {filtered.map((item) => {
                   const isLow = item.quantity <= item.lowStockThreshold;
                   return (
                     <article
                       key={item._id}
-                      className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                      className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -513,7 +659,7 @@ const AdminInventory = () => {
                           : <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">OK</span>}
                       </div>
 
-                      <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-gray-50 p-3 text-center dark:bg-gray-900/40">
+                      <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-2.5 text-center dark:bg-gray-900/40">
                         <div>
                           <p className="text-xs text-gray-400">Qty</p>
                           <p className={`mt-1 text-sm font-bold ${isLow ? "text-rose-600 dark:text-rose-400" : "text-gray-900 dark:text-white"}`}>
@@ -530,11 +676,11 @@ const AdminInventory = () => {
                         </div>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-2 gap-2">
-                        <button onClick={() => openAddStockModal(item)} className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">Stock</button>
-                        <button onClick={() => viewLogs(item)} className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">Logs</button>
-                        <button onClick={() => openEditModal(item)} className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">Edit</button>
-                        <button onClick={() => setDeleteTarget(item)} className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 dark:bg-rose-900/20 dark:text-rose-400">Delete</button>
+                      <div className="mt-3 grid grid-cols-4 gap-1.5 min-[420px]:gap-2">
+                        <button onClick={() => openAddStockModal(item)} className="min-h-9 rounded-lg bg-emerald-50 px-1.5 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">Stock</button>
+                        <button onClick={() => viewLogs(item)} className="min-h-9 rounded-lg bg-blue-50 px-1.5 py-2 text-xs font-semibold text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">Logs</button>
+                        <button onClick={() => openEditModal(item)} className="min-h-9 rounded-lg bg-amber-50 px-1.5 py-2 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">Edit</button>
+                        <button onClick={() => setDeleteTarget(item)} className="min-h-9 rounded-lg bg-rose-50 px-1.5 py-2 text-xs font-semibold text-rose-600 dark:bg-rose-900/20 dark:text-rose-400">Delete</button>
                       </div>
                     </article>
                   );
@@ -542,10 +688,10 @@ const AdminInventory = () => {
               </div>
 
               <div className="hidden overflow-x-auto md:block">
-                <table className="min-w-[860px] w-full">
+                <table className="min-w-[760px] w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
                     <tr>{["#","Item","Category","Unit","Qty","Low Stock","Status","Actions"].map((h) => (
-                      <th key={h} className={`px-4 py-3.5 font-semibold ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
+                      <th key={h} className={`px-3 py-2.5 font-semibold ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
                     ))}</tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
@@ -553,24 +699,24 @@ const AdminInventory = () => {
                       const isLow = item.quantity <= item.lowStockThreshold;
                       return (
                         <tr key={item._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                          <td className="px-4 py-3.5 text-xs text-gray-400 dark:text-gray-500 font-mono">{idx + 1}</td>
-                          <td className="px-4 py-3.5 font-semibold text-gray-800 dark:text-gray-100 text-sm">{item.name}</td>
-                          <td className="px-4 py-3.5">
+                          <td className="px-3 py-2.5 text-xs text-gray-400 dark:text-gray-500 font-mono">{idx + 1}</td>
+                          <td className="px-3 py-2.5 font-semibold text-gray-800 dark:text-gray-100 text-sm">{item.name}</td>
+                          <td className="px-3 py-2.5">
                             {item.category
                               ? <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/40">{item.category}</span>
                               : <span className="text-xs text-gray-300 dark:text-gray-600">—</span>}
                           </td>
-                          <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{item.unit}</td>
-                          <td className="px-4 py-3.5">
+                          <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">{item.unit}</td>
+                          <td className="px-3 py-2.5">
                             <span className={`text-sm font-bold ${isLow ? "text-rose-600 dark:text-rose-400" : "text-gray-800 dark:text-gray-100"}`}>{formatQuantity(item.quantity)}</span>
                           </td>
-                          <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{formatQuantity(item.lowStockThreshold)}</td>
-                          <td className="px-4 py-3.5">
+                          <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">{formatQuantity(item.lowStockThreshold)}</td>
+                          <td className="px-3 py-2.5">
                             {isLow
                               ? <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">⚠ Low</span>
                               : <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">✓ OK</span>}
                           </td>
-                          <td className="px-4 py-3.5 text-right">
+                          <td className="px-3 py-2.5 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               {[
                                 { label: "Stock", fn: () => openAddStockModal(item), cls: "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40" },
@@ -579,7 +725,7 @@ const AdminInventory = () => {
                                 { label: "Delete",  fn: () => setDeleteTarget(item),   cls: "bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/40" },
                               ].map(({ label, fn, cls }) => (
                                 <button key={label} onClick={fn}
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${cls}`}>{label}</button>
+                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${cls}`}>{label}</button>
                               ))}
                             </div>
                           </td>
@@ -607,15 +753,18 @@ const AdminInventory = () => {
                 const meta = log.action === "ADD" ? { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", label: "ADD" } :
                   log.action === "UPDATE" ? { bg: "bg-amber-100 dark:bg-amber-900/30", text: "text-amber-700 dark:text-amber-400", label: "EDIT" } :
                     { bg: "bg-rose-100 dark:bg-rose-900/30", text: "text-rose-700 dark:text-rose-400", label: "DELETE" };
+                const late = isLateStockLog(log);
                 return (
                   <div key={log._id} className="flex items-center justify-between gap-3 bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3">
                     <div className="flex items-center gap-3">
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${meta.bg} ${meta.text}`}>{meta.label}</span>
+                      {late && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-bold text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">Late entry</span>}
                       <span className="text-sm font-bold text-gray-800 dark:text-gray-100">{log.quantityAdded > 0 ? "+" : ""}{formatQuantity(log.quantityAdded)} {log.unit}</span>
                     </div>
                     <div className="text-right text-xs text-gray-400 dark:text-gray-500 shrink-0">
                       <p className="font-semibold text-gray-600 dark:text-gray-300">{log.addedByName || log.addedBy?.name || "Unknown"}</p>
-                      <p>{new Date(log.createdAt).toLocaleString()}</p>
+                      <p>For {new Date(log.effectiveDate || log.createdAt).toLocaleDateString()}</p>
+                      <p>Entry {new Date(log.createdAt).toLocaleString()}</p>
                     </div>
                   </div>
                 );
@@ -703,6 +852,7 @@ const AdminInventory = () => {
               </button>
             </div>
             <Field label={stockMode === "add" ? `Quantity to Add (${stockTarget.unit})` : `Current Stock Quantity (${stockTarget.unit})`}><input type="number" min="0" step="any" placeholder={stockMode === "add" ? "e.g. 20" : "e.g. 85"} value={stockQty} onChange={(e) => setStockQty(e.target.value)} required autoFocus className={inputCls} /></Field>
+            <Field label="Effective Date"><input type="date" value={stockDate} max={getTodayInputDate()} onChange={(e) => setStockDate(e.target.value)} required className={inputCls} /></Field>
             {stockMode === "set" && (
               <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 This will manually set the total stock to the entered quantity.
@@ -738,6 +888,11 @@ const AdminInventory = () => {
           </div>
         </Modal>
       )}
+
+      <StockApprovalNotice
+        message={approvalNotice}
+        onClose={() => setApprovalNotice("")}
+      />
     </div>
   );
 };

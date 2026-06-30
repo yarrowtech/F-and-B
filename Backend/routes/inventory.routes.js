@@ -14,6 +14,9 @@ import {
   getInventoryCategories,
   addInventoryCategory,
   exportInventoryDayWiseExcel,
+  getStockApprovalRequests,
+  approveStockApprovalRequest,
+  rejectStockApprovalRequest,
 } from "../controllers/inventory.controller.js";
 
 const router = express.Router();
@@ -69,6 +72,31 @@ router.get(
   auth,
   allowRoles("admin", "manager", "inventory_manager"),
   getItemLogs
+);
+
+/* ================= STOCK APPROVALS ================= */
+/* GET /api/inventory/stock-approvals?restaurantId=... */
+router.get(
+  "/stock-approvals",
+  auth,
+  allowRoles("admin"),
+  getStockApprovalRequests
+);
+
+/* PUT /api/inventory/stock-approvals/:id/approve */
+router.put(
+  "/stock-approvals/:id/approve",
+  auth,
+  allowRoles("admin"),
+  approveStockApprovalRequest
+);
+
+/* PUT /api/inventory/stock-approvals/:id/reject */
+router.put(
+  "/stock-approvals/:id/reject",
+  auth,
+  allowRoles("admin"),
+  rejectStockApprovalRequest
 );
 
 /* ================= CREATE ================= */

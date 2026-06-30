@@ -21,6 +21,7 @@ const Sidebar = ({
   mobileOpen,
   onMobileClose,
   showMobileTopBar = true,
+  inventoryPendingCount = 0,
 }) => {
   const navigate = useNavigate();
 
@@ -120,6 +121,7 @@ const Sidebar = ({
         <nav className="flex-1 p-4 overflow-y-auto">
           {menuItems.map(({ name, icon: Icon, key }) => {
             const isActive = active === key;
+            const badgeCount = key === "inventory" ? inventoryPendingCount : 0;
             const icon = React.createElement(Icon, { className: "text-lg" });
             return (
               <button
@@ -135,7 +137,12 @@ const Sidebar = ({
                   }`}
               >
                 {icon}
-                <span>{name}</span>
+                <span className="min-w-0 flex-1 text-left">{name}</span>
+                {badgeCount > 0 && (
+                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold leading-none text-white shadow">
+                    {badgeCount > 99 ? "99+" : badgeCount}
+                  </span>
+                )}
               </button>
             );
           })}

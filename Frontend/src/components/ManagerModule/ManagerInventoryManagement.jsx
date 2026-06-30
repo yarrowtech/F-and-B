@@ -12,6 +12,7 @@ import {
   addInventoryCategory,
   downloadInventoryDayWiseExcel,
 } from "../../services/inventory.service";
+import StockApprovalNotice from "../common/StockApprovalNotice";
 
 /* ─────────────────────────────────────
    CONSTANTS
@@ -30,6 +31,19 @@ const emptyForm = {
 
 const inputCls = "min-h-11 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500";
 const formatQuantity = (value) => Number(value || 0).toFixed(3);
+const getTodayInputDate = () => {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
+};
+const isLateStockLog = (log) => {
+  if (!log.effectiveDate || !log.createdAt) return false;
+  const effective = new Date(log.effectiveDate);
+  const entry = new Date(log.createdAt);
+  effective.setHours(0, 0, 0, 0);
+  entry.setHours(0, 0, 0, 0);
+  return entry > effective;
+};
 
 /* ─────────────────────────────────────
    FIELD HELPER
@@ -136,10 +150,12 @@ function SummaryCard({ label, value, hint, tone = "slate" }) {
   };
 
   return (
-    <div className={`rounded-2xl border p-4 shadow-sm ${toneMap[tone] || toneMap.slate}`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.18em]">{label}</p>
-      <p className="mt-3 text-2xl font-bold">{value}</p>
-      {hint ? <p className="mt-1 text-sm opacity-80">{hint}</p> : null}
+    <div className={`rounded-xl border px-4 py-3 shadow-sm ${toneMap[tone] || toneMap.slate}`}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em]">{label}</p>
+        <p className="text-xl font-bold">{value}</p>
+      </div>
+      {hint ? <p className="mt-1 text-xs opacity-80">{hint}</p> : null}
     </div>
   );
 }
@@ -152,10 +168,12 @@ function InventoryActionButton({ label, icon, onClick, className }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${className}`}
+      aria-label={label}
+      title={label}
+      className={`flex min-h-9 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${className}`}
     >
       {icon}
-      <span>{label}</span>
+      <span className="hidden min-[420px]:inline">{label}</span>
     </button>
   );
 }
@@ -163,7 +181,6 @@ function InventoryActionButton({ label, icon, onClick, className }) {
 const ManagerInventory = () => {
   const user           = JSON.parse(localStorage.getItem("user") || "{}");
   const restaurantId   = user?.restaurant || "";
-  const restaurantName = user?.restaurantName || "";
 
   const [inventory, setInventory]         = useState([]);
   const [categories, setCategories]       = useState([]);
@@ -191,6 +208,8 @@ const ManagerInventory = () => {
   const [stockTarget, setStockTarget]             = useState(null);
   const [stockMode, setStockMode]                 = useState("set");
   const [stockQty, setStockQty]                   = useState("");
+  const [stockDate, setStockDate]                 = useState(getTodayInputDate);
+  const [approvalNotice, setApprovalNotice]       = useState("");
   const [form, setForm]                           = useState(emptyForm);
 
   const resolveUnit = (f) => f.unit === "__custom__" ? f.unitCustom.trim() : f.unit;
@@ -293,6 +312,7 @@ const ManagerInventory = () => {
     setStockTarget(item);
     setStockMode("set");
     setStockQty(String(Number(item.quantity || 0)));
+    setStockDate(getTodayInputDate());
     setShowAddStockModal(true);
   };
   const handleAddStock = async (e) => {
@@ -306,14 +326,26 @@ const ManagerInventory = () => {
     if (stockMode === "set" && Number(stockQty) < 0) {
       return alert("Stock quantity cannot be negative");
     }
+    if (!stockDate) {
+      return alert("Select an effective date");
+    }
+    if (stockDate > getTodayInputDate()) {
+      return alert("Future stock dates are not allowed");
+    }
     try {
       setSubmitting(true);
       const updated =
         stockMode === "add"
-          ? await addStock(restaurantId, stockTarget._id, Number(stockQty))
+          ? await addStock(restaurantId, stockTarget._id, Number(stockQty), stockDate)
           : await updateInventoryItem(restaurantId, stockTarget._id, {
               quantity: Number(stockQty),
+              effectiveDate: stockDate,
             });
+      if (updated?.pendingApproval) {
+        setApprovalNotice("Backdated stock change sent for admin approval");
+        setShowAddStockModal(false); setStockTarget(null);
+        return;
+      }
       if (updated) { setInventory((p) => p.map((i) => i._id === stockTarget._id ? updated : i)); await refreshLogsIfOpen(stockTarget._id); }
       setShowAddStockModal(false); setStockTarget(null);
     } catch (err) { alert(err?.response?.data?.message || "Stock update failed"); }
@@ -353,40 +385,36 @@ const ManagerInventory = () => {
   const categoryOptions = ["all", ...new Set(inventory.map((item) => item.category || "Uncategorized"))];
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 dark:bg-gray-900 sm:p-4 lg:p-6">
-      <div className="max-w-7xl mx-auto space-y-5">
+    <div className="min-h-screen bg-gray-50 p-2 dark:bg-gray-900 sm:p-4 2xl:p-5">
+      <div className="max-w-7xl mx-auto space-y-3">
 
         {/* HEADER */}
-        <div className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-100 dark:bg-gray-800 dark:ring-gray-700 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white sm:text-3xl">Inventory Management</h1>
-            {restaurantName && <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">{restaurantName}</p>}
-          </div>
+        <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100 dark:bg-gray-800 dark:ring-gray-700 sm:p-4">
           {restaurantId && (
-            <div className="grid gap-2 sm:grid-cols-[auto_auto_auto_auto] sm:items-center">
+            <div className="grid gap-2 sm:grid-cols-[minmax(136px,auto)_minmax(136px,auto)_auto_auto] sm:items-center sm:justify-end">
               <input
                 type="date"
                 value={exportFrom}
                 onChange={(e) => setExportFrom(e.target.value)}
                 aria-label="Export from date"
-                className="min-h-12 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                className="min-h-10 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               />
               <input
                 type="date"
                 value={exportTo}
                 onChange={(e) => setExportTo(e.target.value)}
                 aria-label="Export to date"
-                className="min-h-12 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                className="min-h-10 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               />
               <button
                 onClick={handleDownloadDayWiseExcel}
                 disabled={exporting}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200 sm:w-auto"
+                className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200 sm:w-auto"
               >
                 <FileSpreadsheet size={18} /> {exporting ? "Downloading..." : "Excel"}
               </button>
               <button onClick={openAddModal}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-green-200 transition-all hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:shadow-green-900/30 dark:focus:ring-offset-gray-900 sm:w-auto">
+                className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-green-200 transition-all hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:shadow-green-900/30 dark:focus:ring-offset-gray-900 sm:w-auto">
                 <Plus size={18} /> Add Item
               </button>
             </div>
@@ -394,8 +422,7 @@ const ManagerInventory = () => {
         </div>
 
         {restaurantId && (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <SummaryCard label="Assigned Restaurant" value={restaurantName || "Restaurant"} hint="Current inventory workspace" />
+          <div className="grid gap-2 sm:grid-cols-2 xl:max-w-2xl">
             <SummaryCard label="In Stock" value={okCount} hint={`${totalItems} total items`} tone="emerald" />
             <SummaryCard label="Low Stock" value={lowCount} hint="Needs restock attention" tone="rose" />
           </div>
@@ -403,14 +430,14 @@ const ManagerInventory = () => {
 
         {/* STATUS PILLS */}
         {restaurantId && !loading && (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2">
             {[
-              { key: "all", label: `All Items · ${totalItems}`, active: "bg-gray-800 dark:bg-white text-white dark:text-gray-900 border-transparent shadow", inactive: "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700" },
-              { key: "ok",  label: `In Stock · ${okCount}`,     active: "bg-emerald-600 text-white border-transparent shadow", inactive: "bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50" },
-              { key: "low", label: `Low Stock · ${lowCount}`,   active: "bg-rose-600 text-white border-transparent shadow",    inactive: "bg-white dark:bg-gray-800 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50" },
+              { key: "all", label: `All · ${totalItems}`, active: "bg-gray-800 dark:bg-white text-white dark:text-gray-900 border-transparent shadow", inactive: "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700" },
+              { key: "ok", label: `Stock · ${okCount}`, active: "bg-emerald-600 text-white border-transparent shadow", inactive: "bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50" },
+              { key: "low", label: `Low · ${lowCount}`, active: "bg-rose-600 text-white border-transparent shadow", inactive: "bg-white dark:bg-gray-800 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/50" },
             ].map(({ key, label, active, inactive }) => (
               <button key={key} onClick={() => setStatusFilter(key)}
-                className={`min-h-12 rounded-xl border px-4 py-3 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${statusFilter === key ? active : inactive}`}>
+                className={`min-h-10 rounded-lg border px-2 py-2 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 sm:text-sm ${statusFilter === key ? active : inactive}`}>
                 {label}
               </button>
             ))}
@@ -425,14 +452,14 @@ const ManagerInventory = () => {
         )}
 
         {restaurantId && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
             {/* search bar */}
-            <div className="grid gap-3 border-b border-gray-100 px-4 py-4 dark:border-gray-700 md:flex md:items-center md:px-5">
-              <div className="relative w-full md:max-w-sm md:flex-1">
+            <div className="grid gap-2 border-b border-gray-100 px-3 py-3 dark:border-gray-700 sm:px-4 md:grid-cols-[minmax(220px,420px)_220px_1fr] md:items-center">
+              <div className="relative w-full">
                 <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input type="text" placeholder="Search by name or category…" value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="min-h-12 w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-10 pr-12 text-sm text-gray-900 placeholder-gray-400 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500" />
+                  className="min-h-10 w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-10 pr-12 text-sm text-gray-900 placeholder-gray-400 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500" />
                 {search && (
                   <button onClick={() => setSearch("")}
                     className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
@@ -442,7 +469,7 @@ const ManagerInventory = () => {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white md:w-auto md:min-w-[180px]"
+                className="min-h-10 w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-900 transition focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               >
                 {categoryOptions.map((category) => (
                   <option key={category} value={category}>
@@ -457,10 +484,10 @@ const ManagerInventory = () => {
 
             {loading ? (
               <div className="hidden overflow-x-auto md:block">
-                <table className="min-w-[860px] w-full">
+                <table className="min-w-[760px] w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
                     <tr>{["#","Item","Category","Unit","Qty","Low Stock","Status","Actions"].map((h) => (
-                      <th key={h} className={`px-4 py-3.5 font-semibold ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
+                      <th key={h} className={`px-3 py-2.5 font-semibold ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
                     ))}</tr>
                   </thead>
                   <tbody>{[...Array(5)].map((_, i) => <SkeletonRow key={i} />)}</tbody>
@@ -469,9 +496,9 @@ const ManagerInventory = () => {
             ) : null}
 
             {loading ? (
-              <div className="grid gap-3 p-3 md:hidden">
+              <div className="grid gap-2 p-3 md:hidden">
                 {[...Array(3)].map((_, index) => (
-                  <div key={index} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                  <div key={index} className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                     <div className="h-4 w-2/3 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
                     <div className="mt-4 grid grid-cols-3 gap-2">
                       {[...Array(3)].map((__, cell) => (
@@ -491,13 +518,13 @@ const ManagerInventory = () => {
               </div>
             ) : (
               <>
-              <div className="grid gap-3 p-3 md:hidden">
+              <div className="grid gap-2 p-3 md:hidden">
                 {filtered.map((item) => {
                   const isLow = item.quantity <= item.lowStockThreshold;
                   return (
                     <article
                       key={item._id}
-                      className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                      className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -513,7 +540,7 @@ const ManagerInventory = () => {
                           : <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">OK</span>}
                       </div>
 
-                      <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-gray-50 p-3 text-center dark:bg-gray-900/40">
+                      <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-2.5 text-center dark:bg-gray-900/40">
                         <div>
                           <p className="text-xs text-gray-400">Qty</p>
                           <p className={`mt-1 text-sm font-bold ${isLow ? "text-rose-600 dark:text-rose-400" : "text-gray-900 dark:text-white"}`}>
@@ -530,7 +557,7 @@ const ManagerInventory = () => {
                         </div>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-2 gap-2">
+                      <div className="mt-3 grid grid-cols-4 gap-1.5 min-[420px]:gap-2">
                         <InventoryActionButton label="Stock" icon={<PackagePlus size={16} />} onClick={() => openAddStockModal(item)} className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/40" />
                         <InventoryActionButton label="Logs" icon={<ClipboardList size={16} />} onClick={() => viewLogs(item)} className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40" />
                         <InventoryActionButton label="Edit" icon={<Pencil size={16} />} onClick={() => openEditModal(item)} className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/40" />
@@ -542,10 +569,10 @@ const ManagerInventory = () => {
               </div>
 
               <div className="hidden overflow-x-auto md:block">
-                <table className="min-w-[860px] w-full">
+                <table className="min-w-[760px] w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
                     <tr>{["#","Item","Category","Unit","Qty","Low Stock","Status","Actions"].map((h) => (
-                      <th key={h} className={`px-4 py-3.5 font-semibold ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
+                      <th key={h} className={`px-3 py-2.5 font-semibold ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
                     ))}</tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
@@ -553,24 +580,24 @@ const ManagerInventory = () => {
                       const isLow = item.quantity <= item.lowStockThreshold;
                       return (
                         <tr key={item._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                          <td className="px-4 py-3.5 text-xs text-gray-400 dark:text-gray-500 font-mono">{idx + 1}</td>
-                          <td className="px-4 py-3.5 font-semibold text-gray-800 dark:text-gray-100 text-sm">{item.name}</td>
-                          <td className="px-4 py-3.5">
+                          <td className="px-3 py-2.5 text-xs text-gray-400 dark:text-gray-500 font-mono">{idx + 1}</td>
+                          <td className="px-3 py-2.5 font-semibold text-gray-800 dark:text-gray-100 text-sm">{item.name}</td>
+                          <td className="px-3 py-2.5">
                             {item.category ? (
                               <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/40">{item.category}</span>
                             ) : <span className="text-xs text-gray-300 dark:text-gray-600">—</span>}
                           </td>
-                          <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{item.unit}</td>
-                          <td className="px-4 py-3.5">
+                          <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">{item.unit}</td>
+                          <td className="px-3 py-2.5">
                             <span className={`text-sm font-bold ${isLow ? "text-rose-600 dark:text-rose-400" : "text-gray-800 dark:text-gray-100"}`}>{formatQuantity(item.quantity)}</span>
                           </td>
-                          <td className="px-4 py-3.5 text-sm text-gray-500 dark:text-gray-400">{formatQuantity(item.lowStockThreshold)}</td>
-                          <td className="px-4 py-3.5">
+                          <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">{formatQuantity(item.lowStockThreshold)}</td>
+                          <td className="px-3 py-2.5">
                             {isLow
                               ? <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">⚠ Low</span>
                               : <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">✓ OK</span>}
                           </td>
-                          <td className="px-4 py-3.5 text-right">
+                          <td className="px-3 py-2.5 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               {[
                                 { label: "Stock", fn: () => openAddStockModal(item), cls: "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40" },
@@ -579,7 +606,7 @@ const ManagerInventory = () => {
                                 { label: "Delete",  fn: () => setDeleteTarget(item),   cls: "bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/40" },
                               ].map(({ label, fn, cls }) => (
                                 <button key={label} onClick={fn}
-                                  className={`min-h-10 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${cls}`}>{label}</button>
+                                  className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${cls}`}>{label}</button>
                               ))}
                             </div>
                           </td>
@@ -607,15 +634,18 @@ const ManagerInventory = () => {
                 const meta = log.action === "ADD" ? { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", label: "ADD" } :
                   log.action === "UPDATE" ? { bg: "bg-amber-100 dark:bg-amber-900/30", text: "text-amber-700 dark:text-amber-400", label: "EDIT" } :
                     { bg: "bg-rose-100 dark:bg-rose-900/30", text: "text-rose-700 dark:text-rose-400", label: "DELETE" };
+                const late = isLateStockLog(log);
                 return (
                   <div key={log._id} className="flex items-center justify-between gap-3 bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3">
                     <div className="flex items-center gap-3">
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${meta.bg} ${meta.text}`}>{meta.label}</span>
+                      {late && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-bold text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">Late entry</span>}
                       <span className="text-sm font-bold text-gray-800 dark:text-gray-100">{log.quantityAdded > 0 ? "+" : ""}{formatQuantity(log.quantityAdded)} {log.unit}</span>
                     </div>
                     <div className="text-right text-xs text-gray-400 dark:text-gray-500 shrink-0">
                       <p className="font-semibold text-gray-600 dark:text-gray-300">{log.addedByName || log.addedBy?.name || "Unknown"}</p>
-                      <p>{new Date(log.createdAt).toLocaleString()}</p>
+                      <p>For {new Date(log.effectiveDate || log.createdAt).toLocaleDateString()}</p>
+                      <p>Entry {new Date(log.createdAt).toLocaleString()}</p>
                     </div>
                   </div>
                 );
@@ -703,6 +733,7 @@ const ManagerInventory = () => {
               </button>
             </div>
             <Field label={stockMode === "add" ? `Quantity to Add (${stockTarget.unit})` : `Current Stock Quantity (${stockTarget.unit})`}><input type="number" min="0" step="any" placeholder={stockMode === "add" ? "e.g. 20" : "e.g. 85"} value={stockQty} onChange={(e) => setStockQty(e.target.value)} required autoFocus className={inputCls} /></Field>
+            <Field label="Effective Date"><input type="date" value={stockDate} max={getTodayInputDate()} onChange={(e) => setStockDate(e.target.value)} required className={inputCls} /></Field>
             {stockMode === "set" && (
               <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 This will manually set the total stock to the entered quantity.
@@ -738,6 +769,11 @@ const ManagerInventory = () => {
           </div>
         </Modal>
       )}
+
+      <StockApprovalNotice
+        message={approvalNotice}
+        onClose={() => setApprovalNotice("")}
+      />
     </div>
   );
 };

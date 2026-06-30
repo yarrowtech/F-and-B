@@ -450,6 +450,7 @@ const Admin = () => {
 
   /* ✅ RESTAURANT STATE */
   const [selectedRestaurantId, setSelectedRestaurantId] = useState(null);
+  const [inventoryPendingCount, setInventoryPendingCount] = useState(0);
 
   const mainRef = useRef(null);
 
@@ -514,7 +515,7 @@ const Admin = () => {
         return <TableManagement />;
 
       case "inventory":
-        return <AdminInventory />;
+        return <AdminInventory onPendingApprovalCountChange={setInventoryPendingCount} />;
 
       case "account":
         return <Account />;
@@ -567,7 +568,11 @@ const Admin = () => {
       <div className="flex h-full">
         {/* ===== Sidebar ===== */}
         <aside className="hidden 2xl:block w-72 shrink-0">
-          <Sidebar active={active} setActive={handleSetActive} />
+          <Sidebar
+            active={active}
+            setActive={handleSetActive}
+            inventoryPendingCount={inventoryPendingCount}
+          />
         </aside>
 
         {/* ===== Right Column ===== */}
@@ -611,6 +616,7 @@ const Admin = () => {
       <nav className="2xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch overflow-x-auto shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
         {BOTTOM_NAV.map(({ key, label, icon: Icon }) => {
           const isActive = active === key;
+          const badgeCount = key === "inventory" ? inventoryPendingCount : 0;
           const icon = React.createElement(Icon, { size: 18 });
           return (
             <button
@@ -622,9 +628,14 @@ const Admin = () => {
                   : "text-gray-400 dark:text-gray-500 hover:text-green-500 dark:hover:text-green-400"
                 }`}
             >
-              <span className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors
+              <span className={`relative flex items-center justify-center w-8 h-8 rounded-full transition-colors
                 ${isActive ? "bg-green-100 dark:bg-green-900/40" : ""}`}>
                 {icon}
+                {badgeCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white">
+                    {badgeCount > 9 ? "9+" : badgeCount}
+                  </span>
+                )}
               </span>
               {label}
             </button>

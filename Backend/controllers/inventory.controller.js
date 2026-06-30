@@ -1,5 +1,6 @@
 import Inventory from "../models/Inventory.model.js";
 import InventoryLog from "../models/InventoryLog.model.js";
+import InventoryStockApproval from "../models/InventoryStockApproval.model.js";
 import InventoryCategory from "../models/InventoryCategory.model.js";
 import Order from "../models/Order.model.js";
 import ExcelJS from "exceljs";
@@ -14,7 +15,7 @@ const sendError = (res, message, status = 400) =>
 
 const getRestaurantId = (req) =>
   String(req.user.role || "").toLowerCase() === "admin"
-    ? req.params.restaurantId || req.query.restaurantId || req.body.restaurantId
+    ? req.params.restaurantId || req.query.restaurantId || req.body?.restaurantId
     : req.user.restaurant;
 
 const startOfDay = (value) => {
@@ -28,6 +29,31 @@ const endOfDay = (value) => {
   date.setHours(23, 59, 59, 999);
   return date;
 };
+
+const getEffectiveDate = (value) => {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return null;
+
+  const todayEnd = endOfDay(new Date());
+  if (date > todayEnd) return null;
+
+  return date;
+};
+
+const getLogBusinessDateMatch = (startDate, endDate) => ({
+  $expr: {
+    $and: [
+      { $gte: [{ $ifNull: ["$effectiveDate", "$createdAt"] }, startDate] },
+      { $lte: [{ $ifNull: ["$effectiveDate", "$createdAt"] }, endDate] },
+    ],
+  },
+});
+
+const getLogBusinessDateAfterMatch = (date) => ({
+  $expr: {
+    $gt: [{ $ifNull: ["$effectiveDate", "$createdAt"] }, date],
+  },
+});
 
 const formatReportDate = (date) =>
   new Intl.DateTimeFormat("en-IN", {
@@ -87,17 +113,105 @@ const roundQuantity = (value) => {
   return Object.is(rounded, -0) ? 0 : rounded;
 };
 
+const getLogQuantity = (log) =>
+  log.action === "DELETE" ? 0 : Number(log.quantityAdded || 0);
+
+const needsBackdateApproval = (date) => {
+  const yesterday = startOfDay(new Date());
+  yesterday.setDate(yesterday.getDate() - 1);
+  return startOfDay(date) < yesterday;
+};
+
+const getQuantityAtEffectiveDate = async (item, restaurantId, effectiveDate) => {
+  const logsAfterEffectiveDate = await InventoryLog.find({
+    item: item._id,
+    restaurant: restaurantId,
+    ...getLogBusinessDateAfterMatch(endOfDay(effectiveDate)),
+  }).select("quantityAdded action");
+
+  const netAfterEffectiveDate = logsAfterEffectiveDate.reduce(
+    (total, log) => total + getLogQuantity(log),
+    0
+  );
+
+  return Number(item.quantity || 0) - netAfterEffectiveDate;
+};
+
+const createStockApprovalRequest = async ({
+  item,
+  restaurantId,
+  mode,
+  requestedQuantity,
+  effectiveDate,
+  user,
+}) =>
+  InventoryStockApproval.create({
+    item: item._id,
+    restaurant: restaurantId,
+    mode,
+    requestedQuantity,
+    effectiveDate,
+    itemName: item.name,
+    unit: item.unit,
+    currentQuantityAtRequest: item.quantity,
+    requestedBy: user.id,
+    requestedByName: user.name || "",
+  });
+
+const applyStockChange = async ({
+  item,
+  restaurantId,
+  mode,
+  quantity,
+  effectiveDate,
+  user,
+}) => {
+  let diff;
+
+  if (mode === "ADD") {
+    diff = Number(quantity);
+    item.quantity = Number(item.quantity || 0) + diff;
+  } else {
+    const quantityAtEffectiveDate = await getQuantityAtEffectiveDate(
+      item,
+      restaurantId,
+      effectiveDate
+    );
+    diff = Number(quantity) - quantityAtEffectiveDate;
+    item.quantity = Number(item.quantity || 0) + diff;
+  }
+
+  item.lastUpdatedBy = user.id;
+  await item.save();
+
+  await InventoryLog.create({
+    item: item._id,
+    restaurant: restaurantId,
+    quantityAdded: diff,
+    unit: item.unit,
+    action: mode === "ADD" ? "ADD" : "UPDATE",
+    addedBy: user.id,
+    addedByName: user.name || "",
+    effectiveDate,
+  });
+
+  return item;
+};
+
 /* ================= CREATE INVENTORY ITEM ================= */
 
 export const createInventoryItem = async (req, res) => {
   try {
-    const { name, unit, quantity, lowStockThreshold, category } = req.body;
+    const { name, unit, quantity, lowStockThreshold, category, effectiveDate } = req.body;
 
     if (!name || !unit)
       return sendError(res, "Name and unit are required");
 
     const restaurantId =
       req.user.role === "admin" ? req.params.restaurantId : req.user.restaurant;
+    const logEffectiveDate = getEffectiveDate(effectiveDate);
+    if (!logEffectiveDate)
+      return sendError(res, "Effective date cannot be invalid or in the future");
 
     const item = await Inventory.create({
       restaurant: restaurantId,
@@ -117,6 +231,7 @@ export const createInventoryItem = async (req, res) => {
       action: "ADD",
       addedBy: req.user.id,
       addedByName: req.user.name || "",
+      effectiveDate: logEffectiveDate,
     });
 
     return sendSuccess(res, item, 201);
@@ -174,32 +289,41 @@ export const updateInventoryItem = async (req, res) => {
     if (!item)
       return sendError(res, "Inventory item not found", 404);
 
-    const { name, unit, quantity, lowStockThreshold, category } = req.body;
+    const { name, unit, quantity, lowStockThreshold, category, effectiveDate } = req.body;
 
     if (name !== undefined) item.name = name;
     if (unit !== undefined) item.unit = unit;
     if (category !== undefined) item.category = category;
 
     if (quantity !== undefined) {
-      const diff = quantity - item.quantity;
+      const logEffectiveDate = getEffectiveDate(effectiveDate);
+      if (!logEffectiveDate)
+        return sendError(res, "Effective date cannot be invalid or in the future");
 
-      item.quantity = quantity;
+      if (req.user.role !== "admin" && needsBackdateApproval(logEffectiveDate)) {
+        const approval = await createStockApprovalRequest({
+          item,
+          restaurantId,
+          mode: "SET",
+          requestedQuantity: Number(quantity),
+          effectiveDate: logEffectiveDate,
+          user: req.user,
+        });
+        return sendSuccess(res, { pendingApproval: true, approval }, 202);
+      }
 
-      await InventoryLog.create({
-        item: item._id,
-        restaurant: restaurantId,
-        quantityAdded: diff,
-        unit: item.unit,
-        action: "UPDATE",
-        addedBy: req.user.id,
-        addedByName: req.user.name || "",
+      await applyStockChange({
+        item,
+        restaurantId,
+        mode: "SET",
+        quantity: Number(quantity),
+        effectiveDate: logEffectiveDate,
+        user: req.user,
       });
     }
 
     if (lowStockThreshold !== undefined)
       item.lowStockThreshold = lowStockThreshold;
-
-    item.lastUpdatedBy = req.user.id;
 
     await item.save();
 
@@ -235,6 +359,7 @@ export const deleteInventoryItem = async (req, res) => {
       action: "DELETE",
       addedBy: req.user.id,
       addedByName: req.user.name || "",
+      effectiveDate: new Date(),
     });
 
     return sendSuccess(res, { message: "Deleted successfully" });
@@ -291,26 +416,133 @@ export const addStockToItem = async (req, res) => {
     if (!item)
       return sendError(res, "Inventory item not found", 404);
 
-    const { quantity } = req.body;
+    const { quantity, effectiveDate } = req.body;
 
     if (!quantity || Number(quantity) <= 0)
       return sendError(res, "Quantity must be greater than 0");
+    const logEffectiveDate = getEffectiveDate(effectiveDate);
+    if (!logEffectiveDate)
+      return sendError(res, "Effective date cannot be invalid or in the future");
 
-    item.quantity += Number(quantity);
-    item.lastUpdatedBy = req.user.id;
-    await item.save();
+    if (req.user.role !== "admin" && needsBackdateApproval(logEffectiveDate)) {
+      const approval = await createStockApprovalRequest({
+        item,
+        restaurantId,
+        mode: "ADD",
+        requestedQuantity: Number(quantity),
+        effectiveDate: logEffectiveDate,
+        user: req.user,
+      });
+      return sendSuccess(res, { pendingApproval: true, approval }, 202);
+    }
 
-    await InventoryLog.create({
-      item: item._id,
-      restaurant: restaurantId,
-      quantityAdded: Number(quantity),
-      unit: item.unit,
-      action: "ADD",
-      addedBy: req.user.id,
-      addedByName: req.user.name || "",
+    await applyStockChange({
+      item,
+      restaurantId,
+      mode: "ADD",
+      quantity: Number(quantity),
+      effectiveDate: logEffectiveDate,
+      user: req.user,
     });
 
     return sendSuccess(res, item);
+  } catch (err) {
+    return sendError(res, err.message);
+  }
+};
+
+/* ================= STOCK APPROVALS ================= */
+
+export const getStockApprovalRequests = async (req, res) => {
+  try {
+    const restaurantId = getRestaurantId(req);
+    if (!restaurantId) return sendError(res, "Restaurant is required");
+
+    const status = String(req.query.status || "PENDING").toUpperCase();
+    const match = { restaurant: restaurantId };
+    if (["PENDING", "APPROVED", "REJECTED"].includes(status)) {
+      match.status = status;
+    }
+
+    const approvals = await InventoryStockApproval.find(match)
+      .populate("item", "name unit quantity isActive")
+      .populate("requestedBy", "name employeeId role")
+      .sort({ createdAt: -1 });
+
+    return sendSuccess(res, approvals);
+  } catch (err) {
+    return sendError(res, err.message);
+  }
+};
+
+export const approveStockApprovalRequest = async (req, res) => {
+  try {
+    const selectedRestaurantId = getRestaurantId(req);
+    if (!selectedRestaurantId) return sendError(res, "Restaurant is required");
+
+    const approval = await InventoryStockApproval.findById(req.params.id);
+    if (!approval) return sendError(res, "Approval request not found", 404);
+    if (approval.status !== "PENDING")
+      return sendError(res, "Approval request already reviewed");
+
+    const restaurantId = String(approval.restaurant);
+    if (String(selectedRestaurantId) !== restaurantId) {
+      return sendError(res, "Approval request does not belong to this restaurant", 403);
+    }
+
+    const item = await Inventory.findOne({
+      _id: approval.item,
+      restaurant: restaurantId,
+      isActive: true,
+    });
+    if (!item) return sendError(res, "Inventory item not found", 404);
+
+    const applied = await applyStockChange({
+      item,
+      restaurantId,
+      mode: approval.mode,
+      quantity: approval.requestedQuantity,
+      effectiveDate: approval.effectiveDate,
+      user: {
+        id: approval.requestedBy,
+        name: approval.requestedByName,
+      },
+    });
+
+    approval.status = "APPROVED";
+    approval.approvedBy = req.user.id;
+    approval.approvedByName = req.user.name || "";
+    approval.reviewedAt = new Date();
+    await approval.save();
+
+    return sendSuccess(res, { approval, item: applied });
+  } catch (err) {
+    return sendError(res, err.message);
+  }
+};
+
+export const rejectStockApprovalRequest = async (req, res) => {
+  try {
+    const selectedRestaurantId = getRestaurantId(req);
+    if (!selectedRestaurantId) return sendError(res, "Restaurant is required");
+
+    const approval = await InventoryStockApproval.findById(req.params.id);
+    if (!approval) return sendError(res, "Approval request not found", 404);
+    if (approval.status !== "PENDING")
+      return sendError(res, "Approval request already reviewed");
+
+    if (String(selectedRestaurantId) !== String(approval.restaurant)) {
+      return sendError(res, "Approval request does not belong to this restaurant", 403);
+    }
+
+    approval.status = "REJECTED";
+    approval.approvedBy = req.user.id;
+    approval.approvedByName = req.user.name || "";
+    approval.reviewedAt = new Date();
+    approval.rejectionReason = String(req.body.reason || "").trim();
+    await approval.save();
+
+    return sendSuccess(res, approval);
   } catch (err) {
     return sendError(res, err.message);
   }
@@ -357,10 +589,10 @@ export const getMyInventoryStats = async (req, res) => {
     const logs = await InventoryLog.find({
       restaurant: restaurantId,
       addedBy: userId,
-      createdAt: { $gte: startDate, $lte: endDate },
+      ...getLogBusinessDateMatch(startDate, endDate),
     })
       .populate("item", "name unit quantity lowStockThreshold")
-      .sort({ createdAt: -1 });
+      .sort({ effectiveDate: -1, createdAt: -1 });
 
     const addLogs    = logs.filter((l) => l.action === "ADD");
     const updateLogs = logs.filter((l) => l.action === "UPDATE");
@@ -399,7 +631,7 @@ export const getItemLogs = async (req, res) => {
       restaurant: restaurantId
     })
       .populate("addedBy", "name employeeId role")
-      .sort({ createdAt: -1 });
+      .sort({ effectiveDate: -1, createdAt: -1 });
 
     return sendSuccess(res, logs);
 
@@ -433,14 +665,14 @@ export const exportInventoryDayWiseExcel = async (req, res) => {
     const dayLogs = await InventoryLog.find({
       restaurant: restaurantId,
       item: { $in: itemIds },
-      createdAt: { $gte: startDate, $lte: endDate },
-    }).select("item quantityAdded action");
+      ...getLogBusinessDateMatch(startDate, endDate),
+    }).select("item quantityAdded action effectiveDate createdAt");
 
     const logsAfterDay = await InventoryLog.find({
       restaurant: restaurantId,
       item: { $in: itemIds },
-      createdAt: { $gt: endDate },
-    }).select("item quantityAdded action");
+      ...getLogBusinessDateAfterMatch(endDate),
+    }).select("item quantityAdded action effectiveDate createdAt");
 
     const deductedOrders = await Order.find({
       restaurant: restaurantId,
@@ -461,7 +693,7 @@ export const exportInventoryDayWiseExcel = async (req, res) => {
     dayLogs.forEach((log) => {
       const key = String(log.item);
       const current = dayTotals.get(key) || { added: 0, used: 0, net: 0 };
-      const quantity = log.action === "DELETE" ? 0 : Number(log.quantityAdded || 0);
+      const quantity = getLogQuantity(log);
 
       if (quantity > 0) current.added += quantity;
       if (quantity < 0) current.used += Math.abs(quantity);
@@ -472,7 +704,7 @@ export const exportInventoryDayWiseExcel = async (req, res) => {
     logsAfterDay.forEach((log) => {
       const key = String(log.item);
       const current = afterTotals.get(key) || { net: 0, used: 0 };
-      const quantity = log.action === "DELETE" ? 0 : Number(log.quantityAdded || 0);
+      const quantity = getLogQuantity(log);
       if (quantity < 0) current.used += Math.abs(quantity);
       current.net += quantity;
       afterTotals.set(key, current);

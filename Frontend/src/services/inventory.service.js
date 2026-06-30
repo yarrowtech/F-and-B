@@ -128,6 +128,41 @@ export const downloadInventoryDayWiseExcel = async ({
   window.URL.revokeObjectURL(url);
 };
 
+/* ================= STOCK APPROVALS ================= */
+/* GET /api/inventory/stock-approvals */
+export const getStockApprovalRequests = async ({
+  restaurantId = "",
+  status = "PENDING",
+} = {}) => {
+  const params = new URLSearchParams();
+  if (restaurantId) params.set("restaurantId", restaurantId);
+  if (status) params.set("status", status);
+
+  const res = await api.get(`/inventory/stock-approvals?${params.toString()}`);
+  return Array.isArray(res.data?.data) ? res.data.data : [];
+};
+
+/* PUT /api/inventory/stock-approvals/:id/approve */
+export const approveStockApprovalRequest = async (id, restaurantId = "") => {
+  const params = new URLSearchParams();
+  if (restaurantId) params.set("restaurantId", restaurantId);
+  const res = await api.put(
+    `/inventory/stock-approvals/${id}/approve?${params.toString()}`
+  );
+  return res.data?.data || null;
+};
+
+/* PUT /api/inventory/stock-approvals/:id/reject */
+export const rejectStockApprovalRequest = async (id, reason = "", restaurantId = "") => {
+  const params = new URLSearchParams();
+  if (restaurantId) params.set("restaurantId", restaurantId);
+  const res = await api.put(
+    `/inventory/stock-approvals/${id}/reject?${params.toString()}`,
+    { reason }
+  );
+  return res.data?.data || null;
+};
+
 /* ================= INVENTORY LOGS ================= */
 /* GET /api/inventory/logs/:itemId */
 
@@ -150,12 +185,13 @@ export const getItemLogs = async (itemId, restaurantId) => {
 export const addStock = async (
   restaurantId,
   id,
-  quantity
+  quantity,
+  effectiveDate = ""
 ) => {
 
   const res = await api.put(
     `/inventory/${restaurantId}/${id}/add-stock`,
-    { quantity }
+    { quantity, effectiveDate }
   );
 
   return res.data?.data || null;
