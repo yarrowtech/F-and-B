@@ -121,9 +121,9 @@ function UnitSelect({ value, customValue, onChange, onCustomChange, required }) 
 ───────────────────────────────────── */
 function Modal({ title, accent = "bg-green-600", onClose, children }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 pb-[88px] sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-900 sm:max-w-lg sm:rounded-2xl">
+      <div className="relative z-10 flex max-h-[calc(100vh-5.5rem)] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-900 sm:max-h-[92vh] sm:max-w-lg sm:rounded-2xl">
         <div className={`${accent} px-6 py-4 flex items-center justify-between shrink-0`}>
           <h2 className="text-base font-bold text-white">{title}</h2>
           <button onClick={onClose}
@@ -859,7 +859,7 @@ const InventoryManagerManagement = () => {
                 This will manually set the total stock to the entered quantity.
               </p>
             )}
-            <div className="flex gap-3 pt-2">
+            <div className="-mx-5 sticky bottom-[72px] grid grid-cols-2 gap-3 border-t border-gray-100 bg-white px-5 pb-3 pt-3 dark:border-gray-700 dark:bg-gray-900 sm:-mx-6 sm:bottom-0 sm:px-6">
               <button type="button" onClick={() => { setShowAddStockModal(false); setStockTarget(null); }}
                 className="flex-1 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 Cancel
