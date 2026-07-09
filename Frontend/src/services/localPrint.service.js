@@ -4,6 +4,43 @@ const USE_SERVER_PRINTER_NAME =
   String(import.meta.env.VITE_USE_SERVER_PRINTER_NAME || "").toLowerCase() === "true";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const ESC_POS_FULL_CUT = "\x1D\x56\x00";
+const ESC_POS_PARTIAL_CUT = "\x1D\x56\x01";
+const ESC_POS_FEED_AND_CUT = "\x1D\x56\x41\x03";
+const ESC_POS_FEED_AND_FULL_CUT = "\x1D\x56\x42\x00";
+const ESC_POS_LEGACY_FULL_CUT = "\x1D\x56\x41\x00";
+const ESC_POS_ENABLE_AUTO_CUT = "\x1C\x7D\x60\x01";
+const ESC_POS_ALT_FULL_CUT = "\x1B\x69";
+const ESC_POS_ALT_PARTIAL_CUT = "\x1B\x6D";
+const ESC_POS_CUT_BUNDLE =
+  `${ESC_POS_ENABLE_AUTO_CUT}${ESC_POS_FEED_AND_CUT}${ESC_POS_FEED_AND_FULL_CUT}` +
+  `${ESC_POS_LEGACY_FULL_CUT}${ESC_POS_FULL_CUT}${ESC_POS_PARTIAL_CUT}` +
+  `${ESC_POS_ALT_FULL_CUT}${ESC_POS_ALT_PARTIAL_CUT}`;
+
+const stripEscPosControls = (value) => {
+  const text = String(value ?? "");
+  let cleaned = "";
+
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+
+    if (code === 0x1b || code === 0x1d || code === 0x1c) {
+      index += 2;
+      continue;
+    }
+
+    if (code === 0x0c) {
+      continue;
+    }
+
+    if ((code >= 0x00 && code <= 0x08) || code === 0x0b || (code >= 0x0e && code <= 0x1f)) {
+      continue;
+    }
+
+    cleaned += text[index];
+  }
+
+  return cleaned;
+};
 
 const escapeHtml = (value) =>
   String(value ?? "")
@@ -43,7 +80,7 @@ export const printTextInBrowser = (receiptText, title = "Print") => {
             background: #fff;
             color: #000;
             font-family: "Courier New", monospace;
-            font-size: 13px;
+            font-size: 16px;
             font-weight: 900;
             line-height: 1.35;
             print-color-adjust: exact;
@@ -59,7 +96,7 @@ export const printTextInBrowser = (receiptText, title = "Print") => {
         </style>
       </head>
       <body>
-        <pre>${escapeHtml(receiptText)}</pre>
+        <pre>${escapeHtml(stripEscPosControls(receiptText))}</pre>
         <script>
           window.onload = function () {
             window.focus();
@@ -98,7 +135,7 @@ export const printMultipleTextsInBrowser = (jobs = [], title = "Print") => {
     .map(
       (job, index) => `
         <section class="receipt ${index < printableJobs.length - 1 ? "receipt-gap" : ""}">
-          <pre>${escapeHtml(job.receiptText)}</pre>
+          <pre>${escapeHtml(stripEscPosControls(job.receiptText))}</pre>
         </section>
       `
     )
@@ -118,7 +155,7 @@ export const printMultipleTextsInBrowser = (jobs = [], title = "Print") => {
             background: #fff;
             color: #000;
             font-family: "Courier New", monospace;
-            font-size: 13px;
+            font-size: 16px;
             font-weight: 900;
             line-height: 1.35;
             print-color-adjust: exact;
@@ -182,9 +219,15 @@ export const printOnThisDevice = async ({ receiptText, printerName = "" }) => {
 const ensureReceiptCut = (receiptText) => {
   const text = String(receiptText || "");
   const trimmedText = text.replace(/\s+$/, "");
-  return trimmedText.endsWith(ESC_POS_FULL_CUT)
+  return trimmedText.endsWith(ESC_POS_FULL_CUT) ||
+    trimmedText.endsWith(ESC_POS_PARTIAL_CUT) ||
+    trimmedText.endsWith(ESC_POS_FEED_AND_CUT) ||
+    trimmedText.endsWith(ESC_POS_FEED_AND_FULL_CUT) ||
+    trimmedText.endsWith(ESC_POS_LEGACY_FULL_CUT) ||
+    trimmedText.endsWith(ESC_POS_ALT_FULL_CUT) ||
+    trimmedText.endsWith(ESC_POS_ALT_PARTIAL_CUT)
     ? text
-    : `${trimmedText}\n\n\n${ESC_POS_FULL_CUT}\f`;
+    : `${trimmedText}\n\n\n\n\n${ESC_POS_CUT_BUNDLE}\f`;
 };
 
 const combinePrintJobs = (jobs, ensureCutAfterEach) => {

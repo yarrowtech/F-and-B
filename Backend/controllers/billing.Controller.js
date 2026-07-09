@@ -138,30 +138,66 @@ const receiptItemRows = (name, qty, rate, amount, width = 42) => {
   return rows;
 };
 
+const ESC_POS_INIT = "\x1B\x40";
+const ESC_POS_ALIGN_LEFT = "\x1B\x61\x00";
+const ESC_POS_ALIGN_CENTER = "\x1B\x61\x01";
+const ESC_POS_BOLD_ON = "\x1B\x45\x01";
+const ESC_POS_BOLD_OFF = "\x1B\x45\x00";
+const ESC_POS_DOUBLE_SIZE = "\x1D\x21\x11";
+const ESC_POS_TALL_HEIGHT = "\x1D\x21\x02";
+const ESC_POS_NORMAL_SIZE = "\x1D\x21\x00";
+const ESC_POS_FULL_CUT = "\x1D\x56\x00";
+const ESC_POS_FEED_AND_CUT = "\x1D\x56\x41\x03";
+const ESC_POS_FEED_AND_FULL_CUT = "\x1D\x56\x42\x00";
+const ESC_POS_LEGACY_FULL_CUT = "\x1D\x56\x41\x00";
+const ESC_POS_ENABLE_AUTO_CUT = "\x1C\x7D\x60\x01";
+const ESC_POS_ALT_FULL_CUT = "\x1B\x69";
+const ESC_POS_ALT_PARTIAL_CUT = "\x1B\x6D";
+const ESC_POS_CUT_BUNDLE =
+  `${ESC_POS_ENABLE_AUTO_CUT}${ESC_POS_FEED_AND_CUT}${ESC_POS_FEED_AND_FULL_CUT}` +
+  `${ESC_POS_LEGACY_FULL_CUT}${ESC_POS_FULL_CUT}${ESC_POS_ALT_FULL_CUT}${ESC_POS_ALT_PARTIAL_CUT}`;
 const appendThermalFeed = (text, extraLines = 9, options = {}) =>
-  `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 3))}${options.cut ? ESC_POS_FULL_CUT : ""}\f`;
+  `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 5))}${options.cut ? ESC_POS_CUT_BUNDLE : ""}\f`;
 
 const getKotCopyCount = (value, fallback = 1) => {
   const count = Math.floor(Number(value));
   return Number.isFinite(count) ? Math.min(Math.max(count, 1), 10) : fallback;
 };
 
-const ESC_POS_FULL_CUT = "\x1D\x56\x00";
+const buildEscPosHeading = (lines = []) =>
+  `${ESC_POS_INIT}${ESC_POS_ALIGN_CENTER}${ESC_POS_BOLD_ON}${ESC_POS_DOUBLE_SIZE}${lines
+    .map((line) => receiptText(line).toUpperCase())
+    .filter(Boolean)
+    .join("\n")}${ESC_POS_NORMAL_SIZE}${ESC_POS_BOLD_OFF}${ESC_POS_ALIGN_LEFT}\n`;
+
+const buildEscPosLargeKotBody = (text) =>
+  `${ESC_POS_BOLD_ON}${ESC_POS_TALL_HEIGHT}${String(text || "").replace(/\s+$/, "")}${ESC_POS_NORMAL_SIZE}${ESC_POS_BOLD_OFF}`;
 
 const kotCopyHeader = (copyNumber, copyCount, width = 32) =>
   `${receiptCenter(`COPY ${copyNumber} OF ${copyCount}`, width)}\n${receiptLine(width)}\n`;
 
 const kotCopySeparator = (width = 32) =>
-  `\n${receiptLine(width)}\n${receiptCenter("CUT HERE", width)}\n${receiptLine(width)}\n\n\n${ESC_POS_FULL_CUT}\f`;
+  `\n${receiptLine(width)}\n${receiptCenter("CUT HERE", width)}\n${receiptLine(width)}\n\n\n\n\n${ESC_POS_CUT_BUNDLE}\f`;
+
+// receiptText already ends with its own cut+feed (appendThermalFeed was
+// called with {cut:true}); strip that off before repeating so each copy
+// gets exactly one cut instead of two back-to-back cut commands with
+// nothing printed in between.
+const stripTrailingCutBundle = (text) => {
+  const value = String(text || "");
+  const suffix = `${ESC_POS_CUT_BUNDLE}\f`;
+  return value.endsWith(suffix) ? value.slice(0, -suffix.length) : value;
+};
 
 const repeatKotReceiptText = (receiptText, copyCount = 1) => {
   const count = getKotCopyCount(copyCount);
   if (count === 1) return receiptText;
 
+  const baseText = stripTrailingCutBundle(receiptText);
+
   return Array.from({ length: count }, (_, index) => {
     const copyNumber = index + 1;
-    const copyText = `${kotCopyHeader(copyNumber, count)}${receiptText}`;
-    return index < count - 1 ? `${copyText}${kotCopySeparator()}` : copyText;
+    return `${kotCopyHeader(copyNumber, count)}${baseText}${kotCopySeparator()}`;
   }).join("");
 };
 
@@ -726,9 +762,7 @@ const buildBillReceiptText = (bill) => {
 const buildManualKotReceiptText = ({ order, restaurant }) => {
   const width = 32;
   const title = restaurant?.name || "Restaurant";
-  const lines = [
-    receiptCenter("KOT DETAILS", width),
-    receiptCenter(String(title).toUpperCase(), width),
+  const bodyLines = [
     receiptLine(width),
     receiptPair("TYPE", order.orderType || "MANUAL", width),
     receiptPair("TIME", receiptBillDate(order.createdAt || new Date()), width),
@@ -741,21 +775,25 @@ const buildManualKotReceiptText = ({ order, restaurant }) => {
     const quantity = String(Number(item.quantity || 0)).padEnd(4, " ");
     const itemName = item.menuItem?.name || item.name || "Menu Item";
     const wrappedName = receiptWrap(String(itemName).toUpperCase(), width - 5);
-    lines.push(`${quantity} ${wrappedName[0] || "MENU ITEM"}`.slice(0, width));
-    wrappedName.slice(1).forEach((line) => lines.push(`     ${line}`.slice(0, width)));
+    bodyLines.push(`${quantity} ${wrappedName[0] || "MENU ITEM"}`.slice(0, width));
+    wrappedName.slice(1).forEach((line) => bodyLines.push(`     ${line}`.slice(0, width)));
 
     if (Array.isArray(item.customization) && item.customization.length > 0) {
       receiptWrap(`NOTE: ${item.customization.join(", ")}`.toUpperCase(), width).forEach((line) =>
-        lines.push(`     ${line}`.slice(0, width))
+        bodyLines.push(`     ${line}`.slice(0, width))
       );
     }
   });
 
-  lines.push(receiptLine(width));
-  lines.push(receiptCenter("NO PRICE ON KOT", width));
-  lines.push("");
-  lines.push("");
-  return appendThermalFeed(lines.join("\n"), 9, { cut: true });
+  bodyLines.push(receiptLine(width));
+  bodyLines.push(receiptCenter("NO PRICE ON KOT", width));
+  bodyLines.push("");
+  bodyLines.push("");
+  return appendThermalFeed(
+    `${buildEscPosHeading(["KOT DETAILS", title])}${buildEscPosLargeKotBody(bodyLines.join("\n"))}`,
+    9,
+    { cut: true }
+  );
 };
 
 const buildManualKotPrintJob = async (bill, requestedBy = null) => {

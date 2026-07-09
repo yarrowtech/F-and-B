@@ -1145,7 +1145,7 @@ export default function AccountantOrderBilling() {
 
       await printJobsOnThisDevice(printJobs, {
         combineBrowserFallback: true,
-        combineLocalJobs: true,
+        combineLocalJobs: false,
         ensureCutAfterEach: true,
       });
     } catch (err) {
@@ -1216,7 +1216,7 @@ export default function AccountantOrderBilling() {
       if (printJobs.length > 0) {
         await printJobsOnThisDevice(printJobs, {
           combineBrowserFallback: true,
-          combineLocalJobs: true,
+          combineLocalJobs: false,
           ensureCutAfterEach: true,
         });
       } else {
@@ -1366,7 +1366,7 @@ export default function AccountantOrderBilling() {
         if (manualPrintJobs.length > 0) {
           await printJobsOnThisDevice(manualPrintJobs, {
             combineBrowserFallback: true,
-            combineLocalJobs: true,
+            combineLocalJobs: false,
             ensureCutAfterEach: true,
           });
         }
