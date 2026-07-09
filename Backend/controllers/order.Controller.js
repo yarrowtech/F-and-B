@@ -1105,6 +1105,7 @@ import Employee from "../models/Employee.model.js";
 import KotPrintJob from "../models/KotPrintJob.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import { getIO } from "../socket.js";
+import { allocateDailyKotNumber } from "../utils/kotSerial.js";
 
 /* 🔥 LOGGER */
 import { logAction, logError } from "../utils/logger.js";
@@ -1345,6 +1346,33 @@ const getPrintedKotCuisineKeys = async (restaurantId, orders) => {
   );
 };
 
+const getOrderKotSerialMeta = async ({ order, restaurantId, printedAt, session = null }) => {
+  const existingSerial = Number(order?.kot?.dailySerial || 0);
+  const existingDateKey = String(order?.kot?.dailyKey || "").trim();
+
+  if (existingSerial > 0 && existingDateKey) {
+    return {
+      dailySerial: existingSerial,
+      dateKey: existingDateKey,
+    };
+  }
+
+  const allocated = await allocateDailyKotNumber({
+    restaurantId,
+    printedAt: order?.kot?.printedAt || printedAt || new Date(),
+    session,
+  });
+
+  order.kot = {
+    ...(order.kot?.toObject?.() || order.kot || {}),
+    dailySerial: allocated.dailySerial,
+    dailyKey: allocated.dateKey,
+    printedAt: order?.kot?.printedAt || printedAt || new Date(),
+  };
+
+  return allocated;
+};
+
 const filterOrdersForChefCuisine = (orders, cuisineSet, chefId, printedKotCuisineKeys = new Set()) =>
   orders
     .map((order) => {
@@ -1499,12 +1527,13 @@ const kotItemRows = (quantity, name) => {
   return rows;
 };
 
-const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt }) => {
+const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt, dailyKotNumber }) => {
   const tableNo = order.table?.tableNumber || "N/A";
   const waiterName = order.waiter?.name || "N/A";
   const outletName = order.restaurant?.name || "KITCHEN";
   const bodyLines = [
     kotLine(),
+    kotPair("KOT NO", dailyKotNumber || kotNo || "-"),
     kotPair("TABLE", tableNo),
     kotPair("SECTION", displayCuisine(cuisine)),
     kotPair("WAITER", waiterName),
@@ -1556,14 +1585,21 @@ const createKotPrintJobs = async ({ order, session }) => {
   const printedAt = order.kot?.printedAt || new Date();
   const restaurantId = order.restaurant?._id || order.restaurant;
   const kotCopyCount = await getRestaurantKotCopyCount(restaurantId, session);
+  const { dailySerial, dateKey } = await getOrderKotSerialMeta({
+    order,
+    restaurantId,
+    printedAt,
+    session,
+  });
   const groups = groupKotItemsByCuisine(order);
   const jobs = [];
 
   for (const group of groups) {
-    const cuisineKey = normalizeCuisine(group.cuisine) || "general";
-    const kotNo = `KOT-${String(order.orderNo || order._id).slice(-8)}-${cuisineKey.toUpperCase()}`;
+    const kotNo = String(dailySerial);
     const payload = {
       kotNo,
+      dailyKotNumber: dailySerial,
+      kotDateKey: dateKey,
       orderId: order._id,
       orderNo: order.orderNo,
       tableNumber: order.table?.tableNumber || "",
@@ -1584,6 +1620,7 @@ const createKotPrintJobs = async ({ order, session }) => {
       items: group.items,
       kotNo,
       printedAt,
+      dailyKotNumber: dailySerial,
     });
     const receiptTextWithCopies = repeatKotReceiptText(receiptText, kotCopyCount);
 

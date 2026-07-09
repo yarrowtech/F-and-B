@@ -468,7 +468,7 @@ const InventoryManagerManagement = () => {
      RENDER
   ══════════════════════════════════ */
   return (
-    <div className="min-h-screen bg-slate-50 p-2 dark:bg-neutral-950 sm:p-4 2xl:p-5">
+    <div className="min-h-screen bg-slate-50 p-2 pb-28 dark:bg-neutral-950 sm:p-4 sm:pb-32 2xl:p-5">
       <div className="max-w-7xl mx-auto space-y-3">
 
         {/* ── PAGE HEADER ── */}

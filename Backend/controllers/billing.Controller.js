@@ -12,6 +12,7 @@ import crypto from "crypto";
 import mongoose from "mongoose";
 import PDFDocument from "pdfkit";
 import ExcelJS from "exceljs";
+import { allocateDailyKotNumber } from "../utils/kotSerial.js";
 import { invalidateCacheNamespaces } from "../utils/cacheStore.js";
 import {
   buildWhatsAppChatUrl,
@@ -347,6 +348,43 @@ const isValidEmail = (email) =>
 
 const isValidPhone = (phone) =>
   /^[0-9+\-\s()]{7,20}$/.test(sanitizeText(phone));
+
+const getOrderKotSerialMeta = async ({ order, restaurantId, printedAt }) => {
+  const existingSerial = Number(order?.kot?.dailySerial || 0);
+  const existingDateKey = sanitizeText(order?.kot?.dailyKey);
+
+  if (existingSerial > 0 && existingDateKey) {
+    return {
+      dailySerial: existingSerial,
+      dateKey: existingDateKey,
+    };
+  }
+
+  const allocated = await allocateDailyKotNumber({
+    restaurantId,
+    printedAt: order?.kot?.printedAt || printedAt || new Date(),
+  });
+
+  const kotState = {
+    ...(order?.kot?.toObject?.() || order?.kot || {}),
+    mode: true,
+    printed: true,
+    printedAt: order?.kot?.printedAt || printedAt || new Date(),
+    directBilling: false,
+    dailySerial: allocated.dailySerial,
+    dailyKey: allocated.dateKey,
+  };
+
+  order.kot = kotState;
+
+  await Order.findByIdAndUpdate(order._id, {
+    $set: {
+      kot: kotState,
+    },
+  });
+
+  return allocated;
+};
 
 const buildWhatsAppBillMessage = (bill) => {
   const restaurantName = bill.restaurant?.name || "Restaurant";
@@ -759,11 +797,12 @@ const buildBillReceiptText = (bill) => {
   return appendThermalFeed(lines.join("\n"), 9, { cut: true });
 };
 
-const buildManualKotReceiptText = ({ order, restaurant }) => {
+const buildManualKotReceiptText = ({ order, restaurant, dailyKotNumber }) => {
   const width = 32;
   const title = restaurant?.name || "Restaurant";
   const bodyLines = [
     receiptLine(width),
+    receiptPair("KOT NO", dailyKotNumber || "-", width),
     receiptPair("TYPE", order.orderType || "MANUAL", width),
     receiptPair("TIME", receiptBillDate(order.createdAt || new Date()), width),
     receiptLine(width),
@@ -801,9 +840,17 @@ const buildManualKotPrintJob = async (bill, requestedBy = null) => {
 
   const template = getBillingTemplate(bill.restaurant);
   const kotCopyCount = getKotCopyCount(template.kotCopyCount);
+  const printedAt =
+    bill.order?.kot?.printedAt || bill.generatedAt || bill.createdAt || new Date();
+  const { dailySerial, dateKey } = await getOrderKotSerialMeta({
+    order: bill.order,
+    restaurantId: bill.restaurant?._id || bill.restaurant,
+    printedAt,
+  });
   const receiptText = buildManualKotReceiptText({
     order: bill.order,
     restaurant: bill.restaurant,
+    dailyKotNumber: dailySerial,
   });
 
   const agent = await PrintAgent.findOne({
@@ -821,6 +868,12 @@ const buildManualKotPrintJob = async (bill, requestedBy = null) => {
       agent?.billPrinterName ||
       "",
     receiptText: repeatKotReceiptText(receiptText, kotCopyCount),
+    payload: {
+      kotNo: String(dailySerial),
+      dailyKotNumber: dailySerial,
+      kotDateKey: dateKey,
+      copyCount: kotCopyCount,
+    },
     cuisine: "",
     copyCount: kotCopyCount,
     status: "LOCAL",
@@ -858,6 +911,33 @@ const queueBillPrintJob = async (billId, requestedBy = null) => {
     receiptText,
     status: "PENDING",
   });
+};
+
+// Manual/walk-in "New Bill" flow always pairs this with buildManualKotPrintJob,
+// which is printed immediately from the accountant's own browser via the local
+// print agent. Routing the bill through the DB-queued background PrintAgent
+// path instead (as queueBillPrintJob does when one is registered) decouples
+// the bill's print timing from the KOT's and sends them through two different
+// pipelines, which breaks the expected cut-between-bill-and-KOT ordering. Keep
+// both jobs on the same immediate local channel here.
+const buildManualBillPrintJob = async (billId, requestedBy = null) => {
+  const bill = await findBillWithOrder({ _id: billId });
+  if (!bill) return null;
+
+  const agent = await PrintAgent.findOne({
+    restaurant: bill.restaurant?._id || bill.restaurant,
+    isActive: true,
+  }).sort({ updatedAt: -1 });
+
+  return {
+    _id: `local-bill-${bill._id}`,
+    restaurant: bill.restaurant?._id || bill.restaurant,
+    bill: bill._id,
+    requestedBy,
+    printerName: agent?.billPrinterName || "",
+    receiptText: buildBillReceiptText(bill),
+    status: "LOCAL",
+  };
 };
 
 const getBillPrintBundle = async (req, res) => {
@@ -1242,7 +1322,7 @@ const createManualBill = async (req, res) => {
       _id: bill._id,
       restaurant: req.user.restaurant,
     });
-    const printJob = await queueBillPrintJob(bill._id, req.user.id);
+    const printJob = await buildManualBillPrintJob(bill._id, req.user.id);
     const kotPrintJob = await buildManualKotPrintJob(populatedBill, req.user.id);
 
     return sendSuccess(

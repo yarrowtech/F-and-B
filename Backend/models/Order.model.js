@@ -239,6 +239,16 @@ const kotSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    dailySerial: {
+      type: Number,
+      default: null,
+      min: 1,
+    },
+    dailyKey: {
+      type: String,
+      default: "",
+      trim: true,
+    },
   },
   { _id: false }
 );

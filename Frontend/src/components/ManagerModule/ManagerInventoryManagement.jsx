@@ -385,7 +385,7 @@ const ManagerInventory = () => {
   const categoryOptions = ["all", ...new Set(inventory.map((item) => item.category || "Uncategorized"))];
 
   return (
-    <div className="min-h-screen bg-gray-50 p-2 dark:bg-gray-900 sm:p-4 2xl:p-5">
+    <div className="min-h-screen bg-gray-50 p-2 pb-28 dark:bg-gray-900 sm:p-4 sm:pb-32 2xl:p-5">
       <div className="max-w-7xl mx-auto space-y-3">
 
         {/* HEADER */}
