@@ -294,6 +294,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
+  FaHandshake,
   FaUserPlus,
   FaTrash,
   FaEye,
@@ -303,6 +304,7 @@ import {
   FaSearch,
   FaKey,
   FaEdit,
+  FaUsers,
 } from "react-icons/fa";
 
 import {
@@ -316,6 +318,7 @@ import {
 
 import { getRestaurants } from "../../services/restaurant.service";
 import { getMenu } from "../../services/menu.service";
+import AdminVendorManagement from "./AdminVendorManagement";
 
 const ROLE_OPTIONS = [
   "ALL",
@@ -339,9 +342,9 @@ const emptyAddress = {
 };
 
 export default function AdminStaffManagement() {
-
   const [employees, setEmployees] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
+  const [activeTab, setActiveTab] = useState("staff");
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
@@ -397,6 +400,7 @@ export default function AdminStaffManagement() {
     cuisineTypes: [],
   });
   const [menuCuisines, setMenuCuisines] = useState([]);
+
 
   /* =========================
      LOAD DATA
@@ -808,15 +812,46 @@ export default function AdminStaffManagement() {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-600">
             Admin
           </p>
-          <h1 className="mt-1 text-2xl font-bold text-gray-900 sm:text-3xl">
-            Staff Management
+          <h1 className="mt-1 text-xl font-bold text-gray-900 sm:text-2xl">
+            {activeTab === "vendor" ? "Vendor" : "Staff"}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            Add, edit, reset passwords, and manage staff accounts.
+            {activeTab === "vendor"
+              ? "Create and manage local vendors, assignments, and vendor access."
+              : "Add, edit, reset passwords, and manage staff accounts."}
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
+          <div className="col-span-2 inline-flex rounded-2xl border border-gray-200 bg-white p-1 shadow-sm sm:col-span-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("staff")}
+              className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                activeTab === "staff"
+                  ? "bg-green-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              <FaUsers />
+              Staff
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("vendor")}
+              className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                activeTab === "vendor"
+                  ? "bg-green-600 text-white"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              <FaHandshake />
+              Vendors
+            </button>
+          </div>
+
+          {activeTab === "staff" && (
+            <>
           <button
             type="button"
             onClick={() => {
@@ -835,8 +870,15 @@ export default function AdminStaffManagement() {
           >
             <FaUserPlus /> Add Employee
           </button>
+            </>
+          )}
         </div>
       </div>
+
+      {activeTab === "vendor" ? (
+        <AdminVendorManagement />
+      ) : (
+        <>
 
       {/* ADD STAFF FORM */}
 
@@ -1824,6 +1866,8 @@ export default function AdminStaffManagement() {
     </div>
   </div>
 )}
+        </>
+      )}
 
     </div>
   );

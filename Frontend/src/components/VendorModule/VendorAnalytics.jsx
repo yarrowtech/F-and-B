@@ -6,7 +6,6 @@ import {
   AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
-import { FaChartLine } from "react-icons/fa";
 
 const weeklyStats = {
   sales: 64500,
@@ -62,37 +61,54 @@ const customerGrowth = [
   { month: "Apr", customers: 180 },
 ];
 
-const COLORS = ["#FFBB28", "#00C49F", "#0088FE", "#FF4D4D", "#845EC2", "#F9C80E"];
+const COLORS = ["#16a34a", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6", "#eab308"];
+
+function ChartCard({ title, children }) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
+      <h2 className="mb-4 text-base font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
+      {children}
+    </div>
+  );
+}
 
 const VendorAnalytics = () => {
   return (
-    <div className="p-6 bg-gray-100 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors">
-      <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
-        <FaChartLine className="text-purple-500" />
-        Vendor Analytics Dashboard
-      </h1>
+    <div className="space-y-6">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-600 dark:text-green-400">
+          Vendor
+        </p>
+        <h1 className="mt-1 text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">
+          Analytics
+        </h1>
+      </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-300 mb-1">Weekly Sales</h4>
-          <p className="text-2xl font-bold text-green-600 dark:text-green-300">₹{weeklyStats.sales.toLocaleString()}</p>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
+          <h4 className="mb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Weekly Sales</h4>
+          <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+            Rs. {weeklyStats.sales.toLocaleString()}
+          </p>
         </div>
-        <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-300 mb-1">Profit</h4>
-          <p className="text-2xl font-bold text-blue-600 dark:text-blue-300">₹{weeklyStats.profit.toLocaleString()}</p>
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
+          <h4 className="mb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Profit</h4>
+          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            Rs. {weeklyStats.profit.toLocaleString()}
+          </p>
         </div>
-        <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-300 mb-1">Loss</h4>
-          <p className="text-2xl font-bold text-red-600 dark:text-red-300">₹{weeklyStats.loss.toLocaleString()}</p>
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
+          <h4 className="mb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Loss</h4>
+          <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+            Rs. {weeklyStats.loss.toLocaleString()}
+          </p>
         </div>
       </div>
 
       {/* Grid Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Line Chart */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 className="text-lg font-bold mb-4">Sales Overview</h2>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ChartCard title="Sales Overview">
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={salesData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -100,14 +116,12 @@ const VendorAnalytics = () => {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="sales" stroke="#8884d8" strokeWidth={3} />
+              <Line type="monotone" dataKey="sales" stroke={COLORS[0]} strokeWidth={3} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
 
-        {/* Bar Chart */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 className="text-lg font-bold mb-4">Top Ordered Products</h2>
+        <ChartCard title="Top Ordered Products">
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={topProducts}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -115,14 +129,12 @@ const VendorAnalytics = () => {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="orders" fill="#00C49F" />
+              <Bar dataKey="orders" fill={COLORS[0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
 
-        {/* Pie Chart */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 className="text-lg font-bold mb-4">Order Status</h2>
+        <ChartCard title="Order Status">
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
               <Pie data={orderStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
@@ -134,21 +146,19 @@ const VendorAnalytics = () => {
               <Legend />
             </PieChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
 
-        {/* Area Chart */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 className="text-lg font-bold mb-4">Revenue vs Expenses</h2>
+        <ChartCard title="Revenue vs Expenses">
           <ResponsiveContainer width="100%" height={250}>
             <AreaChart data={revenueVsExpense}>
               <defs>
                 <linearGradient id="revenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#00C49F" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#00C49F" stopOpacity={0}/>
+                  <stop offset="5%" stopColor={COLORS[0]} stopOpacity={0.8} />
+                  <stop offset="95%" stopColor={COLORS[0]} stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="expenses" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#FF4D4D" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#FF4D4D" stopOpacity={0}/>
+                  <stop offset="5%" stopColor={COLORS[3]} stopOpacity={0.8} />
+                  <stop offset="95%" stopColor={COLORS[3]} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="month" />
@@ -156,18 +166,16 @@ const VendorAnalytics = () => {
               <CartesianGrid strokeDasharray="3 3" />
               <Tooltip />
               <Legend />
-              <Area type="monotone" dataKey="revenue" stroke="#00C49F" fillOpacity={1} fill="url(#revenue)" />
-              <Area type="monotone" dataKey="expenses" stroke="#FF4D4D" fillOpacity={1} fill="url(#expenses)" />
+              <Area type="monotone" dataKey="revenue" stroke={COLORS[0]} fillOpacity={1} fill="url(#revenue)" />
+              <Area type="monotone" dataKey="expenses" stroke={COLORS[3]} fillOpacity={1} fill="url(#expenses)" />
             </AreaChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
 
-        {/* Donut Chart */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 className="text-lg font-bold mb-4">Category-wise Sales</h2>
+        <ChartCard title="Category-wise Sales">
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
-              <Pie data={categorySales} cx="50%" cy="50%" innerRadius={50} outerRadius={80} fill="#8884d8" dataKey="value" label>
+              <Pie data={categorySales} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" label>
                 {categorySales.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
@@ -176,11 +184,9 @@ const VendorAnalytics = () => {
               <Legend />
             </PieChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
 
-        {/* Monthly Transactions Bar Chart */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 className="text-lg font-bold mb-4">Monthly Transactions</h2>
+        <ChartCard title="Monthly Transactions">
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={monthlyTransactions}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -188,14 +194,12 @@ const VendorAnalytics = () => {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="count" fill="#845EC2" />
+              <Bar dataKey="count" fill={COLORS[4]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
 
-        {/* Customer Growth Line Chart */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-          <h2 className="text-lg font-bold mb-4">Customer Growth</h2>
+        <ChartCard title="Customer Growth">
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={customerGrowth}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -203,13 +207,14 @@ const VendorAnalytics = () => {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="customers" stroke="#F9C80E" strokeWidth={3} />
+              <Line type="monotone" dataKey="customers" stroke={COLORS[1]} strokeWidth={3} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
       </div>
     </div>
   );
 };
 
 export default VendorAnalytics;
+

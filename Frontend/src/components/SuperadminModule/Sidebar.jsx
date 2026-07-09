@@ -4,6 +4,7 @@ import {
   FaTachometerAlt,
   FaUsers,
   FaShieldAlt,
+  FaGlobe,
   FaStickyNote,
   FaEnvelope,
 } from "react-icons/fa";
@@ -19,6 +20,7 @@ const Sidebar = ({ active, setActive }) => {
   const menuItems = [
     { name: "Dashboard",          icon: FaTachometerAlt, key: "dashboard" },
     { name: "User Management",    icon: FaUsers,         key: "user-management" },
+    { name: "Global Vendor Management", icon: FaGlobe,   key: "global-vendor-management" },
     { name: "Admin Management",   icon: FaShieldAlt,     key: "admin-management" },
     { name: "Contact Inquiries",  icon: FaEnvelope,      key: "contact-inquiries" },
     { name: "Notes",              icon: FaStickyNote,    key: "notepad" },

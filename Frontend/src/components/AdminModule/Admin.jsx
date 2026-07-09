@@ -326,8 +326,10 @@ const Settings = lazy(() => import("./AdminSettings"));
 const Message = lazy(() => import("./AdminMessage"));
 const Notification = lazy(() => import("./AdminNotification"));
 const TableManagement = lazy(() => import("./AdminTableManagement"));
+const AdminVendorDirectory = lazy(() => import("./AdminVendorDirectory"));
+const AdminVendorStorefront = lazy(() => import("./AdminVendorStorefront"));
 
-import { FaBox, FaChartBar, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList } from "react-icons/fa";
+import { FaBox, FaChartBar, FaHandshake, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 /* ─── Avatar + Profile Popup ─── */
@@ -432,6 +434,7 @@ const BOTTOM_NAV = [
   { key: "staff",      label: "Staff",      icon: FaUsers },
   { key: "restaurant", label: "Restaurant", icon: FaUtensils },
   { key: "inventory",  label: "Inventory",  icon: FaBox },
+  { key: "vendor",     label: "Vendor",     icon: FaHandshake },
   { key: "menu",       label: "Menu",       icon: FaClipboardList },
   { key: "table",      label: "Table",      icon: FaUtensils },
   { key: "account",    label: "Account",    icon: FaUserCircle },
@@ -451,6 +454,7 @@ const Admin = () => {
   /* ✅ RESTAURANT STATE */
   const [selectedRestaurantId, setSelectedRestaurantId] = useState(null);
   const [inventoryPendingCount, setInventoryPendingCount] = useState(0);
+  const [selectedVendorId, setSelectedVendorId] = useState(null);
 
   const mainRef = useRef(null);
 
@@ -516,6 +520,24 @@ const Admin = () => {
 
       case "inventory":
         return <AdminInventory onPendingApprovalCountChange={setInventoryPendingCount} />;
+
+      case "vendor":
+        return (
+          <AdminVendorDirectory
+            onViewVendor={(vendorId) => {
+              setSelectedVendorId(vendorId);
+              setActive("vendorDetail");
+            }}
+          />
+        );
+
+      case "vendorDetail":
+        return (
+          <AdminVendorStorefront
+            vendorId={selectedVendorId}
+            onBack={() => setActive("vendor")}
+          />
+        );
 
       case "account":
         return <Account />;

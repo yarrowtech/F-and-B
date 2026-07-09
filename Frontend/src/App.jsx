@@ -136,6 +136,7 @@ const StaffLogin = lazy(() => import("./components/Login/StaffLogin"));
 /* ================= DASHBOARDS ================= */
 const Superadmin = lazy(() => import("./components/SuperadminModule/Superadmin"));
 const Admin = lazy(() => import("./components/AdminModule/Admin"));
+const AdminExploreVendors = lazy(() => import("./components/AdminModule/AdminExploreVendors"));
 const Vendor = lazy(() => import("./components/VendorModule/Vendor"));
 const Manager = lazy(() => import("./components/ManagerModule/Manager"));
 const Chef = lazy(() => import("./components/ChefModule/Chef"));
@@ -191,6 +192,15 @@ const App = () => {
           element={
             <ProtectedRoute allowedRoles={["super_admin"]}>
               <Superadmin />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/vendor-explore"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AdminExploreVendors />
             </ProtectedRoute>
           }
         />

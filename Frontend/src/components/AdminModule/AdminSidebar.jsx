@@ -55,9 +55,10 @@ const Sidebar = ({
   /* ================= MENU ITEMS ================= */
   const menuItems = [
     { name: "Dashboard",           icon: FaTachometerAlt, key: "dashboard" },
-    { name: "Staff Management",    icon: FaUsers,         key: "staff" },
+    { name: "User Management",     icon: FaUsers,         key: "staff" },
     { name: "Restaurant Management",icon: FaUtensils,     key: "restaurant" },
     { name: "Inventory",           icon: FaBox,           key: "inventory" },
+    { name: "Vendor Management",   icon: FaHandshake,     key: "vendor" },
     { name: "Menu Management",     icon: FaClipboardList, key: "menu" },
     { name: "Table Management",    icon: FaUtensils,      key: "table" },
     { name: "Account",             icon: FaUserCircle,    key: "account" },

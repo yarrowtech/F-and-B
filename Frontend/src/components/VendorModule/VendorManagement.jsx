@@ -1,1663 +1,1048 @@
-// import React, { useEffect, useMemo, useState } from "react";
-// import {
-//   FaBox,
-//   FaClipboardList,
-//   FaTruck,
-//   FaMoneyBill,
-//   FaTrash,
-//   FaEdit,
-//   FaSave,
-//   FaPlus,
-// } from "react-icons/fa";
-// import jsPDF from "jspdf";
-// import "jspdf-autotable";
-
-// const STORAGE_KEYS = {
-//   products: "vm_products",
-//   orders: "vm_orders",
-//   payments: "vm_payments",
-//   history: "vm_history",
-// };
-
-// const currency = (n) =>
-//   isNaN(n) ? "₹0" : n.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
-
-// const fmtQty = (qty, unit) => `${qty} ${unit || ""}`;
-// const nowStr = () => new Date().toLocaleString();
-
-// const getNextId = (arr) => (arr.length ? Math.max(...arr.map((i) => i.id)) + 1 : 1);
-
-// const VendorManagement = () => {
-//   const [activeTab, setActiveTab] = useState("products");
-
-//   // ---------- Products ----------
-//   const [products, setProducts] = useState(() => {
-//     const saved = localStorage.getItem(STORAGE_KEYS.products);
-//     return saved
-//       ? JSON.parse(saved)
-//       : [
-//           { id: 1, name: "RICE", stock: 120, unit: "kg", price: 50 },
-//           { id: 2, name: "MILK", stock: 200, unit: "liter", price: 30 },
-//           { id: 3, name: "SUGAR POWDER", stock: 500, unit: "packet", price: 40 },
-//           { id: 4, name: "TOMATO", stock: 100, unit: "kg", price: 30 },
-//           { id: 5, name: "MIXED MASALA", stock: 200, unit: "packet", price: 90 },
-//         ];
-//   });
-
-//   // ---------- Orders / Payments / History ----------
-//   const [orders, setOrders] = useState(() => {
-//     const saved = localStorage.getItem(STORAGE_KEYS.orders);
-//     return saved ? JSON.parse(saved) : [];
-//   });
-//   const [payments, setPayments] = useState(() => {
-//     const saved = localStorage.getItem(STORAGE_KEYS.payments);
-//     return saved ? JSON.parse(saved) : [];
-//   });
-//   const [history, setHistory] = useState(() => {
-//     const saved = localStorage.getItem(STORAGE_KEYS.history);
-//     return saved ? JSON.parse(saved) : [];
-//   });
-
-//   // Persist
-//   useEffect(() => {
-//     localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products));
-//   }, [products]);
-//   useEffect(() => {
-//     localStorage.setItem(STORAGE_KEYS.orders, JSON.stringify(orders));
-//   }, [orders]);
-//   useEffect(() => {
-//     localStorage.setItem(STORAGE_KEYS.payments, JSON.stringify(payments));
-//   }, [payments]);
-//   useEffect(() => {
-//     localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history));
-//   }, [history]);
-
-//   // ---------- Product edit/add ----------
-//   const [newProduct, setNewProduct] = useState({ name: "", price: "", stock: "", unit: "packet" });
-//   const [editingProductId, setEditingProductId] = useState(null);
-//   const [editedProduct, setEditedProduct] = useState({});
-
-//   const handleAddProduct = () => {
-//     const name = newProduct.name.trim();
-//     const price = parseFloat(newProduct.price);
-//     const stock = parseFloat(newProduct.stock);
-
-//     if (!name || isNaN(price) || isNaN(stock)) {
-//       alert("Please provide product name, price and stock.");
-//       return;
-//     }
-//     const newId = getNextId(products);
-//     setProducts((prev) => [
-//       ...prev,
-//       {
-//         id: newId,
-//         name: name.toUpperCase(),
-//         price,
-//         stock,
-//         unit: newProduct.unit,
-//       },
-//     ]);
-//     setNewProduct({ name: "", price: "", stock: "", unit: "packet" });
-//   };
-
-//   const handleEditClick = (product) => {
-//     setEditingProductId(product.id);
-//     setEditedProduct({ ...product });
-//   };
-
-//   const handleSaveEdit = () => {
-//     const name = (editedProduct.name || "").trim();
-//     const price = parseFloat(editedProduct.price);
-//     const stock = parseFloat(editedProduct.stock);
-//     const unit = editedProduct.unit;
-
-//     if (!name || isNaN(price) || isNaN(stock) || !unit) {
-//       alert("Please fill name, price, stock and unit before saving.");
-//       return;
-//     }
-//     setProducts((prev) =>
-//       prev.map((p) =>
-//         p.id === editingProductId ? { ...p, name: name.toUpperCase(), price, stock, unit } : p
-//       )
-//     );
-//     setEditingProductId(null);
-//     setEditedProduct({});
-//   };
-
-//   const handleDeleteProduct = (id) => {
-//     if (!confirm("Delete this product?")) return;
-//     setProducts((prev) => prev.filter((p) => p.id !== id));
-//     setOrders((prev) => prev.filter((o) => o.itemId !== id));
-//   };
-
-//   // ---------- New order ----------
-//   const [newOrder, setNewOrder] = useState({
-//     itemId: "",
-//     qty: "",
-//     restaurantName: "",
-//     address: "",
-//     email: "",
-//     mobile: "",
-//   });
-
-//   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState({});
-
-//   const isValidEmail = (e) => /^\S+@\S+\.\S+$/.test(e);
-//   const isValidMobile = (m) => /^[0-9]{10}$/.test((m || "").trim());
-
-//   const handleAddOrder = () => {
-//     const product = products.find((p) => p.id === Number(newOrder.itemId));
-//     if (!product) return alert("Please select a valid product.");
-
-//     const qty = parseFloat(newOrder.qty);
-//     if (!qty || qty <= 0) return alert("Enter a valid quantity.");
-
-//     if (!newOrder.restaurantName || !newOrder.address) return alert("Fill restaurant name and address.");
-//     if (!isValidEmail(newOrder.email)) return alert("Enter a valid email.");
-//     if (!isValidMobile(newOrder.mobile)) return alert("Enter a valid 10-digit mobile number.");
-
-//     if (qty > product.stock) return alert(`Stock not enough! Only ${product.stock} ${product.unit} left.`);
-
-//     const newId = getNextId(orders);
-//     const orderToAdd = {
-//       id: newId,
-//       itemId: product.id,
-//       qty,
-//       unit: product.unit,
-//       restaurantName: newOrder.restaurantName.trim(),
-//       address: newOrder.address.trim(),
-//       email: newOrder.email.trim(),
-//       mobile: newOrder.mobile.trim(),
-//       status: "Pending",
-//       timestamp: new Date().toISOString(), // ISO for reliable math
-//     };
-//     setOrders((prev) => [...prev, orderToAdd]);
-//     setNewOrder({ itemId: "", qty: "", restaurantName: "", address: "", email: "", mobile: "" });
-//   };
-
-//   // ---------- Status / Payments / History ----------
-//   const updateOrderStatus = (orderId, newStatus, paymentMethod = "UPI") => {
-//     // get current snapshot BEFORE any state change
-//     const order = orders.find((o) => o.id === orderId);
-//     if (!order) return;
-
-//     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)));
-
-//     if (newStatus === "Accepted") {
-//       const product = products.find((p) => p.id === order.itemId);
-//       if (!product) return;
-
-//       // decrease stock
-//       setProducts((prev) =>
-//         prev.map((p) => (p.id === product.id ? { ...p, stock: Math.max(0, p.stock - order.qty) } : p))
-//       );
-
-//       // create payment
-//       const paymentId = getNextId(payments);
-//       const amount = product.price * order.qty;
-//       const newPayment = {
-//         id: paymentId,
-//         orderId: order.id,
-//         customer: order.restaurantName,
-//         amount,
-//         method: paymentMethod,
-//         status: "Pending",
-//       };
-//       setPayments((prev) => [...prev, newPayment]);
-
-//       // add history row
-//       setHistory((prev) => [
-//         ...prev,
-//         {
-//           restaurantName: order.restaurantName,
-//           address: order.address,
-//           email: order.email,
-//           mobile: order.mobile,
-//           itemName: product.name,
-//           qty: order.qty,
-//           unit: product.unit,
-//           amount,
-//           paymentMethod,
-//           paymentStatus: newPayment.status,
-//           timestamp: nowStr(),
-//           paymentId,
-//         },
-//       ]);
-//     }
-
-//     if (newStatus === "Rejected") {
-//       const product = products.find((p) => p.id === order.itemId);
-//       setHistory((prev) => [
-//         ...prev,
-//         {
-//           restaurantName: order.restaurantName,
-//           address: order.address,
-//           email: order.email,
-//           mobile: order.mobile,
-//           itemName: product?.name || "-",
-//           qty: order.qty,
-//           unit: product?.unit || "-",
-//           amount: 0,
-//           paymentMethod: "-",
-//           paymentStatus: "Rejected",
-//           timestamp: nowStr(),
-//           paymentId: null,
-//         },
-//       ]);
-//     }
-//   };
-
-//   const markAsPaid = (paymentId) => {
-//     setPayments((prev) => prev.map((p) => (p.id === paymentId ? { ...p, status: "Paid" } : p)));
-//     setHistory((prev) => prev.map((h) => (h.paymentId === paymentId ? { ...h, paymentStatus: "Paid" } : h)));
-//   };
-
-//   // ---------- PDF ----------
-//   const generatePDF = () => {
-//     const doc = new jsPDF();
-//     doc.text("Order History Report", 14, 16);
-//     doc.autoTable({
-//       startY: 22,
-//       head: [
-//         [
-//           "Restaurant Name",
-//           "Address",
-//           "Email",
-//           "Mobile",
-//           "Item",
-//           "Qty",
-//           "Amount",
-//           "Payment Method",
-//           "Payment Status",
-//           "Timestamp",
-//         ],
-//       ],
-//       body: history.map((h) => [
-//         h.restaurantName,
-//         h.address,
-//         h.email,
-//         h.mobile,
-//         h.itemName,
-//         fmtQty(h.qty, h.unit),
-//         h.amount,
-//         h.paymentMethod,
-//         h.paymentStatus,
-//         h.timestamp,
-//       ]),
-//     });
-//     doc.save("order-history.pdf");
-//   };
-
-//   // ---------- Derived ----------
-//   const totalDue = useMemo(
-//     () => payments.filter((p) => p.status !== "Paid").reduce((s, p) => s + p.amount, 0),
-//     [payments]
-//   );
-//   const totalPaid = useMemo(
-//     () => payments.filter((p) => p.status === "Paid").reduce((s, p) => s + p.amount, 0),
-//     [payments]
-//   );
-
-//   return (
-//     <div className="p-6 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen">
-//       <h1 className="text-3xl font-bold mb-6">Vendor Management</h1>
-
-//       {/* Tabs */}
-//       <div className="flex flex-wrap gap-3 mb-6">
-//         {[
-//           { name: "products", icon: FaBox, label: "Products" },
-//           { name: "orders", icon: FaClipboardList, label: "Order Requests" },
-//           { name: "tracking", icon: FaTruck, label: "Track Orders" },
-//           { name: "payments", icon: FaMoneyBill, label: "Payments" },
-//           { name: "history", icon: FaClipboardList, label: "History" },
-//         ].map((tab) => (
-//           <button
-//             key={tab.name}
-//             onClick={() => setActiveTab(tab.name)}
-//             className={`flex items-center px-4 py-2 rounded-full transition ${
-//               activeTab === tab.name
-//                 ? "bg-green-600 text-white shadow"
-//                 : "bg-gray-200 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
-//             }`}
-//           >
-//             <tab.icon className="mr-2" />
-//             {tab.label}
-//           </button>
-//         ))}
-//       </div>
-
-//       {/* Products */}
-//       {activeTab === "products" && (
-//         <div>
-//           <h2 className="text-xl font-semibold mb-4">Product List</h2>
-//           <div className="mb-6 flex flex-wrap gap-2 items-end bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 p-3 rounded-xl">
-//             <input
-//               type="text"
-//               placeholder="Name"
-//               value={newProduct.name}
-//               onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-//               className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//             />
-//             <input
-//               type="number"
-//               placeholder="Price"
-//               value={newProduct.price}
-//               onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-//               className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//             />
-//             <input
-//               type="number"
-//               placeholder="Stock"
-//               value={newProduct.stock}
-//               onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
-//               className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//             />
-//             <select
-//               value={newProduct.unit}
-//               onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
-//               className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//             >
-//               <option value="packet">Packet</option>
-//               <option value="kg">kg</option>
-//               <option value="liter">Liter</option>
-//               <option value="g">Gram</option>
-//               <option value="ml">ml</option>
-//               <option value="bottle">Bottle</option>
-//               <option value="pcs">pcs</option>
-//             </select>
-//             <button onClick={handleAddProduct} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
-//               <FaPlus className="inline mr-1" /> Add
-//             </button>
-//           </div>
-
-//           <table className="w-full bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-//             <thead>
-//               <tr className="bg-gray-100 dark:bg-gray-700 text-left">
-//                 <th className="p-3">Name</th>
-//                 <th className="p-3">Price</th>
-//                 <th className="p-3">Stock</th>
-//                 <th className="p-3">Unit</th>
-//                 <th className="p-3">Actions</th>
-//               </tr>
-//             </thead>
-//             <tbody>
-//               {products.map((p) => {
-//                 const low = p.stock <= 10;
-//                 return (
-//                   <tr key={p.id} className="border-t border-gray-200 dark:border-gray-600">
-//                     <td className="p-3">
-//                       {editingProductId === p.id ? (
-//                         <input
-//                           value={editedProduct.name}
-//                           onChange={(e) => setEditedProduct({ ...editedProduct, name: e.target.value })}
-//                           className="border p-1 rounded-md bg-white dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//                         />
-//                       ) : (
-//                         p.name
-//                       )}
-//                     </td>
-//                     <td className="p-3">
-//                       {editingProductId === p.id ? (
-//                         <input
-//                           type="number"
-//                           value={editedProduct.price}
-//                           onChange={(e) => setEditedProduct({ ...editedProduct, price: e.target.value })}
-//                           className="border p-1 rounded-md bg-white dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//                         />
-//                       ) : (
-//                         currency(p.price)
-//                       )}
-//                     </td>
-//                     <td className="p-3">
-//                       {editingProductId === p.id ? (
-//                         <input
-//                           type="number"
-//                           value={editedProduct.stock}
-//                           onChange={(e) => setEditedProduct({ ...editedProduct, stock: e.target.value })}
-//                           className="border p-1 rounded-md bg-white dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//                         />
-//                       ) : (
-//                         <span className={low ? "text-red-600 font-semibold" : ""}>{p.stock}</span>
-//                       )}
-//                     </td>
-//                     <td className="p-3">
-//                       {editingProductId === p.id ? (
-//                         <select
-//                           value={editedProduct.unit}
-//                           onChange={(e) => setEditedProduct({ ...editedProduct, unit: e.target.value })}
-//                           className="border p-1 rounded-md bg-white dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//                         >
-//                           <option value="packet">Packet</option>
-//                           <option value="kg">kg</option>
-//                           <option value="liter">Liter</option>
-//                           <option value="g">Gram</option>
-//                           <option value="ml">ml</option>
-//                           <option value="bottle">Bottle</option>
-//                           <option value="pcs">pcs</option>
-//                           <option value="cans">cans</option>
-//                         </select>
-//                       ) : (
-//                         p.unit
-//                       )}
-//                     </td>
-//                     <td className="p-3 flex flex-wrap gap-2">
-//                       {editingProductId === p.id ? (
-//                         <button onClick={handleSaveEdit} className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded-lg">
-//                           <FaSave />
-//                         </button>
-//                       ) : (
-//                         <button
-//                           onClick={() => handleEditClick(p)}
-//                           className="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded-lg"
-//                         >
-//                           <FaEdit />
-//                         </button>
-//                       )}
-//                       <button
-//                         onClick={() => handleDeleteProduct(p.id)}
-//                         className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-lg"
-//                       >
-//                         <FaTrash />
-//                       </button>
-//                     </td>
-//                   </tr>
-//                 );
-//               })}
-//             </tbody>
-//           </table>
-//         </div>
-//       )}
-
-//       {/* Orders */}
-//       {activeTab === "orders" && (
-//         <div>
-//           <h2 className="text-xl font-semibold mb-4">Order Requests</h2>
-
-//           <div className="bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 p-4 rounded-xl mb-4 flex flex-wrap gap-2 items-end">
-//             <select
-//               value={newOrder.itemId || ""}
-//               onChange={(e) => setNewOrder({ ...newOrder, itemId: parseInt(e.target.value) })}
-//               className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//             >
-//               <option value="">Select Product</option>
-//               {products.map((p) => (
-//                 <option key={p.id} value={p.id}>
-//                   {p.name} ({p.unit})
-//                 </option>
-//               ))}
-//             </select>
-
-//             <input
-//               type="number"
-//               placeholder="Quantity"
-//               value={newOrder.qty || ""}
-//               onChange={(e) => setNewOrder({ ...newOrder, qty: e.target.value })}
-//               className="p-2 border rounded-md w-28 bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//             />
-
-//             <input
-//               type="text"
-//               placeholder="Restaurant Name"
-//               value={newOrder.restaurantName || ""}
-//               onChange={(e) => setNewOrder({ ...newOrder, restaurantName: e.target.value })}
-//               className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//             />
-
-//             <input
-//               type="text"
-//               placeholder="Address"
-//               value={newOrder.address || ""}
-//               onChange={(e) => setNewOrder({ ...newOrder, address: e.target.value })}
-//               className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//             />
-
-//             <input
-//               type="email"
-//               placeholder="Email"
-//               value={newOrder.email || ""}
-//               onChange={(e) => setNewOrder({ ...newOrder, email: e.target.value })}
-//               className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//             />
-
-//             <input
-//               type="text"
-//               placeholder="Mobile"
-//               value={newOrder.mobile || ""}
-//               onChange={(e) => setNewOrder({ ...newOrder, mobile: e.target.value })}
-//               className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//             />
-
-//             <button onClick={handleAddOrder} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
-//               <FaPlus className="inline mr-1" /> Add Order
-//             </button>
-//           </div>
-
-//           <ul className="space-y-4">
-//             {orders.map((order) => {
-//               const product = products.find((p) => p.id === order.itemId);
-//               const lineTotal = product ? product.price * order.qty : 0;
-
-//               return (
-//                 <li
-//                   key={order.id}
-//                   className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-xl shadow-sm"
-//                 >
-//                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-//                     <p><strong>Restaurant:</strong> {order.restaurantName}</p>
-//                     <p><strong>Address:</strong> {order.address}</p>
-//                     <p><strong>Email:</strong> {order.email}</p>
-//                     <p><strong>Mobile:</strong> {order.mobile}</p>
-//                     <p>
-//                       <strong>Item:</strong> {product?.name} ({order.unit}) × {order.qty}
-//                     </p>
-//                     <p><strong>Amount:</strong> {currency(lineTotal)}</p>
-//                   </div>
-
-//                   <p className="mt-1">
-//                     <strong>Status:</strong>{" "}
-//                     <span
-//                       className={`font-bold ${
-//                         order.status === "Accepted"
-//                           ? "text-green-600"
-//                           : order.status === "Rejected"
-//                           ? "text-red-500"
-//                           : "text-yellow-600"
-//                       }`}
-//                     >
-//                       {order.status}
-//                     </span>
-//                   </p>
-
-//                   {order.status === "Pending" && (
-//                     <div className="flex flex-wrap gap-2 mt-3 items-center">
-//                       <select
-//                         value={selectedPaymentMethod[order.id] || "UPI"}
-//                         onChange={(e) =>
-//                           setSelectedPaymentMethod((prev) => ({
-//                             ...prev,
-//                             [order.id]: e.target.value,
-//                           }))
-//                         }
-//                         className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-//                       >
-//                         <option value="UPI">UPI</option>
-//                         <option value="Cash">Cash</option>
-//                         <option value="Net Banking">Net Banking</option>
-//                         <option value="Card">Card</option>
-//                       </select>
-
-//                       <button
-//                         onClick={() =>
-//                           updateOrderStatus(order.id, "Accepted", selectedPaymentMethod[order.id] || "UPI")
-//                         }
-//                         className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg"
-//                       >
-//                         Accept
-//                       </button>
-//                       <button
-//                         onClick={() => updateOrderStatus(order.id, "Rejected")}
-//                         className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg"
-//                       >
-//                         Reject
-//                       </button>
-//                     </div>
-//                   )}
-//                 </li>
-//               );
-//             })}
-//           </ul>
-//         </div>
-//       )}
-
-//       {/* Tracking */}
-//       {activeTab === "tracking" && (
-//         <div>
-//           <h2 className="text-xl font-semibold mb-4">Track Orders</h2>
-//           {orders.filter((o) => o.status !== "Rejected").length === 0 ? (
-//             <p>No active orders to track.</p>
-//           ) : (
-//             <ul className="space-y-4">
-//               {orders
-//                 .filter((o) => o.status !== "Rejected")
-//                 .map((order) => {
-//                   const product = products.find((p) => p.id === order.itemId);
-//                   const payment = payments.find((p) => p.orderId === order.id);
-//                   const orderTime = new Date(order.timestamp);
-//                   const hoursElapsed = (Date.now() - orderTime.getTime()) / 36e5;
-//                   const delayed = order.status === "Shipped" && hoursElapsed > 2;
-
-//                   return (
-//                     <li
-//                       key={order.id}
-//                       className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-xl shadow-sm"
-//                     >
-//                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-//                         <p><strong>Restaurant:</strong> {order.restaurantName}</p>
-//                         <p><strong>Address:</strong> {order.address}</p>
-//                         <p><strong>Email:</strong> {order.email}</p>
-//                         <p><strong>Mobile:</strong> {order.mobile}</p>
-//                         <p>
-//                           <strong>Item:</strong> {product?.name} ({order.unit}) × {order.qty}
-//                         </p>
-//                       </div>
-
-//                       <p className="mt-1">
-//                         <strong>Status:</strong>{" "}
-//                         <span className={`font-bold ${delayed ? "text-red-600" : "text-blue-600"}`}>
-//                           {order.status}
-//                           {delayed ? " (Delayed!)" : ""}
-//                         </span>
-//                       </p>
-
-//                       {payment && (
-//                         <p className="mt-1">
-//                           <strong>Payment Status:</strong>{" "}
-//                           {payment.status === "Paid" ? (
-//                             <span className="text-green-600 font-semibold">Paid</span>
-//                           ) : (
-//                             <button
-//                               onClick={() => markAsPaid(payment.id)}
-//                               className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded-lg"
-//                             >
-//                               Mark as Paid
-//                             </button>
-//                           )}
-//                         </p>
-//                       )}
-
-//                       {order.status === "Accepted" && (
-//                         <button
-//                           onClick={() => updateOrderStatus(order.id, "Shipped")}
-//                           className="mt-3 bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg"
-//                         >
-//                           Mark Shipped
-//                         </button>
-//                       )}
-//                       {order.status === "Shipped" && (
-//                         <button
-//                           onClick={() => updateOrderStatus(order.id, "Delivered")}
-//                           className="mt-3 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg"
-//                         >
-//                           Mark Delivered
-//                         </button>
-//                       )}
-//                     </li>
-//                   );
-//                 })}
-//             </ul>
-//           )}
-//         </div>
-//       )}
-
-//       {/* Payments */}
-//       {activeTab === "payments" && (
-//         <div>
-//           <h2 className="text-xl font-semibold mb-4">Payments</h2>
-//           {payments.length === 0 ? (
-//             <p>No payments yet.</p>
-//           ) : (
-//             <>
-//               <div className="mb-3 text-sm text-gray-700 dark:text-gray-300">
-//                 <span className="mr-6">Total Paid: <strong>{currency(totalPaid)}</strong></span>
-//                 <span>Total Due: <strong>{currency(totalDue)}</strong></span>
-//               </div>
-//               <table className="w-full bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-//                 <thead>
-//                   <tr className="bg-gray-100 dark:bg-gray-700 text-left">
-//                     <th className="p-3">Customer</th>
-//                     <th className="p-3">Amount</th>
-//                     <th className="p-3">Method</th>
-//                     <th className="p-3">Status</th>
-//                     <th className="p-3">Action</th>
-//                   </tr>
-//                 </thead>
-//                 <tbody>
-//                   {payments.map((p) => (
-//                     <tr key={p.id} className="border-t border-gray-200 dark:border-gray-700">
-//                       <td className="p-3">{p.customer}</td>
-//                       <td className="p-3">{currency(p.amount)}</td>
-//                       <td className="p-3">{p.method}</td>
-//                       <td className="p-3">
-//                         <span className={p.status === "Paid" ? "text-green-600 font-semibold" : ""}>{p.status}</span>
-//                       </td>
-//                       <td className="p-3">
-//                         {p.status !== "Paid" && (
-//                           <button
-//                             onClick={() => markAsPaid(p.id)}
-//                             className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg"
-//                           >
-//                             Mark Paid
-//                           </button>
-//                         )}
-//                       </td>
-//                     </tr>
-//                   ))}
-//                 </tbody>
-//               </table>
-//             </>
-//           )}
-//         </div>
-//       )}
-
-//       {/* History */}
-//       {activeTab === "history" && (
-//         <div>
-//           <h2 className="text-xl font-semibold mb-4">Order History</h2>
-//           <button onClick={generatePDF} className="mb-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
-//             Export PDF
-//           </button>
-
-//           {history.length === 0 ? (
-//             <p>No order history yet.</p>
-//           ) : (
-//             <table className="w-full bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-//               <thead>
-//                 <tr className="bg-gray-100 dark:bg-gray-700 text-left">
-//                   <th className="p-3">Customer</th>
-//                   <th className="p-3">Item</th>
-//                   <th className="p-3">Qty</th>
-//                   <th className="p-3">Amount</th>
-//                   <th className="p-3">Payment Method</th>
-//                   <th className="p-3">Payment Status</th>
-//                   <th className="p-3">Timestamp</th>
-//                 </tr>
-//               </thead>
-//               <tbody>
-//                 {history.map((h, idx) => (
-//                   <tr key={idx} className="border-t border-gray-200 dark:border-gray-700">
-//                     <td className="p-3">{h.restaurantName}</td>
-//                     <td className="p-3">{h.itemName}</td>
-//                     <td className="p-3">{fmtQty(h.qty, h.unit)}</td>
-//                     <td className="p-3">{currency(h.amount)}</td>
-//                     <td className="p-3">{h.paymentMethod}</td>
-//                     <td className="p-3">{h.paymentStatus}</td>
-//                     <td className="p-3">{h.timestamp}</td>
-//                   </tr>
-//                 ))}
-//               </tbody>
-//             </table>
-//           )}
-//         </div>
-//       )}
-//     </div>
-//   );
-// };
-
-// export default VendorManagement;
-
-
-
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
-  FaBox,
-  FaClipboardList,
-  FaTruck,
-  FaMoneyBill,
-  FaTrash,
-  FaEdit,
-  FaSave,
-  FaPlus,
-} from "react-icons/fa";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  CreditCard,
+  Download,
+  IndianRupee,
+  Mail,
+  MessageCircle,
+  PackageCheck,
+  Receipt,
+  Search,
+  Truck,
+  Wallet,
+  X,
+  XCircle,
+} from "lucide-react";
+import API from "../../services/api";
 
-const STORAGE_KEYS = {
-  products: "vm_products",
-  orders: "vm_orders",
-  payments: "vm_payments",
-  history: "vm_history",
+const PAYMENT_METHODS = ["UPI", "Cash", "Card", "Net Banking"];
+
+const BOARD_CONFIG = {
+  requests: { label: "Requests", icon: AlertCircle },
+  fulfillment: { label: "Ready", icon: Truck },
+  billing: { label: "Bills", icon: Receipt },
+  collection: { label: "Payments", icon: Wallet },
+  history: { label: "History", icon: CheckCircle2 },
 };
 
-const currency = (n) =>
-  isNaN(n)
-    ? "₹0"
-    : n.toLocaleString("en-IN", {
-        style: "currency",
-        currency: "INR",
-        maximumFractionDigits: 2,
-      });
+const fieldClass =
+  "w-full rounded-2xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100";
 
-const fmtQty = (qty, unit) => `${qty} ${unit || ""}`;
-const nowStr = () => new Date().toLocaleString();
-const getNextId = (arr) => (arr.length ? Math.max(...arr.map((i) => i.id)) + 1 : 1);
+const getVendorId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+    return user?.id || user?._id || "";
+  } catch {
+    return "";
+  }
+};
 
-const VendorManagement = () => {
-  const [activeTab, setActiveTab] = useState("products");
+const formatCurrency = (amount) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(Number(amount || 0));
 
-  // ---------- Products ----------
-  const [products, setProducts] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.products);
-    return saved
-      ? JSON.parse(saved)
-      : [
-          { id: 1, name: "RICE", category: "Grains", stock: 120, unit: "kg", price: 50 },
-          { id: 2, name: "MILK", category: "Dairy", stock: 200, unit: "liter", price: 30 },
-          { id: 3, name: "SUGAR POWDER", category: "Grocery", stock: 500, unit: "packet", price: 40 },
-          { id: 4, name: "TOMATO", category: "Vegetables", stock: 100, unit: "kg", price: 30 },
-          { id: 5, name: "MIXED MASALA", category: "Spices", stock: 200, unit: "packet", price: 90 },
-        ];
-  });
+const formatDateTime = (value) => (value ? new Date(value).toLocaleString("en-IN") : "--");
 
-  // ---------- Orders / Payments / History ----------
-  const [orders, setOrders] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.orders);
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [payments, setPayments] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.payments);
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [history, setHistory] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.history);
-    return saved ? JSON.parse(saved) : [];
-  });
+const hasGeneratedBill = (order) => Boolean(order?.billGeneratedAt);
 
-  // Persist
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products));
-  }, [products]);
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.orders, JSON.stringify(orders));
-  }, [orders]);
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.payments, JSON.stringify(payments));
-  }, [payments]);
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history));
-  }, [history]);
-
-  // ---------- Product edit/add ----------
-  const [newProduct, setNewProduct] = useState({
-    name: "",
-    category: "",
-    price: "",
-    stock: "",
-    unit: "packet",
-  });
-  const [editingProductId, setEditingProductId] = useState(null);
-  const [editedProduct, setEditedProduct] = useState({});
-
-  const handleAddProduct = () => {
-    const name = newProduct.name.trim();
-    const category = newProduct.category.trim();
-    const price = parseFloat(newProduct.price);
-    const stock = parseFloat(newProduct.stock);
-
-    if (!name || !category || isNaN(price) || isNaN(stock)) {
-      alert("Please provide product name, category, price and stock.");
-      return;
-    }
-    const newId = getNextId(products);
-    setProducts((prev) => [
-      ...prev,
-      {
-        id: newId,
-        name: name.toUpperCase(),
-        category,
-        price,
-        stock,
-        unit: newProduct.unit,
-      },
-    ]);
-    setNewProduct({ name: "", category: "", price: "", stock: "", unit: "packet" });
+const getBillSummary = (order) =>
+  order?.billSummary || {
+    itemsTotal: Number(order?.totalAmount || 0),
+    cgstRate: 0,
+    sgstRate: 0,
+    cgst: 0,
+    sgst: 0,
+    totalTax: 0,
+    totalAmount: Number(order?.totalAmount || 0),
+    showTaxBreakup: false,
   };
 
-  const handleEditClick = (product) => {
-    setEditingProductId(product.id);
-    setEditedProduct({ ...product });
-  };
-
-  const handleSaveEdit = () => {
-    const name = (editedProduct.name || "").trim();
-    const category = (editedProduct.category || "").trim();
-    const price = parseFloat(editedProduct.price);
-    const stock = parseFloat(editedProduct.stock);
-    const unit = editedProduct.unit;
-
-    if (!name || !category || isNaN(price) || isNaN(stock) || !unit) {
-      alert("Please fill name, category, price, stock and unit before saving.");
-      return;
-    }
-    setProducts((prev) =>
-      prev.map((p) =>
-        p.id === editingProductId ? { ...p, name: name.toUpperCase(), category, price, stock, unit } : p
-      )
-    );
-    setEditingProductId(null);
-    setEditedProduct({});
-  };
-
-  const handleDeleteProduct = (id) => {
-    if (!confirm("Delete this product?")) return;
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-    setOrders((prev) => prev.filter((o) => o.itemId !== id));
-  };
-
-  // ---------- New order ----------
-  const [newOrder, setNewOrder] = useState({
-    itemId: "",
-    qty: "",
-    restaurantName: "",
-    address: "",
-    email: "",
-    mobile: "",
-  });
-
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState({});
-
-  const isValidEmail = (e) => /^\S+@\S+\.\S+$/.test(e);
-  const isValidMobile = (m) => /^[0-9]{10}$/.test((m || "").trim());
-
-  const handleAddOrder = () => {
-    const product = products.find((p) => p.id === Number(newOrder.itemId));
-    if (!product) return alert("Please select a valid product.");
-
-    const qty = parseFloat(newOrder.qty);
-    if (!qty || qty <= 0) return alert("Enter a valid quantity.");
-
-    if (!newOrder.restaurantName || !newOrder.address) return alert("Fill restaurant name and address.");
-    if (!isValidEmail(newOrder.email)) return alert("Enter a valid email.");
-    if (!isValidMobile(newOrder.mobile)) return alert("Enter a valid 10-digit mobile number.");
-
-    if (qty > product.stock) return alert(`Stock not enough! Only ${product.stock} ${product.unit} left.`);
-
-    const newId = getNextId(orders);
-    const orderToAdd = {
-      id: newId,
-      itemId: product.id,
-      qty,
-      unit: product.unit,
-      restaurantName: newOrder.restaurantName.trim(),
-      address: newOrder.address.trim(),
-      email: newOrder.email.trim(),
-      mobile: newOrder.mobile.trim(),
-      status: "Pending",
-      timestamp: new Date().toISOString(),
-    };
-    setOrders((prev) => [...prev, orderToAdd]);
-    setNewOrder({ itemId: "", qty: "", restaurantName: "", address: "", email: "", mobile: "" });
-  };
-
-  // ---------- Status / Payments / History ----------
-  const updateOrderStatus = (orderId, newStatus, paymentMethod = "UPI") => {
-    const order = orders.find((o) => o.id === orderId);
-    if (!order) return;
-
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)));
-
-    if (newStatus === "Accepted") {
-      const product = products.find((p) => p.id === order.itemId);
-      if (!product) return;
-
-      // decrease stock
-      setProducts((prev) =>
-        prev.map((p) => (p.id === product.id ? { ...p, stock: Math.max(0, p.stock - order.qty) } : p))
+const getBoardOrders = (orders, board) => {
+  switch (board) {
+    case "requests":
+      return orders.filter((order) => order.status === "processing");
+    case "fulfillment":
+      return orders.filter(
+        (order) =>
+          order.status === "ready" || (order.status === "completed" && order.paymentStatus !== "paid")
       );
+    case "billing":
+      return orders.filter((order) => hasGeneratedBill(order));
+    case "collection":
+      return orders.filter(
+        (order) => hasGeneratedBill(order) && order.paymentStatus !== "paid" && order.status !== "cancelled"
+      );
+    case "history":
+      return orders.filter(
+        (order) => order.status === "cancelled" || order.paymentStatus === "paid"
+      );
+    default:
+      return orders;
+  }
+};
 
-      // create payment
-      const paymentId = getNextId(payments);
-      const amount = product.price * order.qty;
-      const newPayment = {
-        id: paymentId,
-        orderId: order.id,
-        customer: order.restaurantName,
-        amount,
-        method: paymentMethod,
-        status: "Pending",
-      };
-      setPayments((prev) => [...prev, newPayment]);
+const getOrderSearchText = (order) =>
+  [
+    order?.orderNo,
+    order?.restaurant?.name,
+    order?.restaurant?.restaurantCode,
+    order?.status,
+    order?.paymentStatus,
+    ...(Array.isArray(order?.items) ? order.items.map((item) => item?.name) : []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
 
-      // add history row
-      setHistory((prev) => [
-        ...prev,
-        {
-          restaurantName: order.restaurantName,
-          address: order.address,
-          email: order.email,
-          mobile: order.mobile,
-          itemName: product.name,
-          qty: order.qty,
-          unit: product.unit,
-          amount,
-          paymentMethod,
-          paymentStatus: newPayment.status,
-          timestamp: nowStr(),
-          paymentId,
-        },
-      ]);
-    }
+const getTimelineSteps = (order) => {
+  const generatedBill = hasGeneratedBill(order);
+  const isPaid = order?.paymentStatus === "paid";
+  const isCancelled = order?.status === "cancelled";
 
-    if (newStatus === "Rejected") {
-      const product = products.find((p) => p.id === order.itemId);
-      setHistory((prev) => [
-        ...prev,
-        {
-          restaurantName: order.restaurantName,
-          address: order.address,
-          email: order.email,
-          mobile: order.mobile,
-          itemName: product?.name || "-",
-          qty: order.qty,
-          unit: product?.unit || "-",
-          amount: 0,
-          paymentMethod: "-",
-          paymentStatus: "Rejected",
-          timestamp: nowStr(),
-          paymentId: null,
-        },
-      ]);
-    }
-  };
+  return [
+    { key: "request", label: "Request", done: true, active: !isCancelled && order?.status === "processing" },
+    {
+      key: "ready",
+      label: "Ready",
+      done: ["ready", "completed"].includes(order?.status),
+      active: !isCancelled && order?.status === "ready",
+    },
+    {
+      key: "invoice",
+      label: "Invoice",
+      done: generatedBill,
+      active: !isCancelled && generatedBill && !isPaid,
+    },
+    {
+      key: "payment",
+      label: "Payment",
+      done: isPaid,
+      active: !isCancelled && generatedBill && !isPaid,
+    },
+    {
+      key: "closed",
+      label: "Closed",
+      done: isCancelled || (isPaid && order?.status === "completed"),
+      active: false,
+    },
+  ];
+};
 
-  const markAsPaid = (paymentId) => {
-    setPayments((prev) => prev.map((p) => (p.id === paymentId ? { ...p, status: "Paid" } : p)));
-    setHistory((prev) => prev.map((h) => (h.paymentId === paymentId ? { ...h, paymentStatus: "Paid" } : h)));
-  };
-
-  // ---------- PDF ----------
-  const generatePDF = () => {
-    const doc = new jsPDF();
-    doc.text("Order History Report", 14, 16);
-    doc.autoTable({
-      startY: 22,
-      head: [
-        [
-          "Restaurant Name",
-          "Address",
-          "Email",
-          "Mobile",
-          "Item",
-          "Qty",
-          "Amount",
-          "Payment Method",
-          "Payment Status",
-          "Timestamp",
-        ],
-      ],
-      body: history.map((h) => [
-        h.restaurantName,
-        h.address,
-        h.email,
-        h.mobile,
-        h.itemName,
-        fmtQty(h.qty, h.unit),
-        h.amount,
-        h.paymentMethod,
-        h.paymentStatus,
-        h.timestamp,
-      ]),
-    });
-    doc.save("order-history.pdf");
-  };
-
-  // ---------- Derived & Filters ----------
-  const totalDue = useMemo(
-    () => payments.filter((p) => p.status !== "Paid").reduce((s, p) => s + p.amount, 0),
-    [payments]
+function Surface({ children, className = "" }) {
+  return (
+    <section
+      className={`rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 ${className}`}
+    >
+      {children}
+    </section>
   );
-  const totalPaid = useMemo(
-    () => payments.filter((p) => p.status === "Paid").reduce((s, p) => s + p.amount, 0),
-    [payments]
-  );
+}
 
-  // unique category list
-  const categories = useMemo(() => {
-    const set = new Set(products.map((p) => (p.category || "").trim()).filter(Boolean));
-    return ["All", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
-  }, [products]);
-
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const filteredProducts = useMemo(() => {
-    if (selectedCategory === "All") return products;
-    return products.filter((p) => (p.category || "").trim() === selectedCategory);
-  }, [products, selectedCategory]);
-
-  // Orders tab category filter (dropdown)
-  const [orderCategoryFilter, setOrderCategoryFilter] = useState("All");
-  const orderCategoryProducts = useMemo(() => {
-    if (orderCategoryFilter === "All") return products;
-    return products.filter((p) => (p.category || "").trim() === orderCategoryFilter);
-  }, [products, orderCategoryFilter]);
+function MetricCard({ label, value, helper, tone = "green", icon: Icon }) {
+  const toneMap = {
+    green: "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300",
+    amber: "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300",
+    blue: "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300",
+    slate: "bg-slate-100 text-slate-700 dark:bg-neutral-800 dark:text-slate-300",
+  };
 
   return (
-    <div className="p-6 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen">
-      <h1 className="text-3xl font-bold mb-6">Vendor Management</h1>
-
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        {[
-          { name: "products", icon: FaBox, label: "Products" },
-          { name: "orders", icon: FaClipboardList, label: "Order Requests" },
-          { name: "tracking", icon: FaTruck, label: "Track Orders" },
-          { name: "payments", icon: FaMoneyBill, label: "Payments" },
-          { name: "history", icon: FaClipboardList, label: "History" },
-        ].map((tab) => (
-          <button
-            key={tab.name}
-            onClick={() => setActiveTab(tab.name)}
-            className={`flex items-center px-4 py-2 rounded-full transition ${
-              activeTab === tab.name
-                ? "bg-green-600 text-white shadow"
-                : "bg-gray-200 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
-            }`}
-          >
-            <tab.icon className="mr-2" />
-            {tab.label}
-          </button>
-        ))}
+    <div className="rounded-[18px] border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
+          <p className="mt-1 text-[24px] leading-none font-black text-gray-900 dark:text-gray-100">
+            {value}
+          </p>
+          <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">{helper}</p>
+        </div>
+        <div className={`rounded-xl p-2 ${toneMap[tone] || toneMap.green}`}>
+          {React.createElement(Icon, { size: 14 })}
+        </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Products */}
-      {activeTab === "products" && (
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Product List</h2>
+function StatusPill({ status }) {
+  const map = {
+    processing: {
+      label: "Requested",
+      cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    },
+    ready: {
+      label: "Ready",
+      cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    },
+    completed: {
+      label: "Completed",
+      cls: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+    },
+    cancelled: {
+      label: "Cancelled",
+      cls: "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300",
+    },
+  };
 
-          {/* Add product */}
-          <div className="mb-6 flex flex-wrap gap-2 items-end bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 p-3 rounded-xl">
-            <input
-              type="text"
-              placeholder="Name"
-              value={newProduct.name}
-              onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-              className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-            />
-            <input
-              type="text"
-              placeholder="Category"
-              value={newProduct.category}
-              onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-              className="p-2 border rounded-md w-44 bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-            />
-            <input
-              type="number"
-              placeholder="Price"
-              value={newProduct.price}
-              onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-              className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-            />
-            <input
-              type="number"
-              placeholder="Stock"
-              value={newProduct.stock}
-              onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
-              className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-            />
-            <select
-              value={newProduct.unit}
-              onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
-              className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-            >
-              <option value="packet">Packet</option>
-              <option value="kg">kg</option>
-              <option value="liter">Liter</option>
-              <option value="g">Gram</option>
-              <option value="ml">ml</option>
-              <option value="bottle">Bottle</option>
-              <option value="pcs">pcs</option>
-            </select>
-            <button onClick={handleAddProduct} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
-              <FaPlus className="inline mr-1" /> Add
-            </button>
-          </div>
+  const item = map[status] || map.processing;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${item.cls}`}>
+      {item.label}
+    </span>
+  );
+}
 
-          {/* Category filter dropdown */}
-          <div className="mb-4 flex items-center gap-2">
-            <label className="text-sm opacity-70">Filter by Category:</label>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-            >
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
+function PaymentPill({ status }) {
+  return status === "paid" ? (
+    <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-300">
+      Paid
+    </span>
+  ) : (
+    <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-neutral-800 dark:text-gray-300">
+      Unpaid
+    </span>
+  );
+}
 
-          <table className="block w-full min-w-[720px] overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow">
-            <thead>
-              <tr className="bg-gray-100 dark:bg-gray-700 text-left">
-                <th className="p-3">Name</th>
-                <th className="p-3">Category</th>
-                <th className="p-3">Price</th>
-                <th className="p-3">Stock</th>
-                <th className="p-3">Unit</th>
-                <th className="p-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredProducts.map((p) => {
-                const low = p.stock <= 10;
-                return (
-                  <tr key={p.id} className="border-t border-gray-200 dark:border-gray-600">
-                    <td className="p-3">
-                      {editingProductId === p.id ? (
-                        <input
-                          value={editedProduct.name}
-                          onChange={(e) => setEditedProduct({ ...editedProduct, name: e.target.value })}
-                          className="border p-1 rounded-md bg-white dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-                        />
-                      ) : (
-                        p.name
-                      )}
-                    </td>
-                    <td className="p-3">
-                      {editingProductId === p.id ? (
-                        <input
-                          value={editedProduct.category}
-                          onChange={(e) => setEditedProduct({ ...editedProduct, category: e.target.value })}
-                          className="border p-1 rounded-md bg-white dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-                        />
-                      ) : (
-                        p.category || "-"
-                      )}
-                    </td>
-                    <td className="p-3">
-                      {editingProductId === p.id ? (
-                        <input
-                          type="number"
-                          value={editedProduct.price}
-                          onChange={(e) => setEditedProduct({ ...editedProduct, price: e.target.value })}
-                          className="border p-1 rounded-md bg-white dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-                        />
-                      ) : (
-                        currency(p.price)
-                      )}
-                    </td>
-                    <td className="p-3">
-                      {editingProductId === p.id ? (
-                        <input
-                          type="number"
-                          value={editedProduct.stock}
-                          onChange={(e) => setEditedProduct({ ...editedProduct, stock: e.target.value })}
-                          className="border p-1 rounded-md bg-white dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-                        />
-                      ) : (
-                        <span className={low ? "text-red-600 font-semibold" : ""}>{p.stock}</span>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      {editingProductId === p.id ? (
-                        <select
-                          value={editedProduct.unit}
-                          onChange={(e) => setEditedProduct({ ...editedProduct, unit: e.target.value })}
-                          className="border p-1 rounded-md bg-white dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-                        >
-                          <option value="packet">Packet</option>
-                          <option value="kg">kg</option>
-                          <option value="liter">Liter</option>
-                          <option value="g">Gram</option>
-                          <option value="ml">ml</option>
-                          <option value="bottle">Bottle</option>
-                          <option value="pcs">pcs</option>
-                          <option value="cans">cans</option>
-                        </select>
-                      ) : (
-                        p.unit
-                      )}
-                    </td>
-                    <td className="p-3 flex flex-wrap gap-2">
-                      {editingProductId === p.id ? (
-                        <button
-                          onClick={handleSaveEdit}
-                          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded-lg"
-                        >
-                          <FaSave />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleEditClick(p)}
-                          className="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded-lg"
-                        >
-                          <FaEdit />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDeleteProduct(p.id)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-lg"
-                      >
-                        <FaTrash />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+function BoardButton({ board, active, count, onClick }) {
+  const config = BOARD_CONFIG[board];
+  const Icon = config.icon;
+
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 rounded-[18px] border px-3 py-2 text-left transition ${
+        active
+          ? "border-green-600 bg-green-600 text-white shadow-lg shadow-green-600/20"
+          : "border-gray-200 bg-white text-gray-800 hover:border-green-300 hover:bg-green-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-gray-100 dark:hover:border-green-700 dark:hover:bg-neutral-800"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <div
+          className={`rounded-xl p-1.5 ${
+            active ? "bg-white/15" : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+          }`}
+        >
+          {React.createElement(Icon, { size: 14 })}
         </div>
-      )}
+        <p className="whitespace-nowrap text-sm font-bold">{config.label}</p>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+            active ? "bg-white/20" : "bg-gray-100 text-gray-600 dark:bg-neutral-800 dark:text-gray-300"
+          }`}
+        >
+          {count}
+        </span>
+      </div>
+    </button>
+  );
+}
 
-      {/* Orders */}
-      {activeTab === "orders" && (
+function OrderRow({ order, onClick }) {
+  const billSummary = getBillSummary(order);
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full border-b border-gray-200 px-3 py-4 text-left transition hover:bg-gray-50 last:border-b-0 dark:border-neutral-800 dark:hover:bg-neutral-800/60"
+    >
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-xl font-semibold mb-4">Order Requests</h2>
-
-          {/* Optional category filter for the product picker */}
-          <div className="flex flex-wrap items-end gap-3 mb-2">
-            <label className="text-sm opacity-70">Filter by Category:</label>
-            <select
-              value={orderCategoryFilter}
-              onChange={(e) => setOrderCategoryFilter(e.target.value)}
-              className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-            >
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+          <p className="font-mono text-xs font-bold text-blue-600 dark:text-blue-300">{order.orderNo}</p>
+          <p className="mt-1 text-sm font-bold text-gray-900 dark:text-gray-100">
+            {order.restaurant?.name || "Restaurant"}
+          </p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {order.items?.length || 0} item(s) - {formatDateTime(order.updatedAt || order.createdAt)}
+          </p>
+        </div>
+        <div className="flex flex-col items-start gap-2 lg:items-end">
+          <p className="text-base font-black text-green-600 dark:text-green-400">
+            {formatCurrency(hasGeneratedBill(order) ? billSummary.totalAmount : order.totalAmount)}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <StatusPill status={order.status} />
+            <PaymentPill status={order.paymentStatus} />
           </div>
+        </div>
+      </div>
+    </button>
+  );
+}
 
-          <div className="bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 p-4 rounded-xl mb-4 flex flex-wrap gap-2 items-end">
-            <select
-              value={newOrder.itemId || ""}
-              onChange={(e) => setNewOrder({ ...newOrder, itemId: parseInt(e.target.value) })}
-              className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
+function Timeline({ order }) {
+  const steps = getTimelineSteps(order);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {steps.map((step, index) => (
+        <React.Fragment key={step.key}>
+          <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900">
+            <span
+              className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
+                step.done
+                  ? "bg-green-600 text-white"
+                  : step.active
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-500 dark:bg-neutral-800 dark:text-gray-400"
+              }`}
             >
-              <option value="">Select Product</option>
-              {orderCategoryProducts.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.category}) • {p.unit}
-                </option>
-              ))}
-            </select>
-
-            <input
-              type="number"
-              placeholder="Quantity"
-              value={newOrder.qty || ""}
-              onChange={(e) => setNewOrder({ ...newOrder, qty: e.target.value })}
-              className="p-2 border rounded-md w-28 bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-            />
-
-            <input
-              type="text"
-              placeholder="Restaurant Name"
-              value={newOrder.restaurantName || ""}
-              onChange={(e) => setNewOrder({ ...newOrder, restaurantName: e.target.value })}
-              className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-            />
-
-            <input
-              type="text"
-              placeholder="Address"
-              value={newOrder.address || ""}
-              onChange={(e) => setNewOrder({ ...newOrder, address: e.target.value })}
-              className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-            />
-
-            <input
-              type="email"
-              placeholder="Email"
-              value={newOrder.email || ""}
-              onChange={(e) => setNewOrder({ ...newOrder, email: e.target.value })}
-              className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-            />
-
-            <input
-              type="text"
-              placeholder="Mobile"
-              value={newOrder.mobile || ""}
-              onChange={(e) => setNewOrder({ ...newOrder, mobile: e.target.value })}
-              className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-            />
-
-            <button onClick={handleAddOrder} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
-              <FaPlus className="inline mr-1" /> Add Order
-            </button>
+              {step.done ? <CheckCircle2 size={13} /> : index + 1}
+            </span>
+            <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">{step.label}</span>
           </div>
+          {index < steps.length - 1 && (
+            <ArrowRight size={14} className="hidden text-gray-300 sm:block dark:text-neutral-700" />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
 
-          <ul className="space-y-4">
-            {orders.map((order) => {
-              const product = products.find((p) => p.id === order.itemId);
-              const lineTotal = product ? product.price * order.qty : 0;
+function BillModal({ order, vendorId, onClose }) {
+  const [shareEmail, setShareEmail] = useState(order?.vendor?.email || "");
+  const [sharePhone, setSharePhone] = useState(
+    order?.delivery?.whatsapp?.phone || order?.restaurant?.phone || ""
+  );
 
-              return (
-                <li
-                  key={order.id}
-                  className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-xl shadow-sm"
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <p><strong>Restaurant:</strong> {order.restaurantName}</p>
-                    <p><strong>Address:</strong> {order.address}</p>
-                    <p><strong>Email:</strong> {order.email}</p>
-                    <p><strong>Mobile:</strong> {order.mobile}</p>
-                    <p>
-                      <strong>Item:</strong> {product?.name} ({product?.category || "-"}) ({order.unit}) × {order.qty}
-                    </p>
-                    <p><strong>Amount:</strong> {currency(lineTotal)}</p>
-                  </div>
+  useEffect(() => {
+    setShareEmail(order?.vendor?.email || "");
+    setSharePhone(order?.delivery?.whatsapp?.phone || order?.restaurant?.phone || "");
+  }, [order]);
 
-                  <p className="mt-1">
-                    <strong>Status:</strong>{" "}
-                    <span
-                      className={`font-bold ${
-                        order.status === "Accepted"
-                          ? "text-green-600"
-                          : order.status === "Rejected"
-                          ? "text-red-500"
-                          : "text-yellow-600"
-                      }`}
-                    >
-                      {order.status}
-                    </span>
-                  </p>
+  if (!order) return null;
 
-                  {order.status === "Pending" && (
-                    <div className="flex flex-wrap gap-2 mt-3 items-center">
-                      <select
-                        value={selectedPaymentMethod[order.id] || "UPI"}
-                        onChange={(e) =>
-                          setSelectedPaymentMethod((prev) => ({
-                            ...prev,
-                            [order.id]: e.target.value,
-                          }))
-                        }
-                        className="p-2 border rounded-md bg-white dark:bg-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600"
-                      >
-                        <option value="UPI">UPI</option>
-                        <option value="Cash">Cash</option>
-                        <option value="Net Banking">Net Banking</option>
-                        <option value="Card">Card</option>
-                      </select>
+  const billSummary = getBillSummary(order);
 
-                      <button
-                        onClick={() =>
-                          updateOrderStatus(order.id, "Accepted", selectedPaymentMethod[order.id] || "UPI")
-                        }
-                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg"
-                      >
-                        Accept
-                      </button>
-                      <button
-                        onClick={() => updateOrderStatus(order.id, "Rejected")}
-                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg"
-                      >
-                        Reject
-                      </button>
+  const openPdf = async () => {
+    try {
+      const res = await API.get(`/vendor/${vendorId}/orders/${order.id || order._id}/pdf`, {
+        responseType: "blob",
+      });
+      const blob = new Blob([res.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      console.error("Vendor PDF Download Error:", error);
+      alert("Failed to open bill PDF");
+    }
+  };
+
+  const openWhatsApp = () => {
+    const message = order?.delivery?.whatsapp?.message || "";
+    const normalizedPhone = String(sharePhone || "").replace(/\D/g, "");
+    if (!normalizedPhone) {
+      alert("Enter WhatsApp number first");
+      return;
+    }
+    window.open(
+      `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
+  const openEmail = () => {
+    const recipient = String(shareEmail || "").trim();
+    if (!recipient) {
+      alert("Enter email address first");
+      return;
+    }
+
+    const subject = order?.delivery?.email?.subject || `Vendor Bill ${order.orderNo}`;
+    const body = order?.delivery?.email?.body || "";
+    window.location.href = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(
+      subject
+    )}&body=${encodeURIComponent(body)}`;
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl dark:bg-neutral-900">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5 dark:border-neutral-700">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-green-600 dark:text-green-400">
+              Vendor Invoice
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-gray-900 dark:text-gray-100">{order.orderNo}</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Generated on {formatDateTime(order.billGeneratedAt || order.createdAt)}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-neutral-700 dark:text-gray-300 dark:hover:bg-neutral-800"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="grid gap-6 overflow-y-auto px-6 py-5 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-5">
+            <div className="rounded-[24px] border border-gray-200 bg-gray-50/80 p-4 dark:border-neutral-700 dark:bg-neutral-800/60">
+              <p className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                {order.restaurant?.name || "Restaurant"}
+              </p>
+              {order.restaurant?.restaurantCode && (
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {order.restaurant.restaurantCode}
+                </p>
+              )}
+              {order.restaurant?.address && (
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{order.restaurant.address}</p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
+                <span>Phone: {order.restaurant?.phone || "--"}</span>
+                <span>GST: {order.restaurant?.gstNo || "--"}</span>
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900">
+              <p className="text-sm font-bold text-gray-900 dark:text-gray-100">Line Items</p>
+              <div className="mt-3 space-y-3">
+                {order.items.map((item, index) => (
+                  <div
+                    key={`${item.name}-${index}`}
+                    className="flex items-center justify-between gap-3 rounded-2xl bg-gray-50 px-3 py-3 dark:bg-neutral-800"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {item.name}
+                        {item.unit ? ` (${item.unit})` : ""}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {item.quantity} x {formatCurrency(item.price)}
+                      </p>
                     </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+                    <p className="text-sm font-black text-gray-900 dark:text-gray-100">
+                      {formatCurrency(Number(item.quantity || 0) * Number(item.price || 0))}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            <div className="rounded-[24px] border border-green-200 bg-green-50/80 p-4 dark:border-green-900 dark:bg-green-950/20">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600 dark:text-gray-300">Taxable Amount</span>
+                <span className="font-bold text-gray-900 dark:text-gray-100">
+                  {formatCurrency(billSummary.itemsTotal)}
+                </span>
+              </div>
+              {billSummary.showTaxBreakup && (
+                <>
+                  <div className="mt-3 flex items-center justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-300">
+                      CGST ({billSummary.cgstRate}%)
+                    </span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {formatCurrency(billSummary.cgst)}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-300">
+                      SGST ({billSummary.sgstRate}%)
+                    </span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {formatCurrency(billSummary.sgst)}
+                    </span>
+                  </div>
+                </>
+              )}
+              <div className="mt-4 border-t border-dashed border-green-200 pt-4 dark:border-green-900">
+                <div className="flex items-center justify-between">
+                  <span className="text-base font-bold text-gray-900 dark:text-gray-100">Grand Total</span>
+                  <span className="text-2xl font-black text-green-700 dark:text-green-300">
+                    {formatCurrency(billSummary.totalAmount)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900">
+              <div className="flex items-center gap-2">
+                <StatusPill status={order.status} />
+                <PaymentPill status={order.paymentStatus} />
+              </div>
+              {order.paymentMethod && (
+                <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+                  Payment method:{" "}
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                    {order.paymentMethod}
+                  </span>
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-[24px] border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900">
+              <p className="text-sm font-bold text-gray-900 dark:text-gray-100">Share Invoice</p>
+              <div className="mt-3 space-y-3">
+                <input
+                  type="text"
+                  value={sharePhone}
+                  onChange={(event) => setSharePhone(event.target.value)}
+                  placeholder="WhatsApp number"
+                  className={fieldClass}
+                />
+                <input
+                  type="email"
+                  value={shareEmail}
+                  onChange={(event) => setShareEmail(event.target.value)}
+                  placeholder="Email address"
+                  className={fieldClass}
+                />
+                {order?.delivery?.pdfUrl && (
+                  <p className="break-all text-xs text-gray-500 dark:text-gray-400">
+                    Public PDF Link: {order.delivery.pdfUrl}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* Tracking */}
-      {activeTab === "tracking" && (
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Track Orders</h2>
-          {orders.filter((o) => o.status !== "Rejected").length === 0 ? (
-            <p>No active orders to track.</p>
-          ) : (
-            <ul className="space-y-4">
-              {orders
-                .filter((o) => o.status !== "Rejected")
-                .map((order) => {
-                  const product = products.find((p) => p.id === order.itemId);
-                  const payment = payments.find((p) => p.orderId === order.id);
-                  const orderTime = new Date(order.timestamp);
-                  const hoursElapsed = (Date.now() - orderTime.getTime()) / 36e5;
-                  const delayed = order.status === "Shipped" && hoursElapsed > 2;
+        <div className="flex flex-wrap justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-neutral-700">
+          <button
+            onClick={onClose}
+            className="rounded-2xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-neutral-700 dark:text-gray-200 dark:hover:bg-neutral-800"
+          >
+            Close
+          </button>
+          <button
+            onClick={openPdf}
+            className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-neutral-700 dark:text-gray-200 dark:hover:bg-neutral-800"
+          >
+            <Download size={15} /> PDF Bill
+          </button>
+          <button
+            onClick={openWhatsApp}
+            className="inline-flex items-center gap-2 rounded-2xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700"
+          >
+            <MessageCircle size={15} /> WhatsApp
+          </button>
+          <button
+            onClick={openEmail}
+            className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white"
+          >
+            <Mail size={15} /> Email
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-                  return (
-                    <li
-                      key={order.id}
-                      className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-xl shadow-sm"
+function OrderModal({
+  order,
+  updatingId,
+  paymentMethodDraft,
+  setPaymentMethodDraft,
+  onClose,
+  onGenerateBill,
+  onRecordPayment,
+  onUpdateStatus,
+  onOpenBill,
+}) {
+  if (!order) return null;
+
+  const selectedBill = getBillSummary(order);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl dark:bg-neutral-900">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5 dark:border-neutral-700">
+          <div>
+            <p className="font-mono text-xs font-bold text-blue-600 dark:text-blue-300">{order.orderNo}</p>
+            <h2 className="mt-2 text-2xl font-black text-gray-900 dark:text-gray-100">
+              {order.restaurant?.name || "Restaurant"}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Created {formatDateTime(order.createdAt)} - Updated {formatDateTime(order.updatedAt)}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-neutral-700 dark:text-gray-300 dark:hover:bg-neutral-800"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-6 overflow-y-auto px-6 py-5">
+          <div className="flex flex-wrap gap-2">
+            <StatusPill status={order.status} />
+            <PaymentPill status={order.paymentStatus} />
+            {hasGeneratedBill(order) && (
+              <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                Bill Generated
+              </span>
+            )}
+          </div>
+
+          <Timeline order={order} />
+
+          <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="space-y-6">
+              <Surface className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-lg font-black text-gray-900 dark:text-gray-100">Products</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {order.items?.length || 0} item(s)
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-gray-100 px-3 py-2 text-sm font-bold text-gray-700 dark:bg-neutral-800 dark:text-gray-200">
+                    {formatCurrency(order.totalAmount)}
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {order.items.map((item, index) => (
+                    <div
+                      key={`${item.name}-${index}`}
+                      className="flex items-center justify-between gap-3 rounded-[20px] border border-gray-100 bg-gray-50 px-4 py-3 dark:border-neutral-800 dark:bg-neutral-800"
                     >
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <p><strong>Restaurant:</strong> {order.restaurantName}</p>
-                        <p><strong>Address:</strong> {order.address}</p>
-                        <p><strong>Email:</strong> {order.email}</p>
-                        <p><strong>Mobile:</strong> {order.mobile}</p>
-                        <p>
-                          <strong>Item:</strong> {product?.name} ({product?.category || "-"}) ({order.unit}) × {order.qty}
+                      <div>
+                        <p className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                          {item.name}
+                          {item.unit ? ` (${item.unit})` : ""}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          Qty {item.quantity} - Rate {formatCurrency(item.price)}
                         </p>
                       </div>
-
-                      <p className="mt-1">
-                        <strong>Status:</strong>{" "}
-                        <span className={`font-bold ${delayed ? "text-red-600" : "text-blue-600"}`}>
-                          {order.status}
-                          {delayed ? " (Delayed!)" : ""}
-                        </span>
+                      <p className="text-sm font-black text-gray-900 dark:text-gray-100">
+                        {formatCurrency(Number(item.quantity || 0) * Number(item.price || 0))}
                       </p>
-
-                      {payment && (
-                        <p className="mt-1">
-                          <strong>Payment Status:</strong>{" "}
-                          {payment.status === "Paid" ? (
-                            <span className="text-green-600 font-semibold">Paid</span>
-                          ) : (
-                            <button
-                              onClick={() => markAsPaid(payment.id)}
-                              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded-lg"
-                            >
-                              Mark as Paid
-                            </button>
-                          )}
-                        </p>
-                      )}
-
-                      {order.status === "Accepted" && (
-                        <button
-                          onClick={() => updateOrderStatus(order.id, "Shipped")}
-                          className="mt-3 bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg"
-                        >
-                          Mark Shipped
-                        </button>
-                      )}
-                      {order.status === "Shipped" && (
-                        <button
-                          onClick={() => updateOrderStatus(order.id, "Delivered")}
-                          className="mt-3 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg"
-                        >
-                          Mark Delivered
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {/* Payments */}
-      {activeTab === "payments" && (
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Payments</h2>
-          {payments.length === 0 ? (
-            <p>No payments yet.</p>
-          ) : (
-            <>
-              <div className="mb-3 text-sm text-gray-700 dark:text-gray-300">
-                <span className="mr-6">Total Paid: <strong>{currency(totalPaid)}</strong></span>
-                <span>Total Due: <strong>{currency(totalDue)}</strong></span>
-              </div>
-              <table className="block w-full min-w-[640px] overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow">
-                <thead>
-                  <tr className="bg-gray-100 dark:bg-gray-700 text-left">
-                    <th className="p-3">Customer</th>
-                    <th className="p-3">Amount</th>
-                    <th className="p-3">Method</th>
-                    <th className="p-3">Status</th>
-                    <th className="p-3">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((p) => (
-                    <tr key={p.id} className="border-t border-gray-200 dark:border-gray-700">
-                      <td className="p-3">{p.customer}</td>
-                      <td className="p-3">{currency(p.amount)}</td>
-                      <td className="p-3">{p.method}</td>
-                      <td className="p-3">
-                        <span className={p.status === "Paid" ? "text-green-600 font-semibold" : ""}>{p.status}</span>
-                      </td>
-                      <td className="p-3">
-                        {p.status !== "Paid" && (
-                          <button
-                            onClick={() => markAsPaid(p.id)}
-                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg"
-                          >
-                            Mark Paid
-                          </button>
-                        )}
-                      </td>
-                    </tr>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </>
-          )}
+                </div>
+              </Surface>
+
+              <Surface className="p-4">
+                <p className="text-lg font-black text-gray-900 dark:text-gray-100">Actions</p>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {order.status === "processing" && (
+                    <>
+                      <button
+                        onClick={() => onUpdateStatus(order, "ready")}
+                        disabled={updatingId === order.id}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-60"
+                      >
+                        <PackageCheck size={16} /> Mark Ready
+                      </button>
+                      <button
+                        onClick={() => onUpdateStatus(order, "cancelled")}
+                        disabled={updatingId === order.id}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/20"
+                      >
+                        <XCircle size={16} /> Reject
+                      </button>
+                    </>
+                  )}
+
+                  {order.status === "ready" && !hasGeneratedBill(order) && (
+                    <button
+                      onClick={() => onGenerateBill(order)}
+                      disabled={updatingId === order.id}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                    >
+                      <Receipt size={16} /> Generate Bill
+                    </button>
+                  )}
+
+                  {hasGeneratedBill(order) && (
+                    <button
+                      onClick={() => onOpenBill(order)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-neutral-700 dark:text-gray-200 dark:hover:bg-neutral-800"
+                    >
+                      <Receipt size={16} /> Open Bill
+                    </button>
+                  )}
+
+                  {order.status === "ready" && order.paymentStatus === "paid" && (
+                    <button
+                      onClick={() => onUpdateStatus(order, "completed")}
+                      disabled={updatingId === order.id}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-60"
+                    >
+                      <CheckCircle2 size={16} /> Close Order
+                    </button>
+                  )}
+
+                  {order.status === "ready" && (
+                    <button
+                      onClick={() => onUpdateStatus(order, "cancelled")}
+                      disabled={updatingId === order.id}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/20"
+                    >
+                      <XCircle size={16} /> Cancel
+                    </button>
+                  )}
+                </div>
+
+                {hasGeneratedBill(order) && order.paymentStatus !== "paid" && (
+                  <div className="mt-5 rounded-[24px] border border-gray-200 bg-gray-50 p-4 dark:border-neutral-700 dark:bg-neutral-800">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                      <div className="flex-1">
+                        <label className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
+                          Payment Method
+                        </label>
+                        <select
+                          value={paymentMethodDraft[order.id] || order.paymentMethod || "UPI"}
+                          onChange={(event) =>
+                            setPaymentMethodDraft((current) => ({
+                              ...current,
+                              [order.id]: event.target.value,
+                            }))
+                          }
+                          className={fieldClass}
+                        >
+                          {PAYMENT_METHODS.map((method) => (
+                            <option key={method} value={method}>
+                              {method}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        onClick={() => onRecordPayment(order)}
+                        disabled={updatingId === order.id}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-60"
+                      >
+                        <CreditCard size={16} />
+                        {updatingId === order.id ? "Saving..." : "Record Payment"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </Surface>
+            </div>
+
+            <div className="space-y-6">
+              <Surface className="p-4">
+                <p className="text-lg font-black text-gray-900 dark:text-gray-100">Bill Summary</p>
+                <div className="mt-4 rounded-[24px] border border-green-200 bg-green-50/70 p-4 dark:border-green-900 dark:bg-green-950/20">
+                  <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                    <span>Taxable Amount</span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {formatCurrency(selectedBill.itemsTotal)}
+                    </span>
+                  </div>
+                  {selectedBill.showTaxBreakup && (
+                    <>
+                      <div className="mt-3 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                        <span>CGST ({selectedBill.cgstRate}%)</span>
+                        <span className="font-semibold text-gray-900 dark:text-gray-100">
+                          {formatCurrency(selectedBill.cgst)}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                        <span>SGST ({selectedBill.sgstRate}%)</span>
+                        <span className="font-semibold text-gray-900 dark:text-gray-100">
+                          {formatCurrency(selectedBill.sgst)}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  <div className="mt-4 border-t border-dashed border-green-200 pt-4 dark:border-green-900">
+                    <div className="flex items-center justify-between">
+                      <span className="text-base font-bold text-gray-900 dark:text-gray-100">Grand Total</span>
+                      <span className="text-2xl font-black text-green-700 dark:text-green-300">
+                        {formatCurrency(selectedBill.totalAmount)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </Surface>
+
+              <Surface className="p-4">
+                <p className="text-lg font-black text-gray-900 dark:text-gray-100">Details</p>
+                <div className="mt-4 space-y-3 text-sm text-gray-600 dark:text-gray-300">
+                  <div className="flex items-center justify-between rounded-2xl bg-gray-50 px-3 py-3 dark:bg-neutral-800">
+                    <span>Order created</span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {formatDateTime(order.createdAt)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-gray-50 px-3 py-3 dark:bg-neutral-800">
+                    <span>Ready at</span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {formatDateTime(order.readyAt)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-gray-50 px-3 py-3 dark:bg-neutral-800">
+                    <span>Bill generated</span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {formatDateTime(order.billGeneratedAt)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-gray-50 px-3 py-3 dark:bg-neutral-800">
+                    <span>Paid at</span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {formatDateTime(order.paidAt)}
+                    </span>
+                  </div>
+                </div>
+              </Surface>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const VendorManagement = () => {
+  const vendorId = getVendorId();
+
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [board, setBoard] = useState("requests");
+  const [search, setSearch] = useState("");
+  const [updatingId, setUpdatingId] = useState("");
+  const [message, setMessage] = useState("");
+  const [isError, setIsError] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [billOrder, setBillOrder] = useState(null);
+  const [paymentMethodDraft, setPaymentMethodDraft] = useState({});
+
+  const deferredSearch = useDeferredValue(search);
+
+  const notify = (text, error = false) => {
+    setIsError(error);
+    setMessage(text);
+    window.setTimeout(() => setMessage(""), 3500);
+  };
+
+  const loadOrders = async () => {
+    if (!vendorId) return;
+    try {
+      setLoading(true);
+      const res = await API.get(`/vendor/${vendorId}/orders`);
+      setOrders(Array.isArray(res.data?.orders) ? res.data.orders : []);
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to load vendor orders", true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const boardCounts = useMemo(
+    () =>
+      Object.keys(BOARD_CONFIG).reduce((acc, key) => {
+        acc[key] = getBoardOrders(orders, key).length;
+        return acc;
+      }, {}),
+    [orders]
+  );
+
+  const visibleOrders = useMemo(() => {
+    const items = getBoardOrders(orders, board);
+    const term = String(deferredSearch || "").trim().toLowerCase();
+    if (!term) return items;
+    return items.filter((order) => getOrderSearchText(order).includes(term));
+  }, [orders, board, deferredSearch]);
+
+  const metrics = useMemo(() => {
+    const generated = orders.filter((order) => hasGeneratedBill(order));
+    const pendingCollection = generated.filter((order) => order.paymentStatus !== "paid");
+    const settled = generated.filter((order) => order.paymentStatus === "paid");
+
+    return {
+      newRequests: orders.filter((order) => order.status === "processing").length,
+      readyToDispatch: orders.filter((order) => order.status === "ready").length,
+      pendingCollection: pendingCollection.length,
+      settledRevenue: settled.reduce((sum, order) => sum + getBillSummary(order).totalAmount, 0),
+    };
+  }, [orders]);
+
+  const updateStatus = async (order, status) => {
+    try {
+      setUpdatingId(order.id);
+      await API.put(`/vendor/${vendorId}/orders/${order.id}/status`, { status });
+      notify(`Order marked as ${status}`);
+      const res = await API.get(`/vendor/${vendorId}/orders`);
+      const nextOrders = Array.isArray(res.data?.orders) ? res.data.orders : [];
+      setOrders(nextOrders);
+      const updated = nextOrders.find((item) => String(item.id || item._id) === String(order.id));
+      setSelectedOrder(updated || null);
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to update order", true);
+    } finally {
+      setUpdatingId("");
+    }
+  };
+
+  const generateBill = async (order) => {
+    try {
+      setUpdatingId(order.id);
+      await API.put(`/vendor/${vendorId}/orders/${order.id}/bill`);
+      notify("Bill generated successfully");
+      const res = await API.get(`/vendor/${vendorId}/orders`);
+      const nextOrders = Array.isArray(res.data?.orders) ? res.data.orders : [];
+      setOrders(nextOrders);
+      const updated = nextOrders.find((item) => String(item.id || item._id) === String(order.id));
+      setSelectedOrder(updated || null);
+      setBillOrder(updated || null);
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to generate bill", true);
+    } finally {
+      setUpdatingId("");
+    }
+  };
+
+  const recordPayment = async (order) => {
+    const paymentMethod = paymentMethodDraft[order.id] || order.paymentMethod || "UPI";
+    try {
+      setUpdatingId(order.id);
+      await API.put(`/vendor/${vendorId}/orders/${order.id}/payment`, { paymentMethod });
+      notify("Payment recorded successfully");
+      const res = await API.get(`/vendor/${vendorId}/orders`);
+      const nextOrders = Array.isArray(res.data?.orders) ? res.data.orders : [];
+      setOrders(nextOrders);
+      const updated = nextOrders.find((item) => String(item.id || item._id) === String(order.id));
+      setSelectedOrder(updated || null);
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to record payment", true);
+    } finally {
+      setUpdatingId("");
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {message && (
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+            isError
+              ? "border-red-200 bg-red-50 text-red-600 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300"
+              : "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/30 dark:text-green-300"
+          }`}
+        >
+          {message}
         </div>
       )}
 
-      {/* History */}
-      {activeTab === "history" && (
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Order History</h2>
-          <button onClick={generatePDF} className="mb-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
-            Export PDF
-          </button>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Fresh Requests"
+          value={metrics.newRequests}
+          helper="Need action"
+          tone="amber"
+          icon={AlertCircle}
+        />
+        <MetricCard
+          label="Ready To Dispatch"
+          value={metrics.readyToDispatch}
+          helper="Prepared"
+          tone="blue"
+          icon={PackageCheck}
+        />
+        <MetricCard
+          label="Pending Collection"
+          value={metrics.pendingCollection}
+          helper="Awaiting payment"
+          tone="slate"
+          icon={Wallet}
+        />
+        <MetricCard
+          label="Settled Revenue"
+          value={formatCurrency(metrics.settledRevenue)}
+          helper="Collected"
+          tone="green"
+          icon={IndianRupee}
+        />
+      </div>
 
-          {history.length === 0 ? (
-            <p>No order history yet.</p>
-          ) : (
-            <table className="block w-full min-w-[840px] overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow">
-              <thead>
-                <tr className="bg-gray-100 dark:bg-gray-700 text-left">
-                  <th className="p-3">Customer</th>
-                  <th className="p-3">Item</th>
-                  <th className="p-3">Qty</th>
-                  <th className="p-3">Amount</th>
-                  <th className="p-3">Payment Method</th>
-                  <th className="p-3">Payment Status</th>
-                  <th className="p-3">Timestamp</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((h, idx) => (
-                  <tr key={idx} className="border-t border-gray-200 dark:border-gray-700">
-                    <td className="p-3">{h.restaurantName}</td>
-                    <td className="p-3">{h.itemName}</td>
-                    <td className="p-3">{fmtQty(h.qty, h.unit)}</td>
-                    <td className="p-3">{currency(h.amount)}</td>
-                    <td className="p-3">{h.paymentMethod}</td>
-                    <td className="p-3">{h.paymentStatus}</td>
-                    <td className="p-3">{h.timestamp}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+      <Surface className="space-y-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <p className="text-lg font-black text-gray-900 dark:text-gray-100">
+              {BOARD_CONFIG[board].label}
+            </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {visibleOrders.length} order(s)
+            </p>
+          </div>
+          <div className="relative w-full xl:max-w-sm">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by order, restaurant, or product"
+              className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-gray-100"
+            />
+          </div>
         </div>
-      )}
+
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
+          {Object.keys(BOARD_CONFIG).map((key) => (
+            <BoardButton
+              key={key}
+              board={key}
+              active={board === key}
+              count={boardCounts[key] || 0}
+              onClick={() => setBoard(key)}
+            />
+          ))}
+        </div>
+      </Surface>
+
+      <Surface>
+        {loading ? (
+          <div className="rounded-[24px] border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400 dark:border-neutral-700">
+            Loading vendor orders...
+          </div>
+        ) : visibleOrders.length === 0 ? (
+          <div className="rounded-[24px] border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400 dark:border-neutral-700">
+            No orders found here right now.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {visibleOrders.map((order) => (
+              <OrderRow key={order.id} order={order} onClick={() => setSelectedOrder(order)} />
+            ))}
+          </div>
+        )}
+      </Surface>
+
+      <OrderModal
+        order={selectedOrder}
+        updatingId={updatingId}
+        paymentMethodDraft={paymentMethodDraft}
+        setPaymentMethodDraft={setPaymentMethodDraft}
+        onClose={() => setSelectedOrder(null)}
+        onGenerateBill={generateBill}
+        onRecordPayment={recordPayment}
+        onUpdateStatus={updateStatus}
+        onOpenBill={setBillOrder}
+      />
+
+      <BillModal order={billOrder} vendorId={vendorId} onClose={() => setBillOrder(null)} />
     </div>
   );
 };
 
 export default VendorManagement;
+

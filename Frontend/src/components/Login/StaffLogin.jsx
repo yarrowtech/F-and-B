@@ -9,6 +9,7 @@ const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 const ROLE_ROUTES = {
   admin: "/admin",
+  vendor: "/vendor",
   manager: "/manager",
   chef: "/chef",
   cheif: "/chef",
@@ -22,6 +23,7 @@ const ROLE_ROUTES = {
 
 const ROLE_LABELS = {
   admin: "Admin",
+  vendor: "Vendor",
   manager: "Manager",
   chef: "Chef",
   cheif: "Chef",
@@ -34,6 +36,9 @@ const ROLE_LABELS = {
 
 const looksLikeAdminId = (value = "") =>
   /^[A-Z0-9]{2,10}-\d{4}$/.test(String(value).trim().toUpperCase());
+
+const looksLikeVendorId = (value = "") =>
+  /^(LV|GV|VND)-\d{4,}$/i.test(String(value).trim());
 
 export default function StaffLogin() {
   const navigate = useNavigate();
@@ -94,7 +99,14 @@ export default function StaffLogin() {
       let token;
       let user;
 
-      if (looksLikeAdminId(staffId)) {
+      if (looksLikeVendorId(staffId)) {
+        const res = await axios.post(`${API_URL}/vendor/login`, {
+          vendorId: staffId.trim().toUpperCase(),
+          password,
+        });
+        token = res.data.token;
+        user = res.data.user;
+      } else if (looksLikeAdminId(staffId)) {
         const res = await axios.post(`${API_URL}/admin/login`, {
           adminId: staffId.trim().toUpperCase(),
           password,
@@ -241,14 +253,14 @@ export default function StaffLogin() {
               <form onSubmit={handleLogin} className="mt-7 space-y-5">
                 <div>
                   <label className="mb-2 block text-sm font-medium text-white/72">
-                    Staff ID
+                    Login ID
                   </label>
                   <div className="relative">
                     <FaUserTie className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35" />
                     <input
                       ref={idRef}
                       type="text"
-                      placeholder="Admin ID or employee ID"
+                      placeholder="Admin ID, employee ID, or vendor ID"
                       value={staffId}
                       onChange={(e) => {
                         setStaffId(e.target.value);

@@ -1,27 +1,21 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FaPaperPlane } from "react-icons/fa";
+import { Send } from "lucide-react";
 
 const VendorMessages = () => {
   const [activeChat, setActiveChat] = useState("admin");
   const [messages, setMessages] = useState({
-    admin: [
-      { from: "admin", text: "Welcome to the vendor panel!", time: "10:00 AM" },
-    ],
-    superAdmin: [
-      { from: "superAdmin", text: "Hi, this is Super Admin support.", time: "9:30 AM" },
-    ],
+    admin: [{ from: "admin", text: "Welcome to the vendor panel!", time: "10:00 AM" }],
+    superAdmin: [{ from: "superAdmin", text: "Hi, this is Super Admin support.", time: "9:30 AM" }],
   });
   const [newMessage, setNewMessage] = useState("");
   const chatEndRef = useRef(null);
 
-  // Auto scroll to latest message
   useEffect(() => {
     if (chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, activeChat]);
 
-  // Simulated reply
   useEffect(() => {
     const lastMsg = messages[activeChat]?.slice(-1)[0];
     if (lastMsg?.from === "vendor") {
@@ -55,25 +49,31 @@ const VendorMessages = () => {
   };
 
   return (
-    <div className="flex flex-col h-[80vh] sm:h-full rounded-xl bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-[calc(100vh-160px)] flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
       {/* Chat Header */}
-      <div className="flex justify-between items-center p-4 bg-gray-200 dark:bg-gray-700 rounded-t-xl">
+      <div className="flex items-center justify-between gap-4 border-b border-gray-100 px-5 py-4 dark:border-neutral-700">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-600 dark:text-green-400">
+            Vendor
+          </p>
+          <h1 className="mt-0.5 text-lg font-bold text-gray-900 dark:text-gray-100">Messages</h1>
+        </div>
         <div className="flex gap-2">
           <button
-            className={`px-4 py-1 rounded-full text-sm font-medium ${
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
               activeChat === "admin"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200"
+                ? "bg-green-600 text-white"
+                : "border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-neutral-700"
             }`}
             onClick={() => setActiveChat("admin")}
           >
             Admin
           </button>
           <button
-            className={`px-4 py-1 rounded-full text-sm font-medium ${
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
               activeChat === "superAdmin"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200"
+                ? "bg-green-600 text-white"
+                : "border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-neutral-700"
             }`}
             onClick={() => setActiveChat("superAdmin")}
           >
@@ -83,48 +83,44 @@ const VendorMessages = () => {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-3">
+      <div className="flex-1 space-y-3 overflow-y-auto bg-gray-50/60 p-4 dark:bg-neutral-900/30">
         {messages[activeChat]?.length > 0 ? (
           messages[activeChat].map((msg, index) => (
-            <div
-              key={index}
-              className={`flex ${msg.from === "vendor" ? "justify-end" : "justify-start"}`}
-            >
+            <div key={index} className={`flex ${msg.from === "vendor" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-xs px-3 py-2 rounded-lg text-sm shadow ${
+                className={`max-w-xs rounded-2xl px-3 py-2 text-sm shadow-sm ${
                   msg.from === "vendor"
-                    ? "bg-blue-600 text-white rounded-br-none"
-                    : "bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-bl-none"
+                    ? "rounded-br-sm bg-green-600 text-white"
+                    : "rounded-bl-sm bg-white text-gray-800 dark:bg-neutral-700 dark:text-gray-100"
                 }`}
               >
                 <p>{msg.text}</p>
-                <span className="text-[10px] block text-right opacity-70">{msg.time}</span>
+                <span className="mt-1 block text-right text-[10px] opacity-70">{msg.time}</span>
               </div>
             </div>
           ))
         ) : (
-          <div className="text-center text-gray-400 dark:text-gray-500">
-            No messages yet.
-          </div>
+          <div className="text-center text-sm text-gray-400 dark:text-gray-500">No messages yet.</div>
         )}
         <div ref={chatEndRef} />
       </div>
 
       {/* Input */}
-      <div className="flex p-3 border-t border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 rounded-b-xl">
+      <div className="flex gap-2 border-t border-gray-100 p-3 dark:border-neutral-700">
         <input
           type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           placeholder="Type your message..."
-          className="flex-1 p-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none"
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-700 dark:text-gray-100"
         />
         <button
           onClick={handleSend}
-          className="px-4 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 transition"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-600 text-white transition hover:bg-green-700"
+          aria-label="Send message"
         >
-          <FaPaperPlane />
+          <Send size={16} />
         </button>
       </div>
     </div>

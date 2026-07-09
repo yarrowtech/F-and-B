@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   FaHome,
   FaTachometerAlt,
@@ -7,43 +7,63 @@ import {
   FaUserCircle,
   FaChartLine,
   FaStickyNote,
-  FaSignOutAlt,
+  FaGlobe,
   FaBars,
   FaTimes,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import API from "../../services/api";
+
+const getVendorId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+    return user?.id || user?._id || "";
+  } catch {
+    return "";
+  }
+};
 
 const VendorSidebar = ({ activeSection, setActiveSection }) => {
   const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 1024);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [requestCount, setRequestCount] = useState(0);
   const navigate = useNavigate();
-
-  const user = JSON.parse(localStorage.getItem("user")) || {};
-  const email = user?.email || localStorage.getItem("vendorEmail") || "vendor@gmail.com";
-  const name = email.split("@")[0].replace(/\./g, " ");
-  const initial = name.charAt(0).toUpperCase();
+  const vendorId = getVendorId();
 
   const navItems = [
     { id: "dashboard",        label: "Dashboard",  icon: <FaTachometerAlt /> },
+    { id: "my-products",      label: "My Products",icon: <FaBoxes /> },
     { id: "inventory",        label: "Inventory",  icon: <FaBoxes /> },
     { id: "vendor-management",label: "Management", icon: <FaUsers /> },
     { id: "account",          label: "Account",    icon: <FaUserCircle /> },
     { id: "analytics",        label: "Analytics",  icon: <FaChartLine /> },
+    { id: "upgrade-request",  label: "Upgrade",    icon: <FaGlobe /> },
     { id: "notes",            label: "Notes",      icon: <FaStickyNote /> },
   ];
 
   useEffect(() => {
-    const on  = () => setIsOnline(true);
-    const off = () => setIsOnline(false);
-    window.addEventListener("online",  on);
-    window.addEventListener("offline", off);
-    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
-  }, []);
+    if (!vendorId) return;
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate("/vendor-login");
-  };
+    let ignore = false;
+
+    const loadRequestCount = async () => {
+      try {
+        const res = await API.get(`/vendor/${vendorId}/orders`);
+        const orders = Array.isArray(res.data?.orders) ? res.data.orders : [];
+        const count = orders.filter((order) => order.status === "processing").length;
+        if (!ignore) setRequestCount(count);
+      } catch {
+        if (!ignore) setRequestCount(0);
+      }
+    };
+
+    loadRequestCount();
+    const intervalId = window.setInterval(loadRequestCount, 30000);
+
+    return () => {
+      ignore = true;
+      window.clearInterval(intervalId);
+    };
+  }, [vendorId, activeSection]);
 
   return (
     <>
@@ -87,41 +107,31 @@ const VendorSidebar = ({ activeSection, setActiveSection }) => {
               <button
                 key={id}
                 onClick={() => { setActiveSection(id); if (window.innerWidth < 1024) setIsOpen(false); }}
-                className={`w-full flex items-center gap-4 px-4 py-3 mb-2 rounded-lg text-sm font-medium border-l-4 transition-all ${
+                className={`w-full flex items-center justify-between gap-4 px-4 py-3 mb-2 rounded-lg text-sm font-medium border-l-4 transition-all ${
                   isActive
                     ? "bg-green-500 text-white border-green-700"
                     : "bg-white dark:bg-gray-800 text-green-700 dark:text-gray-200 border-transparent hover:bg-green-200 dark:hover:bg-gray-700"
                 }`}
               >
-                <span className="text-base">{icon}</span>
-                <span>{label}</span>
+                <span className="flex items-center gap-4">
+                  <span className="text-base">{icon}</span>
+                  <span>{label}</span>
+                </span>
+                {id === "vendor-management" && requestCount > 0 && (
+                  <span
+                    className={`min-w-6 rounded-full px-2 py-0.5 text-center text-xs font-bold ${
+                      isActive
+                        ? "bg-red-500 text-white"
+                        : "bg-red-500 text-white"
+                    }`}
+                  >
+                    {requestCount}
+                  </span>
+                )}
               </button>
             );
           })}
         </nav>
-
-        {/* FOOTER AVATAR */}
-        <div className="border-t border-green-200 dark:border-gray-700 p-4">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-green-600 text-white flex items-center justify-center text-lg font-bold shrink-0">
-              {initial}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-800 dark:text-white truncate capitalize">{name}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{email}</p>
-              <p className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                <span className={`h-2 w-2 rounded-full ${isOnline ? "bg-green-500" : "bg-red-500"}`} />
-                {isOnline ? "Online" : "Offline"}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 text-sm font-medium text-red-500 hover:text-red-700 dark:hover:text-red-400 transition"
-          >
-            <FaSignOutAlt /> Logout
-          </button>
-        </div>
       </aside>
     </>
   );

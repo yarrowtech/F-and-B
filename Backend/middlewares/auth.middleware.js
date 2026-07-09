@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Admin from "../models/Admin.model.js";
 import Employee from "../models/Employee.model.js";
 import SuperAdmin from "../models/superAdmin.js";
+import Vendor from "../models/Vendor.model.js";
 
 const auth = async (req, res, next) => {
   try {
@@ -73,6 +74,30 @@ const auth = async (req, res, next) => {
         role: "admin",
         name: admin.businessName || admin.email || "Admin",
         restaurant: admin.restaurant || null,
+      };
+    } else if (role === "vendor") {
+      const vendor = await Vendor.findById(decoded.id)
+        .select("-password")
+        .populate("primaryRestaurant", "_id name restaurantCode")
+        .populate("accessibleRestaurants", "_id name restaurantCode");
+
+      if (!vendor || vendor.isActive === false) {
+        return res.status(401).json({
+          success: false,
+          message: "Vendor not authorized",
+        });
+      }
+
+      req.user = {
+        id: vendor._id.toString(),
+        role: "vendor",
+        name: vendor.name || vendor.email || "Vendor",
+        vendorId: vendor.vendorId,
+        vendorType: vendor.vendorType,
+        restaurant: vendor.primaryRestaurant?._id || vendor.primaryRestaurant || null,
+        primaryRestaurant: vendor.primaryRestaurant || null,
+        accessibleRestaurants: vendor.accessibleRestaurants || [],
+        allRestaurantsAccess: Boolean(vendor.allRestaurantsAccess),
       };
     } else if (
       [
