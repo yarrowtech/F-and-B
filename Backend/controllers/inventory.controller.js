@@ -30,6 +30,20 @@ const endOfDay = (value) => {
   return date;
 };
 
+const parseDateTimeRangeStart = (value) => {
+  if (!value) return startOfDay(new Date());
+  const raw = String(value).trim();
+  if (!raw) return startOfDay(new Date());
+  return raw.includes("T") ? new Date(raw) : startOfDay(raw);
+};
+
+const parseDateTimeRangeEnd = (value, fallbackStart = new Date()) => {
+  if (!value) return endOfDay(fallbackStart);
+  const raw = String(value).trim();
+  if (!raw) return endOfDay(fallbackStart);
+  return raw.includes("T") ? new Date(raw) : endOfDay(raw);
+};
+
 const getEffectiveDate = (value) => {
   const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) return null;
@@ -61,6 +75,23 @@ const formatReportDate = (date) =>
     month: "short",
     year: "numeric",
   }).format(date);
+
+const formatReportDateTime = (date) =>
+  new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+
+const sanitizeFilePart = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/[^\dA-Za-z-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 
 const normalizeCustomization = (value) =>
   Array.isArray(value)
@@ -647,10 +678,14 @@ export const exportInventoryDayWiseExcel = async (req, res) => {
     const restaurantId = getRestaurantId(req);
     if (!restaurantId) return sendError(res, "Restaurant is required");
 
-    const fromDate = req.query.from || req.query.date || new Date();
-    const toDate = req.query.to || req.query.date || fromDate;
-    const startDate = startOfDay(fromDate);
-    const endDate = endOfDay(toDate);
+    const fromValue = req.query.from || req.query.date || new Date();
+    const toValue = req.query.to || req.query.date || fromValue;
+    const startDate = parseDateTimeRangeStart(fromValue);
+    const endDate = parseDateTimeRangeEnd(toValue, startDate);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return sendError(res, "Enter a valid from/to date and time");
+    }
 
     if (startDate > endDate) {
       return sendError(res, "From date cannot be after To date");
@@ -767,10 +802,19 @@ export const exportInventoryDayWiseExcel = async (req, res) => {
       fgColor: { argb: "FF047857" },
     };
 
-    const dateLabel =
-      startDate.toDateString() === endDate.toDateString()
-        ? formatReportDate(startDate)
-        : `${formatReportDate(startDate)} to ${formatReportDate(endDate)}`;
+    const dateLabel = `${formatReportDateTime(startDate)} to ${formatReportDateTime(endDate)}`;
+
+    worksheet.insertRow(1, {
+      date: `Report Range: ${dateLabel}`,
+      name: `Generated: ${formatReportDateTime(new Date())}`,
+    });
+    worksheet.mergeCells("B1:G1");
+    worksheet.getRow(1).font = { bold: true, color: { argb: "FF1F2937" } };
+    worksheet.getRow(1).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE8FFF4" },
+    };
 
     items.forEach((item) => {
       const key = String(item._id);
@@ -813,8 +857,8 @@ export const exportInventoryDayWiseExcel = async (req, res) => {
       });
     });
 
-    const fileFrom = startDate.toISOString().slice(0, 10);
-    const fileTo = endDate.toISOString().slice(0, 10);
+    const fileFrom = sanitizeFilePart(String(fromValue).replace("T", "-")) || sanitizeFilePart(startDate.toISOString());
+    const fileTo = sanitizeFilePart(String(toValue).replace("T", "-")) || sanitizeFilePart(endDate.toISOString());
     const filename = `inventory-day-wise-${fileFrom}-to-${fileTo}.xlsx`;
 
     res.setHeader(

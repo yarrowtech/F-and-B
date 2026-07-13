@@ -410,31 +410,34 @@ const VendorInventory = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const saleProducts = useMemo(() => products.filter((product) => product.isForSale), [products]);
+  const listedProducts = useMemo(
+    () => products.filter((product) => product.isListedInMyProducts),
+    [products]
+  );
   const inventoryOnlyProducts = useMemo(
-    () => products.filter((product) => !product.isForSale),
+    () => products.filter((product) => !product.isListedInMyProducts),
     [products]
   );
 
   const categories = useMemo(
-    () => ["All", ...Array.from(new Set(saleProducts.map((p) => p.category).filter(Boolean)))],
-    [saleProducts]
+    () => ["All", ...Array.from(new Set(listedProducts.map((p) => p.category).filter(Boolean)))],
+    [listedProducts]
   );
 
   const lowStockCount = useMemo(
     () =>
-      saleProducts.filter(
+      listedProducts.filter(
         (p) => Number(p.stock || 0) <= Number(p.lowStockThreshold ?? 10)
       ).length,
-    [saleProducts]
+    [listedProducts]
   );
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
     return q
-      ? saleProducts.filter((p) => p.name.toLowerCase().includes(q))
-      : saleProducts;
-  }, [saleProducts, search]);
+      ? listedProducts.filter((p) => p.name.toLowerCase().includes(q))
+      : listedProducts;
+  }, [listedProducts, search]);
 
   const selectedInventoryProduct = useMemo(() => {
     if (editingId) {
@@ -545,7 +548,8 @@ const VendorInventory = () => {
       orderPackQuantity: Number(form.orderPackQuantity),
       orderUnitsPerStockUnit: Number(form.orderUnitsPerStockUnit),
       description: form.description.trim(),
-      isForSale: true,
+      isListedInMyProducts: true,
+      isForSale: false,
     };
 
     try {
@@ -553,8 +557,8 @@ const VendorInventory = () => {
       await API.put(`/vendor/${vendorId}/products/${targetProductId}`, payload);
       notify(
         editingId
-          ? "My Product updated and ready for selling"
-          : "Added to My Products. Item is now ready for selling and visible to admin"
+          ? "My Product updated successfully"
+          : "Added to My Products. Use Sell button when you want to show it to admin"
       );
       closeModal();
       await loadProducts();
@@ -588,8 +592,11 @@ const VendorInventory = () => {
     if (!removeTarget) return;
     try {
       setRemovingId(removeTarget.id);
-      await API.put(`/vendor/${vendorId}/products/${removeTarget.id}`, { isForSale: false });
-      notify("Removed from My Products. Item is no longer shown to admin for selling");
+      await API.put(`/vendor/${vendorId}/products/${removeTarget.id}`, {
+        isListedInMyProducts: false,
+        isForSale: false,
+      });
+      notify("Removed from My Products");
       if (editingId === removeTarget.id) closeModal();
       closeRemoveModal();
       await loadProducts();
@@ -597,6 +604,23 @@ const VendorInventory = () => {
       notify(error?.response?.data?.message || "Failed to remove product", true);
     } finally {
       setRemovingId("");
+    }
+  };
+
+  const handleToggleSelling = async (product, nextValue) => {
+    try {
+      await API.put(`/vendor/${vendorId}/products/${product.id}`, {
+        isListedInMyProducts: true,
+        isForSale: nextValue,
+      });
+      notify(
+        nextValue
+          ? `${product.name} is now visible to admin for selling`
+          : `${product.name} is now marked as not selling`
+      );
+      await loadProducts();
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to update selling status", true);
     }
   };
 
@@ -638,6 +662,10 @@ const VendorInventory = () => {
         </div>
       )}
 
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
+        My Products uses the same inventory stock automatically. When inventory stock increases, it reflects here, and every vendor sale deducts from the same stock.
+      </div>
+
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
           <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -645,7 +673,7 @@ const VendorInventory = () => {
             My Products
           </div>
           <div className="mt-0.5 text-base font-bold text-gray-900 dark:text-gray-100">
-            {saleProducts.length}
+            {listedProducts.length}
           </div>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
@@ -673,11 +701,11 @@ const VendorInventory = () => {
           <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400 dark:border-neutral-700">
             Loading products...
           </div>
-        ) : saleProducts.length === 0 ? (
+        ) : listedProducts.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center dark:border-neutral-700">
             <Boxes size={26} className="mx-auto text-gray-300 dark:text-neutral-600" />
             <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-              No sale products yet. Add products from Inventory and set the selling price here.
+              No products added here yet. Use Add From Inventory to list items in My Products.
             </p>
           </div>
         ) : filteredProducts.length === 0 ? (
@@ -698,6 +726,7 @@ const VendorInventory = () => {
                   <th className="px-4 py-3 text-left font-medium">Selling Price</th>
                   <th className="px-4 py-3 text-left font-medium">Units</th>
                   <th className="px-4 py-3 text-left font-medium">Stock</th>
+                  <th className="px-4 py-3 text-left font-medium">Selling Status</th>
                   <th className="px-4 py-3 text-left font-medium">Actions</th>
                 </tr>
               </thead>
@@ -755,7 +784,30 @@ const VendorInventory = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            product.isForSale
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                              : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                          }`}
+                        >
+                          {product.isForSale ? "Selling" : "Not Selling"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleToggleSelling(product, !product.isForSale)}
+                            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                              product.isForSale
+                                ? "border border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/30"
+                                : "bg-green-600 text-white hover:bg-green-700"
+                            }`}
+                            title={product.isForSale ? "Mark as not selling" : "Show to admin for selling"}
+                          >
+                            <Plus size={13} />
+                            {product.isForSale ? "Not Selling" : "Sell"}
+                          </button>
                           <button
                             onClick={() => handleEdit(product)}
                             className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-neutral-700"

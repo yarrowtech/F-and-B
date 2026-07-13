@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { LogOut, Moon, Sun } from "lucide-react";
 
 import Sidebar from "./VendorSidebar";
+import { VENDOR_NAV_ITEMS } from "./vendorNavItems";
 import VendorInventory from "./VendorInventory";
 import VendorStockInventory from "./VendorStockInventory";
 import VendorManagement from "./VendorManagement";
@@ -14,6 +15,7 @@ import VendorDashboard from "./VendorDashboard";
 import VendorNotification from "./VendorNotification";
 import VendorAnalytics from "./VendorAnalytics";
 import VendorUpgradeRequest from "./VendorUpgradeRequest";
+import API from "../../services/api";
 
 const PAGE_LABELS = {
   dashboard: "Dashboard",
@@ -27,6 +29,15 @@ const PAGE_LABELS = {
   settings: "Settings",
   messages: "Messages",
   notifications: "Notifications",
+};
+
+const getVendorId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+    return user?.id || user?._id || "";
+  } catch {
+    return "";
+  }
 };
 
 function VendorProfileButton() {
@@ -77,7 +88,7 @@ function VendorProfileButton() {
               onClick={() => setOpen(false)}
               className="absolute right-4 top-4 text-2xl leading-none text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
             >
-              X
+              &times;
             </button>
 
             <div className="mb-6 flex flex-col items-center gap-3">
@@ -106,7 +117,7 @@ function VendorProfileButton() {
               <div className="flex justify-between text-sm">
                 <span className="font-medium text-gray-500 dark:text-gray-400">Status</span>
                 <span className={`font-semibold ${isOnline ? "text-green-600" : "text-red-500"}`}>
-                  {isOnline ? "* Online" : "* Offline"}
+                  {isOnline ? "● Online" : "● Offline"}
                 </span>
               </div>
             </div>
@@ -127,6 +138,7 @@ function VendorProfileButton() {
 
 const VendorPanel = () => {
   const [active, setActive] = useState("dashboard");
+  const [requestCount, setRequestCount] = useState(0);
   const [darkMode, setDarkMode] = useState(() => {
     const savedIsDark = localStorage.getItem("isDark");
     if (savedIsDark !== null) return savedIsDark === "true";
@@ -138,12 +150,38 @@ const VendorPanel = () => {
   });
 
   const mainRef = useRef(null);
+  const vendorId = getVendorId();
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
     localStorage.setItem("isDark", String(darkMode));
     localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
+
+  useEffect(() => {
+    if (!vendorId) return undefined;
+
+    let ignore = false;
+
+    const loadRequestCount = async () => {
+      try {
+        const res = await API.get(`/vendor/${vendorId}/orders`);
+        const orders = Array.isArray(res.data?.orders) ? res.data.orders : [];
+        const count = orders.filter((order) => order.status === "processing").length;
+        if (!ignore) setRequestCount(count);
+      } catch {
+        if (!ignore) setRequestCount(0);
+      }
+    };
+
+    loadRequestCount();
+    const intervalId = window.setInterval(loadRequestCount, 30000);
+
+    return () => {
+      ignore = true;
+      window.clearInterval(intervalId);
+    };
+  }, [vendorId, active]);
 
   const handleSetActive = (section) => {
     setActive(section);
@@ -185,15 +223,16 @@ const VendorPanel = () => {
 
   return (
     <div className="h-screen w-full bg-green-50 dark:bg-neutral-900">
-      <div className="sticky top-0 z-30 border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-neutral-800 lg:hidden">
-        <div className="flex items-center justify-between px-4 py-3 pl-16">
-          <span className="text-base font-bold capitalize text-green-700 dark:text-green-400">
+      {/* ===== Mobile Header ===== */}
+      <div className="2xl:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between px-4 py-3">
+          <span className="text-base font-bold text-green-700 dark:text-green-400 capitalize">
             {PAGE_LABELS[active] ?? "Vendor"}
           </span>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setDarkMode((current) => !current)}
-              className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
               title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
               aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
             >
@@ -205,18 +244,22 @@ const VendorPanel = () => {
       </div>
 
       <div className="flex h-full">
-        <div className="hidden w-72 shrink-0 lg:block" aria-hidden="true" />
-        <Sidebar activeSection={active} setActiveSection={handleSetActive} />
+        {/* ===== Sidebar ===== */}
+        <aside className="hidden 2xl:block w-72 shrink-0">
+          <Sidebar activeSection={active} setActiveSection={handleSetActive} requestCount={requestCount} />
+        </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="hidden shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-3 dark:border-gray-700 dark:bg-neutral-800 lg:flex">
-            <p className="text-sm font-medium capitalize text-gray-500 dark:text-gray-400">
+        {/* ===== Right Column ===== */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* ── Top Bar (desktop) ── */}
+          <div className="hidden 2xl:flex items-center justify-between px-6 py-3 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 capitalize">
               {PAGE_LABELS[active] ?? active}
             </p>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setDarkMode((current) => !current)}
-                className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
                 aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
               >
@@ -226,14 +269,46 @@ const VendorPanel = () => {
             </div>
           </div>
 
+          {/* ===== Main Content ===== */}
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto bg-white p-4 dark:bg-neutral-800 sm:p-6"
+            className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-4 sm:p-6 pb-24 2xl:pb-6"
           >
             {renderContent()}
           </main>
         </div>
       </div>
+
+      {/* ===== Bottom Navigation (mobile & tablet only) ===== */}
+      <nav className="2xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch overflow-x-auto shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
+        {VENDOR_NAV_ITEMS.map(({ id, label, icon: Icon }) => {
+          const isActive = active === id;
+          const badgeCount = id === "vendor-management" ? requestCount : 0;
+          const iconNode = React.createElement(Icon, { size: 18 });
+          return (
+            <button
+              key={id}
+              onClick={() => handleSetActive(id)}
+              className={`min-w-[72px] flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-semibold transition-colors
+                ${isActive
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-gray-400 dark:text-gray-500 hover:text-green-500 dark:hover:text-green-400"
+                }`}
+            >
+              <span className={`relative flex items-center justify-center w-8 h-8 rounded-full transition-colors
+                ${isActive ? "bg-green-100 dark:bg-green-900/40" : ""}`}>
+                {iconNode}
+                {badgeCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white">
+                    {badgeCount > 9 ? "9+" : badgeCount}
+                  </span>
+                )}
+              </span>
+              {label}
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 };

@@ -50,6 +50,25 @@ const getAvailableOrderQuantity = (product) =>
         getOrderPackQuantity(product)
     )
   );
+const getWeightedAverageBuyingPrice = ({
+  currentStock,
+  currentBuyingPrice,
+  addedQuantity,
+  addedBuyingPrice,
+}) => {
+  const safeCurrentStock = normalizePositiveNumber(currentStock);
+  const safeCurrentBuyingPrice = normalizePositiveNumber(currentBuyingPrice);
+  const safeAddedQuantity = normalizePositiveNumber(addedQuantity);
+  const safeAddedBuyingPrice = normalizePositiveNumber(addedBuyingPrice);
+
+  const totalQuantity = safeCurrentStock + safeAddedQuantity;
+  if (totalQuantity <= 0) return 0;
+
+  const totalValue =
+    safeCurrentStock * safeCurrentBuyingPrice + safeAddedQuantity * safeAddedBuyingPrice;
+
+  return Number((totalValue / totalQuantity).toFixed(6));
+};
 
 const buildProductResponse = (product, viewerRole = "vendor") => {
   const availableOrderQuantity = getAvailableOrderQuantity(product);
@@ -80,6 +99,7 @@ const buildProductResponse = (product, viewerRole = "vendor") => {
     availableOrderQuantity,
     isActive: product.isActive,
     isForSale: Boolean(product.isForSale),
+    isListedInMyProducts: Boolean(product.isListedInMyProducts) || Boolean(product.isForSale),
     canSell: Boolean(product.isActive) && Boolean(product.isForSale) && availableOrderQuantity > 0,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
@@ -211,6 +231,7 @@ export const createVendorProduct = async (req, res) => {
     const stockUnit = String(req.body.stockUnit || requestedUnit).trim();
     const unit = requestedUnit || stockUnit;
     const isForSale = req.body.isForSale === true;
+    const isListedInMyProducts = req.body.isListedInMyProducts === true;
 
     if (!name) {
       return res.status(400).json({
@@ -286,6 +307,7 @@ export const createVendorProduct = async (req, res) => {
       stock,
       lowStockThreshold,
       isForSale,
+      isListedInMyProducts,
     });
 
     res.status(201).json({
@@ -334,10 +356,49 @@ export const updateVendorProduct = async (req, res) => {
       "lowStockThreshold",
       "isActive",
       "isForSale",
+      "isListedInMyProducts",
     ];
+
+    const stockChangeMode = String(req.body.stockChangeMode || "").trim().toLowerCase();
+    const isAddStockMode = stockChangeMode === "add";
+    const originalStock = normalizePositiveNumber(product.stock);
+    const originalBuyingPrice = normalizePositiveNumber(product.buyingPrice);
+
+    if (isAddStockMode) {
+      const addedStockQuantity = Number(
+        req.body.addedStockQuantity ?? normalizePositiveNumber(req.body.stock) - originalStock
+      );
+      const addedStockBuyingPrice = Number(req.body.addedStockBuyingPrice ?? req.body.buyingPrice);
+
+      if (Number.isNaN(addedStockQuantity) || addedStockQuantity <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Added stock quantity must be greater than 0",
+        });
+      }
+
+      if (Number.isNaN(addedStockBuyingPrice) || addedStockBuyingPrice < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Added stock buying price must be 0 or more",
+        });
+      }
+
+      product.stock = Number((originalStock + addedStockQuantity).toFixed(6));
+      product.buyingPrice = getWeightedAverageBuyingPrice({
+        currentStock: originalStock,
+        currentBuyingPrice: originalBuyingPrice,
+        addedQuantity: addedStockQuantity,
+        addedBuyingPrice: addedStockBuyingPrice,
+      });
+    }
 
     for (const field of allowedFields) {
       if (req.body[field] === undefined) continue;
+
+      if (isAddStockMode && (field === "stock" || field === "buyingPrice")) {
+        continue;
+      }
 
       if (
         field === "price" ||
@@ -372,11 +433,17 @@ export const updateVendorProduct = async (req, res) => {
         product.isActive = Boolean(req.body.isActive);
       } else if (field === "isForSale") {
         product.isForSale = Boolean(req.body.isForSale);
+      } else if (field === "isListedInMyProducts") {
+        product.isListedInMyProducts = Boolean(req.body.isListedInMyProducts);
       } else if (field === "name") {
         product.name = String(req.body.name || "").trim();
       } else {
         product[field] = String(req.body[field] || "").trim();
       }
+    }
+
+    if (product.isForSale) {
+      product.isListedInMyProducts = true;
     }
 
     if (!product.name) {

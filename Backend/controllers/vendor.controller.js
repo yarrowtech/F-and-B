@@ -942,13 +942,7 @@ export const getVendorDashboardScope = async (req, res) => {
       return res.status(404).json({ success: false, message: "Vendor not found" });
     }
 
-    let restaurants = vendor.accessibleRestaurants || [];
-
-    if (vendor.vendorType === "global" && vendor.allRestaurantsAccess) {
-      restaurants = await Restaurant.find({})
-        .select("name restaurantCode admin")
-        .populate("admin", "businessName adminId");
-    }
+    const restaurants = vendor.accessibleRestaurants || [];
 
     res.json({
       success: true,

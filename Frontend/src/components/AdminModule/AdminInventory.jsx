@@ -39,6 +39,24 @@ const getTodayInputDate = () => {
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
   return date.toISOString().slice(0, 10);
 };
+const getCurrentDateTimeInput = () => {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+};
+const formatDateTimePreview = (value) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(parsed);
+};
 const isLateStockLog = (log) => {
   if (!log.effectiveDate || !log.createdAt) return false;
   const effective = new Date(log.effectiveDate);
@@ -178,8 +196,8 @@ const AdminInventory = ({ onPendingApprovalCountChange }) => {
   const [statusFilter, setStatusFilter]   = useState("all");
   const [loading, setLoading]             = useState(false);
   const [submitting, setSubmitting]       = useState(false);
-  const [exportFrom, setExportFrom]       = useState(new Date().toISOString().slice(0, 10));
-  const [exportTo, setExportTo]           = useState(new Date().toISOString().slice(0, 10));
+  const [exportFrom, setExportFrom]       = useState(getCurrentDateTimeInput);
+  const [exportTo, setExportTo]           = useState(getCurrentDateTimeInput);
   const [exporting, setExporting]         = useState(false);
 
   const [logs, setLogs]                     = useState([]);
@@ -457,20 +475,26 @@ const AdminInventory = ({ onPendingApprovalCountChange }) => {
             </select>
             {selectedRestaurant && (
               <>
+              <div className="space-y-1">
                 <input
-                  type="date"
+                  type="datetime-local"
                   value={exportFrom}
                   onChange={(e) => setExportFrom(e.target.value)}
-                  aria-label="Export from date"
+                  aria-label="Export from date and time"
                   className="min-h-10 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 />
+                <p className="text-xs text-gray-500 dark:text-gray-400">{formatDateTimePreview(exportFrom)}</p>
+              </div>
+              <div className="space-y-1">
                 <input
-                  type="date"
+                  type="datetime-local"
                   value={exportTo}
                   onChange={(e) => setExportTo(e.target.value)}
-                  aria-label="Export to date"
+                  aria-label="Export to date and time"
                   className="min-h-10 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 />
+                <p className="text-xs text-gray-500 dark:text-gray-400">{formatDateTimePreview(exportTo)}</p>
+              </div>
                 <button
                   onClick={handleDownloadDayWiseExcel}
                   disabled={exporting}

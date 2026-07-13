@@ -33,6 +33,21 @@ const vendorOrderItemSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
+    buyingPrice: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    costAmount: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    lineTotal: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
   },
   { _id: false }
 );

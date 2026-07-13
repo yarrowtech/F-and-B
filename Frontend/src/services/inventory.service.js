@@ -121,7 +121,13 @@ export const downloadInventoryDayWiseExcel = async ({
   link.href = url;
   const fileFrom = from || date || new Date().toISOString().slice(0, 10);
   const fileTo = to || date || fileFrom;
-  link.download = `inventory-day-wise-${fileFrom}-to-${fileTo}.xlsx`;
+  const sanitize = (value) =>
+    String(value || "")
+      .replace("T", "-")
+      .replace(/[^\dA-Za-z-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+  link.download = `inventory-day-wise-${sanitize(fileFrom)}-to-${sanitize(fileTo)}.xlsx`;
   document.body.appendChild(link);
   link.click();
   link.remove();

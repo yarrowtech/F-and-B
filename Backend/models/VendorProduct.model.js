@@ -75,6 +75,11 @@ const vendorProductSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+    isListedInMyProducts: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   { timestamps: true }
 );

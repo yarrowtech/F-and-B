@@ -474,8 +474,9 @@ export default function VendorStockInventory() {
     try {
       setUpdatingId(selectedProduct.id);
       await API.put(`/vendor/${vendorId}/products/${selectedProduct.id}`, {
-        stock: Number(selectedProduct.stock || 0) + quantity,
-        buyingPrice,
+        stockChangeMode: "add",
+        addedStockQuantity: quantity,
+        addedStockBuyingPrice: buyingPrice,
       });
       notify(
         `Added ${formatNumber(quantity)} ${selectedProduct.stockUnit || selectedProduct.unit} to ${selectedProduct.name}`
@@ -618,6 +619,10 @@ export default function VendorStockInventory() {
         </div>
       )}
 
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
+        Inventory is your master stock. Add stock here, then use My Products to choose which items are ready for selling and visible to admin.
+      </div>
+
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
           <div className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -708,7 +713,7 @@ export default function VendorStockInventory() {
                               : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
                           }`}
                         >
-                          {product.isForSale ? "Ready for Selling" : "Inventory Only"}
+                          {product.isForSale ? "In My Products" : "Inventory Only"}
                         </span>
                       </td>
                       <td className="px-4 py-3">

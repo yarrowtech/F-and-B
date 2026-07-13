@@ -430,6 +430,8 @@ export const createVendorOrder = async (req, res) => {
       const orderPackQuantity = getOrderPackQuantity(product);
       const stockDeductionQuantity =
         (quantity * orderPackQuantity) / normalizeConversionFactor(product.orderUnitsPerStockUnit);
+      const lineTotal = product.price * quantity;
+      const costAmount = Number(product.buyingPrice || 0) * stockDeductionQuantity;
 
       orderItems.push({
         product: product._id,
@@ -438,8 +440,11 @@ export const createVendorOrder = async (req, res) => {
         unit: getDisplayUnit(product),
         quantity,
         stockDeductionQuantity,
+        buyingPrice: Number(product.buyingPrice || 0),
+        costAmount,
+        lineTotal,
       });
-      totalAmount += product.price * quantity;
+      totalAmount += lineTotal;
     }
 
     await Promise.all(

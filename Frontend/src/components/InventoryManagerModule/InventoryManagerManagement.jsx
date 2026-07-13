@@ -36,6 +36,24 @@ const getTodayInputDate = () => {
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
   return date.toISOString().slice(0, 10);
 };
+const getCurrentDateTimeInput = () => {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+};
+const formatDateTimePreview = (value) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(parsed);
+};
 const isLateStockLog = (log) => {
   if (!log.effectiveDate || !log.createdAt) return false;
   const effective = new Date(log.effectiveDate);
@@ -242,8 +260,8 @@ const InventoryManagerManagement = () => {
   const [statusFilter, setStatusFilter]   = useState("all");
   const [loading, setLoading]             = useState(false);
   const [submitting, setSubmitting]       = useState(false);
-  const [exportFrom, setExportFrom]       = useState(new Date().toISOString().slice(0, 10));
-  const [exportTo, setExportTo]           = useState(new Date().toISOString().slice(0, 10));
+  const [exportFrom, setExportFrom]       = useState(getCurrentDateTimeInput);
+  const [exportTo, setExportTo]           = useState(getCurrentDateTimeInput);
   const [exporting, setExporting]         = useState(false);
 
   const [logs, setLogs]                     = useState([]);
@@ -475,20 +493,26 @@ const InventoryManagerManagement = () => {
         <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700 sm:p-4">
           {restaurantId && (
             <div className="grid gap-2 sm:grid-cols-[minmax(136px,auto)_minmax(136px,auto)_auto_auto] sm:items-center sm:justify-end">
-              <input
-                type="date"
-                value={exportFrom}
-                onChange={(e) => setExportFrom(e.target.value)}
-                aria-label="Export from date"
-                className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
-              />
-              <input
-                type="date"
-                value={exportTo}
-                onChange={(e) => setExportTo(e.target.value)}
-                aria-label="Export to date"
-                className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
-              />
+              <div className="space-y-1">
+                <input
+                  type="datetime-local"
+                  value={exportFrom}
+                  onChange={(e) => setExportFrom(e.target.value)}
+                  aria-label="Export from date and time"
+                  className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
+                />
+                <p className="text-xs text-slate-500 dark:text-neutral-400">{formatDateTimePreview(exportFrom)}</p>
+              </div>
+              <div className="space-y-1">
+                <input
+                  type="datetime-local"
+                  value={exportTo}
+                  onChange={(e) => setExportTo(e.target.value)}
+                  aria-label="Export to date and time"
+                  className="min-h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
+                />
+                <p className="text-xs text-slate-500 dark:text-neutral-400">{formatDateTimePreview(exportTo)}</p>
+              </div>
               <button
                 onClick={handleDownloadDayWiseExcel}
                 disabled={exporting}
