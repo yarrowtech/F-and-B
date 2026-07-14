@@ -57,6 +57,26 @@ router.get(
   allowRoles("admin", "super_admin"),
   vendorOrderController.getAdminOrderHistory
 );
+router.post(
+  "/:id/settlements/preview",
+  allowRoles("admin", "super_admin", "vendor"),
+  vendorOrderController.previewVendorSettlement
+);
+router.get(
+  "/:id/settlements",
+  allowRoles("admin", "super_admin", "vendor"),
+  vendorOrderController.getVendorSettlements
+);
+router.post(
+  "/:id/settlements",
+  allowRoles("admin", "super_admin", "vendor"),
+  vendorOrderController.createVendorSettlement
+);
+router.put(
+  "/:id/settlements/:settlementId/pay",
+  allowRoles("admin", "super_admin", "vendor"),
+  vendorOrderController.payVendorSettlement
+);
 
 router.get("/", allowRoles("admin", "super_admin", "vendor"), vendorController.getVendors);
 router.get("/:id", allowRoles("admin", "super_admin", "vendor"), vendorController.getVendorById);

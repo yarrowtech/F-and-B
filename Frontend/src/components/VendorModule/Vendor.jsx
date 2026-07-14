@@ -14,6 +14,7 @@ import VendorMessages from "./VendorMessages";
 import VendorDashboard from "./VendorDashboard";
 import VendorNotification from "./VendorNotification";
 import VendorAnalytics from "./VendorAnalytics";
+import VendorReports from "./VendorReports";
 import VendorUpgradeRequest from "./VendorUpgradeRequest";
 import API from "../../services/api";
 
@@ -24,6 +25,7 @@ const PAGE_LABELS = {
   "vendor-management": "Management",
   account: "Account",
   analytics: "Analytics",
+  reports: "Reports",
   "upgrade-request": "Upgrade",
   notes: "Notes",
   settings: "Settings",
@@ -210,6 +212,8 @@ const VendorPanel = () => {
         return <VendorNotification />;
       case "analytics":
         return <VendorAnalytics />;
+      case "reports":
+        return <VendorReports />;
       case "upgrade-request":
         return <VendorUpgradeRequest />;
       default:

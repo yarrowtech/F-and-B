@@ -52,6 +52,71 @@ const vendorOrderItemSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const vendorOrderBillingSchema = new mongoose.Schema(
+  {
+    itemsTotal: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    discountType: {
+      type: String,
+      enum: ["none", "amount", "percentage"],
+      default: "none",
+    },
+    discountValue: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    discountAmount: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    taxableAmount: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    cgstRate: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    sgstRate: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    cgst: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    sgst: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    totalTax: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    totalAmount: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    showTaxBreakup: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  { _id: false }
+);
+
 const vendorOrderSchema = new mongoose.Schema(
   {
     orderNo: {
@@ -87,6 +152,10 @@ const vendorOrderSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    billing: {
+      type: vendorOrderBillingSchema,
+      default: () => ({}),
+    },
     status: {
       type: String,
       enum: ["processing", "ready", "completed", "cancelled"],
@@ -110,6 +179,18 @@ const vendorOrderSchema = new mongoose.Schema(
       type: String,
       enum: ["unpaid", "paid"],
       default: "unpaid",
+      index: true,
+    },
+    settlementStatus: {
+      type: String,
+      enum: ["unsettled", "scheduled", "settled"],
+      default: "unsettled",
+      index: true,
+    },
+    settlement: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "VendorSettlement",
+      default: null,
       index: true,
     },
     paymentMethod: {

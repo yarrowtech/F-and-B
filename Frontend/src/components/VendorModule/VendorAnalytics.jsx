@@ -282,6 +282,38 @@ export default function VendorAnalytics() {
     ];
   }, [orders]);
 
+  const restaurantWiseSales = useMemo(() => {
+    const restaurantMap = new Map();
+
+    orders.forEach((order) => {
+      if (order.status === "cancelled") return;
+
+      const key = String(order?.restaurant?.id || order?.restaurant?._id || order?.restaurant?.name || "unknown");
+      const previous = restaurantMap.get(key) || {
+        name: order?.restaurant?.name || "Restaurant",
+        orders: 0,
+        revenue: 0,
+        paid: 0,
+        outstanding: 0,
+      };
+      const revenue = Number(order?.billSummary?.totalAmount || order?.totalAmount || getOrderRevenue(order));
+
+      previous.orders += 1;
+      previous.revenue += revenue;
+      if (order.paymentStatus === "paid") {
+        previous.paid += revenue;
+      } else {
+        previous.outstanding += revenue;
+      }
+
+      restaurantMap.set(key, previous);
+    });
+
+    return Array.from(restaurantMap.values())
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 8);
+  }, [orders]);
+
   const inventoryByCategory = useMemo(() => {
     const map = new Map();
 
@@ -499,6 +531,71 @@ export default function VendorAnalytics() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
+            <ChartCard
+              title="Restaurant Wise Sales"
+              subtitle="Revenue, collection, and outstanding by restaurant"
+              right={
+                <div className="rounded-xl bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300">
+                  Top restaurants
+                </div>
+              }
+            >
+              {restaurantWiseSales.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500 dark:border-neutral-700 dark:text-gray-400">
+                  No restaurant sales data yet.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={restaurantWiseSales} layout="vertical" margin={{ left: 12, right: 12 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis type="number" tickLine={false} axisLine={false} tickFormatter={formatCompactCurrency} />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          tickLine={false}
+                          axisLine={false}
+                          width={110}
+                        />
+                        <Tooltip formatter={(value) => formatCurrency(value)} />
+                        <Legend />
+                        <Bar dataKey="revenue" name="Revenue" fill="#16a34a" radius={[0, 8, 8, 0]} />
+                        <Bar dataKey="outstanding" name="Outstanding" fill="#f59e0b" radius={[0, 8, 8, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {restaurantWiseSales.slice(0, 4).map((restaurant) => (
+                      <div
+                        key={restaurant.name}
+                        className="rounded-xl border border-gray-200 p-3 dark:border-neutral-700"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-gray-100">
+                              {restaurant.name}
+                            </p>
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {formatNumber(restaurant.orders)} order(s)
+                            </p>
+                          </div>
+                          <p className="text-sm font-semibold text-green-600 dark:text-green-400">
+                            {formatCurrency(restaurant.revenue)}
+                          </p>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                          <span>Paid {formatCurrency(restaurant.paid)}</span>
+                          <span>Outstanding {formatCurrency(restaurant.outstanding)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </ChartCard>
+
             <ChartCard
               title="Inventory By Category"
               subtitle="Current inventory value distribution"

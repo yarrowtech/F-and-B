@@ -54,6 +54,17 @@ const vendorProductSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    imageUrl: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    imagePublicId: {
+      type: String,
+      trim: true,
+      default: "",
+      select: false,
+    },
     stock: {
       type: Number,
       required: true,

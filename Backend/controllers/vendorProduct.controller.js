@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Restaurant from "../models/Restaurant.model.js";
 import Vendor from "../models/Vendor.model.js";
 import VendorProduct from "../models/VendorProduct.model.js";
+import { configureCloudinary } from "../config/cloudinary.js";
 
 const toObjectId = (value) =>
   mongoose.Types.ObjectId.isValid(value) ? new mongoose.Types.ObjectId(value) : null;
@@ -24,6 +25,88 @@ const getVendorRestaurantIds = (vendor) => {
 const normalizePositiveNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+const getErrorMessage = (error, fallback = "Something went wrong") => {
+  if (!error) return fallback;
+  if (typeof error === "string") return error;
+  if (typeof error.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+  if (
+    error.message &&
+    typeof error.message === "object" &&
+    typeof error.message.message === "string" &&
+    error.message.message.trim()
+  ) {
+    return error.message.message;
+  }
+  if (typeof error.error?.message === "string" && error.error.message.trim()) {
+    return error.error.message;
+  }
+
+  try {
+    return JSON.stringify(error.message || error);
+  } catch {
+    return fallback;
+  }
+};
+
+const hasCloudinaryConfig = () =>
+  Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET
+  );
+
+const isSupportedImageDataUrl = (value) =>
+  /^data:image\/(png|jpe?g|webp);base64,/i.test(String(value || "").trim());
+
+const uploadProductImage = async ({ imageDataUrl, vendorId }) => {
+  if (!isSupportedImageDataUrl(imageDataUrl)) {
+    throw new Error("Product image must be PNG, JPG, JPEG, or WEBP");
+  }
+
+  const normalizedImageDataUrl = String(imageDataUrl).trim();
+
+  if (!hasCloudinaryConfig()) {
+    return {
+      imageUrl: normalizedImageDataUrl,
+      imagePublicId: "",
+    };
+  }
+
+  const cloudinary = configureCloudinary();
+
+  try {
+    const uploaded = await cloudinary.uploader.upload(normalizedImageDataUrl, {
+      folder: `efnbmms/vendor-products/${vendorId}`,
+      resource_type: "image",
+    });
+
+    return {
+      imageUrl: uploaded.secure_url || "",
+      imagePublicId: uploaded.public_id || "",
+    };
+  } catch (error) {
+    console.error("Cloudinary upload failed, saving inline image instead.", {
+      vendorId,
+      message: getErrorMessage(error),
+      http_code: error?.http_code,
+      name: error?.name,
+    });
+
+    return {
+      imageUrl: normalizedImageDataUrl,
+      imagePublicId: "",
+    };
+  }
+};
+
+const removeProductImage = async (publicId) => {
+  if (!publicId || !hasCloudinaryConfig()) return;
+  const cloudinary = configureCloudinary();
+  await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
 };
 
 const normalizeConversionFactor = (value) => {
@@ -91,6 +174,7 @@ const buildProductResponse = (product, viewerRole = "vendor") => {
     orderUnitsPerStockUnit: getOrderUnitsPerStockUnit(product),
     orderPackQuantity,
     category: product.category,
+    imageUrl: product.imageUrl || "",
     stock: viewerRole === "vendor" ? normalizePositiveNumber(product.stock) : undefined,
     lowStockThreshold:
       viewerRole === "vendor"
@@ -181,7 +265,7 @@ export const getVendorProducts = async (req, res) => {
       products: products.map((product) => buildProductResponse(product, req.user.role)),
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: getErrorMessage(error) });
   }
 };
 
@@ -208,7 +292,7 @@ export const getExploreGlobalVendorProducts = async (req, res) => {
       products: products.map((product) => buildProductResponse(product, "admin")),
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: getErrorMessage(error) });
   }
 };
 
@@ -232,6 +316,7 @@ export const createVendorProduct = async (req, res) => {
     const unit = requestedUnit || stockUnit;
     const isForSale = req.body.isForSale === true;
     const isListedInMyProducts = req.body.isListedInMyProducts === true;
+    const imageDataUrl = String(req.body.imageDataUrl || "").trim();
 
     if (!name) {
       return res.status(400).json({
@@ -293,6 +378,10 @@ export const createVendorProduct = async (req, res) => {
       });
     }
 
+    const uploadedImage = imageDataUrl
+      ? await uploadProductImage({ imageDataUrl, vendorId })
+      : null;
+
     const product = await VendorProduct.create({
       vendor: vendorId,
       name,
@@ -304,6 +393,8 @@ export const createVendorProduct = async (req, res) => {
       orderUnitsPerStockUnit,
       orderPackQuantity,
       category: String(req.body.category || "").trim(),
+      imageUrl: uploadedImage?.imageUrl || "",
+      imagePublicId: uploadedImage?.imagePublicId || "",
       stock,
       lowStockThreshold,
       isForSale,
@@ -316,7 +407,7 @@ export const createVendorProduct = async (req, res) => {
       product: buildProductResponse(product, "vendor"),
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: getErrorMessage(error) });
   }
 };
 
@@ -336,7 +427,7 @@ export const updateVendorProduct = async (req, res) => {
     const product = await VendorProduct.findOne({
       _id: productId,
       vendor: vendorId,
-    });
+    }).select("+imagePublicId");
 
     if (!product) {
       return res.status(404).json({ success: false, message: "Product not found" });
@@ -358,6 +449,8 @@ export const updateVendorProduct = async (req, res) => {
       "isForSale",
       "isListedInMyProducts",
     ];
+    const imageDataUrl = String(req.body.imageDataUrl || "").trim();
+    const removeImage = req.body.removeImage === true;
 
     const stockChangeMode = String(req.body.stockChangeMode || "").trim().toLowerCase();
     const isAddStockMode = stockChangeMode === "add";
@@ -442,6 +535,19 @@ export const updateVendorProduct = async (req, res) => {
       }
     }
 
+    if (removeImage) {
+      await removeProductImage(product.imagePublicId);
+      product.imageUrl = "";
+      product.imagePublicId = "";
+    }
+
+    if (imageDataUrl) {
+      const uploadedImage = await uploadProductImage({ imageDataUrl, vendorId });
+      await removeProductImage(product.imagePublicId);
+      product.imageUrl = uploadedImage.imageUrl;
+      product.imagePublicId = uploadedImage.imagePublicId;
+    }
+
     if (product.isForSale) {
       product.isListedInMyProducts = true;
     }
@@ -470,7 +576,7 @@ export const updateVendorProduct = async (req, res) => {
       product: buildProductResponse(product, "vendor"),
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: getErrorMessage(error) });
   }
 };
 
@@ -490,11 +596,13 @@ export const deleteVendorProduct = async (req, res) => {
     const product = await VendorProduct.findOneAndDelete({
       _id: productId,
       vendor: vendorId,
-    });
+    }).select("+imagePublicId");
 
     if (!product) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
+
+    await removeProductImage(product.imagePublicId);
 
     res.json({ success: true, message: "Product deleted successfully" });
   } catch (error) {

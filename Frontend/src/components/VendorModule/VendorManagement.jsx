@@ -54,6 +54,10 @@ const hasGeneratedBill = (order) => Boolean(order?.billGeneratedAt);
 const getBillSummary = (order) =>
   order?.billSummary || {
     itemsTotal: Number(order?.totalAmount || 0),
+    discountType: "none",
+    discountValue: 0,
+    discountAmount: 0,
+    taxableAmount: Number(order?.totalAmount || 0),
     cgstRate: 0,
     sgstRate: 0,
     cgst: 0,
@@ -63,15 +67,173 @@ const getBillSummary = (order) =>
     showTaxBreakup: false,
   };
 
+const getOperationalStatusLabel = (status) => {
+  if (status === "completed") return "Delivered / Closed";
+  if (status === "ready") return "Ready To Deliver";
+  if (status === "cancelled") return "Cancelled";
+  return "Order Requested";
+};
+
+const getPaymentStatusLabel = (status) => (status === "paid" ? "Paid" : "Outstanding / Credit");
+
+const getSettlementStatusLabel = (status) => {
+  if (status === "settled") return "Settled";
+  if (status === "scheduled") return "In Settlement";
+  return "Unsettled";
+};
+
+const getSettlementCycleLabel = (cycle) => {
+  if (cycle === "15_days") return "15 Days";
+  if (cycle === "weekly") return "Weekly";
+  if (cycle === "monthly") return "Monthly";
+  if (cycle === "manual") return "Manual";
+  return "";
+};
+
+function SettlementHistoryModal({ vendorId, onClose }) {
+  const [settlements, setSettlements] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadSettlements = async () => {
+      try {
+        setLoading(true);
+        const res = await API.get(`/vendor/${vendorId}/settlements`);
+        setSettlements(Array.isArray(res.data?.settlements) ? res.data.settlements : []);
+      } catch (error) {
+        console.error("Settlement load failed", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSettlements();
+  }, [vendorId]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl dark:bg-neutral-900">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5 dark:border-neutral-700">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-green-600 dark:text-green-400">
+              Settlement Ledger
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-gray-900 dark:text-gray-100">
+              Vendor Payout History
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-neutral-700 dark:text-gray-300 dark:hover:bg-neutral-800"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto px-6 py-5">
+          {loading ? (
+            <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400 dark:border-neutral-700">
+              Loading settlements...
+            </div>
+          ) : settlements.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400 dark:border-neutral-700">
+              No settlements found yet.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {settlements.map((settlement) => (
+                <div
+                  key={settlement.id}
+                  className="rounded-[24px] border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-bold text-gray-900 dark:text-gray-100">
+                        {settlement.settlementNo}
+                      </p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
+                        {String(settlement.cycle || "manual").replace("_", " ")}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        {formatDateTime(settlement.periodStart)} - {formatDateTime(settlement.periodEnd)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-black text-green-600 dark:text-green-400">
+                        {formatCurrency(settlement.totals?.netPayable)}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {settlement.orderCount} order(s)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        settlement.status === "paid"
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                      }`}
+                    >
+                      {settlement.status}
+                    </span>
+                    {settlement.paymentMethod ? (
+                      <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-neutral-800 dark:text-gray-300">
+                        {settlement.paymentMethod}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                    <div className="rounded-2xl bg-gray-50 px-3 py-3 text-sm dark:bg-neutral-800">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Gross</p>
+                      <p className="mt-1 font-bold text-gray-900 dark:text-gray-100">
+                        {formatCurrency(settlement.totals?.grossAmount)}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-gray-50 px-3 py-3 text-sm dark:bg-neutral-800">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Discount</p>
+                      <p className="mt-1 font-bold text-gray-900 dark:text-gray-100">
+                        {formatCurrency(settlement.totals?.discountAmount)}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-gray-50 px-3 py-3 text-sm dark:bg-neutral-800">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Taxable</p>
+                      <p className="mt-1 font-bold text-gray-900 dark:text-gray-100">
+                        {formatCurrency(settlement.totals?.taxableAmount)}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-gray-50 px-3 py-3 text-sm dark:bg-neutral-800">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Tax</p>
+                      <p className="mt-1 font-bold text-gray-900 dark:text-gray-100">
+                        {formatCurrency(settlement.totals?.taxAmount)}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-green-50 px-3 py-3 text-sm dark:bg-green-950/20">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Net Payable</p>
+                      <p className="mt-1 font-bold text-green-700 dark:text-green-300">
+                        {formatCurrency(settlement.totals?.netPayable)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const getBoardOrders = (orders, board) => {
   switch (board) {
     case "requests":
       return orders.filter((order) => order.status === "processing");
     case "fulfillment":
-      return orders.filter(
-        (order) =>
-          order.status === "ready" || (order.status === "completed" && order.paymentStatus !== "paid")
-      );
+      return orders.filter((order) => order.status === "ready");
     case "billing":
       return orders.filter((order) => hasGeneratedBill(order));
     case "collection":
@@ -79,9 +241,7 @@ const getBoardOrders = (orders, board) => {
         (order) => hasGeneratedBill(order) && order.paymentStatus !== "paid" && order.status !== "cancelled"
       );
     case "history":
-      return orders.filter(
-        (order) => order.status === "cancelled" || order.paymentStatus === "paid"
-      );
+      return orders.filter((order) => order.status === "cancelled" || order.status === "completed");
     default:
       return orders;
   }
@@ -104,6 +264,7 @@ const getTimelineSteps = (order) => {
   const generatedBill = hasGeneratedBill(order);
   const isPaid = order?.paymentStatus === "paid";
   const isCancelled = order?.status === "cancelled";
+  const isCompleted = order?.status === "completed";
 
   return [
     { key: "request", label: "Request", done: true, active: !isCancelled && order?.status === "processing" },
@@ -128,8 +289,8 @@ const getTimelineSteps = (order) => {
     {
       key: "closed",
       label: "Closed",
-      done: isCancelled || (isPaid && order?.status === "completed"),
-      active: false,
+      done: isCancelled || isCompleted,
+      active: !isCancelled && isCompleted,
     },
   ];
 };
@@ -173,15 +334,15 @@ function MetricCard({ label, value, helper, tone = "green", icon: Icon }) {
 function StatusPill({ status }) {
   const map = {
     processing: {
-      label: "Requested",
+      label: "Order Requested",
       cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
     },
     ready: {
-      label: "Ready",
+      label: "Ready To Deliver",
       cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
     },
     completed: {
-      label: "Completed",
+      label: "Delivered / Closed",
       cls: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
     },
     cancelled: {
@@ -204,8 +365,8 @@ function PaymentPill({ status }) {
       Paid
     </span>
   ) : (
-    <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-neutral-800 dark:text-gray-300">
-      Unpaid
+    <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+      Outstanding
     </span>
   );
 }
@@ -246,6 +407,7 @@ function BoardButton({ board, active, count, onClick }) {
 
 function OrderRow({ order, onClick }) {
   const billSummary = getBillSummary(order);
+  const settlementCycleLabel = getSettlementCycleLabel(order?.settlement?.cycle);
 
   return (
     <button
@@ -269,6 +431,14 @@ function OrderRow({ order, onClick }) {
           <div className="flex flex-wrap gap-2">
             <StatusPill status={order.status} />
             <PaymentPill status={order.paymentStatus} />
+            <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-neutral-800 dark:text-gray-300">
+              {getSettlementStatusLabel(order.settlementStatus)}
+            </span>
+            {settlementCycleLabel ? (
+              <span className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                {settlementCycleLabel}
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
@@ -435,9 +605,28 @@ function BillModal({ order, vendorId, onClose }) {
           <div className="space-y-5">
             <div className="rounded-[24px] border border-green-200 bg-green-50/80 p-4 dark:border-green-900 dark:bg-green-950/20">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-300">Taxable Amount</span>
+                <span className="text-gray-600 dark:text-gray-300">Subtotal</span>
                 <span className="font-bold text-gray-900 dark:text-gray-100">
                   {formatCurrency(billSummary.itemsTotal)}
+                </span>
+              </div>
+              {billSummary.discountAmount > 0 && (
+                <div className="mt-3 flex items-center justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-300">
+                    Discount
+                    {billSummary.discountType === "percentage"
+                      ? ` (${billSummary.discountValue}%)`
+                      : ""}
+                  </span>
+                  <span className="font-semibold text-red-600 dark:text-red-300">
+                    -{formatCurrency(billSummary.discountAmount)}
+                  </span>
+                </div>
+              )}
+              <div className="mt-3 flex items-center justify-between text-sm">
+                <span className="text-gray-600 dark:text-gray-300">Taxable Amount</span>
+                <span className="font-semibold text-gray-900 dark:text-gray-100">
+                  {formatCurrency(billSummary.taxableAmount)}
                 </span>
               </div>
               {billSummary.showTaxBreakup && (
@@ -460,7 +649,7 @@ function BillModal({ order, vendorId, onClose }) {
                   </div>
                 </>
               )}
-              <div className="mt-4 border-t border-dashed border-green-200 pt-4 dark:border-green-900">
+                <div className="mt-4 border-t border-dashed border-green-200 pt-4 dark:border-green-900">
                 <div className="flex items-center justify-between">
                   <span className="text-base font-bold text-gray-900 dark:text-gray-100">Grand Total</span>
                   <span className="text-2xl font-black text-green-700 dark:text-green-300">
@@ -481,6 +670,25 @@ function BillModal({ order, vendorId, onClose }) {
                   <span className="font-semibold text-gray-900 dark:text-gray-100">
                     {order.paymentMethod}
                   </span>
+                </p>
+              )}
+              <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+                Settlement:
+                {" "}
+                <span className="font-semibold text-gray-900 dark:text-gray-100">
+                  {getSettlementStatusLabel(order.settlementStatus)}
+                </span>
+              </p>
+              {order?.settlement?.settlementNo && (
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                  Settlement batch:
+                  {" "}
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                    {order.settlement.settlementNo}
+                  </span>
+                  {order?.settlement?.cycle
+                    ? ` (${getSettlementCycleLabel(order.settlement.cycle)})`
+                    : ""}
                 </p>
               )}
             </div>
@@ -584,6 +792,9 @@ function OrderModal({
           <div className="flex flex-wrap gap-2">
             <StatusPill status={order.status} />
             <PaymentPill status={order.paymentStatus} />
+            <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600 dark:bg-neutral-800 dark:text-gray-300">
+              {getSettlementStatusLabel(order.settlementStatus)}
+            </span>
             {hasGeneratedBill(order) && (
               <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-300">
                 Bill Generated
@@ -672,7 +883,7 @@ function OrderModal({
                     </button>
                   )}
 
-                  {order.status === "ready" && order.paymentStatus === "paid" && (
+                  {order.status === "ready" && hasGeneratedBill(order) && (
                     <button
                       onClick={() => onUpdateStatus(order, "completed")}
                       disabled={updatingId === order.id}
@@ -695,6 +906,10 @@ function OrderModal({
 
                 {hasGeneratedBill(order) && order.paymentStatus !== "paid" && (
                   <div className="mt-5 rounded-[24px] border border-gray-200 bg-gray-50 p-4 dark:border-neutral-700 dark:bg-neutral-800">
+                    <p className="mb-3 text-xs font-medium text-gray-500 dark:text-gray-400">
+                      Record payment now for same-day collection, or keep it unpaid for weekly / 15 days /
+                      monthly settlement.
+                    </p>
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
                       <div className="flex-1">
                         <label className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
@@ -736,9 +951,28 @@ function OrderModal({
                 <p className="text-lg font-black text-gray-900 dark:text-gray-100">Bill Summary</p>
                 <div className="mt-4 rounded-[24px] border border-green-200 bg-green-50/70 p-4 dark:border-green-900 dark:bg-green-950/20">
                   <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
-                    <span>Taxable Amount</span>
+                    <span>Subtotal</span>
                     <span className="font-semibold text-gray-900 dark:text-gray-100">
                       {formatCurrency(selectedBill.itemsTotal)}
+                    </span>
+                  </div>
+                  {selectedBill.discountAmount > 0 && (
+                    <div className="mt-3 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                      <span>
+                        Discount
+                        {selectedBill.discountType === "percentage"
+                          ? ` (${selectedBill.discountValue}%)`
+                          : ""}
+                      </span>
+                      <span className="font-semibold text-red-600 dark:text-red-300">
+                        -{formatCurrency(selectedBill.discountAmount)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="mt-3 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                    <span>Taxable Amount</span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {formatCurrency(selectedBill.taxableAmount)}
                     </span>
                   </div>
                   {selectedBill.showTaxBreakup && (
@@ -778,15 +1012,45 @@ function OrderModal({
                     </span>
                   </div>
                   <div className="flex items-center justify-between rounded-2xl bg-gray-50 px-3 py-3 dark:bg-neutral-800">
-                    <span>Ready at</span>
+                    <span>Ready for delivery</span>
                     <span className="font-semibold text-gray-900 dark:text-gray-100">
                       {formatDateTime(order.readyAt)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-gray-50 px-3 py-3 dark:bg-neutral-800">
+                    <span>Operational status</span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {getOperationalStatusLabel(order.status)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-gray-50 px-3 py-3 dark:bg-neutral-800">
+                    <span>Payment status</span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {getPaymentStatusLabel(order.paymentStatus)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between rounded-2xl bg-gray-50 px-3 py-3 dark:bg-neutral-800">
                     <span>Bill generated</span>
                     <span className="font-semibold text-gray-900 dark:text-gray-100">
                       {formatDateTime(order.billGeneratedAt)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-gray-50 px-3 py-3 dark:bg-neutral-800">
+                    <span>Settlement status</span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {getSettlementStatusLabel(order.settlementStatus)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-gray-50 px-3 py-3 dark:bg-neutral-800">
+                    <span>Settlement cycle</span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {getSettlementCycleLabel(order?.settlement?.cycle) || "-"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-gray-50 px-3 py-3 dark:bg-neutral-800">
+                    <span>Settlement batch</span>
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                      {order?.settlement?.settlementNo || "-"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between rounded-2xl bg-gray-50 px-3 py-3 dark:bg-neutral-800">
@@ -818,6 +1082,7 @@ const VendorManagement = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [billOrder, setBillOrder] = useState(null);
   const [paymentMethodDraft, setPaymentMethodDraft] = useState({});
+  const [showSettlementHistory, setShowSettlementHistory] = useState(false);
 
   const deferredSearch = useDeferredValue(search);
 
@@ -929,6 +1194,16 @@ const VendorManagement = () => {
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowSettlementHistory(true)}
+          className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-gray-200 dark:hover:bg-neutral-800"
+        >
+          <Wallet size={15} />
+          Settlement History
+        </button>
+      </div>
+
       {message && (
         <div
           className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
@@ -1040,6 +1315,13 @@ const VendorManagement = () => {
       />
 
       <BillModal order={billOrder} vendorId={vendorId} onClose={() => setBillOrder(null)} />
+
+      {showSettlementHistory && (
+        <SettlementHistoryModal
+          vendorId={vendorId}
+          onClose={() => setShowSettlementHistory(false)}
+        />
+      )}
     </div>
   );
 };

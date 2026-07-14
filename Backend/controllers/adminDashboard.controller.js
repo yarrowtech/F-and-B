@@ -4,6 +4,8 @@ import Bill from "../models/Bill.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import Employee from "../models/Employee.model.js";
 import ExcelJS from "exceljs";
+import VendorOrder from "../models/VendorOrder.model.js";
+import VendorSettlement from "../models/VendorSettlement.model.js";
 
 /* ================= HELPER: get admin's restaurant IDs ================= */
 const getAdminRestaurantIds = async (adminId, requestedRestaurantId) => {
@@ -121,7 +123,96 @@ export const getAdminSummary = async (req, res) => {
       isActive: true,
     });
 
-    res.json({ success: true, data: { totalOrders, totalRevenue, totalRestaurants, totalEmployees } });
+    const vendorOrderMatch = {
+      restaurant: { $in: restaurantIds },
+      status: { $ne: "cancelled" },
+      ...buildDateFilter({ startDate, endDate }),
+    };
+
+    const [vendorSpendAgg, vendorOutstandingAgg, vendorCountAgg, vendorSettlementAgg] =
+      await Promise.all([
+        VendorOrder.aggregate([
+          { $match: vendorOrderMatch },
+          {
+            $group: {
+              _id: null,
+              totalVendorSpend: {
+                $sum: { $ifNull: ["$billing.totalAmount", "$totalAmount"] },
+              },
+            },
+          },
+        ]),
+        VendorOrder.aggregate([
+          {
+            $match: {
+              ...vendorOrderMatch,
+              paymentStatus: { $ne: "paid" },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              pendingVendorPayables: {
+                $sum: { $ifNull: ["$billing.totalAmount", "$totalAmount"] },
+              },
+            },
+          },
+        ]),
+        VendorOrder.aggregate([
+          { $match: vendorOrderMatch },
+          { $group: { _id: "$vendor" } },
+          { $count: "totalActiveVendors" },
+        ]),
+        VendorSettlement.aggregate([
+          {
+            $match: {
+              restaurant: { $in: restaurantIds },
+              ...buildDateFilter({ startDate, endDate }),
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalVendorSettlements: { $sum: 1 },
+              paidVendorSettlements: {
+                $sum: { $cond: [{ $eq: ["$status", "paid"] }, 1, 0] },
+              },
+              settledVendorAmount: {
+                $sum: {
+                  $cond: [
+                    { $eq: ["$status", "paid"] },
+                    { $ifNull: ["$totals.netPayable", 0] },
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+        ]),
+      ]);
+
+    const totalVendorSpend = vendorSpendAgg[0]?.totalVendorSpend || 0;
+    const pendingVendorPayables = vendorOutstandingAgg[0]?.pendingVendorPayables || 0;
+    const totalActiveVendors = vendorCountAgg[0]?.totalActiveVendors || 0;
+    const totalVendorSettlements = vendorSettlementAgg[0]?.totalVendorSettlements || 0;
+    const paidVendorSettlements = vendorSettlementAgg[0]?.paidVendorSettlements || 0;
+    const settledVendorAmount = vendorSettlementAgg[0]?.settledVendorAmount || 0;
+
+    res.json({
+      success: true,
+      data: {
+        totalOrders,
+        totalRevenue,
+        totalRestaurants,
+        totalEmployees,
+        totalVendorSpend,
+        pendingVendorPayables,
+        totalActiveVendors,
+        totalVendorSettlements,
+        paidVendorSettlements,
+        settledVendorAmount,
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: err.message });
@@ -226,16 +317,22 @@ export const getTopItems = async (req, res) => {
 export const getRestaurantBreakdown = async (req, res) => {
   try {
     const adminId = req.user.id;
-    const { startDate, endDate } = req.query;
+    const { restaurantId, startDate, endDate } = req.query;
+    const scopedRestaurantIds = await getAdminRestaurantIds(adminId, restaurantId);
+    if (scopedRestaurantIds === null) {
+      return res.status(403).json({ success: false, message: "Access denied to this restaurant" });
+    }
 
-    const restaurants = await Restaurant.find({ admin: adminId }).select("_id name").lean();
+    const restaurants = await Restaurant.find({ _id: { $in: scopedRestaurantIds } })
+      .select("_id name")
+      .lean();
     if (!restaurants.length) return res.json({ success: true, data: [] });
 
     const restaurantIds = restaurants.map((r) => r._id);
     const dateFilter    = buildDateFilter({ startDate, endDate });
     const paidAtFilter  = buildPaidAtFilter({ startDate, endDate });
 
-    const [orderCounts, revenueCounts, employeeCounts, topItems] = await Promise.all([
+    const [orderCounts, revenueCounts, employeeCounts, topItems, vendorStats, vendorTopLists] = await Promise.all([
       /* order counts — all orders */
       Order.aggregate([
         { $match: { restaurant: { $in: restaurantIds }, ...dateFilter } },
@@ -309,6 +406,86 @@ export const getRestaurantBreakdown = async (req, res) => {
           },
         },
       ]),
+      VendorOrder.aggregate([
+        {
+          $match: {
+            restaurant: { $in: restaurantIds },
+            status: { $ne: "cancelled" },
+            ...dateFilter,
+          },
+        },
+        {
+          $group: {
+            _id: "$restaurant",
+            vendorOrders: { $sum: 1 },
+            vendorSpend: { $sum: { $ifNull: ["$billing.totalAmount", "$totalAmount"] } },
+            vendorOutstanding: {
+              $sum: {
+                $cond: [
+                  { $ne: ["$paymentStatus", "paid"] },
+                  { $ifNull: ["$billing.totalAmount", "$totalAmount"] },
+                  0,
+                ],
+              },
+            },
+            activeVendors: { $addToSet: "$vendor" },
+          },
+        },
+        {
+          $project: {
+            vendorOrders: 1,
+            vendorSpend: 1,
+            vendorOutstanding: 1,
+            activeVendorCount: { $size: "$activeVendors" },
+          },
+        },
+      ]),
+      VendorOrder.aggregate([
+        {
+          $match: {
+            restaurant: { $in: restaurantIds },
+            status: { $ne: "cancelled" },
+            ...dateFilter,
+          },
+        },
+        {
+          $group: {
+            _id: { restaurant: "$restaurant", vendor: "$vendor" },
+            spend: { $sum: { $ifNull: ["$billing.totalAmount", "$totalAmount"] } },
+            orders: { $sum: 1 },
+            outstanding: {
+              $sum: {
+                $cond: [
+                  { $ne: ["$paymentStatus", "paid"] },
+                  { $ifNull: ["$billing.totalAmount", "$totalAmount"] },
+                  0,
+                ],
+              },
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "vendors",
+            localField: "_id.vendor",
+            foreignField: "_id",
+            as: "vendorDoc",
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            restaurant: "$_id.restaurant",
+            vendorId: "$_id.vendor",
+            name: { $ifNull: [{ $arrayElemAt: ["$vendorDoc.name", 0] }, "Vendor"] },
+            code: { $ifNull: [{ $arrayElemAt: ["$vendorDoc.vendorId", 0] }, "-"] },
+            spend: 1,
+            orders: 1,
+            outstanding: 1,
+          },
+        },
+        { $sort: { restaurant: 1, spend: -1 } },
+      ]),
     ]);
 
     const orderMap   = Object.fromEntries(orderCounts.map((x)  => [x._id.toString(), x.totalOrders]));
@@ -323,6 +500,32 @@ export const getRestaurantBreakdown = async (req, res) => {
       ])
     );
     const topItemsMap = Object.fromEntries(topItems.map((x) => [x._id.toString(), x.items || []]));
+    const vendorStatsMap = Object.fromEntries(
+      vendorStats.map((x) => [
+        x._id.toString(),
+        {
+          vendorOrders: x.vendorOrders || 0,
+          vendorSpend: x.vendorSpend || 0,
+          vendorOutstanding: x.vendorOutstanding || 0,
+          activeVendorCount: x.activeVendorCount || 0,
+        },
+      ])
+    );
+    const vendorTopMap = vendorTopLists.reduce((acc, entry) => {
+      const key = entry.restaurant?.toString?.() || String(entry.restaurant);
+      if (!acc[key]) acc[key] = [];
+      if (acc[key].length < 5) {
+        acc[key].push({
+          _id: entry.vendorId,
+          name: entry.name,
+          vendorCode: entry.code,
+          spend: entry.spend || 0,
+          orders: entry.orders || 0,
+          outstanding: entry.outstanding || 0,
+        });
+      }
+      return acc;
+    }, {});
 
     const data = restaurants.map((r) => ({
       _id:          r._id,
@@ -332,6 +535,11 @@ export const getRestaurantBreakdown = async (req, res) => {
       totalEmployees: employeeMap[r._id.toString()]?.totalEmployees || 0,
       employeeRoles: employeeMap[r._id.toString()]?.roles || [],
       topItems: topItemsMap[r._id.toString()] || [],
+      vendorOrders: vendorStatsMap[r._id.toString()]?.vendorOrders || 0,
+      vendorSpend: vendorStatsMap[r._id.toString()]?.vendorSpend || 0,
+      vendorOutstanding: vendorStatsMap[r._id.toString()]?.vendorOutstanding || 0,
+      activeVendorCount: vendorStatsMap[r._id.toString()]?.activeVendorCount || 0,
+      topVendors: vendorTopMap[r._id.toString()] || [],
     }));
 
     res.json({ success: true, data });

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  CircleDollarSign,
   Bar,
   BarChart,
   CartesianGrid,
@@ -10,6 +11,8 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
@@ -238,12 +241,61 @@ export default function AdminAnalytics() {
     revenue: Number(item.revenue || 0),
   }));
 
+  const vendorChartData = useMemo(
+    () =>
+      breakdown
+        .map((item) => ({
+          name: item.name || "Restaurant",
+          spend: Number(item.vendorSpend || 0),
+          outstanding: Number(item.vendorOutstanding || 0),
+          vendorOrders: Number(item.vendorOrders || 0),
+          activeVendors: Number(item.activeVendorCount || 0),
+        }))
+        .filter(
+          (item) =>
+            item.spend > 0 ||
+            item.outstanding > 0 ||
+            item.vendorOrders > 0 ||
+            item.activeVendors > 0
+        )
+        .sort((a, b) => b.spend - a.spend)
+        .slice(0, 8),
+    [breakdown]
+  );
+
+  const topVendorsData = useMemo(() => {
+    const vendors = new Map();
+    breakdown.forEach((restaurant) => {
+      (restaurant.topVendors || []).forEach((vendor) => {
+        const key = String(vendor._id || vendor.vendorCode || vendor.name);
+        const current = vendors.get(key) || {
+          name: vendor.name || "Vendor",
+          vendorCode: vendor.vendorCode || "-",
+          spend: 0,
+          orders: 0,
+          outstanding: 0,
+          restaurants: 0,
+        };
+        current.spend += Number(vendor.spend || 0);
+        current.orders += Number(vendor.orders || 0);
+        current.outstanding += Number(vendor.outstanding || 0);
+        current.restaurants += 1;
+        vendors.set(key, current);
+      });
+    });
+    return Array.from(vendors.values())
+      .sort((a, b) => b.spend - a.spend)
+      .slice(0, 6);
+  }, [breakdown]);
+
   const hasAnyData =
     Number(summary.totalOrders || 0) > 0 ||
     Number(summary.totalRevenue || 0) > 0 ||
     monthlyData.length > 0 ||
     dailyData.length > 0 ||
-    topItems.length > 0;
+    topItems.length > 0 ||
+    Number(summary.totalVendorSpend || 0) > 0 ||
+    topVendorsData.length > 0;
 
   return (
     <div className="min-h-screen bg-slate-50 p-3 text-slate-950 dark:bg-slate-950 dark:text-white sm:p-5">
@@ -369,6 +421,33 @@ export default function AdminAnalytics() {
               <MetricCard label="Employees" value={formatNumber(summary.totalEmployees)} helper={`${formatNumber(summary.totalRestaurants)} restaurants`} tone="rose" />
             </section>
 
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                label="Vendor Spend"
+                value={formatCurrency(summary.totalVendorSpend)}
+                helper="Total procurement amount"
+                tone="emerald"
+              />
+              <MetricCard
+                label="Vendor Outstanding"
+                value={formatCurrency(summary.pendingVendorPayables)}
+                helper="Unpaid vendor purchases"
+                tone="rose"
+              />
+              <MetricCard
+                label="Active Vendors"
+                value={formatNumber(summary.totalActiveVendors)}
+                helper={`${formatNumber(summary.totalVendorSettlements)} settlements`}
+                tone="blue"
+              />
+              <MetricCard
+                label="Settled Vendor Amount"
+                value={formatCurrency(summary.settledVendorAmount)}
+                helper={`${formatNumber(summary.paidVendorSettlements)} paid settlements`}
+                tone="amber"
+              />
+            </section>
+
             {!hasAnyData && <EmptyState label="No analytics data found for the selected filters." />}
 
             <section className="grid gap-4 xl:grid-cols-2">
@@ -438,6 +517,73 @@ export default function AdminAnalytics() {
                   <Bar dataKey="orders" fill="#7c3aed" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ChartCard>
+
+              <ChartCard
+                title="Restaurant Wise Vendor Spend"
+                subtitle="Purchase value and vendor dues by restaurant"
+                data={vendorChartData}
+                fullWidth
+              >
+                <BarChart data={vendorChartData} margin={{ top: 12, right: 20, left: 0, bottom: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.35} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, angle: -20, textAnchor: "end" }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value, name) => (name === "activeVendors" || name === "vendorOrders" ? value : formatCurrency(value))} />
+                  <Legend />
+                  <Bar dataKey="spend" fill="#0f766e" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="outstanding" fill="#e11d48" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ChartCard>
+
+              <ChartCard
+                title="Top Vendor Partners"
+                subtitle="Highest procurement vendors across selected restaurants"
+                data={topVendorsData}
+                fullWidth
+              >
+                <ScatterChart margin={{ top: 12, right: 20, left: 0, bottom: 18 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.35} />
+                  <XAxis
+                    type="number"
+                    dataKey="orders"
+                    name="Orders"
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis
+                    type="number"
+                    dataKey="spend"
+                    name="Spend"
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={formatNumber}
+                  />
+                  <Tooltip
+                    cursor={{ strokeDasharray: "3 3" }}
+                    formatter={(value, name) =>
+                      name === "spend" || name === "outstanding"
+                        ? formatCurrency(value)
+                        : formatNumber(value)
+                    }
+                    labelFormatter={() => ""}
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const vendor = payload[0]?.payload;
+                      if (!vendor) return null;
+                      return (
+                        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                          <p className="font-bold text-slate-900 dark:text-white">{vendor.name}</p>
+                          <p className="mt-1 text-slate-500 dark:text-slate-400">{vendor.vendorCode}</p>
+                          <p className="mt-2 text-slate-700 dark:text-slate-200">Spend: {formatCurrency(vendor.spend)}</p>
+                          <p className="text-slate-700 dark:text-slate-200">Orders: {formatNumber(vendor.orders)}</p>
+                          <p className="text-slate-700 dark:text-slate-200">
+                            Outstanding: {formatCurrency(vendor.outstanding)}
+                          </p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Scatter data={topVendorsData} fill="#7c3aed" />
+                </ScatterChart>
+              </ChartCard>
             </section>
 
             <section className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -485,6 +631,68 @@ export default function AdminAnalytics() {
                                     className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300"
                                   >
                                     {item.name} ({formatNumber(item.totalSold)})
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+                <h3 className="text-base font-bold">Vendor Analytics</h3>
+                <p className="mt-1 text-xs font-medium text-slate-500">
+                  Restaurant-wise vendor spend, outstanding dues, and top procurement partners.
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800">
+                    <tr>
+                      <th className="px-4 py-3">Restaurant</th>
+                      <th className="px-4 py-3">Vendor Orders</th>
+                      <th className="px-4 py-3">Active Vendors</th>
+                      <th className="px-4 py-3">Vendor Spend</th>
+                      <th className="px-4 py-3">Outstanding</th>
+                      <th className="px-4 py-3">Top Vendors</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {breakdown.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" className="px-4 py-8 text-center font-semibold text-slate-400">
+                          No vendor analytics found.
+                        </td>
+                      </tr>
+                    ) : (
+                      breakdown.map((restaurant) => (
+                        <tr key={`${restaurant._id}-vendor`} className="align-top">
+                          <td className="px-4 py-3 font-bold">{restaurant.name}</td>
+                          <td className="px-4 py-3">{formatNumber(restaurant.vendorOrders)}</td>
+                          <td className="px-4 py-3">{formatNumber(restaurant.activeVendorCount)}</td>
+                          <td className="px-4 py-3 font-bold text-emerald-700 dark:text-emerald-300">
+                            {formatCurrency(restaurant.vendorSpend)}
+                          </td>
+                          <td className="px-4 py-3 font-bold text-rose-700 dark:text-rose-300">
+                            {formatCurrency(restaurant.vendorOutstanding)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {(restaurant.topVendors || []).length === 0 ? (
+                              <span className="text-slate-400">-</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {restaurant.topVendors.slice(0, 3).map((vendor) => (
+                                  <span
+                                    key={`${restaurant._id}-${vendor._id || vendor.vendorCode}`}
+                                    className="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
+                                  >
+                                    {vendor.name} ({formatCurrency(vendor.spend)})
                                   </span>
                                 ))}
                               </div>

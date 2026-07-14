@@ -12,6 +12,7 @@ import {
   ShoppingCart,
   Store,
   Trash2,
+  Wallet,
   X,
   XCircle,
 } from "lucide-react";
@@ -26,8 +27,324 @@ const formatCurrency = (amount) =>
 
 const formatDateTime = (value) => (value ? new Date(value).toLocaleString("en-IN") : "—");
 
+const sanitizeRate = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+const roundMoney = (value) => Number(Number(value || 0).toFixed(2));
+
+const getOrderBillSummary = (order) =>
+  order?.billSummary || {
+    itemsTotal: Number(order?.totalAmount || 0),
+    discountType: "none",
+    discountValue: 0,
+    discountAmount: 0,
+    taxableAmount: Number(order?.totalAmount || 0),
+    cgstRate: 0,
+    sgstRate: 0,
+    cgst: 0,
+    sgst: 0,
+    totalTax: 0,
+    totalAmount: Number(order?.totalAmount || 0),
+    showTaxBreakup: false,
+  };
+
+const getCartBillSummary = ({ itemsTotal, billingTemplate, discountType, discountValue }) => {
+  const normalizedItemsTotal = roundMoney(itemsTotal);
+  const normalizedDiscountType = ["amount", "percentage"].includes(discountType)
+    ? discountType
+    : "none";
+  const normalizedDiscountValue = Math.max(0, Number(discountValue || 0));
+  const cgstRate = sanitizeRate(billingTemplate?.cgstRate, 2.5);
+  const sgstRate = sanitizeRate(billingTemplate?.sgstRate, 2.5);
+
+  let discountAmount = 0;
+  if (normalizedDiscountType === "percentage") {
+    discountAmount = normalizedItemsTotal * (Math.min(normalizedDiscountValue, 100) / 100);
+  } else if (normalizedDiscountType === "amount") {
+    discountAmount = normalizedDiscountValue;
+  }
+
+  discountAmount = roundMoney(Math.min(discountAmount, normalizedItemsTotal));
+  const taxableAmount = roundMoney(normalizedItemsTotal - discountAmount);
+  const cgst = roundMoney(taxableAmount * (cgstRate / 100));
+  const sgst = roundMoney(taxableAmount * (sgstRate / 100));
+  const totalTax = roundMoney(cgst + sgst);
+
+  return {
+    itemsTotal: normalizedItemsTotal,
+    discountType: normalizedDiscountType,
+    discountValue:
+      normalizedDiscountType === "percentage"
+        ? roundMoney(Math.min(normalizedDiscountValue, 100))
+        : roundMoney(normalizedDiscountValue),
+    discountAmount,
+    taxableAmount,
+    cgstRate,
+    sgstRate,
+    cgst,
+    sgst,
+    totalTax,
+    totalAmount: roundMoney(taxableAmount + totalTax),
+    showTaxBreakup: billingTemplate?.showTaxBreakup !== false,
+  };
+};
+
+const PAYMENT_METHODS = ["UPI", "Cash", "Card", "Net Banking", "Bank Transfer"];
+const SETTLEMENT_CYCLES = [
+  { value: "weekly", label: "Weekly" },
+  { value: "15_days", label: "15 Days" },
+  { value: "monthly", label: "Monthly" },
+  { value: "manual", label: "Manual" },
+];
+
+const getSettlementPeriodLabel = (settlement) =>
+  settlement?.periodStart && settlement?.periodEnd
+    ? `${new Date(settlement.periodStart).toLocaleDateString("en-IN")} - ${new Date(
+        settlement.periodEnd
+      ).toLocaleDateString("en-IN")}`
+    : "--";
+
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
+const buildReceiptPrintHtml = ({ order, vendor, billSummary }) => {
+  const itemRows = (Array.isArray(order?.items) ? order.items : [])
+    .map(
+      (item) => `
+        <tr>
+          <td>${escapeHtml(item?.name || "")}${item?.unit ? ` <span class="muted">(${escapeHtml(item.unit)})</span>` : ""}</td>
+          <td class="right">${escapeHtml(item?.quantity || 0)}</td>
+          <td class="right">${escapeHtml(formatCurrency(item?.price || 0))}</td>
+          <td class="right strong">${escapeHtml(
+            formatCurrency(Number(item?.price || 0) * Number(item?.quantity || 0))
+          )}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  const discountRow =
+    billSummary.discountAmount > 0
+      ? `
+        <div class="summary-row">
+          <span>Discount${billSummary.discountType === "percentage" ? ` (${escapeHtml(billSummary.discountValue)}%)` : ""}</span>
+          <span class="danger">-${escapeHtml(formatCurrency(billSummary.discountAmount))}</span>
+        </div>
+      `
+      : "";
+
+  const taxRows = billSummary.showTaxBreakup
+    ? `
+      <div class="summary-row">
+        <span>CGST (${escapeHtml(billSummary.cgstRate)}%)</span>
+        <span>${escapeHtml(formatCurrency(billSummary.cgst))}</span>
+      </div>
+      <div class="summary-row">
+        <span>SGST (${escapeHtml(billSummary.sgstRate)}%)</span>
+        <span>${escapeHtml(formatCurrency(billSummary.sgst))}</span>
+      </div>
+    `
+    : "";
+
+  return `<!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <title>${escapeHtml(order?.orderNo || "Vendor Bill")}</title>
+      <style>
+        * { box-sizing: border-box; }
+        body {
+          margin: 0;
+          padding: 24px;
+          font-family: Arial, sans-serif;
+          color: #1f2937;
+          background: #ffffff;
+        }
+        .sheet {
+          max-width: 760px;
+          margin: 0 auto;
+          border: 1px solid #e5e7eb;
+          border-radius: 18px;
+          padding: 24px;
+        }
+        .topline {
+          color: #16a34a;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.24em;
+          text-transform: uppercase;
+        }
+        h1 {
+          margin: 8px 0 0;
+          font-size: 32px;
+        }
+        .meta, .vendor-box, .summary {
+          margin-top: 20px;
+        }
+        .meta {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          color: #6b7280;
+          font-size: 14px;
+        }
+        .vendor-box {
+          border: 1px solid #e5e7eb;
+          border-radius: 16px;
+          padding: 16px;
+          background: #f9fafb;
+        }
+        .vendor-name {
+          font-size: 20px;
+          font-weight: 700;
+          color: #111827;
+        }
+        .restaurant {
+          margin-top: 8px;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: #4338ca;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 20px;
+        }
+        th {
+          padding-bottom: 10px;
+          text-align: left;
+          font-size: 12px;
+          text-transform: uppercase;
+          color: #9ca3af;
+        }
+        td {
+          padding: 12px 0;
+          border-top: 1px solid #f3f4f6;
+          font-size: 15px;
+        }
+        .right { text-align: right; }
+        .strong { font-weight: 700; }
+        .muted { color: #9ca3af; }
+        .summary {
+          border: 1px solid #bbf7d0;
+          background: #f0fdf4;
+          border-radius: 16px;
+          padding: 18px;
+        }
+        .summary-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          margin-top: 10px;
+          font-size: 15px;
+        }
+        .summary-row:first-child { margin-top: 0; }
+        .danger { color: #dc2626; font-weight: 700; }
+        .grand {
+          border-top: 1px dashed #86efac;
+          margin-top: 18px;
+          padding-top: 18px;
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          font-size: 24px;
+          font-weight: 800;
+          color: #16a34a;
+        }
+        @media print {
+          body { padding: 0; }
+          .sheet {
+            border: 0;
+            border-radius: 0;
+            padding: 0;
+            max-width: none;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="sheet">
+        <div class="topline">Order Placed</div>
+        <h1>${escapeHtml(order?.orderNo || "")}</h1>
+
+        <div class="meta">
+          <span>Bill No: ${escapeHtml(order?.orderNo || "")}</span>
+          <span>${escapeHtml(formatDateTime(order?.createdAt))}</span>
+        </div>
+
+        <div class="vendor-box">
+          <div class="vendor-name">${escapeHtml(vendor?.name || "Vendor")}</div>
+          <div class="muted">${escapeHtml(vendor?.vendorId || "")}</div>
+          ${
+            order?.restaurant?.name
+              ? `<div class="restaurant">For: ${escapeHtml(order.restaurant.name)}</div>`
+              : ""
+          }
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th class="right">Qty</th>
+              <th class="right">Price</th>
+              <th class="right">Total</th>
+            </tr>
+          </thead>
+          <tbody>${itemRows}</tbody>
+        </table>
+
+        <div class="summary">
+          <div class="summary-row">
+            <span>Subtotal</span>
+            <span class="strong">${escapeHtml(formatCurrency(billSummary.itemsTotal))}</span>
+          </div>
+          ${discountRow}
+          <div class="summary-row">
+            <span>Taxable Amount</span>
+            <span class="strong">${escapeHtml(formatCurrency(billSummary.taxableAmount))}</span>
+          </div>
+          ${taxRows}
+          <div class="grand">
+            <span>Grand Total</span>
+            <span>${escapeHtml(formatCurrency(billSummary.totalAmount))}</span>
+          </div>
+        </div>
+      </div>
+    </body>
+  </html>`;
+};
+
 function ReceiptModal({ order, vendor, onClose }) {
   if (!order) return null;
+
+  const billSummary = getOrderBillSummary(order);
+
+  const handlePrint = () => {
+    const printWindow = window.open("", "_blank", "width=900,height=700");
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(buildReceiptPrintHtml({ order, vendor, billSummary }));
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.onload = () => {
+      printWindow.print();
+      printWindow.onafterprint = () => printWindow.close();
+    };
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm print:static print:bg-white print:p-0">
@@ -95,13 +412,56 @@ function ReceiptModal({ order, vendor, onClose }) {
             </tbody>
           </table>
 
-          <div className="mt-4 flex items-center justify-between border-t border-dashed border-gray-200 pt-4 dark:border-neutral-700">
-            <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
-              Total Amount
-            </span>
-            <span className="text-lg font-bold text-green-600 dark:text-green-400">
-              {formatCurrency(order.totalAmount)}
-            </span>
+          <div className="mt-5 rounded-2xl border border-green-100 bg-green-50/70 p-4 dark:border-green-900 dark:bg-green-950/20">
+            <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+              <span>Subtotal</span>
+              <span className="font-semibold text-gray-900 dark:text-gray-100">
+                {formatCurrency(billSummary.itemsTotal)}
+              </span>
+            </div>
+            {billSummary.discountAmount > 0 && (
+              <div className="mt-2 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                <span>
+                  Discount
+                  {billSummary.discountType === "percentage"
+                    ? ` (${billSummary.discountValue}%)`
+                    : ""}
+                </span>
+                <span className="font-semibold text-red-600 dark:text-red-300">
+                  -{formatCurrency(billSummary.discountAmount)}
+                </span>
+              </div>
+            )}
+            <div className="mt-2 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+              <span>Taxable Amount</span>
+              <span className="font-semibold text-gray-900 dark:text-gray-100">
+                {formatCurrency(billSummary.taxableAmount)}
+              </span>
+            </div>
+            {billSummary.showTaxBreakup && (
+              <>
+                <div className="mt-2 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                  <span>CGST ({billSummary.cgstRate}%)</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                    {formatCurrency(billSummary.cgst)}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                  <span>SGST ({billSummary.sgstRate}%)</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                    {formatCurrency(billSummary.sgst)}
+                  </span>
+                </div>
+              </>
+            )}
+            <div className="mt-4 flex items-center justify-between border-t border-dashed border-green-200 pt-4 dark:border-green-900">
+              <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                Grand Total
+              </span>
+              <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                {formatCurrency(billSummary.totalAmount)}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -113,11 +473,330 @@ function ReceiptModal({ order, vendor, onClose }) {
             Close
           </button>
           <button
-            onClick={() => window.print()}
+            onClick={handlePrint}
             className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700"
           >
             <Printer size={15} /> Print Bill
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettlementModal({ vendorId, orders, onClose, onRefresh, notify }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [settlements, setSettlements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [cycle, setCycle] = useState("weekly");
+  const [fromDate, setFromDate] = useState(today);
+  const [toDate, setToDate] = useState(today);
+  const [paymentMethod, setPaymentMethod] = useState("UPI");
+  const [referenceNo, setReferenceNo] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const unpaidBilledOrders = useMemo(
+    () =>
+      (Array.isArray(orders) ? orders : []).filter(
+        (order) =>
+          order.billGeneratedAt &&
+          order.status !== "cancelled" &&
+          order.paymentStatus !== "paid" &&
+          order.settlementStatus !== "settled"
+      ),
+    [orders]
+  );
+
+  const preview = useMemo(() => {
+    const start = fromDate ? new Date(fromDate) : null;
+    const end = toDate ? new Date(toDate) : null;
+    if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return { orders: [], total: 0 };
+    }
+
+    const matched = unpaidBilledOrders.filter((order) => {
+      const createdAt = new Date(order.createdAt);
+      return createdAt >= start && createdAt <= new Date(`${toDate}T23:59:59.999`);
+    });
+
+    return {
+      orders: matched,
+      total: matched.reduce((sum, order) => sum + Number(getOrderBillSummary(order).totalAmount || 0), 0),
+    };
+  }, [unpaidBilledOrders, fromDate, toDate]);
+
+  const loadSettlements = async () => {
+    try {
+      setLoading(true);
+      const res = await API.get(`/vendor/${vendorId}/settlements`);
+      setSettlements(Array.isArray(res.data?.settlements) ? res.data.settlements : []);
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to load settlements", true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSettlements();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendorId]);
+
+  const handleCreateSettlement = async () => {
+    if (!fromDate || !toDate) {
+      notify("Select settlement start and end date", true);
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await API.post(`/vendor/${vendorId}/settlements`, {
+        cycle,
+        fromDate,
+        toDate,
+        notes,
+      });
+      notify("Settlement created successfully");
+      setNotes("");
+      await Promise.all([loadSettlements(), onRefresh()]);
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to create settlement", true);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handlePaySettlement = async (settlementId) => {
+    try {
+      setSubmitting(true);
+      await API.put(`/vendor/${vendorId}/settlements/${settlementId}/pay`, {
+        paymentMethod,
+        referenceNo,
+        notes,
+      });
+      notify("Settlement marked as paid");
+      setReferenceNo("");
+      setNotes("");
+      await Promise.all([loadSettlements(), onRefresh()]);
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to pay settlement", true);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-neutral-800">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5 dark:border-neutral-700">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-green-600 dark:text-green-400">
+              Vendor Settlements
+            </p>
+            <h2 className="mt-1 text-xl font-bold text-gray-900 dark:text-gray-100">
+              Weekly / 15 Days / Monthly Payouts
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="grid gap-6 overflow-y-auto px-6 py-5 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-gray-100 bg-gray-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-900/30">
+              <p className="text-sm font-bold text-gray-900 dark:text-gray-100">Create Settlement</p>
+              <div className="mt-3 grid gap-3">
+                <select
+                  value={cycle}
+                  onChange={(event) => setCycle(event.target.value)}
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                >
+                  {SETTLEMENT_CYCLES.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(event) => setFromDate(event.target.value)}
+                    className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                  />
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(event) => setToDate(event.target.value)}
+                    className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                  />
+                </div>
+                <textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  rows={3}
+                  placeholder="Notes for this settlement"
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                />
+                <button
+                  onClick={handleCreateSettlement}
+                  disabled={submitting || preview.orders.length === 0}
+                  className="rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? "Saving..." : `Create Settlement (${preview.orders.length} orders)`}
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-green-100 bg-green-50/70 p-4 dark:border-green-900 dark:bg-green-950/20">
+              <p className="text-sm font-bold text-gray-900 dark:text-gray-100">Preview</p>
+              <div className="mt-3 space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600 dark:text-gray-300">Eligible orders</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                    {preview.orders.length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600 dark:text-gray-300">Outstanding payable</span>
+                  <span className="font-semibold text-green-700 dark:text-green-300">
+                    {formatCurrency(preview.total)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-100 p-4 dark:border-neutral-700">
+              <p className="text-sm font-bold text-gray-900 dark:text-gray-100">Orders In Range</p>
+              <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
+                {preview.orders.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    No billed unpaid orders in this period.
+                  </p>
+                ) : (
+                  preview.orders.map((order) => (
+                    <div
+                      key={order.id}
+                      className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2 text-sm dark:bg-neutral-900/40"
+                    >
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">{order.orderNo}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {order.restaurant?.name || "Restaurant"} · {formatDateTime(order.createdAt)}
+                        </p>
+                      </div>
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                        {formatCurrency(getOrderBillSummary(order).totalAmount)}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-gray-100 p-4 dark:border-neutral-700">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-bold text-gray-900 dark:text-gray-100">Settlement History</p>
+                <button
+                  onClick={loadSettlements}
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-neutral-700"
+                >
+                  <RefreshCw size={13} /> Refresh
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {loading ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Loading settlements...</p>
+                ) : settlements.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No settlements created yet.</p>
+                ) : (
+                  settlements.map((settlement) => (
+                    <div
+                      key={settlement.id}
+                      className="rounded-2xl border border-gray-100 bg-gray-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-900/30"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="font-semibold text-gray-900 dark:text-gray-100">
+                            {settlement.settlementNo}
+                          </p>
+                          <p className="mt-1 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            {String(settlement.cycle || "manual").replace("_", " ")}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            {getSettlementPeriodLabel(settlement)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                            {formatCurrency(settlement.totals?.netPayable)}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {settlement.orderCount} order(s)
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                        <span
+                          className={`rounded-full px-2.5 py-1 font-semibold ${
+                            settlement.status === "paid"
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                              : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                          }`}
+                        >
+                          {settlement.status}
+                        </span>
+                        {settlement.paymentMethod ? (
+                          <span className="rounded-full bg-gray-100 px-2.5 py-1 font-semibold text-gray-600 dark:bg-neutral-700 dark:text-gray-300">
+                            {settlement.paymentMethod}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {settlement.status !== "paid" && (
+                        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                          <select
+                            value={paymentMethod}
+                            onChange={(event) => setPaymentMethod(event.target.value)}
+                            className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                          >
+                            {PAYMENT_METHODS.map((method) => (
+                              <option key={method} value={method}>
+                                {method}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={referenceNo}
+                            onChange={(event) => setReferenceNo(event.target.value)}
+                            placeholder="Reference no."
+                            className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                          />
+                          <button
+                            onClick={() => handlePaySettlement(settlement.id)}
+                            disabled={submitting}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                          >
+                            <Wallet size={14} /> Mark Paid
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -203,7 +882,11 @@ function VendorOrderHistoryModal({
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
                   {orders.map((order) => (
-                    <tr key={order.id}>
+                    <tr
+                      key={order.id}
+                      onClick={() => onViewBill(order)}
+                      className="cursor-pointer transition hover:bg-gray-50 dark:hover:bg-neutral-700/40"
+                    >
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-blue-600 dark:text-blue-300">
                         {order.orderNo}
                       </td>
@@ -217,7 +900,7 @@ function VendorOrderHistoryModal({
                         {order.items.length} item(s)
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
-                        {formatCurrency(order.totalAmount)}
+                        {formatCurrency(getOrderBillSummary(order).totalAmount)}
                       </td>
                       <td className="px-4 py-3">
                         <OrderStatusPill status={order.status} />
@@ -226,14 +909,20 @@ function VendorOrderHistoryModal({
                         {order.status === "ready" ? (
                           <div className="flex gap-2">
                             <button
-                              onClick={() => onUpdateStatus(order, "completed")}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onUpdateStatus(order, "completed");
+                              }}
                               disabled={updatingOrderId === order.id}
                               className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-2.5 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-50 disabled:opacity-60 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-950/30"
                             >
                               <CheckCircle2 size={12} /> Complete
                             </button>
                             <button
-                              onClick={() => onUpdateStatus(order, "cancelled")}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onUpdateStatus(order, "cancelled");
+                              }}
                               disabled={updatingOrderId === order.id}
                               className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
                             >
@@ -242,7 +931,10 @@ function VendorOrderHistoryModal({
                           </div>
                         ) : order.status === "processing" ? (
                           <button
-                            onClick={() => onUpdateStatus(order, "cancelled")}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onUpdateStatus(order, "cancelled");
+                            }}
                             disabled={updatingOrderId === order.id}
                             className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
                           >
@@ -250,7 +942,10 @@ function VendorOrderHistoryModal({
                           </button>
                         ) : (
                           <button
-                            onClick={() => onViewBill(order)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onViewBill(order);
+                            }}
                             className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
                           >
                             View Bill
@@ -282,9 +977,12 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [receiptOrder, setReceiptOrder] = useState(null);
   const [showOrderHistory, setShowOrderHistory] = useState(false);
+  const [showSettlements, setShowSettlements] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState("");
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
+  const [discountType, setDiscountType] = useState("none");
+  const [discountValue, setDiscountValue] = useState("");
 
   const notify = (text, error = false) => {
     setIsError(error);
@@ -373,6 +1071,17 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
     0
   );
 
+  const cartBillSummary = useMemo(
+    () =>
+      getCartBillSummary({
+        itemsTotal: cartTotal,
+        billingTemplate: selectedRestaurant?.billingTemplate,
+        discountType,
+        discountValue,
+      }),
+    [cartTotal, selectedRestaurant, discountType, discountValue]
+  );
+
   const setQuantity = (product, quantity) => {
     const maxOrderQuantity = Number(product.availableOrderQuantity ?? 0);
     const clamped = Math.max(0, Math.min(quantity, maxOrderQuantity));
@@ -403,11 +1112,15 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
           productId: item.product.id,
           quantity: item.quantity,
         })),
+        discountType,
+        discountValue: discountType === "none" ? 0 : Number(discountValue || 0),
       };
       const res = await API.post(`/vendor/${sourceVendorId}/orders`, payload);
       const order = res.data?.order;
       notify("Order placed successfully");
       setCart({});
+      setDiscountType("none");
+      setDiscountValue("");
       setReceiptOrder(order);
       loadData();
     } catch (error) {
@@ -467,6 +1180,13 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
           >
             <History size={15} />
             Order History
+          </button>
+          <button
+            onClick={() => setShowSettlements(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-200 dark:hover:bg-neutral-700"
+          >
+            <Wallet size={15} />
+            Settlements
           </button>
         </div>
       </div>
@@ -552,71 +1272,87 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
                 return (
                   <div
                     key={product.id}
-                    className="flex flex-col rounded-2xl border border-gray-200 bg-gray-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-900/30"
+                    className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/60 dark:border-neutral-700 dark:bg-neutral-900/30"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-semibold text-gray-900 dark:text-gray-100">
-                        {product.name}
-                      </p>
-                      {product.category && (
-                        <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-neutral-700 dark:text-gray-300">
-                          {product.category}
-                        </span>
+                    <div className="h-44 w-full overflow-hidden bg-white dark:bg-neutral-800">
+                      {product.imageUrl ? (
+                        <img
+                          src={product.imageUrl}
+                          alt={product.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-sm font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                          No Image
+                        </div>
                       )}
                     </div>
-                    <p className="mt-1 text-lg font-bold text-green-600 dark:text-green-400">
-                      {formatCurrency(product.price)}
-                      {(product.displayUnit || product.unit) && (
-                        <span className="text-xs font-normal text-gray-400"> / {product.displayUnit || product.unit}</span>
-                      )}
-                    </p>
-                    <p
-                      className={`mt-1 text-xs font-medium ${
-                        outOfStock ? "text-red-500" : "text-gray-500 dark:text-gray-400"
-                      }`}
-                    >
-                      {!product.isForSale
-                        ? "In inventory, not for sale"
-                        : outOfStock
-                          ? "Out of stock"
-                          : `Available in ${product.displayUnit || product.unit || "order pack"}`}
-                    </p>
 
-                    <div className="mt-3 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1 dark:border-neutral-600 dark:bg-neutral-800">
-                        <button
-                          type="button"
-                          onClick={() => adjustQuantity(product, -1)}
-                          disabled={qty === 0}
-                          className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 disabled:opacity-40 dark:hover:bg-neutral-700"
-                        >
-                          <Minus size={13} />
-                        </button>
-                        <input
-                          type="number"
-                          min="0"
-                          max={maxOrderQuantity}
-                          value={qty}
-                          onChange={(event) => setQuantity(product, Number(event.target.value || 0))}
-                          className="w-16 border-0 bg-transparent text-center text-sm font-semibold text-gray-900 outline-none dark:text-gray-100"
-                        />
+                    <div className="flex flex-1 flex-col p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">
+                          {product.name}
+                        </p>
+                        {product.category && (
+                          <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-neutral-700 dark:text-gray-300">
+                            {product.category}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-lg font-bold text-green-600 dark:text-green-400">
+                        {formatCurrency(product.price)}
+                        {(product.displayUnit || product.unit) && (
+                          <span className="text-xs font-normal text-gray-400"> / {product.displayUnit || product.unit}</span>
+                        )}
+                      </p>
+                      <p
+                        className={`mt-1 text-xs font-medium ${
+                          outOfStock ? "text-red-500" : "text-gray-500 dark:text-gray-400"
+                        }`}
+                      >
+                        {!product.isForSale
+                          ? "In inventory, not for sale"
+                          : outOfStock
+                            ? "Out of stock"
+                            : `Available in ${product.displayUnit || product.unit || "order pack"}`}
+                      </p>
+
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1 dark:border-neutral-600 dark:bg-neutral-800">
+                          <button
+                            type="button"
+                            onClick={() => adjustQuantity(product, -1)}
+                            disabled={qty === 0}
+                            className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 disabled:opacity-40 dark:hover:bg-neutral-700"
+                          >
+                            <Minus size={13} />
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            max={maxOrderQuantity}
+                            value={qty}
+                            onChange={(event) => setQuantity(product, Number(event.target.value || 0))}
+                            className="w-16 border-0 bg-transparent text-center text-sm font-semibold text-gray-900 outline-none dark:text-gray-100"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => adjustQuantity(product, 1)}
+                            disabled={outOfStock || qty >= maxOrderQuantity}
+                            className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 disabled:opacity-40 dark:hover:bg-neutral-700"
+                          >
+                            <Plus size={13} />
+                          </button>
+                        </div>
                         <button
                           type="button"
                           onClick={() => adjustQuantity(product, 1)}
                           disabled={outOfStock || qty >= maxOrderQuantity}
-                          className="flex h-6 w-6 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 disabled:opacity-40 dark:hover:bg-neutral-700"
+                          className="rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          <Plus size={13} />
+                          Add
                         </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => adjustQuantity(product, 1)}
-                        disabled={outOfStock || qty >= maxOrderQuantity}
-                        className="rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Add
-                      </button>
                     </div>
                   </div>
                 );
@@ -676,11 +1412,89 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
 
               <div className="flex items-center justify-between border-t border-dashed border-gray-200 pt-3 dark:border-neutral-700">
                 <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                  Total
+                  Subtotal
                 </span>
-                <span className="text-lg font-bold text-green-600 dark:text-green-400">
-                  {formatCurrency(cartTotal)}
+                <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                  {formatCurrency(cartBillSummary.itemsTotal)}
                 </span>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-gray-50/60 p-3 dark:border-neutral-700 dark:bg-neutral-900/30">
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
+                  Discount
+                </label>
+                <div className="grid gap-2 sm:grid-cols-[140px_1fr]">
+                  <select
+                    value={discountType}
+                    onChange={(event) => {
+                      const nextType = event.target.value;
+                      setDiscountType(nextType);
+                      if (nextType === "none") {
+                        setDiscountValue("");
+                      }
+                    }}
+                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                  >
+                    <option value="none">No discount</option>
+                    <option value="amount">Flat amount</option>
+                    <option value="percentage">Percentage</option>
+                  </select>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={discountValue}
+                    onChange={(event) => setDiscountValue(event.target.value)}
+                    disabled={discountType === "none"}
+                    placeholder={discountType === "percentage" ? "Enter %" : "Enter amount"}
+                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100 dark:disabled:bg-neutral-700"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-2xl border border-green-100 bg-green-50/70 p-3 dark:border-green-900 dark:bg-green-950/20">
+                {cartBillSummary.discountAmount > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-300">Discount</span>
+                    <span className="font-semibold text-red-600 dark:text-red-300">
+                      -{formatCurrency(cartBillSummary.discountAmount)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-300">Taxable Amount</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                    {formatCurrency(cartBillSummary.taxableAmount)}
+                  </span>
+                </div>
+                {cartBillSummary.showTaxBreakup && (
+                  <>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-300">
+                        CGST ({cartBillSummary.cgstRate}%)
+                      </span>
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                        {formatCurrency(cartBillSummary.cgst)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-300">
+                        SGST ({cartBillSummary.sgstRate}%)
+                      </span>
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                        {formatCurrency(cartBillSummary.sgst)}
+                      </span>
+                    </div>
+                  </>
+                )}
+                <div className="flex items-center justify-between border-t border-dashed border-green-200 pt-3 dark:border-green-900">
+                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                    Grand Total
+                  </span>
+                  <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                    {formatCurrency(cartBillSummary.totalAmount)}
+                  </span>
+                </div>
               </div>
 
               <button
@@ -697,6 +1511,16 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
       </div>
 
       <ReceiptModal order={receiptOrder} vendor={vendor} onClose={() => setReceiptOrder(null)} />
+
+      {showSettlements && (
+        <SettlementModal
+          vendorId={sourceVendorId}
+          orders={orders}
+          onClose={() => setShowSettlements(false)}
+          onRefresh={loadData}
+          notify={notify}
+        />
+      )}
 
       {showOrderHistory && (
         <VendorOrderHistoryModal

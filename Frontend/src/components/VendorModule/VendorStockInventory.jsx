@@ -22,6 +22,9 @@ const initialForm = {
   stock: "",
   lowStockThreshold: "10",
   description: "",
+  imageUrl: "",
+  imageDataUrl: "",
+  removeImage: false,
 };
 const initialStockForm = {
   quantity: "1",
@@ -43,7 +46,28 @@ const getVendorId = () => {
 const formatNumber = (value) =>
   new Intl.NumberFormat("en-IN", { maximumFractionDigits: 3 }).format(Number(value || 0));
 
-function ProductModal({ form, editingId, saving, onChange, onClose, onSubmit }) {
+const maxImageBytes = 700 * 1024;
+
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read this image file"));
+    reader.readAsDataURL(file);
+  });
+
+function ProductModal({
+  form,
+  editingId,
+  saving,
+  onChange,
+  onImageChange,
+  onRemoveImage,
+  onClose,
+  onSubmit,
+}) {
+  const imagePreview = form.imageDataUrl || form.imageUrl;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
       <div className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-neutral-800">
@@ -85,6 +109,45 @@ function ProductModal({ form, editingId, saving, onChange, onClose, onSubmit }) 
                 onChange={(e) => onChange("name", e.target.value)}
                 className={fieldClass}
               />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Product Image
+              </label>
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 p-4 dark:border-neutral-600 dark:bg-neutral-900/30">
+                {imagePreview ? (
+                  <div className="mb-3 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-neutral-700 dark:bg-neutral-800">
+                    <img
+                      src={imagePreview}
+                      alt="Product preview"
+                      className="h-44 w-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="mb-3 flex h-44 items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white text-sm text-gray-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-gray-500">
+                    No product image selected
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={(e) => onImageChange(e.target.files?.[0] || null)}
+                  className={fieldClass}
+                />
+                <p className="mt-2 text-xs text-gray-400">
+                  PNG, JPG, or WEBP up to 700 KB. This image will be uploaded to Cloudinary.
+                </p>
+                {imagePreview ? (
+                  <button
+                    type="button"
+                    onClick={onRemoveImage}
+                    className="mt-3 inline-flex items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/30"
+                  >
+                    Remove Image
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -427,6 +490,38 @@ export default function VendorStockInventory() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleImageChange = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      notify("Please select a valid image file.", true);
+      return;
+    }
+    if (file.size > maxImageBytes) {
+      notify("Product image must be smaller than 700 KB.", true);
+      return;
+    }
+
+    try {
+      const imageDataUrl = await readFileAsDataUrl(file);
+      setForm((prev) => ({
+        ...prev,
+        imageDataUrl,
+        removeImage: false,
+      }));
+    } catch (error) {
+      notify(error.message || "Could not read the image file.", true);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setForm((prev) => ({
+      ...prev,
+      imageUrl: "",
+      imageDataUrl: "",
+      removeImage: true,
+    }));
+  };
+
   const handleEdit = (product) => {
     setForm({
       name: product.name || "",
@@ -436,6 +531,9 @@ export default function VendorStockInventory() {
       stock: String(product.stock ?? ""),
       lowStockThreshold: String(product.lowStockThreshold ?? 10),
       description: product.description || "",
+      imageUrl: product.imageUrl || "",
+      imageDataUrl: "",
+      removeImage: false,
     });
     setEditingId(product.id);
     setShowModal(true);
@@ -549,6 +647,8 @@ export default function VendorStockInventory() {
       unit: form.stockUnit,
       orderUnitsPerStockUnit: 1,
       description: form.description.trim(),
+      imageDataUrl: form.imageDataUrl || undefined,
+      removeImage: form.removeImage,
       isForSale: false,
       price: 0,
     };
@@ -681,8 +781,25 @@ export default function VendorStockInventory() {
                   return (
                     <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700/40">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900 dark:text-gray-100">{product.name}</div>
-                        <div className="mt-1 text-xs text-gray-400">{product.category || "General"}</div>
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-neutral-700 dark:bg-neutral-800">
+                            {product.imageUrl ? (
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                                No Img
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-gray-100">{product.name}</div>
+                            <div className="mt-1 text-xs text-gray-400">{product.category || "General"}</div>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-4 py-3 font-semibold text-gray-900 dark:text-gray-100">
                         Rs. {formatNumber(product.buyingPrice)}
@@ -761,6 +878,8 @@ export default function VendorStockInventory() {
           editingId={editingId}
           saving={saving}
           onChange={handleFieldChange}
+          onImageChange={handleImageChange}
+          onRemoveImage={handleRemoveImage}
           onClose={closeModal}
           onSubmit={handleSubmit}
         />

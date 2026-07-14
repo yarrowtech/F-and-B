@@ -44,6 +44,9 @@ const initialForm = {
   orderPackQuantity: "1",
   orderUnitsPerStockUnit: "1",
   description: "",
+  imageUrl: "",
+  imageDataUrl: "",
+  removeImage: false,
 };
 
 const fieldClass =
@@ -66,6 +69,16 @@ const getSuggestedConversion = (stockUnit, sellUnit) => {
   if (!stockFactor || !sellFactor) return "1";
   return String(sellFactor / stockFactor);
 };
+
+const maxImageBytes = 700 * 1024;
+
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read this image file"));
+    reader.readAsDataURL(file);
+  });
 
 function InventoryPickerModal({ products, onSelect, onClose }) {
   const [search, setSearch] = useState("");
@@ -132,10 +145,25 @@ function InventoryPickerModal({ products, onSelect, onClose }) {
                 onClick={() => onSelect(product)}
                 className="flex w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3 text-left transition hover:border-green-300 hover:bg-green-50 dark:border-neutral-700 dark:bg-neutral-900/30 dark:hover:border-green-700 dark:hover:bg-green-950/20"
               >
-                <div>
-                  <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{product.name}</div>
-                  <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {product.category || "General"}
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-neutral-700 dark:bg-neutral-800">
+                    {product.imageUrl ? (
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                        No Img
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{product.name}</div>
+                    <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {product.category || "General"}
+                    </div>
                   </div>
                 </div>
                 <div className="text-right text-xs text-gray-600 dark:text-gray-300">
@@ -160,10 +188,15 @@ function ProductModal({
   unitOptions,
   saving,
   onChange,
+  onImageChange,
+  onRemoveImage,
   onClose,
   onSubmit,
 }) {
   const inventoryUnitLabel = selectedInventoryProduct?.stockUnit || form.stockUnit || "--";
+  const imagePreview = form.removeImage
+    ? ""
+    : form.imageDataUrl || form.imageUrl || selectedInventoryProduct?.imageUrl || "";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
@@ -207,6 +240,46 @@ function ProductModal({
               Buying price: <span className="font-semibold">Rs. {selectedInventoryProduct?.buyingPrice ?? 0}</span>
               {" • "}
               Inventory unit: <span className="font-semibold">{inventoryUnitLabel}</span>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Product Image
+              </label>
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/70 p-4 dark:border-neutral-600 dark:bg-neutral-900/30">
+                {imagePreview ? (
+                  <div className="mb-3 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-neutral-700 dark:bg-neutral-800">
+                    <img
+                      src={imagePreview}
+                      alt="Product preview"
+                      className="h-44 w-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="mb-3 flex h-44 items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white text-sm text-gray-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-gray-500">
+                    No product image selected
+                  </div>
+                )}
+
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={(e) => onImageChange(e.target.files?.[0] || null)}
+                  className={fieldClass}
+                />
+                <p className="mt-2 text-xs text-gray-400">
+                  PNG, JPG, or WEBP up to 700 KB.
+                </p>
+                {imagePreview ? (
+                  <button
+                    type="button"
+                    onClick={onRemoveImage}
+                    className="mt-3 inline-flex items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/30"
+                  >
+                    Remove Image
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -482,6 +555,9 @@ const VendorInventory = () => {
       orderPackQuantity: "1",
       orderUnitsPerStockUnit: getSuggestedConversion(product.stockUnit || "pcs", nextUnit),
       description: product.description || "",
+      imageUrl: product.imageUrl || "",
+      imageDataUrl: "",
+      removeImage: false,
     });
     setShowPicker(false);
     setShowModal(true);
@@ -501,6 +577,38 @@ const VendorInventory = () => {
 
       return next;
     });
+  };
+
+  const handleImageChange = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      notify("Please select a valid image file.", true);
+      return;
+    }
+    if (file.size > maxImageBytes) {
+      notify("Product image must be smaller than 700 KB.", true);
+      return;
+    }
+
+    try {
+      const imageDataUrl = await readFileAsDataUrl(file);
+      setForm((prev) => ({
+        ...prev,
+        imageDataUrl,
+        removeImage: false,
+      }));
+    } catch (error) {
+      notify(error.message || "Could not read the image file.", true);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setForm((prev) => ({
+      ...prev,
+      imageUrl: "",
+      imageDataUrl: "",
+      removeImage: true,
+    }));
   };
 
   const validate = () => {
@@ -548,6 +656,8 @@ const VendorInventory = () => {
       orderPackQuantity: Number(form.orderPackQuantity),
       orderUnitsPerStockUnit: Number(form.orderUnitsPerStockUnit),
       description: form.description.trim(),
+      imageDataUrl: form.imageDataUrl || undefined,
+      removeImage: form.removeImage,
       isListedInMyProducts: true,
       isForSale: false,
     };
@@ -578,6 +688,9 @@ const VendorInventory = () => {
       orderPackQuantity: String(product.orderPackQuantity || 1),
       orderUnitsPerStockUnit: String(product.orderUnitsPerStockUnit || 1),
       description: product.description || "",
+      imageUrl: product.imageUrl || "",
+      imageDataUrl: "",
+      removeImage: false,
     });
     setEditingId(product.id);
     setShowModal(true);
@@ -737,14 +850,31 @@ const VendorInventory = () => {
                   return (
                     <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-neutral-700/40">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900 dark:text-gray-100">
-                          {product.name}
-                        </div>
-                        {product.description && (
-                          <div className="mt-0.5 max-w-xs truncate text-xs text-gray-400">
-                            {product.description}
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-neutral-700 dark:bg-neutral-800">
+                            {product.imageUrl ? (
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                                No Img
+                              </div>
+                            )}
                           </div>
-                        )}
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-gray-100">
+                              {product.name}
+                            </div>
+                            {product.description && (
+                              <div className="mt-0.5 max-w-xs truncate text-xs text-gray-400">
+                                {product.description}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
@@ -844,6 +974,8 @@ const VendorInventory = () => {
           unitOptions={unitOptions}
           saving={saving}
           onChange={handleFieldChange}
+          onImageChange={handleImageChange}
+          onRemoveImage={handleRemoveImage}
           onClose={closeModal}
           onSubmit={handleSubmit}
         />

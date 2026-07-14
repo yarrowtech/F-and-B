@@ -59,6 +59,38 @@ const getOrderCost = (order, productMap) =>
     return sum + estimatedCost;
   }, 0);
 
+const startOfToday = () => {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const endOfRangeFromToday = (days) => {
+  const date = startOfToday();
+  date.setDate(date.getDate() + days);
+  date.setHours(23, 59, 59, 999);
+  return date;
+};
+
+const getOrderAmount = (order) =>
+  Number(order?.billSummary?.totalAmount || order?.totalAmount || order?.metrics?.revenue || 0);
+
+const getOperationalStatusLabel = (status) => {
+  if (status === "completed") return "Delivered / Closed";
+  if (status === "ready") return "Ready To Deliver";
+  if (status === "cancelled") return "Cancelled";
+  return "Order Requested";
+};
+
+const getPaymentStatusLabel = (order) =>
+  order?.paymentStatus === "paid" ? "Paid" : "Outstanding / Credit";
+
+const getSettlementStatusLabel = (status) => {
+  if (status === "settled") return "Settled";
+  if (status === "scheduled") return "In Settlement";
+  return "Unsettled";
+};
+
 function SummaryCard({ icon, label, value, helper, tone = "green" }) {
   const toneClass = {
     green: "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300",
@@ -112,7 +144,7 @@ function OrderCard({ order, metrics }) {
               : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
           }`}
         >
-          {order.status || "processing"}
+          {getOperationalStatusLabel(order.status)}
         </div>
       </div>
 
@@ -139,8 +171,11 @@ function OrderCard({ order, metrics }) {
           <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
             Payment
           </p>
-          <p className="mt-1 font-bold capitalize text-gray-900 dark:text-gray-100">
-            {order.paymentStatus || "unpaid"}
+          <p className="mt-1 font-bold text-gray-900 dark:text-gray-100">
+            {getPaymentStatusLabel(order)}
+          </p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Settlement: {getSettlementStatusLabel(order.settlementStatus)}
           </p>
         </div>
       </div>
@@ -231,18 +266,33 @@ const VendorAccounts = () => {
 
   const summary = useMemo(() => {
     const activeOrders = orderRows.filter((order) => order.status !== "cancelled");
+    const completedOrders = activeOrders.filter((order) => order.status === "completed");
+    const outstandingOrders = completedOrders.filter((order) => order.paymentStatus !== "paid");
+    const now = startOfToday();
+    const weekEnd = endOfRangeFromToday(6);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
     const inventoryValue = products.reduce(
       (sum, product) => sum + Number(product.stock || 0) * Number(product.buyingPrice || 0),
       0
     );
     const totalRevenue = activeOrders.reduce((sum, order) => sum + order.metrics.revenue, 0);
     const totalCost = activeOrders.reduce((sum, order) => sum + order.metrics.cost, 0);
-    const unpaidAmount = activeOrders
-      .filter((order) => order.paymentStatus !== "paid")
-      .reduce((sum, order) => sum + Number(order.totalAmount || order.metrics.revenue || 0), 0);
+    const unpaidAmount = outstandingOrders.reduce((sum, order) => sum + getOrderAmount(order), 0);
     const paidAmount = activeOrders
       .filter((order) => order.paymentStatus === "paid")
-      .reduce((sum, order) => sum + Number(order.totalAmount || order.metrics.revenue || 0), 0);
+      .reduce((sum, order) => sum + getOrderAmount(order), 0);
+    const dueThisWeek = outstandingOrders
+      .filter((order) => {
+        const createdAt = new Date(order.createdAt);
+        return createdAt >= now && createdAt <= weekEnd;
+      })
+      .reduce((sum, order) => sum + getOrderAmount(order), 0);
+    const dueThisMonth = outstandingOrders
+      .filter((order) => {
+        const createdAt = new Date(order.createdAt);
+        return createdAt >= now && createdAt <= monthEnd;
+      })
+      .reduce((sum, order) => sum + getOrderAmount(order), 0);
 
     return {
       totalProducts: products.length,
@@ -254,6 +304,10 @@ const VendorAccounts = () => {
       unpaidAmount,
       paidAmount,
       totalOrders: activeOrders.length,
+      completedOrders: completedOrders.length,
+      outstandingOrders: outstandingOrders.length,
+      dueThisWeek,
+      dueThisMonth,
     };
   }, [orderRows, products]);
 
@@ -308,14 +362,14 @@ const VendorAccounts = () => {
         />
         <SummaryCard
           icon={<Wallet size={20} />}
-          label="Pending Payment"
+          label="Outstanding Amount"
           value={formatCurrency(summary.unpaidAmount)}
-          helper={`Paid ${formatCurrency(summary.paidAmount)}`}
+          helper={`${summary.outstandingOrders} delivered order(s) still unpaid`}
           tone={summary.unpaidAmount > 0 ? "red" : "slate"}
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <SummaryCard
           icon={<Package size={20} />}
           label="Inventory Items"
@@ -325,17 +379,31 @@ const VendorAccounts = () => {
         />
         <SummaryCard
           icon={<CheckCircle2 size={20} />}
-          label="Ready For Selling"
-          value={formatNumber(summary.sellingProducts)}
-          helper="Visible for admin ordering"
+          label="Delivered Orders"
+          value={formatNumber(summary.completedOrders)}
+          helper="Operationally closed"
           tone="green"
         />
         <SummaryCard
           icon={<Receipt size={20} />}
-          label="Paid Collections"
+          label="Settled Amount"
           value={formatCurrency(summary.paidAmount)}
-          helper="Received from completed billing"
+          helper="Already received from restaurant"
           tone="blue"
+        />
+        <SummaryCard
+          icon={<Wallet size={20} />}
+          label="Due This Week"
+          value={formatCurrency(summary.dueThisWeek)}
+          helper="Outstanding from current 7-day window"
+          tone={summary.dueThisWeek > 0 ? "amber" : "slate"}
+        />
+        <SummaryCard
+          icon={<Wallet size={20} />}
+          label="Due This Month"
+          value={formatCurrency(summary.dueThisMonth)}
+          helper="Outstanding from current month"
+          tone={summary.dueThisMonth > 0 ? "red" : "slate"}
         />
       </div>
 
@@ -343,10 +411,10 @@ const VendorAccounts = () => {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Sales, Purchase and Margin History
+              Vendor Ledger And Restaurant Payable View
             </h2>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Check every vendor order with sales amount, purchase cost, margin and payment details.
+              See delivery closure, outstanding credit, settlement state, and margin for every order.
             </p>
           </div>
 
@@ -451,10 +519,13 @@ const VendorAccounts = () => {
                         </td>
                         <td className="px-3 py-4">
                           <div className="font-semibold capitalize text-gray-900 dark:text-gray-100">
-                            {order.paymentStatus || "unpaid"}
+                            {getPaymentStatusLabel(order)}
                           </div>
                           <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                             {order.paidAt ? formatDateTime(order.paidAt) : "Not paid yet"}
+                          </div>
+                          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Settlement: {getSettlementStatusLabel(order.settlementStatus)}
                           </div>
                         </td>
                         <td className="px-3 py-4">
@@ -467,7 +538,7 @@ const VendorAccounts = () => {
                                 : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
                             }`}
                           >
-                            {order.status || "processing"}
+                            {getOperationalStatusLabel(order.status)}
                           </span>
                         </td>
                         <td className="px-3 py-4 text-gray-600 dark:text-gray-300">

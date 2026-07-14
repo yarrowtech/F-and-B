@@ -9,6 +9,7 @@ import {
   FileBarChart,
   FileSpreadsheet,
   FileText,
+  Handshake,
   ReceiptText,
   Search,
   Utensils,
@@ -93,6 +94,12 @@ const REPORT_GROUPS = [
       "Canceled Report",
     ],
   },
+  {
+    key: "vendor",
+    label: "Vendor & Procurement",
+    icon: Handshake,
+    reports: ["Vendor Purchase Report", "Vendor Settlement Report"],
+  },
 ];
 
 const REPORT_KEY_OVERRIDES = {
@@ -127,6 +134,7 @@ const GROUP_TONES = {
   menu: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
   operations:
     "bg-slate-100 text-slate-700 dark:bg-neutral-800 dark:text-neutral-300",
+  vendor: "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
 };
 
 const toDateInput = (date) => {
@@ -158,6 +166,12 @@ const LABEL_OVERRIDES = {
   settlementGroups: "Settlement Groups",
   averageBill: "Average Bill",
   averageItemsPerKot: "Average Items / KOT",
+  vendorId: "Vendor ID",
+  orderCount: "Order Count",
+  paidAmount: "Paid Amount",
+  outstandingAmount: "Outstanding Amount",
+  netAmount: "Net Amount",
+  netPayable: "Net Payable",
 };
 
 const formatLabel = (value) => LABEL_OVERRIDES[value] || humanize(value);
@@ -794,6 +808,11 @@ export default function AdminReports() {
                           <FileBarChart
                             size={18}
                             className="shrink-0 text-amber-600"
+                          />
+                        ) : group.key === "vendor" ? (
+                          <Handshake
+                            size={18}
+                            className="shrink-0 text-violet-600"
                           />
                         ) : (
                           <FileText

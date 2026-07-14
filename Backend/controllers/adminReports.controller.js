@@ -7,6 +7,8 @@ import KotPrintJob from "../models/KotPrintJob.model.js";
 import Menu from "../models/Menu.model.js";
 import Order from "../models/Order.model.js";
 import Restaurant from "../models/Restaurant.model.js";
+import VendorOrder from "../models/VendorOrder.model.js";
+import VendorSettlement from "../models/VendorSettlement.model.js";
 
 const REPORTS = [
   ["daily-sales-report", "Daily Sales Report", "sales", "dailySales"],
@@ -53,6 +55,8 @@ const REPORTS = [
   ["time-periodical-report", "Time Periodical Report", "operations", "hourlySales"],
   ["time-week-day-wise", "Time Week Day Wise", "operations", "weekdaySales"],
   ["canceled-report", "Canceled Report", "operations", "cancelledOrders"],
+  ["vendor-purchase-report", "Vendor Purchase Report", "vendor", "vendorPurchases"],
+  ["vendor-settlement-report", "Vendor Settlement Report", "vendor", "vendorSettlements"],
 ].map(([key, title, group, type]) => ({ key, title, group, type }));
 
 const REPORT_BY_KEY = new Map(REPORTS.map((report) => [report.key, report]));
@@ -200,6 +204,373 @@ const reportResponse = (report, columns, rows, summary = {}) => ({
 });
 
 const detailResponse = (columns, rows) => ({ columns, rows });
+
+const vendorOrderMatch = (restaurantIds, start, end) => ({
+  restaurant: { $in: restaurantIds },
+  createdAt: { $gte: start, $lte: end },
+});
+
+const vendorSettlementMatch = (restaurantIds, start, end) => ({
+  restaurant: { $in: restaurantIds },
+  $or: [
+    { createdAt: { $gte: start, $lte: end } },
+    { periodEnd: { $gte: start, $lte: end } },
+    { periodStart: { $gte: start, $lte: end } },
+  ],
+});
+
+const runVendorPurchaseReport = async (context, report) => {
+  const rows = await VendorOrder.aggregate([
+    { $match: vendorOrderMatch(context.restaurantIds, context.start, context.end) },
+    {
+      $lookup: {
+        from: "vendors",
+        localField: "vendor",
+        foreignField: "_id",
+        as: "vendorDoc",
+      },
+    },
+    { $unwind: { path: "$vendorDoc", preserveNullAndEmptyArrays: true } },
+    {
+      $group: {
+        _id: "$vendor",
+        vendorName: { $first: { $ifNull: ["$vendorDoc.name", "Vendor"] } },
+        vendorCode: { $first: { $ifNull: ["$vendorDoc.vendorId", "-"] } },
+        orderCount: { $sum: 1 },
+        completedOrders: {
+          $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] },
+        },
+        paidOrders: {
+          $sum: { $cond: [{ $eq: ["$paymentStatus", "paid"] }, 1, 0] },
+        },
+        pendingOrders: {
+          $sum: { $cond: [{ $ne: ["$paymentStatus", "paid"] }, 1, 0] },
+        },
+        grossAmount: { $sum: { $ifNull: ["$billing.itemsTotal", "$totalAmount"] } },
+        discountAmount: { $sum: { $ifNull: ["$billing.discountAmount", 0] } },
+        taxAmount: { $sum: { $ifNull: ["$billing.totalTax", 0] } },
+        netAmount: { $sum: { $ifNull: ["$billing.totalAmount", "$totalAmount"] } },
+        paidAmount: {
+          $sum: {
+            $cond: [
+              { $eq: ["$paymentStatus", "paid"] },
+              { $ifNull: ["$billing.totalAmount", "$totalAmount"] },
+              0,
+            ],
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        vendor: "$vendorName",
+        vendorId: "$vendorCode",
+        orderCount: 1,
+        completedOrders: 1,
+        paidOrders: 1,
+        pendingOrders: 1,
+        grossAmount: { $round: ["$grossAmount", 2] },
+        discountAmount: { $round: ["$discountAmount", 2] },
+        taxAmount: { $round: ["$taxAmount", 2] },
+        netAmount: { $round: ["$netAmount", 2] },
+        paidAmount: { $round: ["$paidAmount", 2] },
+        outstandingAmount: {
+          $round: [{ $subtract: ["$netAmount", "$paidAmount"] }, 2],
+        },
+      },
+    },
+    { $sort: { netAmount: -1, vendor: 1 } },
+    { $limit: context.limit },
+  ]);
+
+  return reportResponse(
+    report,
+    [
+      "vendor",
+      "vendorId",
+      "orderCount",
+      "completedOrders",
+      "paidOrders",
+      "pendingOrders",
+      "grossAmount",
+      "discountAmount",
+      "taxAmount",
+      "netAmount",
+      "paidAmount",
+      "outstandingAmount",
+    ],
+    rows,
+    {
+      vendors: rows.length,
+      totalOrders: rows.reduce((sum, row) => sum + Number(row.orderCount || 0), 0),
+      completedOrders: rows.reduce((sum, row) => sum + Number(row.completedOrders || 0), 0),
+      netAmount: money(rows.reduce((sum, row) => sum + Number(row.netAmount || 0), 0)),
+      paidAmount: money(rows.reduce((sum, row) => sum + Number(row.paidAmount || 0), 0)),
+      outstandingAmount: money(
+        rows.reduce((sum, row) => sum + Number(row.outstandingAmount || 0), 0)
+      ),
+    }
+  );
+};
+
+const runVendorSettlementReport = async (context, report) => {
+  const rows = await VendorSettlement.aggregate([
+    { $match: vendorSettlementMatch(context.restaurantIds, context.start, context.end) },
+    {
+      $lookup: {
+        from: "vendors",
+        localField: "vendor",
+        foreignField: "_id",
+        as: "vendorDoc",
+      },
+    },
+    { $unwind: { path: "$vendorDoc", preserveNullAndEmptyArrays: true } },
+    {
+      $group: {
+        _id: "$vendor",
+        vendorName: { $first: { $ifNull: ["$vendorDoc.name", "Vendor"] } },
+        vendorCode: { $first: { $ifNull: ["$vendorDoc.vendorId", "-"] } },
+        settlementCount: { $sum: 1 },
+        pendingSettlements: {
+          $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] },
+        },
+        paidSettlements: {
+          $sum: { $cond: [{ $eq: ["$status", "paid"] }, 1, 0] },
+        },
+        cancelledSettlements: {
+          $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] },
+        },
+        orderCount: { $sum: { $ifNull: ["$orderCount", 0] } },
+        grossAmount: { $sum: { $ifNull: ["$totals.grossAmount", 0] } },
+        discountAmount: { $sum: { $ifNull: ["$totals.discountAmount", 0] } },
+        taxAmount: { $sum: { $ifNull: ["$totals.taxAmount", 0] } },
+        netPayable: { $sum: { $ifNull: ["$totals.netPayable", 0] } },
+        paidAmount: {
+          $sum: {
+            $cond: [{ $eq: ["$status", "paid"] }, { $ifNull: ["$totals.netPayable", 0] }, 0],
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        vendor: "$vendorName",
+        vendorId: "$vendorCode",
+        settlementCount: 1,
+        pendingSettlements: 1,
+        paidSettlements: 1,
+        cancelledSettlements: 1,
+        orderCount: 1,
+        grossAmount: { $round: ["$grossAmount", 2] },
+        discountAmount: { $round: ["$discountAmount", 2] },
+        taxAmount: { $round: ["$taxAmount", 2] },
+        netPayable: { $round: ["$netPayable", 2] },
+        paidAmount: { $round: ["$paidAmount", 2] },
+        outstandingAmount: {
+          $round: [{ $subtract: ["$netPayable", "$paidAmount"] }, 2],
+        },
+      },
+    },
+    { $sort: { netPayable: -1, vendor: 1 } },
+    { $limit: context.limit },
+  ]);
+
+  return reportResponse(
+    report,
+    [
+      "vendor",
+      "vendorId",
+      "settlementCount",
+      "pendingSettlements",
+      "paidSettlements",
+      "cancelledSettlements",
+      "orderCount",
+      "grossAmount",
+      "discountAmount",
+      "taxAmount",
+      "netPayable",
+      "paidAmount",
+      "outstandingAmount",
+    ],
+    rows,
+    {
+      vendors: rows.length,
+      settlements: rows.reduce((sum, row) => sum + Number(row.settlementCount || 0), 0),
+      orderCount: rows.reduce((sum, row) => sum + Number(row.orderCount || 0), 0),
+      netPayable: money(rows.reduce((sum, row) => sum + Number(row.netPayable || 0), 0)),
+      paidAmount: money(rows.reduce((sum, row) => sum + Number(row.paidAmount || 0), 0)),
+      outstandingAmount: money(
+        rows.reduce((sum, row) => sum + Number(row.outstandingAmount || 0), 0)
+      ),
+    }
+  );
+};
+
+const runVendorOrderDetails = async (context) => {
+  const rows = await VendorOrder.aggregate([
+    { $match: vendorOrderMatch(context.restaurantIds, context.start, context.end) },
+    {
+      $lookup: {
+        from: "vendors",
+        localField: "vendor",
+        foreignField: "_id",
+        as: "vendorDoc",
+      },
+    },
+    { $unwind: { path: "$vendorDoc", preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: "restaurants",
+        localField: "restaurant",
+        foreignField: "_id",
+        as: "restaurantDoc",
+      },
+    },
+    { $unwind: { path: "$restaurantDoc", preserveNullAndEmptyArrays: true } },
+    { $sort: { createdAt: -1 } },
+    { $limit: context.limit },
+    {
+      $project: {
+        _id: 0,
+        createdAt: {
+          $dateToString: {
+            date: "$createdAt",
+            format: "%Y-%m-%d %H:%M",
+            timezone: BUSINESS_TIMEZONE,
+          },
+        },
+        orderNo: 1,
+        vendor: { $ifNull: ["$vendorDoc.name", "Vendor"] },
+        vendorId: { $ifNull: ["$vendorDoc.vendorId", "-"] },
+        restaurant: { $ifNull: ["$restaurantDoc.name", "-"] },
+        status: 1,
+        paymentStatus: 1,
+        settlementStatus: 1,
+        items: { $size: { $ifNull: ["$items", []] } },
+        grossAmount: { $round: [{ $ifNull: ["$billing.itemsTotal", "$totalAmount"] }, 2] },
+        discountAmount: { $round: [{ $ifNull: ["$billing.discountAmount", 0] }, 2] },
+        taxAmount: { $round: [{ $ifNull: ["$billing.totalTax", 0] }, 2] },
+        netAmount: { $round: [{ $ifNull: ["$billing.totalAmount", "$totalAmount"] }, 2] },
+        paymentMethod: { $ifNull: ["$paymentMethod", "-"] },
+      },
+    },
+  ]);
+
+  return detailResponse(
+    [
+      "createdAt",
+      "orderNo",
+      "vendor",
+      "vendorId",
+      "restaurant",
+      "status",
+      "paymentStatus",
+      "settlementStatus",
+      "items",
+      "grossAmount",
+      "discountAmount",
+      "taxAmount",
+      "netAmount",
+      "paymentMethod",
+    ],
+    rows
+  );
+};
+
+const runVendorSettlementDetails = async (context) => {
+  const rows = await VendorSettlement.aggregate([
+    { $match: vendorSettlementMatch(context.restaurantIds, context.start, context.end) },
+    {
+      $lookup: {
+        from: "vendors",
+        localField: "vendor",
+        foreignField: "_id",
+        as: "vendorDoc",
+      },
+    },
+    { $unwind: { path: "$vendorDoc", preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: "restaurants",
+        localField: "restaurant",
+        foreignField: "_id",
+        as: "restaurantDoc",
+      },
+    },
+    { $unwind: { path: "$restaurantDoc", preserveNullAndEmptyArrays: true } },
+    { $sort: { createdAt: -1 } },
+    { $limit: context.limit },
+    {
+      $project: {
+        _id: 0,
+        createdAt: {
+          $dateToString: {
+            date: "$createdAt",
+            format: "%Y-%m-%d %H:%M",
+            timezone: BUSINESS_TIMEZONE,
+          },
+        },
+        settlementNo: 1,
+        vendor: { $ifNull: ["$vendorDoc.name", "Vendor"] },
+        vendorId: { $ifNull: ["$vendorDoc.vendorId", "-"] },
+        restaurant: { $ifNull: ["$restaurantDoc.name", "-"] },
+        cycle: 1,
+        status: 1,
+        orderCount: { $ifNull: ["$orderCount", 0] },
+        periodStart: {
+          $dateToString: {
+            date: "$periodStart",
+            format: "%Y-%m-%d",
+            timezone: BUSINESS_TIMEZONE,
+          },
+        },
+        periodEnd: {
+          $dateToString: {
+            date: "$periodEnd",
+            format: "%Y-%m-%d",
+            timezone: BUSINESS_TIMEZONE,
+          },
+        },
+        netPayable: { $round: [{ $ifNull: ["$totals.netPayable", 0] }, 2] },
+        paidAt: {
+          $cond: [
+            { $ifNull: ["$paidAt", false] },
+            {
+              $dateToString: {
+                date: "$paidAt",
+                format: "%Y-%m-%d %H:%M",
+                timezone: BUSINESS_TIMEZONE,
+              },
+            },
+            "-",
+          ],
+        },
+        paymentMethod: { $ifNull: ["$paymentMethod", "-"] },
+      },
+    },
+  ]);
+
+  return detailResponse(
+    [
+      "createdAt",
+      "settlementNo",
+      "vendor",
+      "vendorId",
+      "restaurant",
+      "cycle",
+      "status",
+      "orderCount",
+      "periodStart",
+      "periodEnd",
+      "netPayable",
+      "paidAt",
+      "paymentMethod",
+    ],
+    rows
+  );
+};
 
 const runBillDetail = async (context, report) => {
   const rows = await Bill.aggregate([
@@ -696,6 +1067,14 @@ const runReportDetails = async (context, report, reportData) => {
       settlementOnly: true,
     });
     return detailResponse(settlementDetails.columns, settlementDetails.rows);
+  }
+
+  if (report.type === "vendorPurchases") {
+    return runVendorOrderDetails(context);
+  }
+
+  if (report.type === "vendorSettlements") {
+    return runVendorSettlementDetails(context);
   }
 
   if (report.group === "menu") {
@@ -1736,6 +2115,10 @@ const runReport = async (context, report) => {
   if (special) return special;
 
   switch (report.type) {
+    case "vendorPurchases":
+      return runVendorPurchaseReport(context, report);
+    case "vendorSettlements":
+      return runVendorSettlementReport(context, report);
     case "dailySales":
       return runSalesGrouped(context, report, {
         id: {

@@ -5,6 +5,7 @@ import Restaurant from "../models/Restaurant.model.js";
 import Vendor from "../models/Vendor.model.js";
 import VendorProduct from "../models/VendorProduct.model.js";
 import VendorOrder from "../models/VendorOrder.model.js";
+import VendorSettlement from "../models/VendorSettlement.model.js";
 import { buildWhatsAppChatUrl } from "../utils/whatsapp.service.js";
 
 const toObjectId = (value) =>
@@ -31,6 +32,7 @@ const sanitizeRate = (value, fallback = 0) => {
 };
 
 const sanitizeText = (value) => String(value || "").trim();
+const roundMoney = (value) => Number(Number(value || 0).toFixed(2));
 const normalizePositiveNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
@@ -94,26 +96,169 @@ const buildVendorPublicBillPdfUrl = (orderId) => {
   return `${baseUrl}/api/vendor/public/orders/${orderId}/pdf?token=${token}`;
 };
 
-const getVendorBillSummary = (order) => {
-  const restaurantTemplate = order?.restaurant?.billingTemplate || {};
-  const itemsTotal = Number(order?.totalAmount || 0);
+const normalizeDiscountType = (value) => {
+  const normalized = sanitizeText(value).toLowerCase();
+  return ["amount", "percentage"].includes(normalized) ? normalized : "none";
+};
+
+const calculateVendorBillSummary = ({
+  itemsTotal,
+  restaurantTemplate = {},
+  discountType = "none",
+  discountValue = 0,
+}) => {
+  const normalizedItemsTotal = normalizePositiveNumber(itemsTotal);
+  const normalizedDiscountType = normalizeDiscountType(discountType);
+  const normalizedDiscountValue = normalizePositiveNumber(discountValue);
   const cgstRate = sanitizeRate(restaurantTemplate.cgstRate, 2.5);
   const sgstRate = sanitizeRate(restaurantTemplate.sgstRate, 2.5);
-  const cgst = Number((itemsTotal * (cgstRate / 100)).toFixed(2));
-  const sgst = Number((itemsTotal * (sgstRate / 100)).toFixed(2));
-  const totalTax = Number((cgst + sgst).toFixed(2));
-  const grandTotal = Number((itemsTotal + totalTax).toFixed(2));
+
+  let discountAmount = 0;
+  if (normalizedDiscountType === "percentage") {
+    discountAmount = normalizedItemsTotal * (Math.min(normalizedDiscountValue, 100) / 100);
+  } else if (normalizedDiscountType === "amount") {
+    discountAmount = normalizedDiscountValue;
+  }
+
+  discountAmount = roundMoney(Math.min(discountAmount, normalizedItemsTotal));
+
+  const taxableAmount = roundMoney(normalizedItemsTotal - discountAmount);
+  const cgst = roundMoney(taxableAmount * (cgstRate / 100));
+  const sgst = roundMoney(taxableAmount * (sgstRate / 100));
+  const totalTax = roundMoney(cgst + sgst);
+  const totalAmount = roundMoney(taxableAmount + totalTax);
 
   return {
-    itemsTotal,
+    itemsTotal: roundMoney(normalizedItemsTotal),
+    discountType: normalizedDiscountType,
+    discountValue:
+      normalizedDiscountType === "percentage"
+        ? roundMoney(Math.min(normalizedDiscountValue, 100))
+        : roundMoney(normalizedDiscountValue),
+    discountAmount,
+    taxableAmount,
     cgstRate,
     sgstRate,
     cgst,
     sgst,
     totalTax,
-    totalAmount: grandTotal,
+    totalAmount,
     showTaxBreakup: restaurantTemplate.showTaxBreakup !== false,
   };
+};
+
+const getVendorBillSummary = (order) => {
+  if (order?.billing?.totalAmount !== undefined) {
+    return calculateVendorBillSummary({
+      itemsTotal: order.billing.itemsTotal ?? order.totalAmount,
+      restaurantTemplate: order?.restaurant?.billingTemplate || {},
+      discountType: order.billing.discountType,
+      discountValue: order.billing.discountValue,
+    });
+  }
+
+  const restaurantTemplate = order?.restaurant?.billingTemplate || {};
+  return calculateVendorBillSummary({
+    itemsTotal: Number(order?.totalAmount || 0),
+    restaurantTemplate,
+  });
+};
+
+const startOfDay = (value) => {
+  const date = value ? new Date(value) : new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const endOfDay = (value) => {
+  const date = value ? new Date(value) : new Date();
+  date.setHours(23, 59, 59, 999);
+  return date;
+};
+
+const toDateOrNull = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const buildSettlementTotals = (orders) =>
+  orders.reduce(
+    (acc, order) => {
+      const billSummary = getVendorBillSummary(order);
+      acc.grossAmount += Number(billSummary.itemsTotal || 0);
+      acc.discountAmount += Number(billSummary.discountAmount || 0);
+      acc.taxableAmount += Number(billSummary.taxableAmount || 0);
+      acc.taxAmount += Number(billSummary.totalTax || 0);
+      acc.netPayable += Number(billSummary.totalAmount || 0);
+      return acc;
+    },
+    {
+      grossAmount: 0,
+      discountAmount: 0,
+      taxableAmount: 0,
+      taxAmount: 0,
+      netPayable: 0,
+    }
+  );
+
+const normalizeSettlementTotals = (totals) => ({
+  grossAmount: roundMoney(totals.grossAmount),
+  discountAmount: roundMoney(totals.discountAmount),
+  taxableAmount: roundMoney(totals.taxableAmount),
+  taxAmount: roundMoney(totals.taxAmount),
+  netPayable: roundMoney(totals.netPayable),
+});
+
+const buildSettlementResponse = (settlement) => ({
+  id: settlement._id,
+  _id: settlement._id,
+  settlementNo: settlement.settlementNo,
+  vendor: settlement.vendor,
+  restaurant: settlement.restaurant,
+  createdByAdmin: settlement.createdByAdmin,
+  cycle: settlement.cycle,
+  periodStart: settlement.periodStart,
+  periodEnd: settlement.periodEnd,
+  orders: Array.isArray(settlement.orders)
+    ? settlement.orders.map((order) =>
+        order?.items ? buildOrderResponse(order) : { id: order?._id || order, _id: order?._id || order }
+      )
+    : [],
+  orderCount: settlement.orderCount,
+  totals: normalizeSettlementTotals(settlement.totals || {}),
+  status: settlement.status,
+  paymentMethod: settlement.paymentMethod,
+  referenceNo: settlement.referenceNo,
+  notes: settlement.notes,
+  paidAt: settlement.paidAt,
+  createdAt: settlement.createdAt,
+  updatedAt: settlement.updatedAt,
+});
+
+const getSettlementOrdersQuery = ({ vendorId, restaurantId, fromDate, toDate, orderIds = [] }) => {
+  const query = {
+    vendor: vendorId,
+    status: { $ne: "cancelled" },
+    paymentStatus: { $ne: "paid" },
+    settlementStatus: "unsettled",
+    billGeneratedAt: { $ne: null },
+  };
+
+  if (restaurantId) {
+    query.restaurant = restaurantId;
+  }
+
+  if (orderIds.length > 0) {
+    query._id = { $in: orderIds };
+  } else {
+    query.createdAt = {
+      $gte: startOfDay(fromDate),
+      $lte: endOfDay(toDate),
+    };
+  }
+
+  return query;
 };
 
 const buildVendorBillMessage = (order) => {
@@ -124,7 +269,17 @@ const buildVendorBillMessage = (order) => {
     `${restaurantName}`,
     `Vendor Bill: ${order?.orderNo || "N/A"}`,
     `Date: ${new Date(order?.billGeneratedAt || order?.createdAt || Date.now()).toLocaleString("en-IN")}`,
-    `Taxable Amount: Rs. ${asMoney(billSummary.itemsTotal)}`,
+    `Subtotal: Rs. ${asMoney(billSummary.itemsTotal)}`,
+    ...(billSummary.discountAmount > 0
+      ? [
+          `Discount${
+            billSummary.discountType === "percentage"
+              ? ` (${asMoney(billSummary.discountValue)}%)`
+              : ""
+          }: Rs. ${asMoney(billSummary.discountAmount)}`,
+        ]
+      : []),
+    `Taxable Amount: Rs. ${asMoney(billSummary.taxableAmount)}`,
     `CGST (${billSummary.cgstRate}%): Rs. ${asMoney(billSummary.cgst)}`,
     `SGST (${billSummary.sgstRate}%): Rs. ${asMoney(billSummary.sgst)}`,
     `Grand Total: Rs. ${asMoney(billSummary.totalAmount)}`,
@@ -260,7 +415,14 @@ const streamVendorBillPdf = async (order, res) => {
     summaryY += bold ? 22 : 18;
   };
 
-  drawSummaryLine("Taxable Amount", billSummary.itemsTotal);
+  drawSummaryLine("Subtotal", billSummary.itemsTotal);
+  if (billSummary.discountAmount > 0) {
+    drawSummaryLine(
+      `Discount${billSummary.discountType === "percentage" ? ` (${billSummary.discountValue}%)` : ""}`,
+      billSummary.discountAmount
+    );
+  }
+  drawSummaryLine("Taxable Amount", billSummary.taxableAmount);
   if (billSummary.showTaxBreakup) {
     drawSummaryLine(`CGST (${billSummary.cgstRate}%)`, billSummary.cgst);
     drawSummaryLine(`SGST (${billSummary.sgstRate}%)`, billSummary.sgst);
@@ -292,6 +454,19 @@ const buildOrderResponse = (order) => ({
   billGeneratedAt: order.billGeneratedAt,
   completedAt: order.completedAt,
   paymentStatus: order.paymentStatus,
+  settlementStatus: order.settlementStatus,
+  settlementId: order.settlement?._id || order.settlement || null,
+  settlement:
+    order.settlement && typeof order.settlement === "object"
+      ? {
+          id: order.settlement._id || null,
+          settlementNo: order.settlement.settlementNo || "",
+          cycle: order.settlement.cycle || "",
+          status: order.settlement.status || "",
+          periodStart: order.settlement.periodStart || null,
+          periodEnd: order.settlement.periodEnd || null,
+        }
+      : null,
   paymentMethod: order.paymentMethod,
   paidAt: order.paidAt,
   createdAt: order.createdAt,
@@ -303,6 +478,11 @@ const buildOrderResponse = (order) => ({
 const STATUS_TRANSITIONS = {
   processing: ["ready", "cancelled"],
   ready: ["completed", "cancelled"],
+};
+
+const ORDER_SETTLEMENT_POPULATE = {
+  path: "settlement",
+  select: "settlementNo cycle status periodStart periodEnd",
 };
 
 const canAccessVendorOrders = async (req, vendorId) => {
@@ -388,6 +568,11 @@ export const createVendorOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Select at least one product" });
     }
 
+    const restaurant = await Restaurant.findById(restaurantId).select("billingTemplate");
+    if (!restaurant) {
+      return res.status(404).json({ success: false, message: "Restaurant not found" });
+    }
+
     const productIds = requestedItems.map((item) => item.productId).filter(Boolean);
     const products = await VendorProduct.find({
       _id: { $in: productIds },
@@ -447,6 +632,13 @@ export const createVendorOrder = async (req, res) => {
       totalAmount += lineTotal;
     }
 
+    const billing = calculateVendorBillSummary({
+      itemsTotal: totalAmount,
+      restaurantTemplate: restaurant.billingTemplate || {},
+      discountType: req.body.discountType ?? req.body.discount?.type,
+      discountValue: req.body.discountValue ?? req.body.discount?.value,
+    });
+
     await Promise.all(
       orderItems.map((item) =>
         VendorProduct.updateOne(
@@ -462,10 +654,12 @@ export const createVendorOrder = async (req, res) => {
       placedByAdmin: req.user.id,
       items: orderItems,
       totalAmount,
+      billing,
     });
 
     await order.populate("vendor", "name email phone");
     await order.populate("restaurant", "name restaurantCode address phone gstNo billingTemplate");
+    await order.populate(ORDER_SETTLEMENT_POPULATE);
 
     res.status(201).json({
       success: true,
@@ -492,6 +686,7 @@ export const getVendorOrders = async (req, res) => {
     const orders = await VendorOrder.find({ vendor: vendorId })
       .populate("vendor", "name email phone")
       .populate("restaurant", "name restaurantCode address phone gstNo billingTemplate")
+      .populate(ORDER_SETTLEMENT_POPULATE)
       .sort({ createdAt: -1 });
 
     res.json({ success: true, orders: orders.map(buildOrderResponse) });
@@ -554,6 +749,7 @@ export const updateVendorOrderStatus = async (req, res) => {
     await order.save();
     await order.populate("vendor", "name email phone");
     await order.populate("restaurant", "name restaurantCode address phone gstNo billingTemplate");
+    await order.populate(ORDER_SETTLEMENT_POPULATE);
 
     res.json({
       success: true,
@@ -603,6 +799,257 @@ export const generateVendorOrderBill = async (req, res) => {
   }
 };
 
+export const previewVendorSettlement = async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+    const allowed = await canAccessVendorOrders(req, vendorId);
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const fromDate = toDateOrNull(req.body.fromDate || req.query.fromDate);
+    const toDate = toDateOrNull(req.body.toDate || req.query.toDate);
+    const restaurantId = sanitizeText(req.body.restaurantId || req.query.restaurantId);
+    const orderIds = Array.isArray(req.body.orderIds)
+      ? req.body.orderIds.map(toObjectId).filter(Boolean)
+      : [];
+
+    if (orderIds.length === 0 && (!fromDate || !toDate)) {
+      return res.status(400).json({
+        success: false,
+        message: "Select a settlement date range or choose orders",
+      });
+    }
+
+    const orders = await VendorOrder.find(
+      getSettlementOrdersQuery({
+        vendorId,
+        restaurantId: restaurantId || null,
+        fromDate,
+        toDate,
+        orderIds,
+      })
+    )
+      .populate("vendor", "name email phone vendorId")
+      .populate("restaurant", "name restaurantCode address phone gstNo billingTemplate")
+      .sort({ createdAt: 1 });
+
+    const totals = normalizeSettlementTotals(buildSettlementTotals(orders));
+
+    return res.json({
+      success: true,
+      settlement: {
+        cycle: sanitizeText(req.body.cycle || req.query.cycle).toLowerCase() || "manual",
+        periodStart: orderIds.length > 0
+          ? (orders[0]?.createdAt || null)
+          : startOfDay(fromDate),
+        periodEnd: orderIds.length > 0
+          ? (orders[orders.length - 1]?.createdAt || null)
+          : endOfDay(toDate),
+        orderCount: orders.length,
+        totals,
+        orders: orders.map(buildOrderResponse),
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const createVendorSettlement = async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+    const allowed = await canAccessVendorOrders(req, vendorId);
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const fromDate = toDateOrNull(req.body.fromDate);
+    const toDate = toDateOrNull(req.body.toDate);
+    const restaurantId = sanitizeText(req.body.restaurantId);
+    const cycle = ["weekly", "15_days", "monthly", "manual"].includes(String(req.body.cycle || "").trim())
+      ? String(req.body.cycle).trim()
+      : "manual";
+    const orderIds = Array.isArray(req.body.orderIds)
+      ? req.body.orderIds.map(toObjectId).filter(Boolean)
+      : [];
+
+    if (orderIds.length === 0 && (!fromDate || !toDate)) {
+      return res.status(400).json({
+        success: false,
+        message: "Select a settlement date range or choose orders",
+      });
+    }
+
+    const orders = await VendorOrder.find(
+      getSettlementOrdersQuery({
+        vendorId,
+        restaurantId: restaurantId || null,
+        fromDate,
+        toDate,
+        orderIds,
+      })
+    )
+      .populate("vendor", "name email phone vendorId")
+      .populate("restaurant", "name restaurantCode address phone gstNo billingTemplate")
+      .sort({ createdAt: 1 });
+
+    if (orders.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No unpaid billed orders found for this settlement",
+      });
+    }
+
+    const totals = normalizeSettlementTotals(buildSettlementTotals(orders));
+    const settlement = await VendorSettlement.create({
+      vendor: vendorId,
+      restaurant: restaurantId || orders[0]?.restaurant?._id || null,
+      createdByAdmin: req.user.role === "admin" ? req.user.id : null,
+      cycle,
+      periodStart: orderIds.length > 0 ? startOfDay(orders[0].createdAt) : startOfDay(fromDate),
+      periodEnd: orderIds.length > 0 ? endOfDay(orders[orders.length - 1].createdAt) : endOfDay(toDate),
+      orders: orders.map((order) => order._id),
+      orderCount: orders.length,
+      totals,
+      notes: sanitizeText(req.body.notes),
+    });
+
+    await VendorOrder.updateMany(
+      { _id: { $in: orders.map((order) => order._id) } },
+      {
+        $set: {
+          settlementStatus: "scheduled",
+          settlement: settlement._id,
+        },
+      }
+    );
+
+    const populatedSettlement = await VendorSettlement.findById(settlement._id)
+      .populate("vendor", "name email phone vendorId")
+      .populate("restaurant", "name restaurantCode")
+      .populate({
+        path: "orders",
+        populate: [
+          { path: "vendor", select: "name email phone vendorId" },
+          { path: "restaurant", select: "name restaurantCode address phone gstNo billingTemplate" },
+        ],
+      });
+
+    return res.status(201).json({
+      success: true,
+      message: "Settlement created successfully",
+      settlement: buildSettlementResponse(populatedSettlement),
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getVendorSettlements = async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+    const allowed = await canAccessVendorOrders(req, vendorId);
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const settlements = await VendorSettlement.find({ vendor: vendorId })
+      .populate("vendor", "name email phone vendorId")
+      .populate("restaurant", "name restaurantCode")
+      .populate({
+        path: "orders",
+        populate: [
+          { path: "vendor", select: "name email phone vendorId" },
+          { path: "restaurant", select: "name restaurantCode address phone gstNo billingTemplate" },
+        ],
+      })
+      .sort({ createdAt: -1 });
+
+    return res.json({
+      success: true,
+      settlements: settlements.map(buildSettlementResponse),
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const payVendorSettlement = async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+    const allowed = await canAccessVendorOrders(req, vendorId);
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const settlement = await VendorSettlement.findOne({
+      _id: req.params.settlementId,
+      vendor: vendorId,
+    });
+
+    if (!settlement) {
+      return res.status(404).json({ success: false, message: "Settlement not found" });
+    }
+
+    if (settlement.status === "paid") {
+      return res.status(400).json({ success: false, message: "Settlement is already paid" });
+    }
+
+    if (settlement.status === "cancelled") {
+      return res.status(400).json({ success: false, message: "Cancelled settlement cannot be paid" });
+    }
+
+    const paymentMethod = sanitizeText(req.body.paymentMethod);
+    if (!paymentMethod) {
+      return res.status(400).json({ success: false, message: "Select a payment method" });
+    }
+
+    const paidAt = new Date();
+    settlement.status = "paid";
+    settlement.paymentMethod = paymentMethod;
+    settlement.referenceNo = sanitizeText(req.body.referenceNo);
+    settlement.notes = sanitizeText(req.body.notes) || settlement.notes;
+    settlement.paidAt = paidAt;
+    await settlement.save();
+
+    await VendorOrder.updateMany(
+      {
+        _id: { $in: settlement.orders },
+        vendor: vendorId,
+      },
+      {
+        $set: {
+          paymentStatus: "paid",
+          paymentMethod,
+          paidAt,
+          settlementStatus: "settled",
+          settlement: settlement._id,
+        },
+      }
+    );
+
+    const populatedSettlement = await VendorSettlement.findById(settlement._id)
+      .populate("vendor", "name email phone vendorId")
+      .populate("restaurant", "name restaurantCode")
+      .populate({
+        path: "orders",
+        populate: [
+          { path: "vendor", select: "name email phone vendorId" },
+          { path: "restaurant", select: "name restaurantCode address phone gstNo billingTemplate" },
+        ],
+      });
+
+    return res.json({
+      success: true,
+      message: "Settlement marked as paid",
+      settlement: buildSettlementResponse(populatedSettlement),
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const updateVendorOrderPayment = async (req, res) => {
   try {
     const vendorId = req.params.id;
@@ -627,6 +1074,13 @@ export const updateVendorOrderPayment = async (req, res) => {
       return res.status(400).json({ success: false, message: "Order is already marked as paid" });
     }
 
+    if (order.settlementStatus === "scheduled" && order.settlement) {
+      return res.status(400).json({
+        success: false,
+        message: "This order is already part of a pending settlement",
+      });
+    }
+
     const paymentMethod = String(req.body.paymentMethod || "").trim();
     if (!paymentMethod) {
       return res.status(400).json({ success: false, message: "Select a payment method" });
@@ -636,12 +1090,45 @@ export const updateVendorOrderPayment = async (req, res) => {
       order.billGeneratedAt = new Date();
     }
 
+    await order.populate("vendor", "name email phone vendorId");
+    await order.populate("restaurant", "name restaurantCode address phone gstNo billingTemplate");
+    await order.populate(ORDER_SETTLEMENT_POPULATE);
+
+    const settlementTotals = normalizeSettlementTotals(
+      buildSettlementTotals([
+        {
+          ...order.toObject(),
+          restaurant: order.restaurant,
+          vendor: order.vendor,
+        },
+      ])
+    );
+    const settlement = await VendorSettlement.create({
+      vendor: vendorId,
+      restaurant: order.restaurant,
+      createdByAdmin: req.user.role === "admin" ? req.user.id : null,
+      cycle: "manual",
+      periodStart: startOfDay(order.createdAt),
+      periodEnd: endOfDay(order.createdAt),
+      orders: [order._id],
+      orderCount: 1,
+      totals: settlementTotals,
+      status: "paid",
+      paymentMethod,
+      referenceNo: sanitizeText(req.body.referenceNo),
+      notes: "Immediate payment settlement",
+      paidAt: new Date(),
+    });
+
     order.paymentStatus = "paid";
+    order.settlementStatus = "settled";
+    order.settlement = settlement._id;
     order.paymentMethod = paymentMethod;
-    order.paidAt = new Date();
+    order.paidAt = settlement.paidAt;
     await order.save();
     await order.populate("vendor", "name email phone");
     await order.populate("restaurant", "name restaurantCode address phone gstNo billingTemplate");
+    await order.populate(ORDER_SETTLEMENT_POPULATE);
 
     res.json({
       success: true,
@@ -661,6 +1148,7 @@ export const getAdminOrderHistory = async (req, res) => {
       .populate("vendor", "name vendorId")
       .populate("vendor", "name email phone")
       .populate("restaurant", "name restaurantCode address phone gstNo billingTemplate")
+      .populate(ORDER_SETTLEMENT_POPULATE)
       .sort({ createdAt: -1 })
       .limit(200);
 
@@ -681,6 +1169,7 @@ export const generateVendorOrderPdf = async (req, res) => {
     const order = await VendorOrder.findOne({ _id: req.params.orderId, vendor: vendorId })
       .populate("vendor", "name email phone")
       .populate("restaurant", "name restaurantCode address phone gstNo billingTemplate");
+    await order?.populate?.(ORDER_SETTLEMENT_POPULATE);
 
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
@@ -708,6 +1197,7 @@ export const generateVendorOrderPublicPdf = async (req, res) => {
     const order = await VendorOrder.findById(orderId)
       .populate("vendor", "name email phone")
       .populate("restaurant", "name restaurantCode address phone gstNo billingTemplate");
+    await order?.populate?.(ORDER_SETTLEMENT_POPULATE);
 
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
@@ -726,6 +1216,10 @@ export const generateVendorOrderPublicPdf = async (req, res) => {
 export default {
   createVendorOrder,
   getVendorOrders,
+  previewVendorSettlement,
+  createVendorSettlement,
+  getVendorSettlements,
+  payVendorSettlement,
   updateVendorOrderStatus,
   generateVendorOrderBill,
   updateVendorOrderPayment,
