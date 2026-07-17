@@ -6,6 +6,9 @@ import Vendor from "../models/Vendor.model.js";
 import VendorProduct from "../models/VendorProduct.model.js";
 import VendorOrder from "../models/VendorOrder.model.js";
 import VendorSettlement from "../models/VendorSettlement.model.js";
+import Inventory from "../models/Inventory.model.js";
+import InventoryLog from "../models/InventoryLog.model.js";
+import VendorInventoryLink from "../models/VendorInventoryLink.model.js";
 import { buildWhatsAppChatUrl } from "../utils/whatsapp.service.js";
 
 const toObjectId = (value) =>
@@ -33,6 +36,10 @@ const sanitizeRate = (value, fallback = 0) => {
 
 const sanitizeText = (value) => String(value || "").trim();
 const roundMoney = (value) => Number(Number(value || 0).toFixed(2));
+const roundQuantity = (value) => {
+  const rounded = Math.round((Number(value || 0) + Number.EPSILON) * 1000) / 1000;
+  return Object.is(rounded, -0) ? 0 : rounded;
+};
 const normalizePositiveNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
@@ -309,6 +316,26 @@ const buildVendorDelivery = (order) => {
   };
 };
 
+const buildInventoryReceipt = (order) => {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const linkedItems = items.filter((item) => item?.inventoryLinkedItem);
+  const receivedItems = items.filter((item) => item?.inventoryReceivedAt);
+
+  return {
+    totalItems: items.length,
+    linkedItems: linkedItems.length,
+    receivedItems: receivedItems.length,
+    pendingItems: Math.max(items.length - receivedItems.length, 0),
+    receivedAt:
+      receivedItems
+        .map((item) => item?.inventoryReceivedAt)
+        .filter(Boolean)
+        .sort((a, b) => new Date(b) - new Date(a))[0] || null,
+    isFullyReceived: items.length > 0 && receivedItems.length === items.length,
+    hasAnyReceipt: receivedItems.length > 0,
+  };
+};
+
 const ensurePageSpace = (doc, neededHeight = 120) => {
   if (doc.y + neededHeight <= doc.page.height - 60) return;
   doc.addPage();
@@ -473,7 +500,14 @@ const buildOrderResponse = (order) => ({
   updatedAt: order.updatedAt,
   billSummary: getVendorBillSummary(order),
   delivery: order.billGeneratedAt ? buildVendorDelivery(order) : null,
+  inventoryReceipt: buildInventoryReceipt(order),
 });
+
+const RESTAURANT_VENDOR_ORDER_SELECT =
+  "name restaurantCode address phone gstNo billingTemplate vendorInventoryIntegration";
+
+const isVendorInventoryIntegrationEnabled = (restaurant) =>
+  Boolean(restaurant?.vendorInventoryIntegration?.enabled);
 
 const STATUS_TRANSITIONS = {
   processing: ["ready", "cancelled"],
@@ -532,6 +566,108 @@ const canAccessVendorOrders = async (req, vendorId) => {
   return false;
 };
 
+const canAccessRestaurantForVendor = async (req, vendorId, restaurantId) => {
+  if (!toObjectId(vendorId) || !toObjectId(restaurantId)) return false;
+
+  const allowed = await canAccessVendorOrders(req, vendorId);
+  if (!allowed) return false;
+
+  if (req.user.role === "super_admin") return true;
+
+  const vendor = await Vendor.findById(vendorId).select(
+    "primaryRestaurant accessibleRestaurants"
+  );
+  if (!vendor) return false;
+
+  const vendorRestaurantIds = getVendorRestaurantIds(vendor);
+  if (!vendorRestaurantIds.includes(String(restaurantId))) return false;
+
+  if (req.user.role === "admin") {
+    const adminRestaurantIds = await getAdminRestaurantIds(req.user.id);
+    return adminRestaurantIds.includes(String(restaurantId));
+  }
+
+  if (req.user.role === "vendor") {
+    return String(req.user.id) === String(vendorId);
+  }
+
+  return false;
+};
+
+const buildVendorInventoryLinkResponse = (link) => ({
+  id: link._id,
+  _id: link._id,
+  vendor: link.vendor,
+  restaurant: link.restaurant,
+  vendorProductId: link.vendorProduct?._id || link.vendorProduct || null,
+  vendorProduct: link.vendorProduct
+    ? {
+        id: link.vendorProduct._id || link.vendorProduct,
+        name: link.vendorProduct.name || "",
+        unit: link.vendorProduct.unit || "",
+      }
+    : null,
+  inventoryItemId: link.inventoryItem?._id || link.inventoryItem || null,
+  inventoryItem: link.inventoryItem
+    ? {
+        id: link.inventoryItem._id || link.inventoryItem,
+        name: link.inventoryItem.name || "",
+        unit: link.inventoryItem.unit || "",
+        quantity: Number(link.inventoryItem.quantity || 0),
+        averageCost: roundMoney(link.inventoryItem.averageCost || link.inventoryItem.unitCost || 0),
+      }
+    : null,
+  createdAt: link.createdAt,
+  updatedAt: link.updatedAt,
+});
+
+const applyInventoryReceiptToItem = async ({ inventoryItem, order, orderItem, user, vendorName }) => {
+  const receivedQuantity = roundQuantity(
+    Number(orderItem.stockDeductionQuantity || orderItem.quantity || 0)
+  );
+  const previousQuantity = Number(inventoryItem.quantity || 0);
+  const previousAverageCost = roundMoney(inventoryItem.averageCost || inventoryItem.unitCost || 0);
+  const unitCost = roundMoney(orderItem.buyingPrice || orderItem.price || 0);
+
+  inventoryItem.quantity = roundQuantity(previousQuantity + receivedQuantity);
+
+  const previousValue = previousQuantity * previousAverageCost;
+  const addedValue = receivedQuantity * unitCost;
+  const nextAverageCost =
+    inventoryItem.quantity > 0
+      ? roundMoney((previousValue + addedValue) / Number(inventoryItem.quantity || 0))
+      : 0;
+
+  inventoryItem.averageCost = nextAverageCost;
+  inventoryItem.unitCost = nextAverageCost;
+  inventoryItem.lastPurchasePrice = unitCost;
+  inventoryItem.lastUpdatedBy = user.id;
+  await inventoryItem.save();
+
+  await InventoryLog.create({
+    item: inventoryItem._id,
+    restaurant: order.restaurant?._id || order.restaurant,
+    quantityAdded: receivedQuantity,
+    previousQuantity,
+    newQuantity: Number(inventoryItem.quantity || 0),
+    unit: inventoryItem.unit,
+    action: "ADD",
+    unitCost,
+    totalCost: roundMoney(receivedQuantity * unitCost),
+    previousAverageCost,
+    newAverageCost: nextAverageCost,
+    reason: `Vendor delivery received from ${vendorName || "vendor"} for ${order.orderNo}`,
+    addedBy: user.id,
+    addedByName: user.name || "",
+    effectiveDate: new Date(),
+  });
+
+  orderItem.inventoryLinkedItem = inventoryItem._id;
+  orderItem.inventoryReceivedQuantity = receivedQuantity;
+  orderItem.inventoryUnitCost = unitCost;
+  orderItem.inventoryReceivedAt = new Date();
+};
+
 export const createVendorOrder = async (req, res) => {
   try {
     const vendorId = req.params.id;
@@ -568,7 +704,9 @@ export const createVendorOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Select at least one product" });
     }
 
-    const restaurant = await Restaurant.findById(restaurantId).select("billingTemplate");
+    const restaurant = await Restaurant.findById(restaurantId).select(
+      `billingTemplate vendorInventoryIntegration`
+    );
     if (!restaurant) {
       return res.status(404).json({ success: false, message: "Restaurant not found" });
     }
@@ -658,7 +796,7 @@ export const createVendorOrder = async (req, res) => {
     });
 
     await order.populate("vendor", "name email phone");
-    await order.populate("restaurant", "name restaurantCode address phone gstNo billingTemplate");
+    await order.populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT);
     await order.populate(ORDER_SETTLEMENT_POPULATE);
 
     res.status(201).json({
@@ -685,7 +823,7 @@ export const getVendorOrders = async (req, res) => {
 
     const orders = await VendorOrder.find({ vendor: vendorId })
       .populate("vendor", "name email phone")
-      .populate("restaurant", "name restaurantCode address phone gstNo billingTemplate")
+      .populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT)
       .populate(ORDER_SETTLEMENT_POPULATE)
       .sort({ createdAt: -1 });
 
@@ -748,7 +886,7 @@ export const updateVendorOrderStatus = async (req, res) => {
     order.status = nextStatus;
     await order.save();
     await order.populate("vendor", "name email phone");
-    await order.populate("restaurant", "name restaurantCode address phone gstNo billingTemplate");
+    await order.populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT);
     await order.populate(ORDER_SETTLEMENT_POPULATE);
 
     res.json({
@@ -758,6 +896,319 @@ export const updateVendorOrderStatus = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getVendorInventoryLinks = async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+    const restaurantId = sanitizeText(req.query.restaurantId || req.body.restaurantId);
+
+    if (!toObjectId(vendorId) || !toObjectId(restaurantId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid vendor and restaurant are required",
+      });
+    }
+
+    const allowed = await canAccessRestaurantForVendor(req, vendorId, restaurantId);
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const restaurant = await Restaurant.findById(restaurantId).select("vendorInventoryIntegration");
+    if (!isVendorInventoryIntegrationEnabled(restaurant)) {
+      return res.status(400).json({
+        success: false,
+        message: "Vendor inventory integration is disabled for this restaurant",
+      });
+    }
+
+    const links = await VendorInventoryLink.find({
+      vendor: vendorId,
+      restaurant: restaurantId,
+    })
+      .populate("vendorProduct", "name unit")
+      .populate("inventoryItem", "name unit quantity averageCost unitCost")
+      .sort({ updatedAt: -1 });
+
+    return res.json({
+      success: true,
+      links: links.map(buildVendorInventoryLinkResponse),
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const upsertVendorInventoryLink = async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+    const vendorProductId = req.params.productId;
+    const restaurantId = sanitizeText(req.body.restaurantId);
+    const inventoryItemId = sanitizeText(req.body.inventoryItemId);
+
+    if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can manage inventory links",
+      });
+    }
+
+    if (
+      !toObjectId(vendorId) ||
+      !toObjectId(vendorProductId) ||
+      !toObjectId(restaurantId) ||
+      !toObjectId(inventoryItemId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid vendor, product, restaurant and inventory item are required",
+      });
+    }
+
+    const allowed = await canAccessRestaurantForVendor(req, vendorId, restaurantId);
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const restaurant = await Restaurant.findById(restaurantId).select("vendorInventoryIntegration");
+    if (!isVendorInventoryIntegrationEnabled(restaurant)) {
+      return res.status(400).json({
+        success: false,
+        message: "Enable vendor inventory integration in restaurant settings first",
+      });
+    }
+
+    const [vendorProduct, inventoryItem] = await Promise.all([
+      VendorProduct.findOne({
+        _id: vendorProductId,
+        vendor: vendorId,
+        isActive: true,
+      }).select("name unit"),
+      Inventory.findOne({
+        _id: inventoryItemId,
+        restaurant: restaurantId,
+        isActive: true,
+      }).select("name unit quantity averageCost unitCost"),
+    ]);
+
+    if (!vendorProduct) {
+      return res.status(404).json({ success: false, message: "Vendor product not found" });
+    }
+
+    if (!inventoryItem) {
+      return res.status(404).json({
+        success: false,
+        message: "Inventory item not found for this restaurant",
+      });
+    }
+
+    const link = await VendorInventoryLink.findOneAndUpdate(
+      { vendor: vendorId, restaurant: restaurantId, vendorProduct: vendorProductId },
+      {
+        vendor: vendorId,
+        restaurant: restaurantId,
+        vendorProduct: vendorProductId,
+        inventoryItem: inventoryItemId,
+        createdByAdmin: req.user.role === "admin" ? req.user.id : null,
+        updatedByAdmin: req.user.role === "admin" ? req.user.id : null,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    )
+      .populate("vendorProduct", "name unit")
+      .populate("inventoryItem", "name unit quantity averageCost unitCost");
+
+    return res.json({
+      success: true,
+      message: "Inventory link saved successfully",
+      link: buildVendorInventoryLinkResponse(link),
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteVendorInventoryLink = async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+    const vendorProductId = req.params.productId;
+    const restaurantId = sanitizeText(req.query.restaurantId || req.body.restaurantId);
+
+    if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can manage inventory links",
+      });
+    }
+
+    if (!toObjectId(vendorId) || !toObjectId(vendorProductId) || !toObjectId(restaurantId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid vendor, product and restaurant are required",
+      });
+    }
+
+    const allowed = await canAccessRestaurantForVendor(req, vendorId, restaurantId);
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const restaurant = await Restaurant.findById(restaurantId).select("vendorInventoryIntegration");
+    if (!isVendorInventoryIntegrationEnabled(restaurant)) {
+      return res.status(400).json({
+        success: false,
+        message: "Vendor inventory integration is disabled for this restaurant",
+      });
+    }
+
+    const link = await VendorInventoryLink.findOneAndDelete({
+      vendor: vendorId,
+      restaurant: restaurantId,
+      vendorProduct: vendorProductId,
+    });
+
+    if (!link) {
+      return res.status(404).json({ success: false, message: "Inventory link not found" });
+    }
+
+    return res.json({
+      success: true,
+      message: "Inventory link removed successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const receiveVendorOrderStock = async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+    const order = await VendorOrder.findOne({
+      _id: req.params.orderId,
+      vendor: vendorId,
+    })
+      .populate("vendor", "name")
+      .populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    const allowed = await canAccessRestaurantForVendor(
+      req,
+      vendorId,
+      order.restaurant?._id || order.restaurant
+    );
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can receive vendor stock",
+      });
+    }
+
+    if (!isVendorInventoryIntegrationEnabled(order.restaurant)) {
+      return res.status(400).json({
+        success: false,
+        message: "Vendor inventory integration is disabled for this restaurant",
+      });
+    }
+
+    if (order.status !== "completed") {
+      return res.status(400).json({
+        success: false,
+        message: "Stock can be received only after the order is completed",
+      });
+    }
+
+    const productIds = order.items.map((item) => toObjectId(item.product)).filter(Boolean);
+    const links = await VendorInventoryLink.find({
+      vendor: vendorId,
+      restaurant: order.restaurant?._id || order.restaurant,
+      vendorProduct: { $in: productIds },
+    }).populate("inventoryItem", "name unit quantity averageCost unitCost isActive");
+
+    const linkMap = new Map(links.map((link) => [String(link.vendorProduct), link]));
+    const summary = {
+      receivedItems: [],
+      skippedItems: [],
+      alreadyReceived: [],
+    };
+
+    for (const item of order.items) {
+      const productId = item.product ? String(item.product) : "";
+      if (!productId) {
+        summary.skippedItems.push({
+          name: item.name,
+          reason: "No vendor product linked to this order item",
+        });
+        continue;
+      }
+
+      if (item.inventoryReceivedAt) {
+        summary.alreadyReceived.push({ name: item.name });
+        continue;
+      }
+
+      const link = linkMap.get(productId);
+      if (!link) {
+        summary.skippedItems.push({
+          name: item.name,
+          reason: "No restaurant inventory link saved",
+        });
+        continue;
+      }
+
+      const inventoryItem = link.inventoryItem;
+      if (!inventoryItem || inventoryItem.isActive === false) {
+        summary.skippedItems.push({
+          name: item.name,
+          reason: "Linked inventory item is missing or inactive",
+        });
+        continue;
+      }
+
+      await applyInventoryReceiptToItem({
+        inventoryItem,
+        order,
+        orderItem: item,
+        user: req.user,
+        vendorName: order.vendor?.name || "",
+      });
+
+      summary.receivedItems.push({
+        name: item.name,
+        inventoryItem: inventoryItem.name,
+        quantity: roundQuantity(Number(item.stockDeductionQuantity || item.quantity || 0)),
+      });
+    }
+
+    if (summary.receivedItems.length === 0 && summary.alreadyReceived.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No linked items were available to receive into inventory",
+        summary,
+      });
+    }
+
+    await order.save();
+    await order.populate(ORDER_SETTLEMENT_POPULATE);
+
+    return res.json({
+      success: true,
+      message:
+        summary.receivedItems.length > 0
+          ? `Received ${summary.receivedItems.length} item(s) into restaurant inventory`
+          : "This order stock was already received earlier",
+      order: buildOrderResponse(order),
+      summary,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -787,7 +1238,7 @@ export const generateVendorOrderBill = async (req, res) => {
     }
 
     await order.populate("vendor", "name email phone");
-    await order.populate("restaurant", "name restaurantCode address phone gstNo billingTemplate");
+    await order.populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT);
 
     return res.json({
       success: true,
@@ -831,7 +1282,7 @@ export const previewVendorSettlement = async (req, res) => {
       })
     )
       .populate("vendor", "name email phone vendorId")
-      .populate("restaurant", "name restaurantCode address phone gstNo billingTemplate")
+      .populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT)
       .sort({ createdAt: 1 });
 
     const totals = normalizeSettlementTotals(buildSettlementTotals(orders));
@@ -891,7 +1342,7 @@ export const createVendorSettlement = async (req, res) => {
       })
     )
       .populate("vendor", "name email phone vendorId")
-      .populate("restaurant", "name restaurantCode address phone gstNo billingTemplate")
+      .populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT)
       .sort({ createdAt: 1 });
 
     if (orders.length === 0) {
@@ -932,7 +1383,7 @@ export const createVendorSettlement = async (req, res) => {
         path: "orders",
         populate: [
           { path: "vendor", select: "name email phone vendorId" },
-          { path: "restaurant", select: "name restaurantCode address phone gstNo billingTemplate" },
+          { path: "restaurant", select: RESTAURANT_VENDOR_ORDER_SELECT },
         ],
       });
 
@@ -961,7 +1412,7 @@ export const getVendorSettlements = async (req, res) => {
         path: "orders",
         populate: [
           { path: "vendor", select: "name email phone vendorId" },
-          { path: "restaurant", select: "name restaurantCode address phone gstNo billingTemplate" },
+          { path: "restaurant", select: RESTAURANT_VENDOR_ORDER_SELECT },
         ],
       })
       .sort({ createdAt: -1 });
@@ -1036,7 +1487,7 @@ export const payVendorSettlement = async (req, res) => {
         path: "orders",
         populate: [
           { path: "vendor", select: "name email phone vendorId" },
-          { path: "restaurant", select: "name restaurantCode address phone gstNo billingTemplate" },
+          { path: "restaurant", select: RESTAURANT_VENDOR_ORDER_SELECT },
         ],
       });
 
@@ -1091,7 +1542,7 @@ export const updateVendorOrderPayment = async (req, res) => {
     }
 
     await order.populate("vendor", "name email phone vendorId");
-    await order.populate("restaurant", "name restaurantCode address phone gstNo billingTemplate");
+    await order.populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT);
     await order.populate(ORDER_SETTLEMENT_POPULATE);
 
     const settlementTotals = normalizeSettlementTotals(
@@ -1127,7 +1578,7 @@ export const updateVendorOrderPayment = async (req, res) => {
     order.paidAt = settlement.paidAt;
     await order.save();
     await order.populate("vendor", "name email phone");
-    await order.populate("restaurant", "name restaurantCode address phone gstNo billingTemplate");
+    await order.populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT);
     await order.populate(ORDER_SETTLEMENT_POPULATE);
 
     res.json({
@@ -1147,7 +1598,7 @@ export const getAdminOrderHistory = async (req, res) => {
     const orders = await VendorOrder.find(query)
       .populate("vendor", "name vendorId")
       .populate("vendor", "name email phone")
-      .populate("restaurant", "name restaurantCode address phone gstNo billingTemplate")
+      .populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT)
       .populate(ORDER_SETTLEMENT_POPULATE)
       .sort({ createdAt: -1 })
       .limit(200);
@@ -1168,7 +1619,7 @@ export const generateVendorOrderPdf = async (req, res) => {
 
     const order = await VendorOrder.findOne({ _id: req.params.orderId, vendor: vendorId })
       .populate("vendor", "name email phone")
-      .populate("restaurant", "name restaurantCode address phone gstNo billingTemplate");
+      .populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT);
     await order?.populate?.(ORDER_SETTLEMENT_POPULATE);
 
     if (!order) {
@@ -1196,7 +1647,7 @@ export const generateVendorOrderPublicPdf = async (req, res) => {
 
     const order = await VendorOrder.findById(orderId)
       .populate("vendor", "name email phone")
-      .populate("restaurant", "name restaurantCode address phone gstNo billingTemplate");
+      .populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT);
     await order?.populate?.(ORDER_SETTLEMENT_POPULATE);
 
     if (!order) {
@@ -1220,9 +1671,13 @@ export default {
   createVendorSettlement,
   getVendorSettlements,
   payVendorSettlement,
+  getVendorInventoryLinks,
+  upsertVendorInventoryLink,
+  deleteVendorInventoryLink,
   updateVendorOrderStatus,
   generateVendorOrderBill,
   updateVendorOrderPayment,
+  receiveVendorOrderStock,
   generateVendorOrderPdf,
   generateVendorOrderPublicPdf,
   getAdminOrderHistory,

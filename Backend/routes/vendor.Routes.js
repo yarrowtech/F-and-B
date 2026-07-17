@@ -8,6 +8,8 @@ import allowRoles from "../middlewares/role.middleware.js";
 const router = express.Router();
 
 router.post("/login", vendorController.loginVendor);
+router.get("/invitations/:token", vendorController.getVendorInvitation);
+router.post("/invitations/:token/accept", vendorController.acceptVendorInvitation);
 router.get(
   "/public/orders/:orderId/pdf",
   vendorOrderController.generateVendorOrderPublicPdf
@@ -93,6 +95,21 @@ router.get(
   allowRoles("admin", "super_admin", "vendor"),
   vendorProductController.getVendorProducts
 );
+router.get(
+  "/:id/inventory-links",
+  allowRoles("admin", "super_admin", "vendor"),
+  vendorOrderController.getVendorInventoryLinks
+);
+router.put(
+  "/:id/inventory-links/:productId",
+  allowRoles("admin", "super_admin"),
+  vendorOrderController.upsertVendorInventoryLink
+);
+router.delete(
+  "/:id/inventory-links/:productId",
+  allowRoles("admin", "super_admin"),
+  vendorOrderController.deleteVendorInventoryLink
+);
 router.post("/:id/products", allowRoles("vendor"), vendorProductController.createVendorProduct);
 router.put(
   "/:id/products/:productId",
@@ -115,6 +132,11 @@ router.put(
   "/:id/orders/:orderId/status",
   allowRoles("admin", "super_admin", "vendor"),
   vendorOrderController.updateVendorOrderStatus
+);
+router.put(
+  "/:id/orders/:orderId/receive-stock",
+  allowRoles("admin", "super_admin"),
+  vendorOrderController.receiveVendorOrderStock
 );
 router.put(
   "/:id/orders/:orderId/bill",

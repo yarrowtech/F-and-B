@@ -10,6 +10,7 @@ import {
   FaUserCircle,
   FaChartBar,
   FaStickyNote,
+  FaCogs,
   FaBars,
   FaTimes,
 } from "react-icons/fa";
@@ -65,6 +66,7 @@ const Sidebar = ({
     { name: "Analytical",          icon: FaChartBar,      key: "analytical" },
     { name: "Reports",             icon: FaChartBar,      key: "reports" },
     { name: "Notes",               icon: FaStickyNote,    key: "notes" },
+    { name: "Settings",            icon: FaCogs,          key: "settings" },
   ];
 
   return (

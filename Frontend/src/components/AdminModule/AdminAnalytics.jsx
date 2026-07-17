@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CircleDollarSign,
   Bar,
   BarChart,
   CartesianGrid,
@@ -45,6 +44,11 @@ const formatCurrency = (value) =>
 
 const formatNumber = (value) =>
   new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Number(value || 0));
+
+const formatPercent = (value) =>
+  `${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1 }).format(
+    Number(value || 0)
+  )}%`;
 
 const formatRole = (role = "") =>
   String(role || "Staff")
@@ -241,6 +245,14 @@ export default function AdminAnalytics() {
     revenue: Number(item.revenue || 0),
   }));
 
+  const topItemsRevenueData = useMemo(
+    () =>
+      [...topItemsChartData]
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 8),
+    [topItemsChartData]
+  );
+
   const vendorChartData = useMemo(
     () =>
       breakdown
@@ -287,6 +299,51 @@ export default function AdminAnalytics() {
       .sort((a, b) => b.spend - a.spend)
       .slice(0, 6);
   }, [breakdown]);
+
+  const restaurantEfficiencyData = useMemo(
+    () =>
+      breakdown
+        .map((item) => {
+          const revenue = Number(item.totalRevenue || 0);
+          const orders = Number(item.totalOrders || 0);
+          const employees = Number(item.totalEmployees || 0);
+          const vendorOutstanding = Number(item.vendorOutstanding || 0);
+          const vendorSpend = Number(item.vendorSpend || 0);
+
+          return {
+            _id: item._id,
+            name: item.name || "Restaurant",
+            revenue,
+            orders,
+            employees,
+            avgBill: orders > 0 ? revenue / orders : 0,
+            revenuePerEmployee: employees > 0 ? revenue / employees : 0,
+            vendorOutstanding,
+            vendorSpend,
+            outstandingRatio:
+              vendorSpend > 0 ? (vendorOutstanding / vendorSpend) * 100 : 0,
+          };
+        })
+        .filter((item) => item.revenue > 0 || item.orders > 0 || item.vendorSpend > 0)
+        .sort((a, b) => b.revenue - a.revenue),
+    [breakdown]
+  );
+
+  const activeRestaurantCount = restaurantEfficiencyData.length;
+  const revenuePerRestaurant =
+    activeRestaurantCount > 0
+      ? Number(summary.totalRevenue || 0) / activeRestaurantCount
+      : 0;
+  const revenuePerEmployee = Number(summary.totalEmployees || 0)
+    ? Number(summary.totalRevenue || 0) / Number(summary.totalEmployees || 1)
+    : 0;
+  const vendorOutstandingRatio = Number(summary.totalVendorSpend || 0)
+    ? (Number(summary.pendingVendorPayables || 0) /
+        Number(summary.totalVendorSpend || 1)) *
+      100
+    : 0;
+  const bestRestaurant = restaurantEfficiencyData[0] || null;
+  const topRevenueItem = topItemsRevenueData[0] || null;
 
   const hasAnyData =
     Number(summary.totalOrders || 0) > 0 ||
@@ -448,6 +505,33 @@ export default function AdminAnalytics() {
               />
             </section>
 
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                label="Active Restaurants"
+                value={formatNumber(activeRestaurantCount)}
+                helper="Restaurants with sales or vendor activity"
+                tone="blue"
+              />
+              <MetricCard
+                label="Revenue / Restaurant"
+                value={formatCurrency(revenuePerRestaurant)}
+                helper="Average across active restaurants"
+                tone="emerald"
+              />
+              <MetricCard
+                label="Revenue / Employee"
+                value={formatCurrency(revenuePerEmployee)}
+                helper="Productivity indicator"
+                tone="amber"
+              />
+              <MetricCard
+                label="Outstanding Ratio"
+                value={formatPercent(vendorOutstandingRatio)}
+                helper="Pending vendor dues vs spend"
+                tone="rose"
+              />
+            </section>
+
             {!hasAnyData && <EmptyState label="No analytics data found for the selected filters." />}
 
             <section className="grid gap-4 xl:grid-cols-2">
@@ -486,6 +570,20 @@ export default function AdminAnalytics() {
                   <Tooltip formatter={(value, name) => (name === "revenue" ? formatCurrency(value) : value)} />
                   <Legend />
                   <Bar dataKey="sold" fill="#f59e0b" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ChartCard>
+
+              <ChartCard
+                title="Top Item Revenue"
+                subtitle="Highest earning menu items in the selected range"
+                data={topItemsRevenueData}
+              >
+                <BarChart data={topItemsRevenueData} margin={{ top: 12, right: 20, left: 0, bottom: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.35} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, angle: -25, textAnchor: "end" }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={formatNumber} />
+                  <Tooltip formatter={(value) => formatCurrency(value)} />
+                  <Bar dataKey="revenue" fill="#2563eb" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ChartCard>
 
@@ -584,6 +682,104 @@ export default function AdminAnalytics() {
                   <Scatter data={topVendorsData} fill="#7c3aed" />
                 </ScatterChart>
               </ChartCard>
+
+              <ChartCard
+                title="Restaurant Efficiency"
+                subtitle="Orders vs paid revenue by restaurant"
+                data={restaurantEfficiencyData}
+                fullWidth
+              >
+                <ScatterChart margin={{ top: 12, right: 20, left: 0, bottom: 18 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.35} />
+                  <XAxis
+                    type="number"
+                    dataKey="orders"
+                    name="Orders"
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis
+                    type="number"
+                    dataKey="revenue"
+                    name="Revenue"
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={formatNumber}
+                  />
+                  <Tooltip
+                    cursor={{ strokeDasharray: "3 3" }}
+                    formatter={(value, name) =>
+                      name === "revenue" ||
+                      name === "avgBill" ||
+                      name === "revenuePerEmployee"
+                        ? formatCurrency(value)
+                        : formatNumber(value)
+                    }
+                    labelFormatter={() => ""}
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const restaurant = payload[0]?.payload;
+                      if (!restaurant) return null;
+                      return (
+                        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                          <p className="font-bold text-slate-900 dark:text-white">{restaurant.name}</p>
+                          <p className="mt-2 text-slate-700 dark:text-slate-200">
+                            Revenue: {formatCurrency(restaurant.revenue)}
+                          </p>
+                          <p className="text-slate-700 dark:text-slate-200">
+                            Orders: {formatNumber(restaurant.orders)}
+                          </p>
+                          <p className="text-slate-700 dark:text-slate-200">
+                            Avg Bill: {formatCurrency(restaurant.avgBill)}
+                          </p>
+                          <p className="text-slate-700 dark:text-slate-200">
+                            Revenue / Employee: {formatCurrency(restaurant.revenuePerEmployee)}
+                          </p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Scatter data={restaurantEfficiencyData} fill="#0f766e" />
+                </ScatterChart>
+              </ChartCard>
+            </section>
+
+            <section className="grid gap-4 xl:grid-cols-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                  Top Restaurant
+                </p>
+                <h3 className="mt-2 text-lg font-black">
+                  {bestRestaurant?.name || "No data"}
+                </h3>
+                <div className="mt-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
+                  <p>Revenue: {formatCurrency(bestRestaurant?.revenue)}</p>
+                  <p>Orders: {formatNumber(bestRestaurant?.orders)}</p>
+                  <p>Avg Bill: {formatCurrency(bestRestaurant?.avgBill)}</p>
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                  Top Revenue Item
+                </p>
+                <h3 className="mt-2 text-lg font-black">
+                  {topRevenueItem?.name || "No data"}
+                </h3>
+                <div className="mt-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
+                  <p>Revenue: {formatCurrency(topRevenueItem?.revenue)}</p>
+                  <p>Units Sold: {formatNumber(topRevenueItem?.sold)}</p>
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                  Vendor Risk Snapshot
+                </p>
+                <h3 className="mt-2 text-lg font-black">
+                  {formatPercent(vendorOutstandingRatio)}
+                </h3>
+                <div className="mt-3 space-y-1 text-sm text-slate-600 dark:text-slate-300">
+                  <p>Pending Dues: {formatCurrency(summary.pendingVendorPayables)}</p>
+                  <p>Total Spend: {formatCurrency(summary.totalVendorSpend)}</p>
+                </div>
+              </div>
             </section>
 
             <section className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -635,6 +831,49 @@ export default function AdminAnalytics() {
                                 ))}
                               </div>
                             )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+                <h3 className="text-base font-bold">Efficiency Snapshot</h3>
+                <p className="mt-1 text-xs font-medium text-slate-500">
+                  Average bill, revenue per employee, and vendor due pressure by restaurant.
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800">
+                    <tr>
+                      <th className="px-4 py-3">Restaurant</th>
+                      <th className="px-4 py-3">Avg Bill</th>
+                      <th className="px-4 py-3">Revenue / Employee</th>
+                      <th className="px-4 py-3">Vendor Spend</th>
+                      <th className="px-4 py-3">Outstanding Ratio</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {restaurantEfficiencyData.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="px-4 py-8 text-center font-semibold text-slate-400">
+                          No efficiency data found.
+                        </td>
+                      </tr>
+                    ) : (
+                      restaurantEfficiencyData.map((restaurant) => (
+                        <tr key={`${restaurant._id}-efficiency`} className="align-top">
+                          <td className="px-4 py-3 font-bold">{restaurant.name}</td>
+                          <td className="px-4 py-3">{formatCurrency(restaurant.avgBill)}</td>
+                          <td className="px-4 py-3">{formatCurrency(restaurant.revenuePerEmployee)}</td>
+                          <td className="px-4 py-3">{formatCurrency(restaurant.vendorSpend)}</td>
+                          <td className="px-4 py-3 font-bold text-rose-700 dark:text-rose-300">
+                            {formatPercent(restaurant.outstandingRatio)}
                           </td>
                         </tr>
                       ))

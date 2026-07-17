@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
 import Bill from "../models/Bill.model.js";
+import Inventory from "../models/Inventory.model.js";
 import InventoryLog from "../models/InventoryLog.model.js";
 import KotPrintJob from "../models/KotPrintJob.model.js";
 import Menu from "../models/Menu.model.js";
@@ -50,6 +51,7 @@ const REPORTS = [
   ["item-month-wise", "Item Month Wise", "menu", "itemMonth"],
   ["product-wise-sale", "Product Wise Sale", "menu", "productSales"],
   ["cost-report", "Cost Report", "menu", "inventoryUsage"],
+  ["inventory-report", "Inventory Report", "menu", "inventoryStock"],
   ["liquor-report", "Liquor Report", "operations", "liquorDetail"],
   ["liquor-summary", "Liquor Summary", "operations", "liquorSummary"],
   ["time-periodical-report", "Time Periodical Report", "operations", "hourlySales"],
@@ -1046,6 +1048,7 @@ const runReportDetails = async (context, report, reportData) => {
     "nonMoving",
     "menuPrices",
     "inventoryUsage",
+    "inventoryStock",
     "kotAnalysis",
     "cancelledOrders",
   ]);
@@ -2081,19 +2084,143 @@ const runSpecialReport = async (context, report) => {
     }
     case "inventoryUsage": {
       const rows = await InventoryLog.aggregate([
-        { $match: { restaurant: { $in: context.restaurantIds }, createdAt: { $gte: context.start, $lte: context.end }, quantityAdded: { $lt: 0 } } },
+        {
+          $match: {
+            restaurant: { $in: context.restaurantIds },
+            createdAt: { $gte: context.start, $lte: context.end },
+            quantityAdded: { $lt: 0 },
+          },
+        },
         { $lookup: { from: "inventories", localField: "item", foreignField: "_id", as: "itemDoc" } },
         { $unwind: { path: "$itemDoc", preserveNullAndEmptyArrays: true } },
-        { $group: { _id: "$item", item: { $first: "$itemDoc.name" }, unit: { $first: "$unit" }, consumed: { $sum: { $abs: "$quantityAdded" } } } },
+        {
+          $group: {
+            _id: "$item",
+            item: { $first: "$itemDoc.name" },
+            unit: { $first: "$unit" },
+            consumed: { $sum: { $abs: "$quantityAdded" } },
+            foodCost: {
+              $sum: {
+                $cond: [
+                  { $gt: [{ $ifNull: ["$totalCost", 0] }, 0] },
+                  { $ifNull: ["$totalCost", 0] },
+                  {
+                    $multiply: [
+                      { $abs: "$quantityAdded" },
+                      { $ifNull: ["$unitCost", { $ifNull: ["$itemDoc.averageCost", "$itemDoc.unitCost"] }] },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
         { $sort: { consumed: -1 } },
         { $limit: context.limit },
-        { $project: { _id: 0, item: { $ifNull: ["$item", "Deleted Inventory Item"] }, unit: 1, consumed: { $round: ["$consumed", 2] } } },
+        {
+          $project: {
+            _id: 0,
+            item: { $ifNull: ["$item", "Deleted Inventory Item"] },
+            unit: 1,
+            consumed: { $round: ["$consumed", 2] },
+            foodCost: { $round: ["$foodCost", 2] },
+          },
+        },
       ]);
-      return reportResponse(report, ["item", "unit", "consumed"], rows, {
+      return reportResponse(report, ["item", "unit", "consumed", "foodCost"], rows, {
         items: rows.length,
         totalConsumed: money(rows.reduce((sum, row) => sum + Number(row.consumed || 0), 0)),
-        message: "Monetary food cost is unavailable because inventory unit cost is not stored.",
+        totalFoodCost: money(rows.reduce((sum, row) => sum + Number(row.foodCost || 0), 0)),
       });
+    }
+    case "inventoryStock": {
+      const rows = await Inventory.aggregate([
+        {
+          $match: {
+            restaurant: { $in: context.restaurantIds },
+            isActive: true,
+          },
+        },
+        {
+          $lookup: {
+            from: "restaurants",
+            localField: "restaurant",
+            foreignField: "_id",
+            as: "restaurantDoc",
+          },
+        },
+        { $unwind: { path: "$restaurantDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            stockValue: {
+              $multiply: [
+                { $ifNull: ["$quantity", 0] },
+                { $ifNull: ["$averageCost", "$unitCost"] },
+              ],
+            },
+            lowStock: {
+              $cond: [
+                { $lte: [{ $ifNull: ["$quantity", 0] }, { $ifNull: ["$lowStockThreshold", 0] }] },
+                "Low",
+                "OK",
+              ],
+            },
+          },
+        },
+        { $sort: { restaurant: 1, category: 1, name: 1 } },
+        { $limit: context.limit },
+        {
+          $project: {
+            _id: 0,
+            restaurant: { $ifNull: ["$restaurantDoc.name", "Restaurant"] },
+            item: "$name",
+            category: { $ifNull: ["$category", "-"] },
+            unit: { $ifNull: ["$unit", "-"] },
+            quantity: { $round: [{ $ifNull: ["$quantity", 0] }, 3] },
+            averageCost: { $round: [{ $ifNull: ["$averageCost", "$unitCost"] }, 2] },
+            lastPurchasePrice: { $round: [{ $ifNull: ["$lastPurchasePrice", 0] }, 2] },
+            stockValue: { $round: ["$stockValue", 2] },
+            lowStockThreshold: { $round: [{ $ifNull: ["$lowStockThreshold", 0] }, 3] },
+            status: "$lowStock",
+            lastUpdated: {
+              $dateToString: {
+                date: "$updatedAt",
+                format: "%Y-%m-%d %H:%M",
+                timezone: BUSINESS_TIMEZONE,
+              },
+            },
+          },
+        },
+      ]);
+
+      return reportResponse(
+        report,
+        [
+          "restaurant",
+          "item",
+          "category",
+          "unit",
+          "quantity",
+          "averageCost",
+          "lastPurchasePrice",
+          "stockValue",
+          "lowStockThreshold",
+          "status",
+          "lastUpdated",
+        ],
+        rows,
+        {
+          items: rows.length,
+          totalQuantity: money(
+            rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0)
+          ),
+          totalStockValue: money(
+            rows.reduce((sum, row) => sum + Number(row.stockValue || 0), 0)
+          ),
+          lowStockItems: rows.filter((row) => row.status === "Low").length,
+          message: "This report shows the current inventory snapshot for the selected restaurant.",
+        }
+      );
     }
     case "projectedSales": {
       const [row = {}] = await Bill.aggregate([

@@ -1710,6 +1710,8 @@ const deductInventoryForOrder = async (order, session, user = {}) => {
         throw new Error(`Insufficient stock for ${inventory.name}`);
       }
 
+      const previousQuantity = Number(inventory.quantity || 0);
+      const unitCost = Number(inventory.averageCost || inventory.unitCost || 0);
       inventory.quantity -= requiredQty;
       inventory.lastUpdatedBy = user.id || inventory.lastUpdatedBy;
       await inventory.save({ session });
@@ -1720,8 +1722,15 @@ const deductInventoryForOrder = async (order, session, user = {}) => {
             item: inventory._id,
             restaurant: inventory.restaurant,
             quantityAdded: -requiredQty,
+            previousQuantity,
+            newQuantity: Number(inventory.quantity || 0),
             unit: inventory.unit,
-            action: "UPDATE",
+            action: "CONSUME",
+            unitCost,
+            totalCost: Math.round((requiredQty * unitCost + Number.EPSILON) * 100) / 100,
+            previousAverageCost: unitCost,
+            newAverageCost: unitCost,
+            reason: "Order item inventory deduction",
             addedBy: user.id || null,
             addedByName: user.name || "",
           },

@@ -653,6 +653,8 @@ const deductInventoryForManualBill = async ({
         throw new Error(`Insufficient stock for ${inventory.name}`);
       }
 
+      const previousQuantity = Number(inventory.quantity || 0);
+      const unitCost = Number(inventory.averageCost || inventory.unitCost || 0);
       inventory.quantity -= requiredQty;
       inventory.lastUpdatedBy = userId;
       await inventory.save({ session });
@@ -663,8 +665,15 @@ const deductInventoryForManualBill = async ({
             item: inventory._id,
             restaurant: restaurantId,
             quantityAdded: -requiredQty,
+            previousQuantity,
+            newQuantity: Number(inventory.quantity || 0),
             unit: inventory.unit,
-            action: "UPDATE",
+            action: "CONSUME",
+            unitCost,
+            totalCost: Math.round((requiredQty * unitCost + Number.EPSILON) * 100) / 100,
+            previousAverageCost: unitCost,
+            newAverageCost: unitCost,
+            reason: "Billing inventory deduction",
             addedBy: userId,
             addedByName: userName || "",
           },

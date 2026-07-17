@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   History,
+  Link2,
   Minus,
   Package,
   Plus,
@@ -17,6 +18,7 @@ import {
   XCircle,
 } from "lucide-react";
 import API from "../../services/api";
+import { getInventory } from "../../services/inventory.service";
 
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-IN", {
@@ -33,6 +35,22 @@ const sanitizeRate = (value, fallback = 0) => {
 };
 
 const roundMoney = (value) => Number(Number(value || 0).toFixed(2));
+
+const getOrderProductId = (item) =>
+  typeof item?.product === "string" ? item.product : item?.product?._id || item?.product || "";
+
+const getOrderUniqueProducts = (order) => {
+  const seen = new Set();
+  return (Array.isArray(order?.items) ? order.items : []).filter((item) => {
+    const productId = String(getOrderProductId(item) || "");
+    if (!productId || seen.has(productId)) return false;
+    seen.add(productId);
+    return true;
+  });
+};
+
+const isVendorInventoryIntegrationEnabledForRestaurant = (restaurant) =>
+  Boolean(restaurant?.vendorInventoryIntegration?.enabled);
 
 const getOrderBillSummary = (order) =>
   order?.billSummary || {
@@ -832,11 +850,163 @@ function OrderStatusPill({ status }) {
   );
 }
 
+function InventoryLinkModal({
+  order,
+  inventoryItems,
+  linksByProductId,
+  savingProductId,
+  receivingOrderId,
+  onSaveLink,
+  onRemoveLink,
+  onReceiveStock,
+  onClose,
+}) {
+  if (!order) return null;
+
+  const uniqueProducts = getOrderUniqueProducts(order);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-neutral-800">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5 dark:border-neutral-700">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-400">
+              Inventory Link Setup
+            </p>
+            <h2 className="mt-1 text-xl font-bold text-gray-900 dark:text-gray-100">
+              {order.orderNo}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {order.restaurant?.name || "Restaurant"} · Link vendor items to restaurant inventory
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <div className="mb-4 rounded-2xl border border-green-100 bg-green-50/70 p-4 text-sm dark:border-green-900 dark:bg-green-950/20">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-gray-100">
+                  {order.inventoryReceipt?.receivedItems || 0} / {order.inventoryReceipt?.totalItems || 0} item(s) received
+                </p>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Only linked items will move into this restaurant inventory.
+                </p>
+              </div>
+              <button
+                onClick={() => onReceiveStock(order)}
+                disabled={receivingOrderId === order.id || order.status !== "completed"}
+                className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Package size={15} />
+                {receivingOrderId === order.id ? "Receiving..." : "Receive Stock"}
+              </button>
+            </div>
+            {order.status !== "completed" && (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                Complete the order first, then receive stock into inventory.
+              </p>
+            )}
+          </div>
+
+          {uniqueProducts.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400 dark:border-neutral-700">
+              No vendor products found in this order.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {uniqueProducts.map((item) => {
+                const productId = String(getOrderProductId(item));
+                const currentLink = linksByProductId[productId] || null;
+                const receivedAt = item.inventoryReceivedAt || null;
+
+                return (
+                  <div
+                    key={productId}
+                    className="rounded-2xl border border-gray-100 bg-gray-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-900/30"
+                  >
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">{item.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Qty {item.quantity}
+                          {item.unit ? ` ${item.unit}` : ""}
+                          {receivedAt ? ` · received ${formatDateTime(receivedAt)}` : ""}
+                        </p>
+                      </div>
+
+                      <div className="flex w-full flex-col gap-2 lg:w-[480px] lg:flex-row">
+                        <select
+                          value={currentLink?.inventoryItemId || ""}
+                          onChange={(event) => {
+                            const inventoryItemId = event.target.value;
+                            if (!inventoryItemId) return;
+                            onSaveLink(order, productId, inventoryItemId);
+                          }}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                        >
+                          <option value="">Select restaurant inventory item</option>
+                          {inventoryItems.map((inventoryItem) => (
+                            <option key={inventoryItem._id || inventoryItem.id} value={inventoryItem._id || inventoryItem.id}>
+                              {inventoryItem.name} ({inventoryItem.unit}) · Stock {Number(inventoryItem.quantity || 0).toFixed(3)}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => onRemoveLink(order, productId)}
+                          disabled={!currentLink || savingProductId === productId}
+                          className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
+                        >
+                          {savingProductId === productId ? "Saving..." : "Unlink"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                      <span
+                        className={`rounded-full px-2.5 py-1 font-semibold ${
+                          currentLink
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                        }`}
+                      >
+                        {currentLink
+                          ? `Linked to ${currentLink.inventoryItem?.name || "inventory item"}`
+                          : "Not linked"}
+                      </span>
+                      {receivedAt && (
+                        <span className="rounded-full bg-blue-100 px-2.5 py-1 font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                          Received
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VendorOrderHistoryModal({
   vendor,
   orders,
   updatingOrderId,
+  receivingOrderId,
   onUpdateStatus,
+  onManageLinks,
+  onReceiveStock,
   onViewBill,
   onClose,
 }) {
@@ -906,8 +1076,32 @@ function VendorOrderHistoryModal({
                         <OrderStatusPill status={order.status} />
                       </td>
                       <td className="px-4 py-3">
-                        {order.status === "ready" ? (
-                          <div className="flex gap-2">
+                        {!isVendorInventoryIntegrationEnabledForRestaurant(order.restaurant) ? (
+                          <div className="flex flex-wrap gap-2">
+                            <span className="inline-flex items-center rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-600 dark:bg-neutral-700 dark:text-gray-300">
+                              Manual Inventory
+                            </span>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onViewBill(order);
+                              }}
+                              className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
+                            >
+                              View Bill
+                            </button>
+                          </div>
+                        ) : order.status === "ready" ? (
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onManageLinks(order);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+                            >
+                              <Link2 size={12} /> Stock Links
+                            </button>
                             <button
                               onClick={(event) => {
                                 event.stopPropagation();
@@ -930,26 +1124,68 @@ function VendorOrderHistoryModal({
                             </button>
                           </div>
                         ) : order.status === "processing" ? (
-                          <button
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onUpdateStatus(order, "cancelled");
-                            }}
-                            disabled={updatingOrderId === order.id}
-                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
-                          >
-                            <XCircle size={12} /> Cancel
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onManageLinks(order);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+                            >
+                              <Link2 size={12} /> Stock Links
+                            </button>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onUpdateStatus(order, "cancelled");
+                              }}
+                              disabled={updatingOrderId === order.id}
+                              className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
+                            >
+                              <XCircle size={12} /> Cancel
+                            </button>
+                          </div>
                         ) : (
-                          <button
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onViewBill(order);
-                            }}
-                            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
-                          >
-                            View Bill
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onManageLinks(order);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+                            >
+                              <Link2 size={12} /> Stock Links
+                            </button>
+                            {order.status === "completed" && (
+                              <button
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onReceiveStock(order);
+                                }}
+                                disabled={
+                                  receivingOrderId === order.id ||
+                                  Boolean(order.inventoryReceipt?.isFullyReceived)
+                                }
+                                className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-2.5 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-50 disabled:opacity-60 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-950/30"
+                              >
+                                <Package size={12} />
+                                {order.inventoryReceipt?.isFullyReceived
+                                  ? "Received"
+                                  : receivingOrderId === order.id
+                                    ? "Receiving..."
+                                    : "Receive Stock"}
+                              </button>
+                            )}
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onViewBill(order);
+                              }}
+                              className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
+                            >
+                              View Bill
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -979,6 +1215,11 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
   const [showOrderHistory, setShowOrderHistory] = useState(false);
   const [showSettlements, setShowSettlements] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState("");
+  const [receivingOrderId, setReceivingOrderId] = useState("");
+  const [linkOrder, setLinkOrder] = useState(null);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [linksByProductId, setLinksByProductId] = useState({});
+  const [savingLinkProductId, setSavingLinkProductId] = useState("");
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [discountType, setDiscountType] = useState("none");
@@ -1037,6 +1278,14 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorId]);
 
+  useEffect(() => {
+    if (!linkOrder?.id) return;
+    const refreshed = orders.find((order) => order.id === linkOrder.id);
+    if (refreshed) {
+      setLinkOrder(refreshed);
+    }
+  }, [orders, linkOrder?.id]);
+
   const assignedRestaurants = useMemo(() => {
     if (!assignmentVendor) return [];
     return assignmentVendor.accessibleRestaurants?.length
@@ -1047,6 +1296,8 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
   const selectedRestaurant = assignedRestaurants.find(
     (restaurant) => restaurant._id === selectedRestaurantId
   );
+  const selectedRestaurantVendorInventoryEnabled =
+    isVendorInventoryIntegrationEnabledForRestaurant(selectedRestaurant);
 
   const filteredProducts = useMemo(() => {
     const q = productSearch.trim().toLowerCase();
@@ -1143,6 +1394,111 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
     }
   };
 
+  const loadInventoryLinksForOrder = async (order) => {
+    const restaurantId = order?.restaurant?._id || order?.restaurant?.id || "";
+    if (!restaurantId) {
+      notify("Restaurant not found for this order", true);
+      return;
+    }
+
+    if (!isVendorInventoryIntegrationEnabledForRestaurant(order?.restaurant)) {
+      notify("This restaurant is using manual inventory mode", true);
+      return;
+    }
+
+    try {
+      const [loadedInventory, linksRes] = await Promise.all([
+        getInventory(restaurantId),
+        API.get(`/vendor/${sourceVendorId}/inventory-links`, {
+          params: { restaurantId },
+        }),
+      ]);
+
+      const normalizedLinks = Object.fromEntries(
+        (Array.isArray(linksRes.data?.links) ? linksRes.data.links : []).map((link) => [
+          String(link.vendorProductId),
+          link,
+        ])
+      );
+
+      setInventoryItems(loadedInventory);
+      setLinksByProductId(normalizedLinks);
+      setLinkOrder(order);
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to load inventory links", true);
+    }
+  };
+
+  const handleSaveInventoryLink = async (order, productId, inventoryItemId) => {
+    try {
+      setSavingLinkProductId(productId);
+      const restaurantId = order?.restaurant?._id || order?.restaurant?.id || "";
+      const res = await API.put(`/vendor/${sourceVendorId}/inventory-links/${productId}`, {
+        restaurantId,
+        inventoryItemId,
+      });
+
+      const link = res.data?.link;
+      if (link) {
+        setLinksByProductId((prev) => ({
+          ...prev,
+          [String(productId)]: link,
+        }));
+      }
+
+      notify("Inventory link saved");
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to save inventory link", true);
+    } finally {
+      setSavingLinkProductId("");
+    }
+  };
+
+  const handleRemoveInventoryLink = async (order, productId) => {
+    try {
+      setSavingLinkProductId(productId);
+      const restaurantId = order?.restaurant?._id || order?.restaurant?.id || "";
+      await API.delete(`/vendor/${sourceVendorId}/inventory-links/${productId}`, {
+        params: { restaurantId },
+      });
+
+      setLinksByProductId((prev) => {
+        const next = { ...prev };
+        delete next[String(productId)];
+        return next;
+      });
+
+      notify("Inventory link removed");
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to remove inventory link", true);
+    } finally {
+      setSavingLinkProductId("");
+    }
+  };
+
+  const handleReceiveOrderStock = async (order) => {
+    if (!isVendorInventoryIntegrationEnabledForRestaurant(order?.restaurant)) {
+      notify("This restaurant is using manual inventory mode", true);
+      return;
+    }
+
+    try {
+      setReceivingOrderId(order.id);
+      const res = await API.put(`/vendor/${sourceVendorId}/orders/${order.id}/receive-stock`);
+      const updatedOrder = res.data?.order || order;
+      setLinkOrder((prev) => (prev?.id === order.id ? updatedOrder : prev));
+      notify("Stock received into restaurant inventory");
+      await loadData();
+      if (linkOrder?.id === order.id) {
+        await loadInventoryLinksForOrder(updatedOrder);
+      }
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to receive stock", true);
+    } finally {
+      setReceivingOrderId("");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1212,6 +1568,19 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
               </option>
             ))}
           </select>
+        )}
+        {selectedRestaurant && (
+          <div
+            className={`mt-3 rounded-xl border px-3 py-2 text-sm ${
+              selectedRestaurantVendorInventoryEnabled
+                ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/20 dark:text-green-300"
+                : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-300"
+            }`}
+          >
+            {selectedRestaurantVendorInventoryEnabled
+              ? "Vendor inventory integration is ON for this restaurant. Stock links and receive-stock flow are enabled."
+              : "Vendor inventory integration is OFF for this restaurant. Orders still work, but inventory stays manual."}
+          </div>
         )}
       </div>
 
@@ -1527,12 +1896,29 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
           vendor={vendor}
           orders={orders}
           updatingOrderId={updatingOrderId}
+          receivingOrderId={receivingOrderId}
           onUpdateStatus={handleUpdateOrderStatus}
+          onManageLinks={loadInventoryLinksForOrder}
+          onReceiveStock={handleReceiveOrderStock}
           onViewBill={(order) => {
             setReceiptOrder(order);
             setShowOrderHistory(false);
           }}
           onClose={() => setShowOrderHistory(false)}
+        />
+      )}
+
+      {linkOrder && (
+        <InventoryLinkModal
+          order={linkOrder}
+          inventoryItems={inventoryItems}
+          linksByProductId={linksByProductId}
+          savingProductId={savingLinkProductId}
+          receivingOrderId={receivingOrderId}
+          onSaveLink={handleSaveInventoryLink}
+          onRemoveLink={handleRemoveInventoryLink}
+          onReceiveStock={handleReceiveOrderStock}
+          onClose={() => setLinkOrder(null)}
         />
       )}
     </div>

@@ -36,11 +36,9 @@ const initialForm = {
     landmark: "",
     city: "",
     state: "",
-    pincode: "",
-    country: "India",
+      pincode: "",
+      country: "India",
   },
-  password: "",
-  confirmPassword: "",
   restaurantIds: [],
 };
 
@@ -189,9 +187,6 @@ function VendorModal({
   onToggleRestaurant,
   onSubmit,
 }) {
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
       <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-neutral-800">
@@ -303,52 +298,8 @@ function VendorModal({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="relative">
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Password
-              </label>
-              <input
-                type={showPassword ? "text" : "password"}
-                value={form.password}
-                onChange={(e) => onChange("password", e.target.value)}
-                placeholder="Strong password"
-                className={`${fieldClass} pr-11`}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((prev) => !prev)}
-                className="absolute right-3 top-[38px] text-gray-400 transition hover:text-gray-600 dark:hover:text-gray-200"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-              {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password}</p>}
-            </div>
-          </div>
-
-          <div className="mt-4 relative">
-            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Confirm Password
-            </label>
-            <input
-              type={showConfirmPassword ? "text" : "password"}
-              value={form.confirmPassword}
-              onChange={(e) => onChange("confirmPassword", e.target.value)}
-              placeholder="Re-enter password"
-              className={`${fieldClass} pr-11`}
-            />
-            <button
-              type="button"
-              onClick={() => setShowConfirmPassword((prev) => !prev)}
-              className="absolute right-3 top-[38px] text-gray-400 transition hover:text-gray-600 dark:hover:text-gray-200"
-              aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
-            >
-              {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-            {errors.confirmPassword && (
-              <p className="mt-1 text-xs text-red-500">{errors.confirmPassword}</p>
-            )}
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200">
+            The vendor will receive an invitation link to complete account setup and create their own password.
           </div>
 
           <div className="mt-6 rounded-3xl border border-gray-200 bg-gray-50/80 p-4 dark:border-neutral-700 dark:bg-neutral-900/40">
@@ -1025,6 +976,80 @@ function DeleteConfirmModal({ vendor, deleting, onCancel, onConfirm }) {
   );
 }
 
+function InvitationLinkModal({ data, onClose }) {
+  if (!data) return null;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(data.invitationLink);
+    } catch {
+      window.prompt("Copy invitation link", data.invitationLink);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl dark:bg-neutral-800">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-green-600 dark:text-green-400">
+              Invitation Ready
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-gray-900 dark:text-gray-100">
+              Share vendor setup link
+            </h2>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              The vendor can open this link, create a password, and activate their account.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-900">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Vendor ID</p>
+            <p className="mt-1 text-sm font-bold text-gray-900 dark:text-gray-100">{data.vendorId || "-"}</p>
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-900">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Email</p>
+            <p className="mt-1 text-sm font-bold text-gray-900 dark:text-gray-100">{data.email}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-neutral-700 dark:bg-neutral-900">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Invitation Link
+          </p>
+          <p className="mt-2 break-all text-sm font-medium text-gray-700 dark:text-gray-200">
+            {data.invitationLink}
+          </p>
+        </div>
+
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            onClick={onClose}
+            className="rounded-2xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-neutral-700"
+          >
+            Close
+          </button>
+          <button
+            onClick={handleCopy}
+            className="rounded-2xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700"
+          >
+            Copy Link
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const isVendorUpgradeLocked = (vendor) => Boolean(vendor?.upgradedToGlobalVendor);
 
 export default function AdminVendorManagement() {
@@ -1041,6 +1066,7 @@ export default function AdminVendorManagement() {
   const [isError, setIsError] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [invitationData, setInvitationData] = useState(null);
 
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [detailMode, setDetailMode] = useState("view");
@@ -1122,21 +1148,13 @@ export default function AdminVendorManagement() {
     const nextErrors = {};
 
     if (!form.name.trim()) nextErrors.name = "Vendor name is required";
+    if (!form.email.trim()) nextErrors.email = "Email is required for invitation";
     if (form.restaurantIds.length === 0) nextErrors.restaurantIds = "Select at least one restaurant";
-    if (!form.password) nextErrors.password = "Password is required";
-    else if (!STRONG_PASSWORD_REGEX.test(form.password)) {
-      nextErrors.password =
-        "Use 8+ chars with uppercase, lowercase, number, and special character";
-    }
     if (form.governmentId.trim() && !form.governmentIdType) {
       nextErrors.governmentIdType = "Select an ID type";
     }
     if (form.governmentIdType && !form.governmentId.trim()) {
       nextErrors.governmentId = "Enter the selected ID number";
-    }
-    if (!form.confirmPassword) nextErrors.confirmPassword = "Confirm password is required";
-    else if (form.password !== form.confirmPassword) {
-      nextErrors.confirmPassword = "Passwords do not match";
     }
     if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
       nextErrors.email = "Enter a valid email";
@@ -1187,19 +1205,27 @@ export default function AdminVendorManagement() {
         governmentIdType: form.governmentIdType,
         governmentId: form.governmentId.trim(),
         address: form.address,
-        password: form.password,
         accessibleRestaurantIds: form.restaurantIds,
         restaurantId: form.restaurantIds[0],
       };
 
       const res = await API.post("/vendor/local", payload);
       const createdVendorId = res.data?.vendor?.vendorId;
+      const invitationLink = res.data?.invitationLink || "";
 
       notify(
         createdVendorId
-          ? `Local vendor created successfully. Login ID: ${createdVendorId}`
+          ? `Local vendor created successfully. Invitation ready for ${createdVendorId}`
           : "Local vendor created successfully"
       );
+      if (invitationLink) {
+        setInvitationData({
+          vendorName: form.name.trim(),
+          vendorId: createdVendorId || "",
+          email: form.email.trim(),
+          invitationLink,
+        });
+      }
       setForm(initialForm);
       setErrors({});
       setSubmitError("");
@@ -1693,6 +1719,13 @@ export default function AdminVendorManagement() {
           onChange={handleFieldChange}
           onToggleRestaurant={toggleRestaurantSelection}
           onSubmit={handleCreateVendor}
+        />
+      )}
+
+      {invitationData && (
+        <InvitationLinkModal
+          data={invitationData}
+          onClose={() => setInvitationData(null)}
         />
       )}
 

@@ -192,12 +192,14 @@ export const addStock = async (
   restaurantId,
   id,
   quantity,
-  effectiveDate = ""
+  effectiveDate = "",
+  unitCost = "",
+  reason = ""
 ) => {
 
   const res = await api.put(
     `/inventory/${restaurantId}/${id}/add-stock`,
-    { quantity, effectiveDate }
+    { quantity, effectiveDate, unitCost, reason }
   );
 
   return res.data?.data || null;

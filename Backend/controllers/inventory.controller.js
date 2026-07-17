@@ -144,8 +144,19 @@ const roundQuantity = (value) => {
   return Object.is(rounded, -0) ? 0 : rounded;
 };
 
+const roundMoney = (value) => {
+  const rounded = Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+  return Object.is(rounded, -0) ? 0 : rounded;
+};
+
 const getLogQuantity = (log) =>
   log.action === "DELETE" ? 0 : Number(log.quantityAdded || 0);
+
+const normalizeCost = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? roundMoney(parsed) : null;
+};
 
 const needsBackdateApproval = (date) => {
   const yesterday = startOfDay(new Date());
@@ -173,7 +184,9 @@ const createStockApprovalRequest = async ({
   restaurantId,
   mode,
   requestedQuantity,
+  unitCost,
   effectiveDate,
+  reason,
   user,
 }) =>
   InventoryStockApproval.create({
@@ -181,6 +194,8 @@ const createStockApprovalRequest = async ({
     restaurant: restaurantId,
     mode,
     requestedQuantity,
+    unitCost: roundMoney(unitCost),
+    reason: String(reason || "").trim(),
     effectiveDate,
     itemName: item.name,
     unit: item.unit,
@@ -194,14 +209,30 @@ const applyStockChange = async ({
   restaurantId,
   mode,
   quantity,
+  unitCost,
   effectiveDate,
+  reason,
   user,
 }) => {
   let diff;
+  const previousQuantity = Number(item.quantity || 0);
+  const previousAverageCost = roundMoney(item.averageCost || item.unitCost || 0);
+  let normalizedUnitCost = normalizeCost(unitCost);
 
   if (mode === "ADD") {
     diff = Number(quantity);
-    item.quantity = Number(item.quantity || 0) + diff;
+    item.quantity = previousQuantity + diff;
+    if (normalizedUnitCost === null) {
+      normalizedUnitCost = previousAverageCost;
+    }
+    const previousValue = previousQuantity * previousAverageCost;
+    const addedValue = diff * Number(normalizedUnitCost || 0);
+    const nextQuantity = Number(item.quantity || 0);
+    const nextAverageCost =
+      nextQuantity > 0 ? roundMoney((previousValue + addedValue) / nextQuantity) : 0;
+    item.lastPurchasePrice = roundMoney(normalizedUnitCost || 0);
+    item.averageCost = nextAverageCost;
+    item.unitCost = nextAverageCost;
   } else {
     const quantityAtEffectiveDate = await getQuantityAtEffectiveDate(
       item,
@@ -209,18 +240,37 @@ const applyStockChange = async ({
       effectiveDate
     );
     diff = Number(quantity) - quantityAtEffectiveDate;
-    item.quantity = Number(item.quantity || 0) + diff;
+    item.quantity = previousQuantity + diff;
+    if (normalizedUnitCost !== null) {
+      item.averageCost = roundMoney(normalizedUnitCost);
+      item.unitCost = roundMoney(normalizedUnitCost);
+      item.lastPurchasePrice = roundMoney(normalizedUnitCost);
+    }
   }
 
+  item.quantity = roundQuantity(item.quantity);
   item.lastUpdatedBy = user.id;
   await item.save();
+
+  const appliedUnitCost = roundMoney(
+    normalizedUnitCost !== null ? normalizedUnitCost : item.averageCost || item.unitCost || 0
+  );
+  const newAverageCost = roundMoney(item.averageCost || item.unitCost || 0);
+  const totalCost = roundMoney(Math.abs(diff) * appliedUnitCost);
 
   await InventoryLog.create({
     item: item._id,
     restaurant: restaurantId,
     quantityAdded: diff,
+    previousQuantity,
+    newQuantity: Number(item.quantity || 0),
     unit: item.unit,
     action: mode === "ADD" ? "ADD" : "UPDATE",
+    unitCost: appliedUnitCost,
+    totalCost,
+    previousAverageCost,
+    newAverageCost,
+    reason: String(reason || "").trim(),
     addedBy: user.id,
     addedByName: user.name || "",
     effectiveDate,
@@ -233,7 +283,16 @@ const applyStockChange = async ({
 
 export const createInventoryItem = async (req, res) => {
   try {
-    const { name, unit, quantity, lowStockThreshold, category, effectiveDate } = req.body;
+    const {
+      name,
+      unit,
+      quantity,
+      lowStockThreshold,
+      category,
+      effectiveDate,
+      unitCost,
+      reason,
+    } = req.body;
 
     if (!name || !unit)
       return sendError(res, "Name and unit are required");
@@ -243,6 +302,9 @@ export const createInventoryItem = async (req, res) => {
     const logEffectiveDate = getEffectiveDate(effectiveDate);
     if (!logEffectiveDate)
       return sendError(res, "Effective date cannot be invalid or in the future");
+    const normalizedUnitCost = normalizeCost(unitCost);
+    if (unitCost !== undefined && normalizedUnitCost === null)
+      return sendError(res, "Enter a valid unit cost");
 
     const item = await Inventory.create({
       restaurant: restaurantId,
@@ -250,6 +312,9 @@ export const createInventoryItem = async (req, res) => {
       unit,
       category: category || "",
       quantity: quantity || 0,
+      unitCost: roundMoney(normalizedUnitCost || 0),
+      averageCost: roundMoney(normalizedUnitCost || 0),
+      lastPurchasePrice: roundMoney(normalizedUnitCost || 0),
       lowStockThreshold: lowStockThreshold || 0,
       lastUpdatedBy: req.user.id,
     });
@@ -258,8 +323,15 @@ export const createInventoryItem = async (req, res) => {
       item: item._id,
       restaurant: restaurantId,
       quantityAdded: quantity || 0,
+      previousQuantity: 0,
+      newQuantity: Number(quantity || 0),
       unit,
       action: "ADD",
+      unitCost: roundMoney(normalizedUnitCost || 0),
+      totalCost: roundMoney(Number(quantity || 0) * Number(normalizedUnitCost || 0)),
+      previousAverageCost: 0,
+      newAverageCost: roundMoney(normalizedUnitCost || 0),
+      reason: String(reason || "Initial stock").trim(),
       addedBy: req.user.id,
       addedByName: req.user.name || "",
       effectiveDate: logEffectiveDate,
@@ -320,11 +392,22 @@ export const updateInventoryItem = async (req, res) => {
     if (!item)
       return sendError(res, "Inventory item not found", 404);
 
-    const { name, unit, quantity, lowStockThreshold, category, effectiveDate } = req.body;
+    const {
+      name,
+      unit,
+      quantity,
+      lowStockThreshold,
+      category,
+      effectiveDate,
+      unitCost,
+    } = req.body;
 
     if (name !== undefined) item.name = name;
     if (unit !== undefined) item.unit = unit;
     if (category !== undefined) item.category = category;
+    const normalizedUnitCost = normalizeCost(unitCost);
+    if (unitCost !== undefined && normalizedUnitCost === null)
+      return sendError(res, "Enter a valid unit cost");
 
     if (quantity !== undefined) {
       const logEffectiveDate = getEffectiveDate(effectiveDate);
@@ -337,7 +420,9 @@ export const updateInventoryItem = async (req, res) => {
           restaurantId,
           mode: "SET",
           requestedQuantity: Number(quantity),
+          unitCost: normalizedUnitCost ?? item.averageCost ?? item.unitCost ?? 0,
           effectiveDate: logEffectiveDate,
+          reason: req.body.reason || "",
           user: req.user,
         });
         return sendSuccess(res, { pendingApproval: true, approval }, 202);
@@ -348,13 +433,20 @@ export const updateInventoryItem = async (req, res) => {
         restaurantId,
         mode: "SET",
         quantity: Number(quantity),
+        unitCost: normalizedUnitCost,
         effectiveDate: logEffectiveDate,
+        reason: req.body.reason || "",
         user: req.user,
       });
     }
 
     if (lowStockThreshold !== undefined)
       item.lowStockThreshold = lowStockThreshold;
+    if (quantity === undefined && normalizedUnitCost !== null) {
+      item.unitCost = roundMoney(normalizedUnitCost);
+      item.averageCost = roundMoney(normalizedUnitCost);
+      item.lastPurchasePrice = roundMoney(normalizedUnitCost);
+    }
 
     await item.save();
 
@@ -386,8 +478,17 @@ export const deleteInventoryItem = async (req, res) => {
       item: item._id,
       restaurant: restaurantId,
       quantityAdded: item.quantity,
+      previousQuantity: Number(item.quantity || 0),
+      newQuantity: 0,
       unit: item.unit,
       action: "DELETE",
+      unitCost: roundMoney(item.averageCost || item.unitCost || 0),
+      totalCost: roundMoney(
+        Number(item.quantity || 0) * Number(item.averageCost || item.unitCost || 0)
+      ),
+      previousAverageCost: roundMoney(item.averageCost || item.unitCost || 0),
+      newAverageCost: roundMoney(item.averageCost || item.unitCost || 0),
+      reason: "Inventory item deleted",
       addedBy: req.user.id,
       addedByName: req.user.name || "",
       effectiveDate: new Date(),
@@ -447,13 +548,16 @@ export const addStockToItem = async (req, res) => {
     if (!item)
       return sendError(res, "Inventory item not found", 404);
 
-    const { quantity, effectiveDate } = req.body;
+    const { quantity, effectiveDate, unitCost, reason } = req.body;
 
     if (!quantity || Number(quantity) <= 0)
       return sendError(res, "Quantity must be greater than 0");
     const logEffectiveDate = getEffectiveDate(effectiveDate);
     if (!logEffectiveDate)
       return sendError(res, "Effective date cannot be invalid or in the future");
+    const normalizedUnitCost = normalizeCost(unitCost);
+    if (unitCost !== undefined && normalizedUnitCost === null)
+      return sendError(res, "Enter a valid unit cost");
 
     if (req.user.role !== "admin" && needsBackdateApproval(logEffectiveDate)) {
       const approval = await createStockApprovalRequest({
@@ -461,7 +565,9 @@ export const addStockToItem = async (req, res) => {
         restaurantId,
         mode: "ADD",
         requestedQuantity: Number(quantity),
+        unitCost: normalizedUnitCost ?? item.averageCost ?? item.unitCost ?? 0,
         effectiveDate: logEffectiveDate,
+        reason: reason || "",
         user: req.user,
       });
       return sendSuccess(res, { pendingApproval: true, approval }, 202);
@@ -472,7 +578,9 @@ export const addStockToItem = async (req, res) => {
       restaurantId,
       mode: "ADD",
       quantity: Number(quantity),
+      unitCost: normalizedUnitCost,
       effectiveDate: logEffectiveDate,
+      reason: reason || "",
       user: req.user,
     });
 
@@ -533,7 +641,9 @@ export const approveStockApprovalRequest = async (req, res) => {
       restaurantId,
       mode: approval.mode,
       quantity: approval.requestedQuantity,
+      unitCost: approval.unitCost,
       effectiveDate: approval.effectiveDate,
+      reason: approval.reason,
       user: {
         id: approval.requestedBy,
         name: approval.requestedByName,
@@ -789,10 +899,15 @@ export const exportInventoryDayWiseExcel = async (req, res) => {
       { header: "Date Range", key: "date", width: 28 },
       { header: "Item Name", key: "name", width: 32 },
       { header: "Unit", key: "unit", width: 12 },
+      { header: "Unit Cost", key: "unitCost", width: 16 },
       { header: "How Much Was There", key: "opening", width: 22 },
       { header: "How Much Added", key: "added", width: 18 },
       { header: "How Much Used", key: "used", width: 18 },
       { header: "How Much Remains", key: "remaining", width: 20 },
+      { header: "Opening Value", key: "openingValue", width: 18 },
+      { header: "Added Cost", key: "addedCost", width: 18 },
+      { header: "Used Cost", key: "usedCost", width: 18 },
+      { header: "Remaining Value", key: "remainingValue", width: 20 },
     ];
 
     worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
@@ -808,7 +923,7 @@ export const exportInventoryDayWiseExcel = async (req, res) => {
       date: `Report Range: ${dateLabel}`,
       name: `Generated: ${formatReportDateTime(new Date())}`,
     });
-    worksheet.mergeCells("B1:G1");
+    worksheet.mergeCells("B1:K1");
     worksheet.getRow(1).font = { bold: true, color: { argb: "FF1F2937" } };
     worksheet.getRow(1).fill = {
       type: "pattern",
@@ -830,20 +945,29 @@ export const exportInventoryDayWiseExcel = async (req, res) => {
       const afterNet = afterTotal.net - missingUsedAfterDay;
       const remaining = Number(item.quantity || 0) - afterNet;
       const opening = remaining - reportNet;
+      const unitCost = roundMoney(item.averageCost || item.unitCost || 0);
 
       worksheet.addRow({
         date: dateLabel,
         name: item.name,
         unit: item.unit,
+        unitCost,
         opening: roundQuantity(opening),
         added: roundQuantity(dayTotal.added),
         used: roundQuantity(reportUsed),
         remaining: roundQuantity(remaining),
+        openingValue: roundMoney(opening * unitCost),
+        addedCost: roundMoney(dayTotal.added * unitCost),
+        usedCost: roundMoney(reportUsed * unitCost),
+        remainingValue: roundMoney(remaining * unitCost),
       });
     });
 
     ["opening", "added", "used", "remaining"].forEach((key) => {
       worksheet.getColumn(key).numFmt = "0.000";
+    });
+    ["unitCost", "openingValue", "addedCost", "usedCost", "remainingValue"].forEach((key) => {
+      worksheet.getColumn(key).numFmt = "0.00";
     });
 
     worksheet.eachRow((row) => {

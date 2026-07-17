@@ -23,6 +23,16 @@ const inventoryStockApprovalSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    unitCost: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    reason: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     effectiveDate: {
       type: Date,
       required: true,

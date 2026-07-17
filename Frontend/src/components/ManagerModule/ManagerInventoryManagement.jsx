@@ -26,11 +26,24 @@ const PRESET_CATEGORIES = [
 ];
 
 const emptyForm = {
-  name: "", category: "", unit: "", unitCustom: "", quantity: "", lowStockThreshold: "",
+  name: "",
+  category: "",
+  unit: "",
+  unitCustom: "",
+  quantity: "",
+  lowStockThreshold: "",
+  unitCost: "",
+  reason: "",
 };
 
 const inputCls = "min-h-11 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition focus:border-transparent focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500";
 const formatQuantity = (value) => Number(value || 0).toFixed(3);
+const formatCurrency = (value) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
 const getTodayInputDate = () => {
   const date = new Date();
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
@@ -227,6 +240,8 @@ const ManagerInventory = () => {
   const [stockMode, setStockMode]                 = useState("set");
   const [stockQty, setStockQty]                   = useState("");
   const [stockDate, setStockDate]                 = useState(getTodayInputDate);
+  const [stockUnitCost, setStockUnitCost]         = useState("");
+  const [stockReason, setStockReason]             = useState("");
   const [approvalNotice, setApprovalNotice]       = useState("");
   const [form, setForm]                           = useState(emptyForm);
 
@@ -287,7 +302,11 @@ const ManagerInventory = () => {
       const created = await createInventoryItem(restaurantId, {
         name: form.name.trim(),
         category: form.category === "__new__" ? "" : form.category,
-        unit, quantity: Number(form.quantity), lowStockThreshold: Number(form.lowStockThreshold),
+        unit,
+        quantity: Number(form.quantity),
+        lowStockThreshold: Number(form.lowStockThreshold),
+        unitCost: Number(form.unitCost || 0),
+        reason: form.reason.trim(),
       });
       if (created) { setInventory((p) => [created, ...p]); await refreshLogsIfOpen(created._id); }
       setShowAddModal(false);
@@ -297,7 +316,16 @@ const ManagerInventory = () => {
 
   const openEditModal = (item) => {
     const preset = UNIT_PRESETS.includes(item.unit);
-    setForm({ name: item.name, category: item.category || "", unit: preset ? item.unit : "__custom__", unitCustom: preset ? "" : item.unit, quantity: item.quantity, lowStockThreshold: item.lowStockThreshold });
+    setForm({
+      name: item.name,
+      category: item.category || "",
+      unit: preset ? item.unit : "__custom__",
+      unitCustom: preset ? "" : item.unit,
+      quantity: item.quantity,
+      lowStockThreshold: item.lowStockThreshold,
+      unitCost: item.averageCost ?? item.unitCost ?? 0,
+      reason: "",
+    });
     setCatCustom(""); setEditingId(item._id); setShowEditModal(true);
   };
   const handleEdit = async (e) => {
@@ -309,7 +337,11 @@ const ManagerInventory = () => {
       const updated = await updateInventoryItem(restaurantId, editingId, {
         name: form.name.trim(),
         category: form.category === "__new__" ? "" : form.category,
-        unit, quantity: Number(form.quantity), lowStockThreshold: Number(form.lowStockThreshold),
+        unit,
+        quantity: Number(form.quantity),
+        lowStockThreshold: Number(form.lowStockThreshold),
+        unitCost: Number(form.unitCost || 0),
+        reason: form.reason.trim(),
       });
       if (updated) { setInventory((p) => p.map((i) => i._id === editingId ? updated : i)); await refreshLogsIfOpen(editingId); }
       setShowEditModal(false); setEditingId(null);
@@ -331,6 +363,8 @@ const ManagerInventory = () => {
     setStockMode("set");
     setStockQty(String(Number(item.quantity || 0)));
     setStockDate(getTodayInputDate());
+    setStockUnitCost(String(Number(item.averageCost ?? item.unitCost ?? 0)));
+    setStockReason("");
     setShowAddStockModal(true);
   };
   const handleAddStock = async (e) => {
@@ -350,14 +384,26 @@ const ManagerInventory = () => {
     if (stockDate > getTodayInputDate()) {
       return alert("Future stock dates are not allowed");
     }
+    if (stockMode === "add" && stockUnitCost === "") {
+      return alert("Enter unit cost for added stock");
+    }
     try {
       setSubmitting(true);
       const updated =
         stockMode === "add"
-          ? await addStock(restaurantId, stockTarget._id, Number(stockQty), stockDate)
+          ? await addStock(
+              restaurantId,
+              stockTarget._id,
+              Number(stockQty),
+              stockDate,
+              stockUnitCost === "" ? "" : Number(stockUnitCost),
+              stockReason
+            )
           : await updateInventoryItem(restaurantId, stockTarget._id, {
               quantity: Number(stockQty),
               effectiveDate: stockDate,
+              ...(stockUnitCost === "" ? {} : { unitCost: Number(stockUnitCost) }),
+              reason: stockReason,
             });
       if (updated?.pendingApproval) {
         setApprovalNotice("Backdated stock change sent for admin approval");
@@ -394,6 +440,10 @@ const ManagerInventory = () => {
   const totalItems = inventory.length;
   const lowCount   = inventory.filter((i) => i.quantity <= i.lowStockThreshold).length;
   const okCount    = totalItems - lowCount;
+  const totalInventoryValue = inventory.reduce(
+    (sum, item) => sum + Number(item.stockValue || Number(item.quantity || 0) * Number(item.averageCost || item.unitCost || 0)),
+    0
+  );
 
   const catProps = {
     allCategories: categories, customValue: catCustom,
@@ -449,6 +499,7 @@ const ManagerInventory = () => {
           <div className="grid gap-2 sm:grid-cols-2 xl:max-w-2xl">
             <SummaryCard label="In Stock" value={okCount} hint={`${totalItems} total items`} tone="emerald" />
             <SummaryCard label="Low Stock" value={lowCount} hint="Needs restock attention" tone="rose" />
+            <SummaryCard label="Inventory Value" value={formatCurrency(totalInventoryValue)} hint="Current stock cost value" tone="slate" />
           </div>
         )}
 
@@ -564,7 +615,7 @@ const ManagerInventory = () => {
                           : <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">OK</span>}
                       </div>
 
-                      <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-2.5 text-center dark:bg-gray-900/40">
+                      <div className="mt-3 grid grid-cols-5 gap-2 rounded-lg bg-gray-50 p-2.5 text-center dark:bg-gray-900/40">
                         <div>
                           <p className="text-xs text-gray-400">Qty</p>
                           <p className={`mt-1 text-sm font-bold ${isLow ? "text-rose-600 dark:text-rose-400" : "text-gray-900 dark:text-white"}`}>
@@ -578,6 +629,14 @@ const ManagerInventory = () => {
                         <div>
                           <p className="text-xs text-gray-400">Alert</p>
                           <p className="mt-1 text-sm font-bold text-gray-900 dark:text-white">{formatQuantity(item.lowStockThreshold)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400">Cost</p>
+                          <p className="mt-1 text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(item.averageCost || item.unitCost)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400">Value</p>
+                          <p className="mt-1 text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(item.stockValue)}</p>
                         </div>
                       </div>
 
@@ -595,7 +654,7 @@ const ManagerInventory = () => {
               <div className="hidden overflow-x-auto md:block">
                 <table className="min-w-[760px] w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
-                    <tr>{["#","Item","Category","Unit","Qty","Low Stock","Status","Actions"].map((h) => (
+                    <tr>{["#","Item","Category","Unit","Qty","Unit Cost","Value","Low Stock","Status","Actions"].map((h) => (
                       <th key={h} className={`px-3 py-2.5 font-semibold ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
                     ))}</tr>
                   </thead>
@@ -615,6 +674,8 @@ const ManagerInventory = () => {
                           <td className="px-3 py-2.5">
                             <span className={`text-sm font-bold ${isLow ? "text-rose-600 dark:text-rose-400" : "text-gray-800 dark:text-gray-100"}`}>{formatQuantity(item.quantity)}</span>
                           </td>
+                          <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">{formatCurrency(item.averageCost || item.unitCost)}</td>
+                          <td className="px-3 py-2.5 text-sm font-bold text-gray-800 dark:text-gray-100">{formatCurrency(item.stockValue)}</td>
                           <td className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">{formatQuantity(item.lowStockThreshold)}</td>
                           <td className="px-3 py-2.5">
                             {isLow
@@ -664,7 +725,13 @@ const ManagerInventory = () => {
                     <div className="flex items-center gap-3">
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${meta.bg} ${meta.text}`}>{meta.label}</span>
                       {late && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-bold text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">Late entry</span>}
-                      <span className="text-sm font-bold text-gray-800 dark:text-gray-100">{log.quantityAdded > 0 ? "+" : ""}{formatQuantity(log.quantityAdded)} {log.unit}</span>
+                      <div>
+                        <span className="text-sm font-bold text-gray-800 dark:text-gray-100">{log.quantityAdded > 0 ? "+" : ""}{formatQuantity(log.quantityAdded)} {log.unit}</span>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {formatCurrency(log.unitCost)} each • {formatCurrency(log.totalCost)}
+                        </p>
+                        {log.reason ? <p className="text-xs text-gray-400 dark:text-gray-500">{log.reason}</p> : null}
+                      </div>
                     </div>
                     <div className="text-right text-xs text-gray-400 dark:text-gray-500 shrink-0">
                       <p className="font-semibold text-gray-600 dark:text-gray-300">{log.addedByName || log.addedBy?.name || "Unknown"}</p>
@@ -690,6 +757,11 @@ const ManagerInventory = () => {
               <Field label="Initial Quantity"><input type="number" min="0" step="any" placeholder="e.g. 50" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required className={inputCls} /></Field>
               <Field label="Low Stock Alert"><input type="number" min="0" step="any" placeholder="e.g. 10" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} required className={inputCls} /></Field>
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Unit Cost"><input type="number" min="0" step="0.01" placeholder="e.g. 48.50" value={form.unitCost} onChange={(e) => setForm({ ...form, unitCost: e.target.value })} className={inputCls} /></Field>
+              <Field label="Opening Value"><input type="text" readOnly value={formatCurrency(Number(form.quantity || 0) * Number(form.unitCost || 0))} className={`${inputCls} bg-gray-50 dark:bg-gray-900`} /></Field>
+            </div>
+            <Field label="Reason / Notes"><input type="text" placeholder="Initial purchase or stock note" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} className={inputCls} /></Field>
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button type="button" onClick={() => setShowAddModal(false)} className="min-h-11 flex-1 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</button>
               <button type="submit" disabled={submitting} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors">{submitting ? "Saving…" : "Save Item"}</button>
@@ -709,6 +781,11 @@ const ManagerInventory = () => {
               <Field label="Quantity"><input type="number" min="0" step="any" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required className={inputCls} /></Field>
               <Field label="Low Stock Alert"><input type="number" min="0" step="any" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} required className={inputCls} /></Field>
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Unit Cost"><input type="number" min="0" step="0.01" value={form.unitCost} onChange={(e) => setForm({ ...form, unitCost: e.target.value })} className={inputCls} /></Field>
+              <Field label="Stock Value"><input type="text" readOnly value={formatCurrency(Number(form.quantity || 0) * Number(form.unitCost || 0))} className={`${inputCls} bg-gray-50 dark:bg-gray-900`} /></Field>
+            </div>
+            <Field label="Reason / Notes"><input type="text" placeholder="Why are you changing this item?" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} className={inputCls} /></Field>
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button type="button" onClick={() => { setShowEditModal(false); setEditingId(null); }} className="flex-1 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</button>
               <button type="submit" disabled={submitting} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors">{submitting ? "Saving…" : "Update Item"}</button>
@@ -732,6 +809,7 @@ const ManagerInventory = () => {
                 onClick={() => {
                   setStockMode("add");
                   setStockQty("");
+                  setStockUnitCost(String(Number(stockTarget.averageCost ?? stockTarget.unitCost ?? 0)));
                 }}
                 className={`rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
                   stockMode === "add"
@@ -746,6 +824,7 @@ const ManagerInventory = () => {
                 onClick={() => {
                   setStockMode("set");
                   setStockQty(String(Number(stockTarget.quantity || 0)));
+                  setStockUnitCost(String(Number(stockTarget.averageCost ?? stockTarget.unitCost ?? 0)));
                 }}
                 className={`rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
                   stockMode === "set"
@@ -758,6 +837,16 @@ const ManagerInventory = () => {
             </div>
             <Field label={stockMode === "add" ? `Quantity to Add (${stockTarget.unit})` : `Current Stock Quantity (${stockTarget.unit})`}><input type="number" min="0" step="any" placeholder={stockMode === "add" ? "e.g. 20" : "e.g. 85"} value={stockQty} onChange={(e) => setStockQty(e.target.value)} required autoFocus className={inputCls} /></Field>
             <Field label="Effective Date"><input type="date" value={stockDate} max={getTodayInputDate()} onChange={(e) => setStockDate(e.target.value)} required className={inputCls} /></Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={stockMode === "add" ? "Purchase Unit Cost" : "Unit Cost (Optional)"}><input type="number" min="0" step="0.01" placeholder={stockMode === "add" ? "Required for new stock" : "Keep blank to use current avg cost"} value={stockUnitCost} onChange={(e) => setStockUnitCost(e.target.value)} className={inputCls} /></Field>
+              <Field label={stockMode === "add" ? "Added Cost" : "Stock Value"}><input type="text" readOnly value={formatCurrency(Number(stockQty || 0) * Number((stockUnitCost === "" ? stockTarget.averageCost ?? stockTarget.unitCost ?? 0 : stockUnitCost) || 0))} className={`${inputCls} bg-gray-50 dark:bg-gray-900`} /></Field>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {stockMode === "add"
+                ? "Use Add Quantity when new stock is purchased. Unit cost is required here."
+                : "Use Set Current Stock for physical count correction. Unit cost is optional and will keep the current average cost if unchanged."}
+            </p>
+            <Field label="Reason / Notes"><input type="text" placeholder="Purchase, correction, wastage adjustment..." value={stockReason} onChange={(e) => setStockReason(e.target.value)} className={inputCls} /></Field>
             {stockMode === "set" && (
               <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 This will manually set the total stock to the entered quantity.

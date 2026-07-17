@@ -31,6 +31,24 @@ const inventorySchema = new mongoose.Schema(
       default: 0,
     },
 
+    unitCost: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    averageCost: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    lastPurchasePrice: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
     category: {
       type: String,
       trim: true,
@@ -76,6 +94,13 @@ inventorySchema.index({ restaurant: 1, quantity: 1 });
 inventorySchema.virtual("isLowStock").get(function () {
   return this.quantity <= this.lowStockThreshold;
 });
+
+inventorySchema.virtual("stockValue").get(function () {
+  return Number(this.quantity || 0) * Number(this.averageCost || this.unitCost || 0);
+});
+
+inventorySchema.set("toJSON", { virtuals: true });
+inventorySchema.set("toObject", { virtuals: true });
 
 /* ===============================
    EXPORT

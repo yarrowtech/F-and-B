@@ -170,6 +170,9 @@ const defaultBillingTemplate = {
 };
 const maxLogoDataLength = 1000000;
 const defaultPaymentMethods = ["CASH", "CARD", "UPI"];
+const defaultVendorInventoryIntegration = {
+  enabled: false,
+};
 
 const normalizePaymentMethod = (value) =>
   String(value || "")
@@ -240,6 +243,13 @@ const sanitizeBillingTemplate = (payload = {}) => {
     ),
   };
 };
+
+const sanitizeVendorInventoryIntegration = (payload = {}) => ({
+  enabled:
+    payload?.enabled === undefined
+      ? defaultVendorInventoryIntegration.enabled
+      : Boolean(payload.enabled),
+});
 
 const applyBillingSequenceSettings = async (restaurant, payload = {}) => {
   const requestedStartNumber = normalizeBillingNumber(
@@ -317,6 +327,9 @@ export const createRestaurant = async (req, res) => {
       gstNo,
       billingStartNumber: normalizeBillingNumber(billingStartNumber, 1),
       nextBillNumber: normalizeBillingNumber(billingStartNumber, 1),
+      vendorInventoryIntegration: sanitizeVendorInventoryIntegration(
+        req.body.vendorInventoryIntegration
+      ),
       admin: req.user.id,
     });
 
@@ -403,21 +416,42 @@ export const updateRestaurant = async (req, res) => {
   try {
 
     const { restaurantId } = req.params;
-
-    const restaurant = await Restaurant.findOneAndUpdate(
-      {
-        _id: restaurantId,
-        admin: req.user.id
-      },
-      req.body,
-      { new: true }
-    );
+    const restaurant = await Restaurant.findOne({
+      _id: restaurantId,
+      admin: req.user.id
+    });
 
     if (!restaurant) {
       return res.status(404).json({
         message: "Restaurant not found"
       });
     }
+
+    const textFields = ["name", "address", "phone", "gstNo"];
+    textFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        restaurant[field] = String(req.body[field] || "").trim();
+      }
+    });
+
+    if (req.body.isActive !== undefined) {
+      restaurant.isActive = Boolean(req.body.isActive);
+    }
+
+    if (req.body.billingStartNumber !== undefined) {
+      restaurant.billingStartNumber = normalizeBillingNumber(
+        req.body.billingStartNumber,
+        restaurant.billingStartNumber
+      );
+    }
+
+    if (req.body.vendorInventoryIntegration !== undefined) {
+      restaurant.vendorInventoryIntegration = sanitizeVendorInventoryIntegration(
+        req.body.vendorInventoryIntegration
+      );
+    }
+
+    await restaurant.save();
 
     invalidateRestaurantCaches({ adminId: req.user.id, restaurantId });
 

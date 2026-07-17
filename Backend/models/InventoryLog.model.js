@@ -16,7 +16,46 @@ const inventoryLogSchema = new mongoose.Schema(
 
     quantityAdded: Number,
 
+    previousQuantity: {
+      type: Number,
+      default: 0,
+    },
+
+    newQuantity: {
+      type: Number,
+      default: 0,
+    },
+
     unit: String,
+
+    unitCost: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    totalCost: {
+      type: Number,
+      default: 0,
+    },
+
+    previousAverageCost: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    newAverageCost: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    reason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
 
     addedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -30,7 +69,7 @@ const inventoryLogSchema = new mongoose.Schema(
 
     action: {
       type: String,
-      enum: ["ADD", "UPDATE", "DELETE"],
+      enum: ["ADD", "UPDATE", "DELETE", "CONSUME"],
       default: "ADD",
     },
 

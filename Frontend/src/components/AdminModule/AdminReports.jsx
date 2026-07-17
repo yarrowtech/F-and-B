@@ -80,6 +80,7 @@ const REPORT_GROUPS = [
       "Item Month Wise",
       "Product Wise Sale",
       "Cost Report",
+      "Inventory Report",
     ],
   },
   {

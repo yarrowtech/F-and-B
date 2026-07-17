@@ -138,6 +138,9 @@ const Superadmin = lazy(() => import("./components/SuperadminModule/Superadmin")
 const Admin = lazy(() => import("./components/AdminModule/Admin"));
 const AdminExploreVendors = lazy(() => import("./components/AdminModule/AdminExploreVendors"));
 const Vendor = lazy(() => import("./components/VendorModule/Vendor"));
+const VendorInvitationAccept = lazy(() =>
+  import("./components/VendorModule/VendorInvitationAccept")
+);
 const Manager = lazy(() => import("./components/ManagerModule/Manager"));
 const Chef = lazy(() => import("./components/ChefModule/Chef"));
 const SuCheif = lazy(() => import("./components/SuCheifModule/SuCheif"));
@@ -176,6 +179,7 @@ const App = () => {
           <Route path="/contact" element={<Contact />} />
           <Route path="/subscription" element={<Subscription />} />
           <Route path="/public-menu/:restaurantId" element={<PublicMenu />} />
+          <Route path="/vendor-invite/:token" element={<VendorInvitationAccept />} />
 
         {/* ===== DEPARTMENTS ===== */}
         <Route path="/department" element={<Department />} />

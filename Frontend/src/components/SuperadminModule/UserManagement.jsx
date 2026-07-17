@@ -814,8 +814,6 @@ const UserManagement = ({
     governmentIdType: "",
     governmentId: "",
     address: { ...emptyAddress },
-    password: "",
-    confirmPassword: "",
     allRestaurantsAccess: true,
   });
   const [gvErrors, setGvErrors] = useState({});
@@ -824,6 +822,7 @@ const UserManagement = ({
   const [vendorSaveLoading, setVendorSaveLoading] = useState(false);
   const [vendorPasswordResetLoading, setVendorPasswordResetLoading] = useState(false);
   const [credentialsModal, setCredentialsModal] = useState(null);
+  const [invitationModal, setInvitationModal] = useState(null);
   const [passwordResetModal, setPasswordResetModal] = useState(null);
 
   const [actionMessage, setActionMessage] = useState("");
@@ -871,6 +870,10 @@ const UserManagement = ({
         await API.delete(`/super_admin/admins/${confirmDelete.id}`);
         fetchAdmins();
         notify(`Admin "${confirmDelete.label}" deleted`);
+      } else if (confirmDelete.type === "vendor") {
+        await API.delete(`/vendor/${confirmDelete.id}`);
+        fetchGlobalVendors();
+        notify(`Vendor "${confirmDelete.label}" deleted`);
       } else {
         await API.delete(`/super_admin/super-admins/${confirmDelete.id}`);
         fetchSuperAdmins();
@@ -1002,20 +1005,13 @@ const UserManagement = ({
   const validateGlobalVendor = () => {
     const e = {};
     if (!newGlobalVendorData.name.trim()) e.name = "Vendor name is required";
-    if (newGlobalVendorData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newGlobalVendorData.email)) {
+    if (!newGlobalVendorData.email.trim()) {
+      e.email = "Email is required for invitation";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newGlobalVendorData.email)) {
       e.email = "Enter a valid email";
     }
     if (newGlobalVendorData.phone.trim() && !/^\d{10}$/.test(newGlobalVendorData.phone)) {
       e.phone = "Phone must be exactly 10 digits";
-    }
-    if (!newGlobalVendorData.password) e.password = "Password is required";
-    else if (!STRONG_PASSWORD_REGEX.test(newGlobalVendorData.password)) {
-      e.password = STRONG_PASSWORD_MESSAGE;
-    }
-    if (!newGlobalVendorData.confirmPassword) {
-      e.confirmPassword = "Confirm password is required";
-    } else if (newGlobalVendorData.password !== newGlobalVendorData.confirmPassword) {
-      e.confirmPassword = "Passwords do not match";
     }
     if (newGlobalVendorData.governmentId.trim() && !newGlobalVendorData.governmentIdType.trim()) {
       e.governmentIdType = "Government ID type is required";
@@ -1040,12 +1036,19 @@ const UserManagement = ({
         governmentIdType: newGlobalVendorData.governmentIdType.trim(),
         governmentId: newGlobalVendorData.governmentId.trim(),
         address: normalizeAddress(newGlobalVendorData.address),
-        password: newGlobalVendorData.password,
         allRestaurantsAccess: true,
       };
 
       const res = await API.post("/vendor/global", payload);
       notify(res.data?.message || "Global vendor created successfully");
+      if (res.data?.invitationLink) {
+        setInvitationModal({
+          vendorName: newGlobalVendorData.name.trim(),
+          vendorId: res.data?.vendor?.vendorId || "",
+          email: newGlobalVendorData.email.trim(),
+          invitationLink: res.data.invitationLink,
+        });
+      }
       setShowGlobalVendorForm(false);
       setGvErrors({});
       setNewGlobalVendorData({
@@ -1056,8 +1059,6 @@ const UserManagement = ({
         governmentIdType: "",
         governmentId: "",
         address: { ...emptyAddress },
-        password: "",
-        confirmPassword: "",
         allRestaurantsAccess: true,
       });
       fetchGlobalVendors();
@@ -1423,12 +1424,28 @@ const UserManagement = ({
                           {vendor.createdAt ? new Date(vendor.createdAt).toLocaleDateString() : "-"}
                         </td>
                         <td className="px-5 py-3">
-                          <button
-                            onClick={() => openVendorDetails(vendor, "global")}
-                            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-neutral-700 dark:text-gray-200 dark:hover:bg-neutral-700"
-                          >
-                            View
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openVendorDetails(vendor, "global")}
+                              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-neutral-700 dark:text-gray-200 dark:hover:bg-neutral-700"
+                            >
+                              View
+                            </button>
+                            <button
+                              onClick={() =>
+                                setConfirmDelete({
+                                  type: "vendor",
+                                  id: vendor.id,
+                                  label: vendor.name,
+                                })
+                              }
+                              className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
+                              title="Delete vendor"
+                            >
+                              <Trash2 size={13} />
+                              Delete
+                            </button>
+                          </div>
                         </td>
                       </motion.tr>
                     );
@@ -1647,8 +1664,6 @@ const UserManagement = ({
                 governmentIdType: "",
                 governmentId: "",
                 address: { ...emptyAddress },
-                password: "",
-                confirmPassword: "",
                 allRestaurantsAccess: true,
               });
             }}
@@ -1722,31 +1737,13 @@ const UserManagement = ({
                 />
               </section>
 
-              <section className="space-y-4">
-                <div>
-                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                    Login Security
-                  </p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">
-                    This creates an active global vendor account with all-restaurants access.
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <PasswordField
-                    label="Password"
-                    value={newGlobalVendorData.password}
-                    onChange={(e) => { setNewGlobalVendorData((p) => ({ ...p, password: e.target.value })); setGvErrors((p) => ({ ...p, password: "" })); }}
-                    placeholder="Strong password"
-                    error={gvErrors.password}
-                  />
-                  <PasswordField
-                    label="Confirm Password"
-                    value={newGlobalVendorData.confirmPassword}
-                    onChange={(e) => { setNewGlobalVendorData((p) => ({ ...p, confirmPassword: e.target.value })); setGvErrors((p) => ({ ...p, confirmPassword: "" })); }}
-                    placeholder="Re-enter password"
-                    error={gvErrors.confirmPassword}
-                  />
-                </div>
+              <section className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                  Invitation-based setup
+                </p>
+                <p className="mt-1 text-xs text-emerald-700/80 dark:text-emerald-300/80">
+                  This will create the vendor and generate an invitation link so they can set their own password.
+                </p>
               </section>
             </div>
           </Modal>
@@ -1814,6 +1811,79 @@ const UserManagement = ({
                   className="rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700"
                 >
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {invitationModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-neutral-800">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                    Vendor Invitation Link
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Share this link with the vendor so they can finish account setup.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setInvitationModal(null)}
+                  className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-neutral-700 dark:hover:text-gray-200"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-neutral-700 dark:bg-neutral-900">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    Vendor ID
+                  </p>
+                  <p className="mt-2 text-lg font-bold text-gray-800 dark:text-gray-100">
+                    {invitationModal.vendorId || "-"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-neutral-700 dark:bg-neutral-900">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    Email
+                  </p>
+                  <p className="mt-2 text-lg font-bold text-gray-800 dark:text-gray-100">
+                    {invitationModal.email}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-neutral-700 dark:bg-neutral-900">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  Invitation Link
+                </p>
+                <p className="mt-2 break-all text-sm font-medium text-gray-800 dark:text-gray-100">
+                  {invitationModal.invitationLink}
+                </p>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  onClick={() => setInvitationModal(null)}
+                  className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-neutral-700"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(invitationModal.invitationLink);
+                      notify("Invitation link copied");
+                    } catch {
+                      window.prompt("Copy invitation link", invitationModal.invitationLink);
+                    }
+                  }}
+                  className="rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700"
+                >
+                  Copy Link
                 </button>
               </div>
             </div>

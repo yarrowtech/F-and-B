@@ -10,6 +10,8 @@ import {
    registerAdmin,
    loginAdmin,
    forgotPassword,
+   getMyProfile,
+   updateMyProfile,
    createEmployee,
    getEmployees,
    deleteEmployee,
@@ -37,6 +39,9 @@ router.post("/forgot-password", forgotPassword);
 ===================================================== */
 router.use(auth);
 router.use(role("ADMIN"));
+
+router.get("/me", getMyProfile);
+router.put("/profile", updateMyProfile);
 
 /* ================= EMPLOYEE ================= */
 router.post("/employee", createEmployee);        // CREATE

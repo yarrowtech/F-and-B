@@ -122,10 +122,6 @@ const AdminDashboard = () => {
     <div className="min-h-screen space-y-8 bg-gradient-to-br from-slate-100 to-blue-50 p-4 dark:from-gray-900 dark:to-gray-800 sm:p-6">
 
       {/* ── HEADER ── */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white sm:text-3xl">Admin Dashboard</h1>
-        <p className="text-base text-gray-500 dark:text-gray-400 mt-1">Restaurant performance overview</p>
-      </div>
 
       {/* ── FILTERS ── */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-5 space-y-4 border border-gray-100 dark:border-gray-700">

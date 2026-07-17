@@ -53,8 +53,31 @@ const vendorSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
+      default: null,
       select: false,
+    },
+    invitationStatus: {
+      type: String,
+      enum: ["none", "pending", "accepted", "expired"],
+      default: "none",
+      index: true,
+    },
+    invitationTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    invitationSentAt: {
+      type: Date,
+      default: null,
+    },
+    invitationExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    invitationAcceptedAt: {
+      type: Date,
+      default: null,
     },
     vendorType: {
       type: String,
@@ -138,12 +161,14 @@ vendorSchema.index({ primaryRestaurant: 1, vendorType: 1 });
 
 vendorSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
+  if (!this.password) return next();
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
   next();
 });
 
 vendorSchema.methods.matchPassword = function (enteredPassword) {
+  if (!this.password) return false;
   return bcrypt.compare(enteredPassword, this.password);
 };
 

@@ -87,15 +87,16 @@ const getLoginPath = () => {
 API.interceptors.request.use(
   (config) => {
     const isLoginRequest = config.url?.includes("/login");
+    const isVendorInvitationRequest = config.url?.includes("/vendor/invitations/");
     const loginPath = getLoginPath();
-    if (!isLoginRequest && !enforceSession()) {
+    if (!isLoginRequest && !isVendorInvitationRequest && !enforceSession()) {
       window.location.replace(loginPath);
       return Promise.reject(new Error("Session expired due to inactivity"));
     }
 
     const token = localStorage.getItem("token");
 
-    if (token && !isLoginRequest) {
+    if (token && !isLoginRequest && !isVendorInvitationRequest) {
       config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }

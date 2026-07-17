@@ -172,6 +172,16 @@ const billingTemplateSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const vendorInventoryIntegrationSchema = new mongoose.Schema(
+  {
+    enabled: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  { _id: false }
+);
+
 const restaurantSchema = new mongoose.Schema(
   {
     /* =========================
@@ -239,6 +249,11 @@ const restaurantSchema = new mongoose.Schema(
 
     billingTemplate: {
       type: billingTemplateSchema,
+      default: () => ({}),
+    },
+
+    vendorInventoryIntegration: {
+      type: vendorInventoryIntegrationSchema,
       default: () => ({}),
     },
   },

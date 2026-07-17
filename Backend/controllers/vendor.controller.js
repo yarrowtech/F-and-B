@@ -4,6 +4,10 @@ import mongoose from "mongoose";
 import Restaurant from "../models/Restaurant.model.js";
 import Vendor from "../models/Vendor.model.js";
 import VendorOrder from "../models/VendorOrder.model.js";
+import {
+  isMailerConfigured,
+  sendVendorInvitationEmail,
+} from "../utils/mailer.js";
 
 const toObjectId = (value) =>
   mongoose.Types.ObjectId.isValid(value)
@@ -13,6 +17,7 @@ const toObjectId = (value) =>
 const normalizeEmail = (email = "") => String(email).trim().toLowerCase();
 const normalizeVendorId = (vendorId = "") => String(vendorId).trim().toUpperCase();
 const normalizeGovernmentIdType = (value = "") => String(value).trim().toUpperCase();
+const INVITATION_EXPIRY_HOURS = 72;
 const normalizeAddress = (address = {}) => {
   if (typeof address === "string") {
     return {
@@ -79,6 +84,10 @@ const buildVendorResponse = (vendor, lastOrder = null) => ({
   upgradedFromVendor: vendor.upgradedFromVendor,
   upgradedToGlobalVendor: vendor.upgradedToGlobalVendor,
   isActive: vendor.isActive,
+  invitationStatus: vendor.invitationStatus || "none",
+  invitationSentAt: vendor.invitationSentAt,
+  invitationExpiresAt: vendor.invitationExpiresAt,
+  invitationAcceptedAt: vendor.invitationAcceptedAt,
   createdAt: vendor.createdAt,
   lastOrder: lastOrder
     ? {
@@ -150,6 +159,93 @@ const generateVendorPassword = (length = 12) => {
   }
 
   return password;
+};
+
+const buildPublicBaseUrl = (req) => {
+  const configured = String(
+    process.env.FRONTEND_URL || process.env.CLIENT_URL || ""
+  ).trim();
+  if (configured) return configured.replace(/\/$/, "");
+
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").trim();
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").trim();
+  const protocol = forwardedProto || req.protocol || "http";
+  const host = forwardedHost || req.get("host") || "localhost:5173";
+
+  if (host.includes("localhost:5000")) {
+    return `${protocol}://localhost:5173`;
+  }
+
+  return `${protocol}://${host}`;
+};
+
+const generateInvitationToken = () => crypto.randomBytes(24).toString("hex");
+const hashInvitationToken = (token) =>
+  crypto.createHash("sha256").update(String(token || "")).digest("hex");
+
+const buildInvitationLink = (req, token) =>
+  `${buildPublicBaseUrl(req)}/vendor-invite/${token}`;
+
+const applyVendorInvitation = (vendor, token) => {
+  vendor.password = null;
+  vendor.isActive = true;
+  vendor.invitationStatus = "pending";
+  vendor.invitationTokenHash = hashInvitationToken(token);
+  vendor.invitationSentAt = new Date();
+  vendor.invitationExpiresAt = new Date(
+    Date.now() + INVITATION_EXPIRY_HOURS * 60 * 60 * 1000
+  );
+  vendor.invitationAcceptedAt = null;
+};
+
+const isInvitationExpired = (vendor) =>
+  !vendor?.invitationExpiresAt ||
+  new Date(vendor.invitationExpiresAt).getTime() < Date.now();
+
+const findVendorByInvitationToken = (token) =>
+  Vendor.findOne({
+    invitationTokenHash: hashInvitationToken(token),
+    invitationStatus: "pending",
+  })
+    .select("+invitationTokenHash +password")
+    .populate("primaryRestaurant", "name restaurantCode vendorInventoryIntegration")
+    .populate("accessibleRestaurants", "name restaurantCode vendorInventoryIntegration");
+
+const sendInvitationIfPossible = async ({ vendor, req, invitationToken }) => {
+  const invitationLink = buildInvitationLink(req, invitationToken);
+
+  if (!isMailerConfigured()) {
+    return {
+      invitationLink,
+      invitationEmailSent: false,
+      invitationEmailMessage:
+        "SMTP is not fully configured yet. Share the invitation link manually.",
+    };
+  }
+
+  try {
+    await sendVendorInvitationEmail({
+      to: vendor.email,
+      vendorName: vendor.name,
+      vendorId: vendor.vendorId,
+      invitationLink,
+      expiresAt: vendor.invitationExpiresAt,
+    });
+
+    return {
+      invitationLink,
+      invitationEmailSent: true,
+      invitationEmailMessage: `Invitation email sent to ${vendor.email}`,
+    };
+  } catch (error) {
+    console.error("VENDOR INVITATION EMAIL ERROR:", error);
+    return {
+      invitationLink,
+      invitationEmailSent: false,
+      invitationEmailMessage:
+        error?.message || "Invitation email could not be sent. Share the link manually.",
+    };
+  }
 };
 
 const createToken = (vendor) =>
@@ -253,10 +349,25 @@ export const loginVendor = async (req, res) => {
       vendorId ? { vendorId } : { email }
     )
       .select("+password")
-      .populate("primaryRestaurant", "name restaurantCode")
-      .populate("accessibleRestaurants", "name restaurantCode");
+      .populate("primaryRestaurant", "name restaurantCode vendorInventoryIntegration")
+      .populate("accessibleRestaurants", "name restaurantCode vendorInventoryIntegration");
 
     if (!vendor || !vendor.password) {
+      const setupPending =
+        vendor &&
+        vendor.invitationStatus === "pending" &&
+        vendor.email &&
+        (vendorId
+          ? String(vendor.vendorId || "") === vendorId
+          : String(vendor.email || "") === email);
+
+      if (setupPending) {
+        return res.status(403).json({
+          success: false,
+          message: "Vendor account setup is pending. Please complete the invitation link first.",
+        });
+      }
+
       return res.status(401).json({
         success: false,
         message: "Invalid vendor credentials",
@@ -290,10 +401,109 @@ export const loginVendor = async (req, res) => {
   }
 };
 
+export const getVendorInvitation = async (req, res) => {
+  try {
+    const token = String(req.params.token || "").trim();
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Invitation token is required",
+      });
+    }
+
+    const vendor = await findVendorByInvitationToken(token);
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: "Invitation link is invalid or no longer available",
+      });
+    }
+
+    if (isInvitationExpired(vendor)) {
+      vendor.invitationStatus = "expired";
+      await vendor.save();
+      return res.status(410).json({
+        success: false,
+        message: "Invitation link has expired. Ask admin to send a new one.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      invitation: {
+        vendorId: vendor.vendorId,
+        name: vendor.name,
+        email: vendor.email,
+        vendorType: vendor.vendorType,
+        expiresAt: vendor.invitationExpiresAt,
+        primaryRestaurant: vendor.primaryRestaurant,
+        accessibleRestaurants: vendor.accessibleRestaurants || [],
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const acceptVendorInvitation = async (req, res) => {
+  try {
+    const token = String(req.params.token || "").trim();
+    const password = String(req.body.password || "");
+
+    if (!token || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Invitation token and password are required",
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters",
+      });
+    }
+
+    const vendor = await findVendorByInvitationToken(token);
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: "Invitation link is invalid or no longer available",
+      });
+    }
+
+    if (isInvitationExpired(vendor)) {
+      vendor.invitationStatus = "expired";
+      await vendor.save();
+      return res.status(410).json({
+        success: false,
+        message: "Invitation link has expired. Ask admin to send a new one.",
+      });
+    }
+
+    vendor.password = password;
+    vendor.invitationStatus = "accepted";
+    vendor.invitationAcceptedAt = new Date();
+    vendor.invitationTokenHash = null;
+    vendor.invitationExpiresAt = null;
+    await vendor.save();
+
+    const tokenValue = createToken(vendor);
+
+    return res.json({
+      success: true,
+      message: "Vendor account setup completed successfully",
+      token: tokenValue,
+      user: buildVendorResponse(vendor),
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const createLocalVendor = async (req, res) => {
   try {
     const name = String(req.body.name || "").trim();
-    const password = String(req.body.password || "");
     const email = normalizeEmail(req.body.email);
     const phone = String(req.body.phone || "").trim();
     const address = normalizeAddress(req.body.address);
@@ -306,10 +516,10 @@ export const createLocalVendor = async (req, res) => {
       req.body.accessibleRestaurantIds || req.body.restaurantIds
     );
 
-    if (!name || !password || (!restaurantId && requestedRestaurantIds.length === 0)) {
+    if (!name || !email || (!restaurantId && requestedRestaurantIds.length === 0)) {
       return res.status(400).json({
         success: false,
-        message: "Name, password, and at least one restaurant are required",
+        message: "Name, email, and at least one restaurant are required",
       });
     }
 
@@ -348,17 +558,17 @@ export const createLocalVendor = async (req, res) => {
     }
 
     const vendorId = requestedVendorId || (await generateVendorId("local"));
+    const invitationToken = generateInvitationToken();
 
-    const vendor = await Vendor.create({
+    const vendor = new Vendor({
       vendorId,
       name,
-      email: email || undefined,
+      email,
       phone,
       address,
       governmentId,
       governmentIdType,
       category,
-      password,
       vendorType: "local",
       createdByRole: "admin",
       createdByAdmin: req.user.id,
@@ -366,11 +576,23 @@ export const createLocalVendor = async (req, res) => {
       accessibleRestaurants: restaurants.map((restaurant) => restaurant._id),
       allRestaurantsAccess: false,
     });
+    applyVendorInvitation(vendor, invitationToken);
+    await vendor.save();
+    const invitationDelivery = await sendInvitationIfPossible({
+      vendor,
+      req,
+      invitationToken,
+    });
 
     res.status(201).json({
       success: true,
-      message: "Local vendor created successfully",
+      message: invitationDelivery.invitationEmailSent
+        ? "Local vendor created and invitation email sent successfully"
+        : "Local vendor created and invitation link generated successfully",
       vendor: buildVendorResponse(vendor),
+      invitationLink: invitationDelivery.invitationLink,
+      invitationEmailSent: invitationDelivery.invitationEmailSent,
+      invitationEmailMessage: invitationDelivery.invitationEmailMessage,
     });
   } catch (error) {
     const status = error?.code === 11000 ? 409 : 500;
@@ -387,7 +609,6 @@ export const createLocalVendor = async (req, res) => {
 export const createGlobalVendor = async (req, res) => {
   try {
     const name = String(req.body.name || "").trim();
-    const password = String(req.body.password || "");
     const email = normalizeEmail(req.body.email);
     const phone = String(req.body.phone || "").trim();
     const address = normalizeAddress(req.body.address);
@@ -399,10 +620,10 @@ export const createGlobalVendor = async (req, res) => {
     const accessibleRestaurantIds = sanitizeRestaurantIds(req.body.accessibleRestaurantIds);
     const firstRestaurantId = accessibleRestaurantIds[0] || null;
 
-    if (!name || !password) {
+    if (!name || !email) {
       return res.status(400).json({
         success: false,
-        message: "Name and password are required",
+        message: "Name and email are required",
       });
     }
 
@@ -414,17 +635,17 @@ export const createGlobalVendor = async (req, res) => {
     }
 
     const vendorId = requestedVendorId || (await generateVendorId("global"));
+    const invitationToken = generateInvitationToken();
 
-    const vendor = await Vendor.create({
+    const vendor = new Vendor({
       vendorId,
       name,
-      email: email || undefined,
+      email,
       phone,
       address,
       governmentId,
       governmentIdType,
       category,
-      password,
       vendorType: "global",
       createdByRole: "super_admin",
       createdBySuperAdmin: req.user.id,
@@ -433,11 +654,23 @@ export const createGlobalVendor = async (req, res) => {
       accessibleRestaurants: accessibleRestaurantIds,
       allRestaurantsAccess,
     });
+    applyVendorInvitation(vendor, invitationToken);
+    await vendor.save();
+    const invitationDelivery = await sendInvitationIfPossible({
+      vendor,
+      req,
+      invitationToken,
+    });
 
     res.status(201).json({
       success: true,
-      message: "Global vendor created successfully",
+      message: invitationDelivery.invitationEmailSent
+        ? "Global vendor created and invitation email sent successfully"
+        : "Global vendor created and invitation link generated successfully",
       vendor: buildVendorResponse(vendor),
+      invitationLink: invitationDelivery.invitationLink,
+      invitationEmailSent: invitationDelivery.invitationEmailSent,
+      invitationEmailMessage: invitationDelivery.invitationEmailMessage,
     });
   } catch (error) {
     const status = error?.code === 11000 ? 409 : 500;
@@ -960,6 +1193,8 @@ export const getVendorDashboardScope = async (req, res) => {
 
 export default {
   loginVendor,
+  getVendorInvitation,
+  acceptVendorInvitation,
   createLocalVendor,
   createGlobalVendor,
   getVendors,

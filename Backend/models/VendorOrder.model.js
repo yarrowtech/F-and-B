@@ -48,6 +48,25 @@ const vendorOrderItemSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
+    inventoryLinkedItem: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Inventory",
+      default: null,
+    },
+    inventoryReceivedQuantity: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    inventoryUnitCost: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    inventoryReceivedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { _id: false }
 );

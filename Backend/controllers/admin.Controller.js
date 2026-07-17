@@ -79,6 +79,29 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import generateEmployeeId from "../utils/generateEmployeeId.js";
 
+const sanitizeAddress = (value = {}) => ({
+  line1: String(value.line1 || "").trim(),
+  line2: String(value.line2 || "").trim(),
+  landmark: String(value.landmark || "").trim(),
+  city: String(value.city || "").trim(),
+  state: String(value.state || "").trim(),
+  pincode: String(value.pincode || "").trim(),
+  country: String(value.country || "India").trim() || "India",
+});
+
+const buildAdminProfileResponse = (admin) => ({
+  id: admin._id,
+  adminId: admin.adminId,
+  businessName: admin.businessName,
+  email: admin.email,
+  mobile: admin.mobile || "",
+  panNumber: admin.panNumber || "",
+  address: sanitizeAddress(admin.address || {}),
+  isActive: Boolean(admin.isActive),
+  createdAt: admin.createdAt,
+  updatedAt: admin.updatedAt,
+});
+
 /* =====================================================
    ADMIN AUTH
 ===================================================== */
@@ -195,6 +218,80 @@ export const forgotPassword = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+export const getMyProfile = async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.user.id).select("-password");
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    return res.json({
+      success: true,
+      profile: buildAdminProfileResponse(admin),
+    });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+export const updateMyProfile = async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.user.id).select("_id email");
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    const businessName = String(req.body.businessName || "").trim();
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const mobile = String(req.body.mobile || "").trim();
+    const panNumber = String(admin.panNumber || "").trim().toUpperCase();
+
+    if (!businessName || !email || !mobile || !panNumber) {
+      return res.status(400).json({
+        message: "Business name, email, mobile, and PAN number are required",
+      });
+    }
+
+    const existingAdmin = await Admin.findOne({
+      email,
+      _id: { $ne: admin._id },
+    }).select("_id");
+
+    if (existingAdmin) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
+
+    const updatedAdmin = await Admin.findByIdAndUpdate(
+      req.user.id,
+      {
+        $set: {
+          businessName,
+          email,
+          mobile,
+          panNumber,
+          address: sanitizeAddress(req.body.address || {}),
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).select("-password");
+
+    if (!updatedAdmin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    return res.json({
+      success: true,
+      message: "Profile updated successfully",
+      profile: buildAdminProfileResponse(updatedAdmin),
+    });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
   }
 };
 

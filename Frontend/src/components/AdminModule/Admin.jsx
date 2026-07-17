@@ -329,7 +329,7 @@ const TableManagement = lazy(() => import("./AdminTableManagement"));
 const AdminVendorDirectory = lazy(() => import("./AdminVendorDirectory"));
 const AdminVendorStorefront = lazy(() => import("./AdminVendorStorefront"));
 
-import { FaBox, FaChartBar, FaHandshake, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList } from "react-icons/fa";
+import { FaBox, FaChartBar, FaHandshake, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList, FaCogs } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 /* ─── Avatar + Profile Popup ─── */
@@ -441,6 +441,7 @@ const BOTTOM_NAV = [
   { key: "analytical", label: "Analytical", icon: FaChartBar },
   { key: "reports",    label: "Reports",    icon: FaChartBar },
   { key: "notes",      label: "Notes",      icon: FaStickyNote },
+  { key: "settings",   label: "Settings",   icon: FaCogs },
 ];
 
 const Admin = () => {
@@ -552,7 +553,12 @@ const Admin = () => {
         return <Notes />;
 
       case "settings":
-        return <Settings darkMode={darkMode} onThemeChange={handleModeChange} />;
+        return (
+          <Settings
+            darkMode={darkMode}
+            onThemeChange={handleModeChange}
+          />
+        );
 
       case "message":
         return <Message />;
