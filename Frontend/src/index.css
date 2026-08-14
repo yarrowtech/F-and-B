@@ -6,6 +6,19 @@
   --breakpoint-xl: 96rem;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+  width: 100%;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  background: #070907;
+}
+
 @keyframes hero-reveal {
   from {
     opacity: 0;
@@ -273,8 +286,49 @@
   color: #172019 !important;
 }
 
+.landing-light [class*="text-white/90"] {
+  color: rgba(23, 32, 25, 0.9) !important;
+}
+
+.landing-light [class*="text-white/82"],
+.landing-light [class*="text-white/78"],
+.landing-light [class*="text-white/76"],
+.landing-light [class*="text-white/72"],
+.landing-light [class*="text-white/70"],
+.landing-light [class*="text-white/68"],
+.landing-light [class*="text-white/66"],
+.landing-light [class*="text-white/64"],
+.landing-light [class*="text-white/62"],
+.landing-light [class*="text-white/60"],
+.landing-light [class*="text-white/58"],
+.landing-light [class*="text-white/55"],
+.landing-light [class*="text-white/52"],
+.landing-light [class*="text-white/50"],
+.landing-light [class*="text-white/45"],
+.landing-light [class*="text-white/42"],
+.landing-light [class*="text-white/38"],
+.landing-light [class*="text-white/35"] {
+  color: rgba(23, 32, 25, 0.72) !important;
+}
+
 .landing-light [class*="text-[#4ade80]"] {
   color: #15803d !important;
+}
+
+.landing-light [class*="text-[#86efac]"] {
+  color: #1f7a3f !important;
+}
+
+.landing-light [class*="text-[#7dd3fc]"] {
+  color: #0f5f8f !important;
+}
+
+.landing-light [class*="text-[#fde68a]"] {
+  color: #9a6700 !important;
+}
+
+.landing-light [class*="text-[#93d36c]"] {
+  color: #237a36 !important;
 }
 
 .landing-light [class*="border-white/"] {
@@ -287,6 +341,17 @@
 
 .landing-light [class*="bg-black/"] {
   background-color: rgba(255, 255, 255, 0.74) !important;
+}
+
+.landing-light [class*="bg-white/12"] {
+  background-color: rgba(255, 255, 255, 0.84) !important;
+}
+
+.landing-light [class*="bg-black/20"],
+.landing-light [class*="bg-black/28"],
+.landing-light [class*="bg-black/30"],
+.landing-light [class*="bg-black/40"] {
+  background-color: rgba(255, 255, 255, 0.84) !important;
 }
 
 .landing-light [class*="bg-[#4ade80]/"] {

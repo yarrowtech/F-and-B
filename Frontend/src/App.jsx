@@ -118,6 +118,7 @@ import {
 import Home from "./Pages/Home";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { setupSessionActivityTracking } from "./services/session.service";
+import ProjectAnalyticsTracker from "./components/ProjectAnalyticsTracker";
 
 /* ================= PUBLIC PAGES ================= */
 const About = lazy(() => import("./Pages/About"));
@@ -128,6 +129,7 @@ const Department = lazy(() => import("./Pages/Department"));
 const KitchenPage = lazy(() => import("./Pages/Kitchen"));
 const FloorPage = lazy(() => import("./Pages/Floor"));
 const PublicMenu = lazy(() => import("./Pages/PublicMenu"));
+const ProjectDocument = lazy(() => import("./Pages/ProjectDocument"));
 
 /* ================= LOGIN PAGES ================= */
 const SuperAdminLogin = lazy(() => import("./components/Login/SuperAdminLogin"));
@@ -170,6 +172,7 @@ const App = () => {
 
   return (
     <Router>
+      <ProjectAnalyticsTracker />
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           {/* ===== PUBLIC ===== */}
@@ -178,6 +181,7 @@ const App = () => {
           <Route path="/services" element={<Services />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/subscription" element={<Subscription />} />
+          <Route path="/project-document" element={<ProjectDocument />} />
           <Route path="/public-menu/:restaurantId" element={<PublicMenu />} />
           <Route path="/vendor-invite/:token" element={<VendorInvitationAccept />} />
 

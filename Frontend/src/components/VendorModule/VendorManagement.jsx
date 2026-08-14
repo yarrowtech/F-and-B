@@ -884,13 +884,9 @@ function OrderModal({
                   )}
 
                   {order.status === "ready" && hasGeneratedBill(order) && (
-                    <button
-                      onClick={() => onUpdateStatus(order, "completed")}
-                      disabled={updatingId === order.id}
-                      className="inline-flex items-center gap-2 rounded-2xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-60"
-                    >
-                      <CheckCircle2 size={16} /> Close Order
-                    </button>
+                    <span className="inline-flex items-center gap-2 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700 dark:border-green-900 dark:bg-green-950/20 dark:text-green-300">
+                      <CheckCircle2 size={16} /> Waiting for admin receipt
+                    </span>
                   )}
 
                   {order.status === "ready" && (

@@ -104,6 +104,13 @@ const adminSchema = new mongoose.Schema(
       uppercase: true,
     },
 
+    gstNumber: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: "",
+    },
+
     password: {
       type: String,
       required: true,
@@ -112,6 +119,12 @@ const adminSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+    },
+
+    createdBySource: {
+      type: String,
+      enum: ["super_admin_created", "self_signup"],
+      default: "super_admin_created",
     },
   },
   { timestamps: true }

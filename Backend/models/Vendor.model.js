@@ -87,7 +87,7 @@ const vendorSchema = new mongoose.Schema(
     },
     createdByRole: {
       type: String,
-      enum: ["admin", "super_admin"],
+      enum: ["admin", "super_admin", "self_signup"],
       required: true,
     },
     createdByAdmin: {

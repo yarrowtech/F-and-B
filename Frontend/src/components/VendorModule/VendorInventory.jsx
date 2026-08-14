@@ -39,6 +39,8 @@ const UNIT_FACTORS = {
 const initialForm = {
   inventoryProductId: "",
   price: "",
+  discountType: "none",
+  discountValue: "",
   unit: "pcs",
   stockUnit: "pcs",
   orderPackQuantity: "1",
@@ -298,6 +300,41 @@ function ProductModal({
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Vendor Discount Type
+                </label>
+                <select
+                  value={form.discountType}
+                  onChange={(e) => onChange("discountType", e.target.value)}
+                  className={fieldClass}
+                >
+                  <option value="none">No discount</option>
+                  <option value="amount">Flat amount</option>
+                  <option value="percentage">Percentage</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Vendor Discount Value
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder={form.discountType === "percentage" ? "Enter %" : "Enter amount"}
+                  value={form.discountValue}
+                  onChange={(e) => onChange("discountValue", e.target.value.replace(/-/g, ""))}
+                  disabled={form.discountType === "none"}
+                  className={fieldClass}
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  Admin can review this discount during ordering but cannot edit it.
+                </p>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Customer Order Unit
                 </label>
                 <select
@@ -550,6 +587,8 @@ const VendorInventory = () => {
     setForm({
       inventoryProductId: product.id,
       price: "",
+      discountType: "none",
+      discountValue: "",
       unit: nextUnit,
       stockUnit: product.stockUnit || "pcs",
       orderPackQuantity: "1",
@@ -618,6 +657,7 @@ const VendorInventory = () => {
     }
 
     const price = Number(form.price);
+    const discountValue = Number(form.discountValue === "" ? 0 : form.discountValue);
     const orderPackQuantity = Number(form.orderPackQuantity === "" ? 0 : form.orderPackQuantity);
     const orderUnitsPerStockUnit = Number(
       form.orderUnitsPerStockUnit === "" ? 0 : form.orderUnitsPerStockUnit
@@ -625,6 +665,14 @@ const VendorInventory = () => {
 
     if (Number.isNaN(price) || price < 0) {
       notify("Enter a valid selling price.", true);
+      return false;
+    }
+    if (Number.isNaN(discountValue) || discountValue < 0) {
+      notify("Enter a valid discount value.", true);
+      return false;
+    }
+    if (form.discountType === "percentage" && discountValue > 100) {
+      notify("Percentage discount cannot exceed 100.", true);
       return false;
     }
     if (!form.unit.trim()) {
@@ -651,6 +699,8 @@ const VendorInventory = () => {
 
     const payload = {
       price: Number(form.price),
+      discountType: form.discountType,
+      discountValue: form.discountType === "none" ? 0 : Number(form.discountValue || 0),
       unit: form.unit,
       stockUnit: inventoryProduct?.stockUnit || form.stockUnit,
       orderPackQuantity: Number(form.orderPackQuantity),
@@ -683,6 +733,11 @@ const VendorInventory = () => {
     setForm({
       inventoryProductId: product.id,
       price: String(product.price ?? ""),
+      discountType: product.discountType || "none",
+      discountValue:
+        product.discountType && product.discountType !== "none"
+          ? String(product.discountValue ?? "")
+          : "",
       unit: product.unit || product.stockUnit || "pcs",
       stockUnit: product.stockUnit || "pcs",
       orderPackQuantity: String(product.orderPackQuantity || 1),

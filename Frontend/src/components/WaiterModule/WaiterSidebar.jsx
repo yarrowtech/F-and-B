@@ -85,10 +85,15 @@ const WaiterSidebar = ({ active, setActive, notificationCount = 0 }) => {
                     : "bg-white dark:bg-gray-800 text-green-700 dark:text-gray-200 border-transparent hover:bg-green-200 dark:hover:bg-gray-700"
                   }`}
               >
-                {React.createElement(Icon, { className: "text-lg" })}
+                <span className="relative inline-flex shrink-0">
+                  {React.createElement(Icon, { className: "text-lg" })}
+                  {key === "notifications" && notificationCount > 0 && (
+                    <span className="absolute -right-1.5 -top-1.5 flex h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-white dark:ring-gray-800" />
+                  )}
+                </span>
                 <span className="flex-1 text-left">{name}</span>
                 {key === "notifications" && notificationCount > 0 && (
-                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-black text-white">
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-black text-white shadow-sm">
                     {notificationCount > 9 ? "9+" : notificationCount}
                   </span>
                 )}

@@ -20,6 +20,8 @@ import {
 import API from "../../services/api";
 import { getInventory } from "../../services/inventory.service";
 
+const VENDOR_INVENTORY_SETTINGS_UPDATED_EVENT = "vendor-inventory-settings-updated";
+
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -35,6 +37,10 @@ const sanitizeRate = (value, fallback = 0) => {
 };
 
 const roundMoney = (value) => Number(Number(value || 0).toFixed(2));
+const getProductEffectivePrice = (product) => Number(product?.effectivePrice ?? product?.price ?? 0);
+const getProductUnitDiscountAmount = (product) => Number(product?.unitDiscountAmount ?? 0);
+const getDiscountLabel = (billSummary) =>
+  billSummary?.discountSource === "vendor_catalog" ? "Vendor Discount" : "Discount";
 
 const getOrderProductId = (item) =>
   typeof item?.product === "string" ? item.product : item?.product?._id || item?.product || "";
@@ -68,21 +74,23 @@ const getOrderBillSummary = (order) =>
     showTaxBreakup: false,
   };
 
-const getCartBillSummary = ({ itemsTotal, billingTemplate, discountType, discountValue }) => {
-  const normalizedItemsTotal = roundMoney(itemsTotal);
-  const normalizedDiscountType = ["amount", "percentage"].includes(discountType)
-    ? discountType
-    : "none";
-  const normalizedDiscountValue = Math.max(0, Number(discountValue || 0));
+const getCartBillSummary = ({ cartItems, billingTemplate }) => {
+  const normalizedItems = Array.isArray(cartItems) ? cartItems : [];
+  const normalizedItemsTotal = roundMoney(
+    normalizedItems.reduce(
+      (sum, item) => sum + Number(item.product?.price || 0) * Number(item.quantity || 0),
+      0
+    )
+  );
+  let discountAmount = roundMoney(
+    normalizedItems.reduce(
+      (sum, item) =>
+        sum + getProductUnitDiscountAmount(item.product) * Number(item.quantity || 0),
+      0
+    )
+  );
   const cgstRate = sanitizeRate(billingTemplate?.cgstRate, 2.5);
   const sgstRate = sanitizeRate(billingTemplate?.sgstRate, 2.5);
-
-  let discountAmount = 0;
-  if (normalizedDiscountType === "percentage") {
-    discountAmount = normalizedItemsTotal * (Math.min(normalizedDiscountValue, 100) / 100);
-  } else if (normalizedDiscountType === "amount") {
-    discountAmount = normalizedDiscountValue;
-  }
 
   discountAmount = roundMoney(Math.min(discountAmount, normalizedItemsTotal));
   const taxableAmount = roundMoney(normalizedItemsTotal - discountAmount);
@@ -92,11 +100,8 @@ const getCartBillSummary = ({ itemsTotal, billingTemplate, discountType, discoun
 
   return {
     itemsTotal: normalizedItemsTotal,
-    discountType: normalizedDiscountType,
-    discountValue:
-      normalizedDiscountType === "percentage"
-        ? roundMoney(Math.min(normalizedDiscountValue, 100))
-        : roundMoney(normalizedDiscountValue),
+    discountType: discountAmount > 0 ? "amount" : "none",
+    discountValue: discountAmount,
     discountAmount,
     taxableAmount,
     cgstRate,
@@ -106,6 +111,7 @@ const getCartBillSummary = ({ itemsTotal, billingTemplate, discountType, discoun
     totalTax,
     totalAmount: roundMoney(taxableAmount + totalTax),
     showTaxBreakup: billingTemplate?.showTaxBreakup !== false,
+    discountSource: discountAmount > 0 ? "vendor_catalog" : "none",
   };
 };
 
@@ -864,6 +870,7 @@ function InventoryLinkModal({
   if (!order) return null;
 
   const uniqueProducts = getOrderUniqueProducts(order);
+  const canReceiveStock = ["ready", "completed"].includes(order.status);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
@@ -902,16 +909,25 @@ function InventoryLinkModal({
               </div>
               <button
                 onClick={() => onReceiveStock(order)}
-                disabled={receivingOrderId === order.id || order.status !== "completed"}
+                disabled={receivingOrderId === order.id || !canReceiveStock}
                 className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Package size={15} />
-                {receivingOrderId === order.id ? "Receiving..." : "Receive Stock"}
+                {receivingOrderId === order.id
+                  ? "Receiving..."
+                  : order.status === "ready"
+                    ? "Received"
+                    : "Receive Stock"}
               </button>
             </div>
-            {order.status !== "completed" && (
+            {order.status === "processing" && (
               <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                Complete the order first, then receive stock into inventory.
+                Mark the order ready first, then receive stock into inventory.
+              </p>
+            )}
+            {order.status === "ready" && (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                Receiving stock will complete this order and sync linked items into inventory.
               </p>
             )}
           </div>
@@ -1105,12 +1121,13 @@ function VendorOrderHistoryModal({
                             <button
                               onClick={(event) => {
                                 event.stopPropagation();
-                                onUpdateStatus(order, "completed");
+                                onReceiveStock(order);
                               }}
-                              disabled={updatingOrderId === order.id}
+                              disabled={updatingOrderId === order.id || receivingOrderId === order.id}
                               className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-2.5 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-50 disabled:opacity-60 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-950/30"
                             >
-                              <CheckCircle2 size={12} /> Complete
+                              <Package size={12} />
+                              {receivingOrderId === order.id ? "Receiving..." : "Received"}
                             </button>
                             <button
                               onClick={(event) => {
@@ -1222,8 +1239,6 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
   const [savingLinkProductId, setSavingLinkProductId] = useState("");
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
-  const [discountType, setDiscountType] = useState("none");
-  const [discountValue, setDiscountValue] = useState("");
 
   const notify = (text, error = false) => {
     setIsError(error);
@@ -1293,6 +1308,34 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
       : [assignmentVendor.primaryRestaurant].filter(Boolean);
   }, [assignmentVendor]);
 
+  useEffect(() => {
+    const handleVendorInventorySettingsUpdated = (event) => {
+      const changedRestaurantId = String(event?.detail?.restaurantId || "");
+      if (!changedRestaurantId) return;
+
+      const assignedRestaurantIds = assignedRestaurants
+        .map((restaurant) => restaurant?._id || restaurant?.id || restaurant)
+        .filter(Boolean)
+        .map(String);
+
+      if (!assignedRestaurantIds.includes(changedRestaurantId)) return;
+      loadData();
+    };
+
+    window.addEventListener(
+      VENDOR_INVENTORY_SETTINGS_UPDATED_EVENT,
+      handleVendorInventorySettingsUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        VENDOR_INVENTORY_SETTINGS_UPDATED_EVENT,
+        handleVendorInventorySettingsUpdated
+      );
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignedRestaurants, vendorId]);
+
   const selectedRestaurant = assignedRestaurants.find(
     (restaurant) => restaurant._id === selectedRestaurantId
   );
@@ -1317,20 +1360,13 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
       .filter(Boolean);
   }, [cart, products]);
 
-  const cartTotal = cartItems.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
-    0
-  );
-
   const cartBillSummary = useMemo(
     () =>
       getCartBillSummary({
-        itemsTotal: cartTotal,
+        cartItems,
         billingTemplate: selectedRestaurant?.billingTemplate,
-        discountType,
-        discountValue,
       }),
-    [cartTotal, selectedRestaurant, discountType, discountValue]
+    [cartItems, selectedRestaurant]
   );
 
   const setQuantity = (product, quantity) => {
@@ -1363,15 +1399,11 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
           productId: item.product.id,
           quantity: item.quantity,
         })),
-        discountType,
-        discountValue: discountType === "none" ? 0 : Number(discountValue || 0),
       };
       const res = await API.post(`/vendor/${sourceVendorId}/orders`, payload);
       const order = res.data?.order;
       notify("Order placed successfully");
       setCart({});
-      setDiscountType("none");
-      setDiscountValue("");
       setReceiptOrder(order);
       loadData();
     } catch (error) {
@@ -1477,17 +1509,32 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
   };
 
   const handleReceiveOrderStock = async (order) => {
-    if (!isVendorInventoryIntegrationEnabledForRestaurant(order?.restaurant)) {
+    if (order.status !== "completed" && order.status !== "ready") {
+      notify("Mark the order ready before receiving stock", true);
+      return;
+    }
+
+    if (
+      order.status === "completed" &&
+      !isVendorInventoryIntegrationEnabledForRestaurant(order?.restaurant)
+    ) {
       notify("This restaurant is using manual inventory mode", true);
       return;
     }
 
     try {
       setReceivingOrderId(order.id);
-      const res = await API.put(`/vendor/${sourceVendorId}/orders/${order.id}/receive-stock`);
+
+      const res =
+        order.status === "ready"
+          ? await API.put(`/vendor/${sourceVendorId}/orders/${order.id}/status`, {
+              status: "completed",
+            })
+          : await API.put(`/vendor/${sourceVendorId}/orders/${order.id}/receive-stock`);
+
       const updatedOrder = res.data?.order || order;
       setLinkOrder((prev) => (prev?.id === order.id ? updatedOrder : prev));
-      notify("Stock received into restaurant inventory");
+      notify(res.data?.message || "Stock received into restaurant inventory");
       await loadData();
       if (linkOrder?.id === order.id) {
         await loadInventoryLinksForOrder(updatedOrder);
@@ -1669,11 +1716,18 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
                         )}
                       </div>
                       <p className="mt-1 text-lg font-bold text-green-600 dark:text-green-400">
-                        {formatCurrency(product.price)}
+                        {formatCurrency(getProductEffectivePrice(product))}
                         {(product.displayUnit || product.unit) && (
                           <span className="text-xs font-normal text-gray-400"> / {product.displayUnit || product.unit}</span>
                         )}
                       </p>
+                      {getProductUnitDiscountAmount(product) > 0 && (
+                        <p className="mt-1 text-xs text-amber-600 dark:text-amber-300">
+                          Vendor discount: -{formatCurrency(getProductUnitDiscountAmount(product))}
+                          {product.discountType === "percentage" ? ` (${product.discountValue}%)` : ""}
+                          {" "}from {formatCurrency(product.price)}
+                        </p>
+                      )}
                       <p
                         className={`mt-1 text-xs font-medium ${
                           outOfStock ? "text-red-500" : "text-gray-500 dark:text-gray-400"
@@ -1766,7 +1820,7 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      {formatCurrency(product.price * quantity)}
+                      {formatCurrency(getProductEffectivePrice(product) * quantity)}
                     </span>
                     <button
                       onClick={() => removeFromCart(product.id)}
@@ -1788,43 +1842,12 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
                 </span>
               </div>
 
-              <div className="rounded-2xl border border-gray-100 bg-gray-50/60 p-3 dark:border-neutral-700 dark:bg-neutral-900/30">
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
-                  Discount
-                </label>
-                <div className="grid gap-2 sm:grid-cols-[140px_1fr]">
-                  <select
-                    value={discountType}
-                    onChange={(event) => {
-                      const nextType = event.target.value;
-                      setDiscountType(nextType);
-                      if (nextType === "none") {
-                        setDiscountValue("");
-                      }
-                    }}
-                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
-                  >
-                    <option value="none">No discount</option>
-                    <option value="amount">Flat amount</option>
-                    <option value="percentage">Percentage</option>
-                  </select>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={discountValue}
-                    onChange={(event) => setDiscountValue(event.target.value)}
-                    disabled={discountType === "none"}
-                    placeholder={discountType === "percentage" ? "Enter %" : "Enter amount"}
-                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100 dark:disabled:bg-neutral-700"
-                  />
-                </div>
-              </div>
-
               <div className="space-y-2 rounded-2xl border border-green-100 bg-green-50/70 p-3 dark:border-green-900 dark:bg-green-950/20">
                 {cartBillSummary.discountAmount > 0 && (
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-300">Discount</span>
+                    <span className="text-gray-600 dark:text-gray-300">
+                      {getDiscountLabel(cartBillSummary)}
+                    </span>
                     <span className="font-semibold text-red-600 dark:text-red-300">
                       -{formatCurrency(cartBillSummary.discountAmount)}
                     </span>

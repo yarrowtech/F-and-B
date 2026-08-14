@@ -163,4 +163,251 @@ export const sendVendorInvitationEmail = async ({
   });
 };
 
+export const sendAdminAccountCredentialsEmail = async ({
+  to,
+  businessName,
+  adminId,
+  password,
+  planName,
+}) => {
+  const email = String(to || "").trim();
+  if (!email) {
+    throw new Error("Recipient email is required");
+  }
+
+  const transport = getTransporter();
+  const greetingName = businessName || "Admin";
+  const subject = "Your admin account is ready";
+  const text = [
+    "Admin account created successfully",
+    "",
+    `Hello ${greetingName},`,
+    "",
+    "Your admin account has been created successfully.",
+    `Admin Login ID: ${adminId || "N/A"}`,
+    `Password: ${password || "N/A"}`,
+    planName ? `Subscription Plan: ${planName}` : "",
+    "",
+    "You can now log in and start using your admin panel.",
+    "",
+    "Please change your password after your first login.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const html = `
+    <div style="margin:0; padding:36px 18px; background:#f3f7f4; font-family:Arial,Helvetica,sans-serif; color:#111827;">
+      <div style="max-width:760px; margin:0 auto; background:#ffffff; border:1px solid #dfe7e2; border-radius:24px; overflow:hidden; box-shadow:0 12px 32px rgba(15,23,42,0.08);">
+        <div style="background:linear-gradient(135deg,#f3fbf5 0%,#ffffff 52%,#ecfdf3 100%); padding:28px 32px 22px; border-bottom:1px solid #e5e7eb;">
+          <div style="display:inline-block; padding:8px 12px; border-radius:999px; background:#ecfdf3; color:#169c52; font-size:12px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase;">
+            Admin Signup
+          </div>
+          <h1 style="margin:18px 0 10px; font-size:38px; line-height:1.08; font-weight:800; color:#111827;">
+            Your admin account is ready
+          </h1>
+          <p style="margin:0; max-width:620px; font-size:16px; line-height:1.7; color:#4b5563;">
+            Your restaurant admin account has been created successfully. Use the credentials below to log in.
+          </p>
+        </div>
+
+        <div style="padding:30px 32px 36px;">
+          <p style="margin:0 0 18px; font-size:18px; font-weight:700; color:#111827;">
+            Hello ${greetingName},
+          </p>
+
+          <div style="margin:0 0 22px; border:1px solid #e5e7eb; border-radius:18px; background:#f8faf9; overflow:hidden;">
+            <div style="padding:14px 18px; border-bottom:1px solid #e5e7eb; font-size:11px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#6b7280;">
+              Login Credentials
+            </div>
+            <div style="padding:18px;">
+              <p style="margin:0 0 10px; font-size:15px; color:#1f2937;"><strong>Admin Login ID:</strong> ${adminId || "N/A"}</p>
+              <p style="margin:0 0 10px; font-size:15px; color:#1f2937;"><strong>Password:</strong> ${password || "N/A"}</p>
+              ${
+                planName
+                  ? `<p style="margin:0; font-size:15px; color:#1f2937;"><strong>Subscription Plan:</strong> ${planName}</p>`
+                  : ""
+              }
+            </div>
+          </div>
+
+          <div style="padding:16px 18px; border-radius:16px; background:#fffdf2; border:1px solid #f5e7a7;">
+            <p style="margin:0; font-size:14px; line-height:1.7; color:#7c5e10;">
+              Please change your password after your first login for better security.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const { mailFrom } = getMailerConfig();
+
+  return transport.sendMail({
+    from: mailFrom,
+    to: email,
+    subject,
+    text,
+    html,
+  });
+};
+
+export const sendVendorAccountCredentialsEmail = async ({
+  to,
+  vendorName,
+  vendorId,
+  password,
+}) => {
+  const email = String(to || "").trim();
+  if (!email) {
+    throw new Error("Recipient email is required");
+  }
+
+  const transport = getTransporter();
+  const greetingName = vendorName || "Vendor";
+  const subject = "Your global vendor account is ready";
+  const text = [
+    "Global vendor account created successfully",
+    "",
+    `Hello ${greetingName},`,
+    "",
+    "Your global vendor account has been created successfully.",
+    `Vendor Login ID: ${vendorId || "N/A"}`,
+    `Password: ${password || "N/A"}`,
+    "",
+    "You can now log in and start using your vendor dashboard.",
+    "",
+    "Please change your password after your first login.",
+  ].join("\n");
+
+  const html = `
+    <div style="margin:0; padding:36px 18px; background:#f3f7f4; font-family:Arial,Helvetica,sans-serif; color:#111827;">
+      <div style="max-width:760px; margin:0 auto; background:#ffffff; border:1px solid #dfe7e2; border-radius:24px; overflow:hidden; box-shadow:0 12px 32px rgba(15,23,42,0.08);">
+        <div style="background:linear-gradient(135deg,#f3fbf5 0%,#ffffff 52%,#ecfdf3 100%); padding:28px 32px 22px; border-bottom:1px solid #e5e7eb;">
+          <div style="display:inline-block; padding:8px 12px; border-radius:999px; background:#ecfdf3; color:#169c52; font-size:12px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase;">
+            Global Vendor Signup
+          </div>
+          <h1 style="margin:18px 0 10px; font-size:38px; line-height:1.08; font-weight:800; color:#111827;">
+            Your global vendor account is ready
+          </h1>
+          <p style="margin:0; max-width:620px; font-size:16px; line-height:1.7; color:#4b5563;">
+            Your account has been created successfully. Use the credentials below to log in.
+          </p>
+        </div>
+
+        <div style="padding:30px 32px 36px;">
+          <p style="margin:0 0 18px; font-size:18px; font-weight:700; color:#111827;">
+            Hello ${greetingName},
+          </p>
+
+          <div style="margin:0 0 22px; border:1px solid #e5e7eb; border-radius:18px; background:#f8faf9; overflow:hidden;">
+            <div style="padding:14px 18px; border-bottom:1px solid #e5e7eb; font-size:11px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#6b7280;">
+              Login Credentials
+            </div>
+            <div style="padding:18px;">
+              <p style="margin:0 0 10px; font-size:15px; color:#1f2937;"><strong>Vendor Login ID:</strong> ${vendorId || "N/A"}</p>
+              <p style="margin:0; font-size:15px; color:#1f2937;"><strong>Password:</strong> ${password || "N/A"}</p>
+            </div>
+          </div>
+
+          <div style="padding:16px 18px; border-radius:16px; background:#fffdf2; border:1px solid #f5e7a7;">
+            <p style="margin:0; font-size:14px; line-height:1.7; color:#7c5e10;">
+              Please change your password after your first login for better security.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const { mailFrom } = getMailerConfig();
+
+  return transport.sendMail({
+    from: mailFrom,
+    to: email,
+    subject,
+    text,
+    html,
+  });
+};
+
+export const sendPasswordResetOtpEmail = async ({
+  to,
+  name,
+  otp,
+  roleLabel,
+  expiresInMinutes = 10,
+}) => {
+  const email = String(to || "").trim();
+  if (!email) {
+    throw new Error("Recipient email is required");
+  }
+
+  const transport = getTransporter();
+  const greetingName = name || roleLabel || "User";
+  const subject = `${roleLabel || "Account"} password reset OTP`;
+  const text = [
+    "Password reset OTP",
+    "",
+    `Hello ${greetingName},`,
+    "",
+    `Your OTP for password reset is: ${otp}`,
+    `This OTP will expire in ${expiresInMinutes} minutes.`,
+    "",
+    "If you did not request a password reset, please ignore this email.",
+  ].join("\n");
+
+  const html = `
+    <div style="margin:0; padding:36px 18px; background:#f3f7f4; font-family:Arial,Helvetica,sans-serif; color:#111827;">
+      <div style="max-width:680px; margin:0 auto; background:#ffffff; border:1px solid #dfe7e2; border-radius:24px; overflow:hidden; box-shadow:0 12px 32px rgba(15,23,42,0.08);">
+        <div style="background:linear-gradient(135deg,#f3fbf5 0%,#ffffff 52%,#ecfdf3 100%); padding:28px 32px 22px; border-bottom:1px solid #e5e7eb;">
+          <div style="display:inline-block; padding:8px 12px; border-radius:999px; background:#ecfdf3; color:#169c52; font-size:12px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase;">
+            Password Reset
+          </div>
+          <h1 style="margin:18px 0 10px; font-size:34px; line-height:1.08; font-weight:800; color:#111827;">
+            Use this OTP to reset your password
+          </h1>
+          <p style="margin:0; max-width:560px; font-size:16px; line-height:1.7; color:#4b5563;">
+            Enter the OTP below on the reset screen to set a new password for your ${roleLabel || "account"}.
+          </p>
+        </div>
+
+        <div style="padding:30px 32px 36px;">
+          <p style="margin:0 0 18px; font-size:18px; font-weight:700; color:#111827;">
+            Hello ${greetingName},
+          </p>
+
+          <div style="margin:0 0 24px; padding:22px; border-radius:20px; background:#f8faf9; border:1px solid #e5e7eb; text-align:center;">
+            <p style="margin:0 0 10px; font-size:12px; font-weight:800; letter-spacing:0.16em; text-transform:uppercase; color:#6b7280;">
+              One Time Password
+            </p>
+            <p style="margin:0; font-size:36px; font-weight:900; letter-spacing:0.22em; color:#111827;">
+              ${otp}
+            </p>
+          </div>
+
+          <div style="padding:16px 18px; border-radius:16px; background:#fffdf2; border:1px solid #f5e7a7;">
+            <p style="margin:0; font-size:14px; line-height:1.7; color:#7c5e10;">
+              This OTP will expire in <strong style="color:#5b4307;">${expiresInMinutes} minutes</strong>.
+            </p>
+          </div>
+
+          <p style="margin:22px 0 0; font-size:14px; line-height:1.7; color:#6b7280;">
+            If you did not request a password reset, please ignore this email.
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const { mailFrom } = getMailerConfig();
+
+  return transport.sendMail({
+    from: mailFrom,
+    to: email,
+    subject,
+    text,
+    html,
+  });
+};
+
 export { isMailerConfigured };

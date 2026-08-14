@@ -318,6 +318,7 @@ const RestaurantManagement = lazy(() => import("./AdminRestaurantManagement"));
 const RestaurantEmployees = lazy(() => import("./RestaurantEmployees"));
 const AdminInventory = lazy(() => import("../AdminModule/AdminInventory"));
 const MenuManagement = lazy(() => import("./AdminMenuManagement"));
+const AdminSubscriptionOverview = lazy(() => import("./AdminSubscriptionOverview"));
 const Account = lazy(() => import("./AdminAccount"));
 const Analytical = lazy(() => import("./AdminAnalytics"));
 const Reports = lazy(() => import("./AdminReports"));
@@ -331,6 +332,11 @@ const AdminVendorStorefront = lazy(() => import("./AdminVendorStorefront"));
 
 import { FaBox, FaChartBar, FaHandshake, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList, FaCogs } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
+import API from "../../services/api";
+import {
+  endAnalyticsSession,
+  trackAnalyticsEvent,
+} from "../../services/projectAnalytics.service";
 
 /* ─── Avatar + Profile Popup ─── */
 function AdminProfileButton() {
@@ -352,10 +358,12 @@ function AdminProfileButton() {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("theme");
-    navigate("/admin-login");
+    endAnalyticsSession({ path: window.location.pathname || "/admin" }).finally(() => {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      localStorage.removeItem("theme");
+      navigate("/login");
+    });
   };
 
   return (
@@ -437,12 +445,40 @@ const BOTTOM_NAV = [
   { key: "vendor",     label: "Vendor",     icon: FaHandshake },
   { key: "menu",       label: "Menu",       icon: FaClipboardList },
   { key: "table",      label: "Table",      icon: FaUtensils },
+  { key: "subscription", label: "Subscription", icon: FaClipboardList },
   { key: "account",    label: "Account",    icon: FaUserCircle },
   { key: "analytical", label: "Analytical", icon: FaChartBar },
   { key: "reports",    label: "Reports",    icon: FaChartBar },
   { key: "notes",      label: "Notes",      icon: FaStickyNote },
   { key: "settings",   label: "Settings",   icon: FaCogs },
 ];
+
+const SUBSCRIPTION_OPEN_SECTIONS = new Set(["subscription", "account", "settings"]);
+
+function SubscriptionRequired({ sectionLabel, onOpenSubscription }) {
+  return (
+    <div className="rounded-[2rem] border border-amber-200 bg-[radial-gradient(circle_at_top_right,rgba(253,230,138,0.28),transparent_30%),linear-gradient(180deg,#ffffff_0%,#fffbeb_100%)] p-8 shadow-[0_24px_60px_-34px_rgba(15,23,42,0.22)]">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-amber-600">
+        Subscription Required
+      </p>
+      <h2 className="mt-3 text-4xl font-black tracking-[-0.05em] text-slate-950">
+        Get a plan to use {sectionLabel}
+      </h2>
+      <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+        Your admin account is created successfully, but this section stays locked until
+        you activate a subscription plan. Open the Subscription page, choose a plan,
+        complete payment, and then the system will unlock according to that plan.
+      </p>
+      <button
+        type="button"
+        onClick={onOpenSubscription}
+        className="mt-6 inline-flex rounded-full bg-[linear-gradient(180deg,#f59e0b_0%,#d97706_100%)] px-6 py-3 text-sm font-semibold text-white shadow-[0_20px_40px_-24px_rgba(217,119,6,0.65)] transition hover:-translate-y-0.5"
+      >
+        Get A Plan
+      </button>
+    </div>
+  );
+}
 
 const Admin = () => {
   const [active, setActive] = useState("dashboard");
@@ -456,8 +492,13 @@ const Admin = () => {
   const [selectedRestaurantId, setSelectedRestaurantId] = useState(null);
   const [inventoryPendingCount, setInventoryPendingCount] = useState(0);
   const [selectedVendorId, setSelectedVendorId] = useState(null);
+  const [subscription, setSubscription] = useState(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
 
   const mainRef = useRef(null);
+
+  const sectionLabel =
+    BOTTOM_NAV.find((item) => item.key === active)?.label || "this section";
 
   /* ================= EFFECTS ================= */
 
@@ -473,6 +514,32 @@ const Admin = () => {
     }
   }, [active]);
 
+  useEffect(() => {
+    trackAnalyticsEvent({
+      eventType: "FEATURE_USE",
+      featureKey: `admin.${active}`,
+      featureLabel: sectionLabel,
+      path: window.location.pathname || "/admin",
+      details: { panel: active, role: "admin" },
+    }).catch(() => {});
+  }, [active, sectionLabel]);
+
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      try {
+        setSubscriptionLoading(true);
+        const res = await API.get("/subscriptions/me");
+        setSubscription(res.data?.subscription || null);
+      } catch {
+        setSubscription(null);
+      } finally {
+        setSubscriptionLoading(false);
+      }
+    };
+
+    fetchSubscription();
+  }, []);
+
   /* ================= HANDLERS ================= */
 
   const handleModeChange = () => {
@@ -483,9 +550,26 @@ const Admin = () => {
     setActive(section);
   }, []);
 
+  const hasActiveSubscription =
+    ["active", "trial"].includes(String(subscription?.status || "").toLowerCase());
+
+  const shouldBlockSection =
+    !subscriptionLoading &&
+    !hasActiveSubscription &&
+    !SUBSCRIPTION_OPEN_SECTIONS.has(active);
+
   /* ================= MAIN SWITCH ================= */
 
   const renderContent = () => {
+    if (shouldBlockSection) {
+      return (
+        <SubscriptionRequired
+          sectionLabel={sectionLabel}
+          onOpenSubscription={() => setActive("subscription")}
+        />
+      );
+    }
+
     switch (active) {
       case "dashboard":
         return <Dashboard />;
@@ -542,6 +626,15 @@ const Admin = () => {
 
       case "account":
         return <Account />;
+
+      case "subscription":
+        return (
+          <AdminSubscriptionOverview
+            onSubscriptionChange={(nextSubscription) => {
+              setSubscription(nextSubscription);
+            }}
+          />
+        );
 
       case "analytical":
         return <Analytical />;
@@ -627,6 +720,12 @@ const Admin = () => {
             ref={mainRef}
             className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-4 sm:p-6 pb-24 2xl:pb-6"
           >
+            {subscriptionLoading && !SUBSCRIPTION_OPEN_SECTIONS.has(active) && (
+              <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-500">
+                Checking subscription access...
+              </div>
+            )}
+
             {selectedRestaurantId && active === "restaurantEmployees" && (
               <div className="mb-4 text-sm text-green-600 font-semibold">
                 Managing Employees for Restaurant ID: {selectedRestaurantId}

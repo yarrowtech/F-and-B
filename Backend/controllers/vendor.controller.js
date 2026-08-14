@@ -6,8 +6,10 @@ import Vendor from "../models/Vendor.model.js";
 import VendorOrder from "../models/VendorOrder.model.js";
 import {
   isMailerConfigured,
+  sendVendorAccountCredentialsEmail,
   sendVendorInvitationEmail,
 } from "../utils/mailer.js";
+import { requestPasswordResetOtp, resetPasswordWithOtp } from "../utils/passwordReset.service.js";
 
 const toObjectId = (value) =>
   mongoose.Types.ObjectId.isValid(value)
@@ -260,6 +262,10 @@ const createToken = (vendor) =>
     { expiresIn: "4d" }
   );
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_POLICY_REGEX =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
+
 const getScopedVendorQuery = async (user) => {
   if (user.role === "super_admin") {
     return {};
@@ -398,6 +404,185 @@ export const loginVendor = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const forgotVendorPassword = async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const vendor = await Vendor.findOne({ email }).select("_id name email isActive");
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: "Vendor not found",
+      });
+    }
+
+    if (!vendor.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "Vendor account is inactive",
+      });
+    }
+
+    await requestPasswordResetOtp({
+      accountType: "vendor",
+      accountId: vendor._id,
+      email: vendor.email,
+      name: vendor.name,
+      roleLabel: "Vendor",
+    });
+
+    return res.json({
+      success: true,
+      message: "OTP sent to your email",
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const resetVendorForgotPassword = async (req, res) => {
+  try {
+    await resetPasswordWithOtp({
+      accountType: "vendor",
+      email: req.body.email,
+      otp: req.body.otp,
+      newPassword: req.body.newPassword,
+      accountModel: Vendor,
+    });
+
+    return res.json({
+      success: true,
+      message: "Password reset successful. You can now login with the new password.",
+    });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const createGlobalVendorSelfSignup = async (req, res) => {
+  try {
+    const name = String(req.body.name || "").trim();
+    const email = normalizeEmail(req.body.email);
+    const phone = String(req.body.phone || "").trim();
+    const address = normalizeAddress(req.body.address);
+    const governmentId = String(req.body.governmentId || "").trim().toUpperCase();
+    const governmentIdType = normalizeGovernmentIdType(req.body.governmentIdType);
+    const category = String(req.body.category || "").trim();
+    const password = String(req.body.password || "");
+
+    if (!name || !email || !phone || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email, phone, and password are required",
+      });
+    }
+
+    if (!EMAIL_REGEX.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Enter a valid email address",
+      });
+    }
+
+    if (!address.line1 || !address.city || !address.state || !address.pincode) {
+      return res.status(400).json({
+        success: false,
+        message: "Address line 1, city, state, and PIN code are required",
+      });
+    }
+
+    if (!PASSWORD_POLICY_REGEX.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and special character",
+      });
+    }
+
+    const existingVendor = await Vendor.findOne({ email }).select("_id");
+    if (existingVendor) {
+      return res.status(409).json({
+        success: false,
+        message: "Vendor already exists with this email",
+      });
+    }
+
+    const vendorId = await generateVendorId("global");
+    const vendor = await Vendor.create({
+      vendorId,
+      name,
+      email,
+      phone,
+      address,
+      governmentId,
+      governmentIdType,
+      category,
+      password,
+      vendorType: "global",
+      createdByRole: "self_signup",
+      createdByAdmin: null,
+      createdBySuperAdmin: null,
+      connectedAdmins: [],
+      primaryRestaurant: null,
+      accessibleRestaurants: [],
+      allRestaurantsAccess: false,
+      invitationStatus: "accepted",
+      isActive: true,
+    });
+
+    let credentialsEmailSent = false;
+    let credentialsEmailMessage = "";
+
+    if (isMailerConfigured()) {
+      try {
+        await sendVendorAccountCredentialsEmail({
+          to: vendor.email,
+          vendorName: vendor.name,
+          vendorId: vendor.vendorId,
+          password,
+        });
+        credentialsEmailSent = true;
+        credentialsEmailMessage = `Credentials email sent to ${vendor.email}`;
+      } catch (mailError) {
+        credentialsEmailMessage =
+          mailError?.message || "Account created, but credentials email could not be sent";
+      }
+    } else {
+      credentialsEmailMessage =
+        "Account created, but SMTP is not configured so credentials email was not sent";
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Global vendor account created successfully",
+      vendor: {
+        id: vendor._id,
+        vendorId: vendor.vendorId,
+        name: vendor.name,
+        email: vendor.email,
+      },
+      credentialsEmailSent,
+      credentialsEmailMessage,
+    });
+  } catch (error) {
+    const status = error?.code === 11000 ? 409 : 500;
+    return res.status(status).json({
+      success: false,
+      message:
+        error?.code === 11000
+          ? "Vendor ID or email already exists"
+          : error.message,
+    });
   }
 };
 
@@ -754,8 +939,8 @@ export const getVendorById = async (req, res) => {
     })
       .populate("createdByAdmin", "businessName email adminId")
       .populate("createdBySuperAdmin", "email")
-      .populate("primaryRestaurant", "name restaurantCode")
-      .populate("accessibleRestaurants", "name restaurantCode");
+      .populate("primaryRestaurant", "name restaurantCode vendorInventoryIntegration")
+      .populate("accessibleRestaurants", "name restaurantCode vendorInventoryIntegration");
 
     if (!vendor) {
       return res.status(404).json({ success: false, message: "Vendor not found" });
@@ -770,8 +955,8 @@ export const getVendorById = async (req, res) => {
 export const getMyVendorProfile = async (req, res) => {
   try {
     const vendor = await Vendor.findById(req.user.id)
-      .populate("primaryRestaurant", "name restaurantCode")
-      .populate("accessibleRestaurants", "name restaurantCode");
+      .populate("primaryRestaurant", "name restaurantCode vendorInventoryIntegration")
+      .populate("accessibleRestaurants", "name restaurantCode vendorInventoryIntegration");
 
     if (!vendor) {
       return res.status(404).json({ success: false, message: "Vendor not found" });
@@ -1152,8 +1337,14 @@ export const connectGlobalVendor = async (req, res) => {
     }
 
     await vendor.save();
-    await vendor.populate("primaryRestaurant", "name restaurantCode");
-    await vendor.populate("accessibleRestaurants", "name restaurantCode");
+    await vendor.populate(
+      "primaryRestaurant",
+      "name restaurantCode vendorInventoryIntegration"
+    );
+    await vendor.populate(
+      "accessibleRestaurants",
+      "name restaurantCode vendorInventoryIntegration"
+    );
 
     res.json({
       success: true,
@@ -1193,6 +1384,9 @@ export const getVendorDashboardScope = async (req, res) => {
 
 export default {
   loginVendor,
+  forgotVendorPassword,
+  resetVendorForgotPassword,
+  createGlobalVendorSelfSignup,
   getVendorInvitation,
   acceptVendorInvitation,
   createLocalVendor,

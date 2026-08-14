@@ -27,6 +27,36 @@ const normalizePositiveNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 };
 
+const normalizeDiscountType = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["amount", "percentage"].includes(normalized) ? normalized : "none";
+};
+
+const getProductDiscountSummary = (product) => {
+  const basePrice = normalizePositiveNumber(product?.price);
+  const discountType = normalizeDiscountType(product?.discountType);
+  const discountValue = normalizePositiveNumber(product?.discountValue);
+
+  let unitDiscountAmount = 0;
+  if (discountType === "percentage") {
+    unitDiscountAmount = basePrice * (Math.min(discountValue, 100) / 100);
+  } else if (discountType === "amount") {
+    unitDiscountAmount = discountValue;
+  }
+
+  unitDiscountAmount = Math.min(unitDiscountAmount, basePrice);
+  const effectivePrice = Number((basePrice - unitDiscountAmount).toFixed(2));
+
+  return {
+    discountType,
+    discountValue: Number(
+      (discountType === "percentage" ? Math.min(discountValue, 100) : discountValue).toFixed(2)
+    ),
+    unitDiscountAmount: Number(unitDiscountAmount.toFixed(2)),
+    effectivePrice,
+  };
+};
+
 const getErrorMessage = (error, fallback = "Something went wrong") => {
   if (!error) return fallback;
   if (typeof error === "string") return error;
@@ -158,6 +188,7 @@ const buildProductResponse = (product, viewerRole = "vendor") => {
   const orderUnit = getOrderUnit(product);
   const stockUnit = getStockUnit(product);
   const orderPackQuantity = getOrderPackQuantity(product);
+  const pricing = getProductDiscountSummary(product);
 
   return {
     id: product._id,
@@ -166,6 +197,10 @@ const buildProductResponse = (product, viewerRole = "vendor") => {
     name: product.name,
     description: product.description,
     price: product.price,
+    effectivePrice: pricing.effectivePrice,
+    discountType: pricing.discountType,
+    discountValue: pricing.discountValue,
+    unitDiscountAmount: pricing.unitDiscountAmount,
     buyingPrice: normalizePositiveNumber(product.buyingPrice, normalizePositiveNumber(product.price)),
     unit: orderUnit,
     displayUnit: getDisplayUnit(product),
@@ -306,6 +341,8 @@ export const createVendorProduct = async (req, res) => {
 
     const name = String(req.body.name || "").trim();
     const price = Number(req.body.price ?? 0);
+    const discountType = normalizeDiscountType(req.body.discountType);
+    const discountValue = Number(req.body.discountValue ?? 0);
     const buyingPrice = Number(req.body.buyingPrice ?? req.body.price ?? 0);
     const stock = Number(req.body.stock ?? 0);
     const lowStockThreshold = Number(req.body.lowStockThreshold ?? 10);
@@ -340,6 +377,20 @@ export const createVendorProduct = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Buying price must be 0 or more",
+      });
+    }
+
+    if (Number.isNaN(discountValue) || discountValue < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Discount value must be 0 or more",
+      });
+    }
+
+    if (discountType === "percentage" && discountValue > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Percentage discount cannot exceed 100",
       });
     }
 
@@ -387,6 +438,8 @@ export const createVendorProduct = async (req, res) => {
       name,
       description: String(req.body.description || "").trim(),
       price,
+      discountType,
+      discountValue: discountType === "none" ? 0 : discountValue,
       buyingPrice,
       unit,
       stockUnit,
@@ -437,6 +490,8 @@ export const updateVendorProduct = async (req, res) => {
       "name",
       "description",
       "price",
+      "discountType",
+      "discountValue",
       "buyingPrice",
       "unit",
       "stockUnit",
@@ -495,6 +550,7 @@ export const updateVendorProduct = async (req, res) => {
 
       if (
         field === "price" ||
+        field === "discountValue" ||
         field === "buyingPrice" ||
         field === "stock" ||
         field === "lowStockThreshold" ||
@@ -510,6 +566,8 @@ export const updateVendorProduct = async (req, res) => {
             message:
               field === "price"
                 ? "Selling price must be 0 or more"
+                : field === "discountValue"
+                  ? "Discount value must be 0 or more"
                 : field === "buyingPrice"
                   ? "Buying price must be 0 or more"
                 : field === "stock"
@@ -522,6 +580,8 @@ export const updateVendorProduct = async (req, res) => {
           });
         }
         product[field] = numericValue;
+      } else if (field === "discountType") {
+        product.discountType = normalizeDiscountType(req.body.discountType);
       } else if (field === "isActive") {
         product.isActive = Boolean(req.body.isActive);
       } else if (field === "isForSale") {
@@ -550,6 +610,17 @@ export const updateVendorProduct = async (req, res) => {
 
     if (product.isForSale) {
       product.isListedInMyProducts = true;
+    }
+
+    if (product.discountType === "percentage" && Number(product.discountValue || 0) > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Percentage discount cannot exceed 100",
+      });
+    }
+
+    if (product.discountType === "none") {
+      product.discountValue = 0;
     }
 
     if (!product.name) {

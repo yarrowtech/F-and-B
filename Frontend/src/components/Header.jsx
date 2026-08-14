@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 const navLinks = [
   { to: "/", label: "Home", sectionId: "hero" },
   { to: "/#services", label: "Services", sectionId: "services" },
+  { to: "/#subscription", label: "Subscription", sectionId: "subscription" },
   { to: "/#about", label: "About", sectionId: "about" },
   { to: "/#contact", label: "Contact", sectionId: "contact" },
 ];
@@ -154,30 +155,32 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
   const headerTextClass = isLandingLight ? "text-emerald-950" : "text-white";
 
   return (
-    <header className={`fixed top-0 z-50 w-full px-4 pt-3 transition-all duration-300 md:px-6 lg:px-8 lg:pt-4 ${isScrolled ? "backdrop-blur-sm" : ""}`}>
+    <header className={`fixed top-0 z-50 w-full px-4 pt-2 transition-all duration-300 md:px-6 lg:px-8 lg:pt-2.5 ${isScrolled ? "backdrop-blur-sm" : ""}`}>
       <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-4">
           <Link
             to="/"
-            className="flex min-w-[86px] flex-col items-center transition duration-300 hover:scale-[1.02] lg:min-w-[128px]"
+            className="flex min-w-[76px] flex-col items-center transition duration-300 hover:scale-[1.02] lg:min-w-[112px]"
           >
-            <span className="mb-1 h-9 w-9 rounded-full bg-[#6fbd58] shadow-[0_0_30px_rgba(111,189,88,0.3)] lg:h-11 lg:w-11" />
+            <span className="mb-1 h-7 w-7 rounded-full bg-[#6fbd58] shadow-[0_0_24px_rgba(111,189,88,0.28)] lg:h-8 lg:w-8" />
             <span className="leading-none">
-              <span className="block text-xl font-black tracking-wide text-[#7fc84f] lg:text-2xl">
+              <span className="block text-lg font-black tracking-wide text-[#7fc84f] lg:text-xl">
                 EFNBM
               </span>
             </span>
           </Link>
 
-          <nav className={`absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 rounded-full border px-4 py-2.5 backdrop-blur-xl lg:flex lg:gap-2 lg:px-6 ${navShellClass}`}>
+          <nav className={`absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 rounded-full border px-4 py-2 backdrop-blur-xl lg:flex lg:gap-2 lg:px-5 ${navShellClass}`}>
             {navLinks.map(({ to, label, sectionId }) => {
-              const isActive = isHomePage && activeSection === sectionId;
+              const isActive = sectionId
+                ? isHomePage && activeSection === sectionId
+                : location.pathname === to;
 
               return (
                 <Link
                   key={label}
                   to={to}
                   onClick={(event) => handleNavClick(event, sectionId)}
-                  className={`rounded-full px-2.5 py-1 text-base font-semibold transition-all duration-300 lg:px-3 lg:text-lg ${
+                  className={`rounded-full px-2.5 py-1 text-sm font-semibold transition-all duration-300 lg:px-3 lg:text-base ${
                     isActive
                       ? "text-[#93d36c]"
                       : `${headerTextClass} hover:text-[#93d36c]`
@@ -217,7 +220,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
             ) : (
               <button
                 onClick={() => navigate("/login")}
-                className={`landing-login-button rounded-full border px-5 py-2.5 text-base font-semibold uppercase tracking-wide transition lg:px-6 lg:text-lg ${loginButtonClass}`}
+                className={`landing-login-button rounded-full border px-4 py-2 text-sm font-semibold uppercase tracking-wide transition lg:px-5 lg:text-base ${loginButtonClass}`}
               >
                 Login
               </button>
@@ -227,7 +230,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
               <button
                 type="button"
                 onClick={onLandingThemeToggle}
-                className={`inline-flex h-10 w-10 items-center justify-center rounded-full border text-sm transition lg:h-11 lg:w-11 ${
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-full border text-sm transition lg:h-10 lg:w-10 ${
                   isLandingLight
                     ? "border-emerald-900/10 bg-white/82 text-emerald-950 hover:bg-emerald-950 hover:text-white"
                     : "border-white/10 bg-white/12 text-white/85 hover:border-[#4ade80]/35 hover:text-[#4ade80]"
@@ -271,7 +274,9 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
                     to={to}
                     onClick={(event) => handleNavClick(event, sectionId)}
                     className={`block rounded-full border px-4 py-2 text-center text-sm transition ${
-                      isHomePage && activeSection === sectionId
+                      (sectionId
+                        ? isHomePage && activeSection === sectionId
+                        : location.pathname === to)
                         ? "border-[#4ade80]/40 bg-[#4ade80] text-[#140d09]"
                         : isLandingLight
                           ? "border-emerald-900/10 bg-white/60 text-emerald-950 hover:text-[#39a84a]"

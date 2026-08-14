@@ -17,7 +17,32 @@ const vendorOrderItemSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    effectivePrice: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    discountType: {
+      type: String,
+      enum: ["none", "amount", "percentage"],
+      default: "none",
+    },
+    discountValue: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    discountAmount: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
     unit: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    inventoryUnit: {
       type: String,
       trim: true,
       default: "",
@@ -131,6 +156,11 @@ const vendorOrderBillingSchema = new mongoose.Schema(
     showTaxBreakup: {
       type: Boolean,
       default: true,
+    },
+    discountSource: {
+      type: String,
+      enum: ["none", "vendor_catalog", "manual"],
+      default: "none",
     },
   },
   { _id: false }

@@ -191,6 +191,10 @@
 import Employee from "../models/Employee.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import {
+  requestPasswordResetOtp,
+  resetPasswordWithOtp,
+} from "../utils/passwordReset.service.js";
 
 /* 🔥 LOGGER */
 import { logAction, logError } from "../utils/logger.js";
@@ -344,5 +348,91 @@ export const login = async (req, res, next) => {
   } catch (err) {
     await logError(err, "LOGIN_CONTROLLER");
     next(err);
+  }
+};
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const employeeId = String(req.body.employeeId || "").trim().toUpperCase();
+    const email = String(req.body.email || "").trim().toLowerCase();
+
+    if (!employeeId || !email) {
+      return res.status(400).json({
+        success: false,
+        message: "Employee ID and email are required",
+      });
+    }
+
+    const employee = await Employee.findOne({
+      employeeId,
+      email,
+      isActive: true,
+    }).select("_id name email role employeeId");
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee account not found",
+      });
+    }
+
+    await requestPasswordResetOtp({
+      accountType: "employee",
+      accountId: employee._id,
+      email: employee.email,
+      name: employee.name,
+      roleLabel: employee.role
+        ? String(employee.role).replace(/_/g, " ")
+        : "Employee",
+    });
+
+    return res.json({
+      success: true,
+      message: "OTP sent to your email",
+    });
+  } catch (err) {
+    await logError(err, "EMPLOYEE_FORGOT_PASSWORD");
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+export const resetForgotPassword = async (req, res) => {
+  try {
+    const employeeId = String(req.body.employeeId || "").trim().toUpperCase();
+    const email = String(req.body.email || "").trim().toLowerCase();
+
+    if (!employeeId || !email) {
+      return res.status(400).json({
+        success: false,
+        message: "Employee ID and email are required",
+      });
+    }
+
+    await resetPasswordWithOtp({
+      accountType: "employee",
+      email,
+      otp: req.body.otp,
+      newPassword: req.body.newPassword,
+      accountModel: Employee,
+      accountQuery: {
+        employeeId,
+        email,
+        isActive: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: "Password reset successful. You can now login with the new password.",
+    });
+  } catch (err) {
+    await logError(err, "EMPLOYEE_RESET_FORGOT_PASSWORD");
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
   }
 };

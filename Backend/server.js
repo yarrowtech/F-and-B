@@ -1064,6 +1064,9 @@ import inventoryRoutes from "./routes/inventory.routes.js";
 import noteRoutes from "./routes/note.routes.js";
 import kotPrintJobRoutes from "./routes/kotPrintJob.routes.js";
 import printAgentRoutes from "./routes/printAgent.routes.js";
+import subscriptionRoutes from "./routes/subscription.Routes.js";
+import vendorSubscriptionRoutes from "./routes/vendorSubscription.Routes.js";
+import projectAnalyticsRoutes from "./routes/projectAnalytics.routes.js";
 
 // dashboards
 import adminDashboardRoutes from "./routes/adminDashboard.routes.js";
@@ -1170,6 +1173,9 @@ app.use("/api/inventory", inventoryRoutes);
 app.use("/api/notes", noteRoutes);
 app.use("/api/kot", kotPrintJobRoutes);
 app.use("/api/print-agent", printAgentRoutes);
+app.use("/api/subscriptions", subscriptionRoutes);
+app.use("/api/vendor-subscriptions", vendorSubscriptionRoutes);
+app.use("/api/project-analytics", projectAnalyticsRoutes);
 
 // 📊 DASHBOARDS
 app.use("/api/admin-dashboard", adminDashboardRoutes);

@@ -24,6 +24,16 @@ const vendorProductSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
+    discountType: {
+      type: String,
+      enum: ["none", "amount", "percentage"],
+      default: "none",
+    },
+    discountValue: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
     buyingPrice: {
       type: Number,
       min: 0,

@@ -5,6 +5,7 @@ import {
   ShieldCheck,
   Users,
   UserCog,
+  Globe2,
 } from "lucide-react";
 import API from "../../services/api";
 
@@ -45,6 +46,7 @@ const Dashboard = () => {
   const [summary, setSummary] = useState({
     totalAdmins: 0,
     totalEmployees: 0,
+    totalVendors: 0,
     totalUsersExcludingSuperadmin: 0,
   });
   const [loading, setLoading] = useState(true);
@@ -57,6 +59,7 @@ const Dashboard = () => {
         setSummary({
           totalAdmins: res.data?.data?.totalAdmins || 0,
           totalEmployees: res.data?.data?.totalEmployees || 0,
+          totalVendors: res.data?.data?.totalVendors || 0,
           totalUsersExcludingSuperadmin:
             res.data?.data?.totalUsersExcludingSuperadmin || 0,
         });
@@ -87,6 +90,14 @@ const Dashboard = () => {
         icon: Users,
         accent:
           "bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300",
+      },
+      {
+        title: "Vendors",
+        value: summary.totalVendors,
+        subtext: "Local and global vendor accounts",
+        icon: Globe2,
+        accent:
+          "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300",
       },
       {
         title: "Platform Users",
@@ -151,6 +162,13 @@ const Dashboard = () => {
                 <span className="text-sm text-white/85">Admin accounts</span>
                 <span className="inline-flex items-center gap-2 font-semibold">
                   {loading ? "--" : summary.totalAdmins}
+                  <ArrowUpRight size={16} />
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-white/15 px-4 py-3 backdrop-blur-sm">
+                <span className="text-sm text-white/85">Vendor accounts</span>
+                <span className="inline-flex items-center gap-2 font-semibold">
+                  {loading ? "--" : summary.totalVendors}
                   <ArrowUpRight size={16} />
                 </span>
               </div>

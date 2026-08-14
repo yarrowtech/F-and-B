@@ -1,10 +1,20 @@
 import crypto from "crypto";
 import Admin from "../models/Admin.model.js";
+import AdminSubscription from "../models/AdminSubscription.model.js";
 import Employee from "../models/Employee.model.js";
 import Log from "../models/Log.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import SuperAdmin from "../models/superAdmin.js";
+import SubscriptionPlan from "../models/SubscriptionPlan.model.js";
+import Vendor from "../models/Vendor.model.js";
 import generateToken from "../utils/generateToken.js";
+import generateAdminId from "../utils/generateAdminId.js";
+import {
+  assignSubscriptionToAdmin,
+  ensureDefaultSubscriptionPlans,
+  formatSubscriptionForResponse,
+  getPlanAmount,
+} from "../utils/subscription.service.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_POLICY_REGEX =
@@ -197,6 +207,8 @@ export const createAdminBySuperAdmin = async (req, res) => {
     const address = normalizeAddress(req.body.address);
     const panNumber = String(req.body.panNumber || "").trim().toUpperCase();
     const password = String(req.body.password || "");
+    const planCode = String(req.body.planCode || "").trim().toUpperCase();
+    const billingCycle = String(req.body.billingCycle || "monthly").trim().toLowerCase();
 
     if (!businessName || !email || !mobile || !hasRequiredAddress(address) || !panNumber || !password) {
       return res.status(400).json({
@@ -228,9 +240,26 @@ export const createAdminBySuperAdmin = async (req, res) => {
       });
     }
 
-    const prefix = businessName.replace(/\s+/g, "").substring(0, 4).toUpperCase();
-    const samePrefix = await Admin.countDocuments({ adminId: new RegExp(`^${prefix}-`) });
-    const adminId = `${prefix}-${String(samePrefix + 1).padStart(4, "0")}`;
+    let plan = null;
+    if (planCode) {
+      if (!["monthly", "yearly"].includes(billingCycle)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid billing cycle",
+        });
+      }
+
+      await ensureDefaultSubscriptionPlans();
+      plan = await SubscriptionPlan.findOne({ code: planCode, isActive: true });
+      if (!plan) {
+        return res.status(404).json({
+          success: false,
+          message: "Selected subscription plan not found",
+        });
+      }
+    }
+
+    const adminId = await generateAdminId(businessName);
 
     const admin = await Admin.create({
       adminId,
@@ -241,7 +270,23 @@ export const createAdminBySuperAdmin = async (req, res) => {
       panNumber,
       password,
       isActive: true,
+      createdBySource: "super_admin_created",
     });
+
+    let subscription = null;
+    if (plan) {
+        subscription = await assignSubscriptionToAdmin({
+          adminId: admin._id,
+          plan,
+          billingCycle,
+          amountPaid: getPlanAmount(plan, billingCycle),
+          paymentProvider: "manual",
+          paymentStatus: "manual",
+          assignedByRole: "super_admin",
+        assignedByUserId: req.user?.id || null,
+        notes: "Initial plan assigned during admin creation by super admin",
+      });
+    }
 
     await logSuperAdminAction({
       action: "CREATED_ADMIN",
@@ -263,7 +308,9 @@ export const createAdminBySuperAdmin = async (req, res) => {
         email: admin.email,
         businessName: admin.businessName,
         address: admin.address,
+        createdBySource: admin.createdBySource,
       },
+      subscription: formatSubscriptionForResponse(subscription),
     });
   } catch (error) {
     if (respondDuplicateKey(res, error, "Admin already exists")) {
@@ -278,6 +325,12 @@ export const createAdminBySuperAdmin = async (req, res) => {
 export const getAllAdmins = async (_req, res) => {
   try {
     const admins = await Admin.find({}).select("-password").sort({ createdAt: -1 });
+    const subscriptions = await AdminSubscription
+      .find({ admin: { $in: admins.map((admin) => admin._id) } })
+      .populate("plan");
+    const subscriptionMap = new Map(
+      subscriptions.map((subscription) => [String(subscription.admin), subscription])
+    );
 
     res.json({
       success: true,
@@ -291,6 +344,8 @@ export const getAllAdmins = async (_req, res) => {
         panNumber: admin.panNumber,
         isActive: admin.isActive,
         createdAt: admin.createdAt,
+        createdBySource: admin.createdBySource,
+        subscription: formatSubscriptionForResponse(subscriptionMap.get(String(admin._id)) || null),
       })),
     });
   } catch (error) {
@@ -301,9 +356,10 @@ export const getAllAdmins = async (_req, res) => {
 /* ================= DASHBOARD SUMMARY ================= */
 export const getSuperAdminDashboardSummary = async (_req, res) => {
   try {
-    const [totalAdmins, totalEmployees] = await Promise.all([
+    const [totalAdmins, totalEmployees, totalVendors] = await Promise.all([
       Admin.countDocuments({}),
       Employee.countDocuments({}),
+      Vendor.countDocuments({}),
     ]);
 
     res.json({
@@ -311,7 +367,8 @@ export const getSuperAdminDashboardSummary = async (_req, res) => {
       data: {
         totalAdmins,
         totalEmployees,
-        totalUsersExcludingSuperadmin: totalAdmins + totalEmployees,
+        totalVendors,
+        totalUsersExcludingSuperadmin: totalAdmins + totalEmployees + totalVendors,
       },
     });
   } catch (error) {

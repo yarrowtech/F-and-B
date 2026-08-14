@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaShieldAlt, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUsers, FaEnvelope, FaGlobe } from "react-icons/fa";
+import { FaShieldAlt, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUsers, FaEnvelope, FaGlobe, FaChartLine } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import Sidebar from "./Sidebar";
@@ -8,8 +8,11 @@ import Dashboard from "./Dashboard";
 import UserManagement from "./UserManagement";
 import GlobalVendorManagement from "./GlobalVendorManagement";
 import AdminManagement from "./AdminManagement";
+import SubscriptionManagement from "./SubscriptionManagement";
 import Notepad from "./Notepad";
 import ContactInquiries from "./ContactInquiries";
+import ProjectAnalytics from "./ProjectAnalytics";
+import { endAnalyticsSession } from "../../services/projectAnalytics.service";
 
 /* ─── Profile Popup ─── */
 function SuperAdminProfileButton() {
@@ -33,11 +36,13 @@ function SuperAdminProfileButton() {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("theme");
-    localStorage.removeItem("superAdminEmail");
-    navigate("/superadmin-login");
+    endAnalyticsSession({ path: window.location.pathname || "/superadmin" }).finally(() => {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      localStorage.removeItem("theme");
+      localStorage.removeItem("superAdminEmail");
+      navigate("/superadmin-login");
+    });
   };
 
   return (
@@ -109,7 +114,9 @@ const BOTTOM_NAV = [
   { key: "dashboard",          label: "Dashboard", icon: FaTachometerAlt },
   { key: "user-management",    label: "Users",     icon: FaUsers },
   { key: "global-vendor-management", label: "Vendors", icon: FaGlobe },
+  { key: "project-analytics", label: "Analytics", icon: FaChartLine },
   { key: "admin-management",   label: "Admins",    icon: FaShieldAlt },
+  { key: "subscription-management", label: "Plans", icon: FaShieldAlt },
   { key: "contact-inquiries",  label: "Inquiries", icon: FaEnvelope },
   { key: "notepad",            label: "Notes",     icon: FaStickyNote },
 ];
@@ -155,7 +162,9 @@ const SuperAdmin = () => {
       case "dashboard":        return <Dashboard />;
       case "user-management":  return <UserManagement />;
       case "global-vendor-management": return <GlobalVendorManagement />;
+      case "project-analytics": return <ProjectAnalytics />;
       case "admin-management": return <AdminManagement />;
+      case "subscription-management": return <SubscriptionManagement />;
       case "contact-inquiries": return <ContactInquiries />;
       case "notepad":           return <Notepad />;
       default:                  return <div className="p-4">Page not found</div>;

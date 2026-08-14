@@ -78,6 +78,7 @@ import Table from "../models/Table.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import generateEmployeeId from "../utils/generateEmployeeId.js";
+import { requestPasswordResetOtp, resetPasswordWithOtp } from "../utils/passwordReset.service.js";
 
 const sanitizeAddress = (value = {}) => ({
   line1: String(value.line1 || "").trim(),
@@ -199,7 +200,7 @@ export const loginAdmin = async (req, res) => {
 /* ---------- FORGOT PASSWORD ---------- */
 export const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = String(req.body.email || "").trim().toLowerCase();
 
     if (!email) {
       return res.status(400).json({ message: "Email is required" });
@@ -210,14 +211,37 @@ export const forgotPassword = async (req, res) => {
       return res.status(404).json({ message: "Admin not found" });
     }
 
-    admin.password = "123456";
-    await admin.save();
+    await requestPasswordResetOtp({
+      accountType: "admin",
+      accountId: admin._id,
+      email: admin.email,
+      name: admin.businessName,
+      roleLabel: "Admin",
+    });
 
     res.json({
-      message: "Password reset successful. New password: 123456",
+      message: "OTP sent to your email",
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+export const resetForgotPassword = async (req, res) => {
+  try {
+    await resetPasswordWithOtp({
+      accountType: "admin",
+      email: req.body.email,
+      otp: req.body.otp,
+      newPassword: req.body.newPassword,
+      accountModel: Admin,
+    });
+
+    return res.json({
+      message: "Password reset successful. You can now login with the new password.",
+    });
+  } catch (err) {
+    return res.status(400).json({ message: err.message });
   }
 };
 

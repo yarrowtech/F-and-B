@@ -1,8 +1,8 @@
 import {
   FaBoxes,
   FaChartLine,
+  FaCreditCard,
   FaFileAlt,
-  FaGlobe,
   FaStickyNote,
   FaTachometerAlt,
   FaUserCircle,
@@ -11,12 +11,12 @@ import {
 
 export const VENDOR_NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: FaTachometerAlt },
+  { id: "subscription", label: "Subscription", icon: FaCreditCard },
   { id: "my-products", label: "My Products", icon: FaBoxes },
   { id: "inventory", label: "Inventory", icon: FaBoxes },
   { id: "vendor-management", label: "Management", icon: FaUsers },
   { id: "account", label: "Account", icon: FaUserCircle },
   { id: "analytics", label: "Analytics", icon: FaChartLine },
   { id: "reports", label: "Reports", icon: FaFileAlt },
-  { id: "upgrade-request", label: "Upgrade", icon: FaGlobe },
   { id: "notes", label: "Notes", icon: FaStickyNote },
 ];

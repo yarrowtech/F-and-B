@@ -15,7 +15,11 @@
 
 
 import express from "express";
-import { login } from "../controllers/auth.controller.js";
+import {
+  forgotPassword,
+  login,
+  resetForgotPassword,
+} from "../controllers/auth.controller.js";
 import { loginLimiter } from "../middlewares/rateLimit.js"; // 🔥 added
 
 const router = express.Router();
@@ -24,5 +28,7 @@ const router = express.Router();
    LOGIN (STRICT LIMIT)
 =============================== */
 router.post("/login", loginLimiter, login);
+router.post("/forgot-password", loginLimiter, forgotPassword);
+router.post("/reset-password", loginLimiter, resetForgotPassword);
 
 export default router;

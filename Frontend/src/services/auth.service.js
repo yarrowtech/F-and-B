@@ -4,6 +4,10 @@ import {
   enforceSession,
   startSession,
 } from "./session.service";
+import {
+  endAnalyticsSession,
+  trackAnalyticsEvent,
+} from "./projectAnalytics.service";
 
 export const login = async (role, credentials) => {
   try {
@@ -17,6 +21,17 @@ export const login = async (role, credentials) => {
     localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
     startSession();
+    try {
+      await trackAnalyticsEvent({
+        eventType: "LOGIN",
+        featureKey: "auth.login",
+        featureLabel: "Login",
+        path: window.location.pathname || "/superadmin-login",
+        details: { role: data.user?.role || role },
+      });
+    } catch {
+      // Analytics should not block login.
+    }
 
     return data;
   } catch (error) {
@@ -42,7 +57,8 @@ export const isAuthenticated = () => {
   return enforceSession() && !!localStorage.getItem("token");
 };
 
-export const logout = () => {
+export const logout = async () => {
+  await endAnalyticsSession({ path: window.location.pathname || "/" });
   clearAuthSession();
   window.location.replace("/");
 };

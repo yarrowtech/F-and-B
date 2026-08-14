@@ -1,5 +1,7 @@
 const SESSION_TIMEOUT_MS = 4 * 24 * 60 * 60 * 1000;
 const LAST_ACTIVITY_KEY = "authLastActivity";
+const PROJECT_ANALYTICS_SESSION_KEY = "projectAnalyticsSessionId";
+const PROJECT_ANALYTICS_LAST_PAGE_KEY = "projectAnalyticsLastPageView";
 
 const authKeys = ["token", "user", "role", LAST_ACTIVITY_KEY];
 
@@ -18,6 +20,8 @@ export const markSessionActivity = () => {
 };
 
 export const startSession = () => {
+  sessionStorage.removeItem(PROJECT_ANALYTICS_SESSION_KEY);
+  sessionStorage.removeItem(PROJECT_ANALYTICS_LAST_PAGE_KEY);
   localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
 };
 
@@ -33,6 +37,8 @@ export const hasSessionTimedOut = () => {
 
 export const clearAuthSession = () => {
   authKeys.forEach((key) => localStorage.removeItem(key));
+  sessionStorage.removeItem(PROJECT_ANALYTICS_SESSION_KEY);
+  sessionStorage.removeItem(PROJECT_ANALYTICS_LAST_PAGE_KEY);
 };
 
 export const enforceSession = () => {

@@ -10,6 +10,7 @@ import {
    registerAdmin,
    loginAdmin,
    forgotPassword,
+   resetForgotPassword,
    getMyProfile,
    updateMyProfile,
    createEmployee,
@@ -32,6 +33,7 @@ const router = express.Router();
 ===================================================== */
 router.post("/login", loginAdmin);
 router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetForgotPassword);
 
 /* =====================================================
    ADMIN PROTECTED ROUTES

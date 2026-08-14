@@ -3,6 +3,8 @@ import { Link2, LockKeyhole, Moon, ShieldCheck, Store, Sun, UserCircle2, X } fro
 import API from "../../services/api";
 import { getRestaurants, updateRestaurant } from "../../services/restaurant.service";
 
+const VENDOR_INVENTORY_SETTINGS_UPDATED_EVENT = "vendor-inventory-settings-updated";
+
 const Toggle = ({ checked, onChange, disabled = false }) => (
   <label
     className={`relative inline-flex items-center ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
@@ -107,6 +109,15 @@ export default function SettingsPage({
         prev.map((item) =>
           String(item._id || item.id) === String(restaurantId) ? updatedRestaurant : item
         )
+      );
+
+      window.dispatchEvent(
+        new CustomEvent(VENDOR_INVENTORY_SETTINGS_UPDATED_EVENT, {
+          detail: {
+            restaurantId: String(restaurantId),
+            enabled: nextEnabled,
+          },
+        })
       );
 
       notify(

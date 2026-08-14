@@ -18,6 +18,7 @@ const emptyForm = { tableNumber: "", capacity: "", status: "FREE" };
 const AdminTableManagement = () => {
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState("");
+  const [feedback, setFeedback] = useState({ type: "", message: "" });
 
   const [tables, setTables] = useState([]);
   const [loadingTables, setLoadingTables] = useState(false);
@@ -34,6 +35,14 @@ const AdminTableManagement = () => {
 
   useEffect(() => { loadRestaurants(); }, []);
 
+  const showFeedback = (type, message) => {
+    setFeedback({ type, message });
+  };
+
+  const clearFeedback = () => {
+    setFeedback({ type: "", message: "" });
+  };
+
   const loadRestaurants = async () => {
     try {
       const data = await getRestaurants();
@@ -41,7 +50,7 @@ const AdminTableManagement = () => {
       setRestaurants(list);
       if (list.length > 0) setSelectedRestaurant(list[0]._id);
     } catch {
-      alert("Failed to load restaurants");
+      showFeedback("error", "Failed to load restaurants");
     }
   };
 
@@ -56,35 +65,50 @@ const AdminTableManagement = () => {
       const data = await getTables(selectedRestaurant);
       setTables(data || []);
     } catch (err) {
-      alert(err?.response?.data?.message || "Failed to load tables");
+      showFeedback("error", err?.response?.data?.message || "Failed to load tables");
     } finally {
       setLoadingTables(false);
     }
   };
 
-  const openAddModal = () => { setForm(emptyForm); setShowAddModal(true); };
+  const openAddModal = () => {
+    clearFeedback();
+    setForm(emptyForm);
+    setShowAddModal(true);
+  };
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!selectedRestaurant) return alert("Please select a restaurant first");
+    if (!selectedRestaurant) {
+      showFeedback("error", "Please select a restaurant first");
+      return;
+    }
     const tableNo = Number(form.tableNumber);
     const capacity = Number(form.capacity);
-    if (!tableNo || tableNo <= 0) return alert("Enter valid table number");
-    if (!capacity || capacity <= 0) return alert("Enter valid capacity");
+    if (!tableNo || tableNo <= 0) {
+      showFeedback("error", "Enter valid table number");
+      return;
+    }
+    if (!capacity || capacity <= 0) {
+      showFeedback("error", "Enter valid capacity");
+      return;
+    }
     try {
       setLoading(true);
       await createTable(selectedRestaurant, { tableNumber: tableNo, capacity, status: STATUS_MAP[form.status] });
       await loadTables();
       setShowAddModal(false);
       setForm(emptyForm);
+      showFeedback("success", `Table T${tableNo} created successfully`);
     } catch (err) {
-      alert(err?.response?.data?.message || "Save failed");
+      showFeedback("error", err?.response?.data?.message || "Save failed");
     } finally {
       setLoading(false);
     }
   };
 
   const openEditModal = (table) => {
+    clearFeedback();
     setEditId(table._id);
     setForm({ tableNumber: table.tableNumber, capacity: table.capacity, status: table.status === "available" ? "FREE" : "OCCUPIED" });
     setShowEditModal(true);
@@ -93,7 +117,10 @@ const AdminTableManagement = () => {
   const handleEdit = async (e) => {
     e.preventDefault();
     const capacity = Number(form.capacity);
-    if (!capacity || capacity <= 0) return alert("Enter valid capacity");
+    if (!capacity || capacity <= 0) {
+      showFeedback("error", "Enter valid capacity");
+      return;
+    }
     try {
       setLoading(true);
       await updateTable(selectedRestaurant, editId, { capacity, status: STATUS_MAP[form.status] });
@@ -101,8 +128,9 @@ const AdminTableManagement = () => {
       setShowEditModal(false);
       setEditId(null);
       setForm(emptyForm);
+      showFeedback("success", `Table T${form.tableNumber} updated successfully`);
     } catch (err) {
-      alert(err?.response?.data?.message || "Update failed");
+      showFeedback("error", err?.response?.data?.message || "Update failed");
     } finally {
       setLoading(false);
     }
@@ -112,8 +140,9 @@ const handleDelete = async (id) => {
   try {
     await deleteTable(selectedRestaurant, id);
     await loadTables();
+    showFeedback("success", "Table deleted successfully");
   } catch (err) {
-    alert(err?.response?.data?.message || "Delete failed");
+    showFeedback("error", err?.response?.data?.message || "Delete failed");
   }
 };
 
@@ -160,6 +189,25 @@ const handleDelete = async (id) => {
           )}
         </div>
       </div>
+
+      {feedback.message && (
+        <div
+          className={`mb-4 flex items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm ${
+            feedback.type === "error"
+              ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300"
+              : "border-green-200 bg-green-50 text-green-700 dark:border-green-900/40 dark:bg-green-950/40 dark:text-green-300"
+          }`}
+        >
+          <p className="font-medium">{feedback.message}</p>
+          <button
+            type="button"
+            onClick={clearFeedback}
+            className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* ── RESTAURANT LABEL ── */}
       {selectedRestaurantName && (

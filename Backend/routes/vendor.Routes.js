@@ -8,6 +8,9 @@ import allowRoles from "../middlewares/role.middleware.js";
 const router = express.Router();
 
 router.post("/login", vendorController.loginVendor);
+router.post("/forgot-password", vendorController.forgotVendorPassword);
+router.post("/reset-password", vendorController.resetVendorForgotPassword);
+router.post("/self-signup/global", vendorController.createGlobalVendorSelfSignup);
 router.get("/invitations/:token", vendorController.getVendorInvitation);
 router.post("/invitations/:token/accept", vendorController.acceptVendorInvitation);
 router.get(
@@ -19,7 +22,6 @@ router.use(auth);
 
 router.get("/me", allowRoles("vendor"), vendorController.getMyVendorProfile);
 router.get("/dashboard-scope", allowRoles("vendor"), vendorController.getVendorDashboardScope);
-router.post("/upgrade-request", allowRoles("vendor"), vendorController.requestGlobalUpgrade);
 
 router.post("/local", allowRoles("admin"), vendorController.createLocalVendor);
 router.get(
@@ -38,20 +40,10 @@ router.post(
   vendorController.connectGlobalVendor
 );
 
-router.get(
-  "/upgrade-requests",
-  allowRoles("super_admin"),
-  vendorController.getUpgradeRequests
-);
 router.post(
   "/global",
   allowRoles("super_admin"),
   vendorController.createGlobalVendor
-);
-router.post(
-  "/:id/review-upgrade",
-  allowRoles("super_admin"),
-  vendorController.reviewUpgradeRequest
 );
 
 router.get(

@@ -7,6 +7,8 @@ import {
   FaGlobe,
   FaStickyNote,
   FaEnvelope,
+  FaCreditCard,
+  FaChartLine,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
@@ -21,7 +23,9 @@ const Sidebar = ({ active, setActive }) => {
     { name: "Dashboard",          icon: FaTachometerAlt, key: "dashboard" },
     { name: "User Management",    icon: FaUsers,         key: "user-management" },
     { name: "Global Vendor Management", icon: FaGlobe,   key: "global-vendor-management" },
+    { name: "Project Analytics", icon: FaChartLine, key: "project-analytics" },
     { name: "Admin Management",   icon: FaShieldAlt,     key: "admin-management" },
+    { name: "Subscription Plans", icon: FaCreditCard,    key: "subscription-management" },
     { name: "Contact Inquiries",  icon: FaEnvelope,      key: "contact-inquiries" },
     { name: "Notes",              icon: FaStickyNote,    key: "notepad" },
   ];

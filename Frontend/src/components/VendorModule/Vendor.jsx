@@ -15,22 +15,43 @@ import VendorDashboard from "./VendorDashboard";
 import VendorNotification from "./VendorNotification";
 import VendorAnalytics from "./VendorAnalytics";
 import VendorReports from "./VendorReports";
-import VendorUpgradeRequest from "./VendorUpgradeRequest";
+import VendorSubscriptionOverview from "./VendorSubscriptionOverview";
+import VendorLockedAccess from "./VendorLockedAccess";
 import API from "../../services/api";
+import {
+  endAnalyticsSession,
+  trackAnalyticsEvent,
+} from "../../services/projectAnalytics.service";
 
 const PAGE_LABELS = {
   dashboard: "Dashboard",
+  subscription: "Subscription",
   "my-products": "My Products",
   inventory: "Inventory",
   "vendor-management": "Management",
   account: "Account",
   analytics: "Analytics",
   reports: "Reports",
-  "upgrade-request": "Upgrade",
   notes: "Notes",
   settings: "Settings",
   messages: "Messages",
   notifications: "Notifications",
+};
+
+const SUBSCRIPTION_OPEN_SECTIONS = new Set(["dashboard", "subscription", "settings"]);
+const PLAN_REQUIREMENTS = {
+  "my-products": "BASIC_VENDOR",
+  inventory: "BASIC_VENDOR",
+  "vendor-management": "BASIC_VENDOR",
+  account: "PRO_VENDOR",
+  analytics: "PRO_VENDOR",
+  reports: "PRO_VENDOR",
+  notes: "BASIC_VENDOR",
+};
+const PLAN_RANK = {
+  BASIC_VENDOR: 1,
+  PRO_VENDOR: 2,
+  BUSINESS_VENDOR: 3,
 };
 
 const getVendorId = () => {
@@ -65,8 +86,10 @@ function VendorProfileButton() {
   }, []);
 
   const handleLogout = () => {
-    localStorage.clear();
-    navigate("/login");
+    endAnalyticsSession({ path: window.location.pathname || "/vendor" }).finally(() => {
+      localStorage.clear();
+      navigate("/login");
+    });
   };
 
   return (
@@ -141,6 +164,8 @@ function VendorProfileButton() {
 const VendorPanel = () => {
   const [active, setActive] = useState("dashboard");
   const [requestCount, setRequestCount] = useState(0);
+  const [subscription, setSubscription] = useState(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(() => {
     const savedIsDark = localStorage.getItem("isDark");
     if (savedIsDark !== null) return savedIsDark === "true";
@@ -155,10 +180,54 @@ const VendorPanel = () => {
   const vendorId = getVendorId();
 
   useEffect(() => {
+    if (!vendorId) {
+      setSubscription(null);
+      setSubscriptionLoading(false);
+      return;
+    }
+
+    let ignore = false;
+
+    const loadSubscription = async () => {
+      try {
+        setSubscriptionLoading(true);
+        const res = await API.get("/vendor-subscriptions/status");
+        if (!ignore) {
+          setSubscription(res.data?.subscription || null);
+        }
+      } catch {
+        if (!ignore) {
+          setSubscription(null);
+        }
+      } finally {
+        if (!ignore) {
+          setSubscriptionLoading(false);
+        }
+      }
+    };
+
+    loadSubscription();
+
+    return () => {
+      ignore = true;
+    };
+  }, [vendorId]);
+
+  useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
     localStorage.setItem("isDark", String(darkMode));
     localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
+
+  useEffect(() => {
+    trackAnalyticsEvent({
+      eventType: "FEATURE_USE",
+      featureKey: `vendor.${active}`,
+      featureLabel: PAGE_LABELS[active] ?? active,
+      path: window.location.pathname || "/vendor",
+      details: { panel: active, role: "vendor" },
+    }).catch(() => {});
+  }, [active]);
 
   useEffect(() => {
     if (!vendorId) return undefined;
@@ -190,8 +259,36 @@ const VendorPanel = () => {
     requestAnimationFrame(() => mainRef.current?.scrollTo({ top: 0, behavior: "smooth" }));
   };
 
+  const hasSubscriptionAccess = ["active", "trial"].includes(
+    String(subscription?.status || "").toLowerCase()
+  );
+  const currentPlanRank = PLAN_RANK[subscription?.planCode] || 0;
+  const requiredPlanCode = PLAN_REQUIREMENTS[active] || null;
+  const requiredPlanRank = PLAN_RANK[requiredPlanCode] || 0;
+  const sectionLocked =
+    !SUBSCRIPTION_OPEN_SECTIONS.has(active) &&
+    (!hasSubscriptionAccess || currentPlanRank < requiredPlanRank);
+
   const renderContent = () => {
+    if (sectionLocked) {
+      return (
+        <VendorLockedAccess
+          title={`${PAGE_LABELS[active] ?? "This section"} needs a higher vendor plan`}
+          description={`Your current vendor access does not include the ${PAGE_LABELS[active] ?? "selected"} module. Activate ${requiredPlanCode === "PRO_VENDOR" ? "Pro" : requiredPlanCode === "BUSINESS_VENDOR" ? "Business" : "Basic"} plan access from the Subscription page to continue.`}
+          requiredPlanCode={requiredPlanCode}
+          currentPlanName={subscription?.plan?.name}
+          onOpenSubscription={() => handleSetActive("subscription")}
+        />
+      );
+    }
+
     switch (active) {
+      case "subscription":
+        return (
+          <VendorSubscriptionOverview
+            onSubscriptionChange={setSubscription}
+          />
+        );
       case "inventory":
         return <VendorStockInventory />;
       case "my-products":
@@ -214,8 +311,6 @@ const VendorPanel = () => {
         return <VendorAnalytics />;
       case "reports":
         return <VendorReports />;
-      case "upgrade-request":
-        return <VendorUpgradeRequest />;
       default:
         return (
           <div className="p-6 text-center font-semibold text-red-500">
@@ -278,6 +373,11 @@ const VendorPanel = () => {
             ref={mainRef}
             className="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 p-4 sm:p-6 pb-24 2xl:pb-6"
           >
+            {subscriptionLoading && !SUBSCRIPTION_OPEN_SECTIONS.has(active) && (
+              <div className="mb-4 rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-gray-400">
+                Checking vendor subscription access...
+              </div>
+            )}
             {renderContent()}
           </main>
         </div>
