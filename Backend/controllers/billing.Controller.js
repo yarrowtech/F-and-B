@@ -205,6 +205,7 @@ const repeatKotReceiptText = (receiptText, copyCount = 1) => {
 const defaultBillingTemplate = {
   headerTitle: "",
   subtitle: "",
+  invoiceBadgeText: "",
   logoUrl: "",
   primaryColor: "#183153",
   accentColor: "#f5f8f2",
@@ -706,6 +707,7 @@ const buildBillReceiptText = (bill) => {
   const order = bill.order || {};
   const items = getBillableOrderItems(order);
   const title = template.headerTitle || restaurant.name || "Restaurant";
+  const invoiceBadgeText = sanitizeText(template.invoiceBadgeText);
   const taxableBase = Number(bill.itemsTotal || 0);
   const rawTotal =
     taxableBase +
@@ -716,7 +718,10 @@ const buildBillReceiptText = (bill) => {
     Number(bill.extraCharge || 0) -
     Number(bill.discount || 0);
   const roundOff = Number(asMoney(Number(bill.totalAmount || 0) - rawTotal));
-  const lines = [receiptCenter("TAX INVOICE", width), receiptCenter(String(title).toUpperCase(), width)];
+  const lines = [
+    ...(invoiceBadgeText ? [receiptCenter(invoiceBadgeText.toUpperCase(), width)] : []),
+    receiptCenter(String(title).toUpperCase(), width),
+  ];
 
   receiptWrap(template.subtitle, width).forEach((line) =>
     lines.push(receiptCenter(String(line).toUpperCase(), width))
@@ -1693,6 +1698,7 @@ const streamBillPDF = async (bill, res) => {
     );
     const invoiceTitle = sanitizeText(template.headerTitle) || bill.restaurant?.name || "Restaurant";
     const invoiceSubtitle = sanitizeText(template.subtitle);
+    const invoiceBadgeText = sanitizeText(template.invoiceBadgeText);
     const restaurantAddress =
       sanitizeText(bill.restaurant?.address) || "Address not available";
     const footerMessage =
@@ -1767,16 +1773,18 @@ const streamBillPDF = async (bill, res) => {
       });
     }
 
-    doc
-      .fillColor("#0f172a")
-      .roundedRect(400, 56, 140, 46, 8)
-      .fill(primaryColor);
-    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(12).text(
-      "TAX INVOICE",
-      400,
-      70,
-      { width: 140, align: "center" }
-    );
+    if (invoiceBadgeText) {
+      doc
+        .fillColor("#0f172a")
+        .roundedRect(400, 56, 140, 46, 8)
+        .fill(primaryColor);
+      doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(12).text(
+        invoiceBadgeText,
+        400,
+        70,
+        { width: 140, align: "center" }
+      );
+    }
 
     doc.fillColor("#111827");
     doc.roundedRect(40, detailsTop, 250, 88, 10).stroke("#d1d5db");

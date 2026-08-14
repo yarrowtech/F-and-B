@@ -39,6 +39,7 @@ const formatCurrency = (value) =>
 const defaultBillingTemplate = {
   headerTitle: "",
   subtitle: "",
+  invoiceBadgeText: "",
   logoUrl: "",
   primaryColor: "#0f172a",
   accentColor: "#f8fafc",
@@ -374,8 +375,11 @@ const buildThermalReceiptHtml = (bill, options = {}) => {
     Number(totals.extraCharge || 0) -
     Number(totals.discount || 0);
   const roundOff = Number(receiptAmount(Number(totals.totalAmount || 0) - rawTotal));
+  const invoiceBadgeText = String(template.invoiceBadgeText || "").trim();
   const lines = [
-    receiptCenter("TAX INVOICE", width),
+    ...(invoiceBadgeText
+      ? [receiptCenter(invoiceBadgeText.toUpperCase(), width)]
+      : []),
     receiptCenter(String(title).toUpperCase(), width),
   ];
 
@@ -547,6 +551,7 @@ function BillCard({
   openBillModal,
   payBill,
   printBill,
+  cashInputProps,
 }) {
   const billPaymentMethods = getRestaurantPaymentMethods(bill.restaurant);
   const selectedPaymentMethod = paymentMethod[bill._id] || billPaymentMethods[0] || "CASH";
@@ -632,6 +637,7 @@ function BillCard({
               }
               changeDue={changeDue}
               compact
+              inputProps={cashInputProps}
             />
           )}
         </div>
@@ -704,6 +710,7 @@ function CashChangeCalculator({
   onReceivedChange,
   changeDue,
   compact = false,
+  inputProps = {},
 }) {
   const total = Number(totalAmount || 0);
   const receivedAmount = Number(received || 0);
@@ -727,6 +734,7 @@ function CashChangeCalculator({
         onChange={(e) => onReceivedChange(e.target.value)}
         placeholder="Cash received"
         className="min-h-11 w-full rounded-xl border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 dark:border-emerald-900/60 dark:bg-slate-950 dark:text-slate-100"
+        {...inputProps}
       />
       <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
         <div className="rounded-lg bg-white/80 p-2 dark:bg-slate-900/50">
@@ -746,11 +754,165 @@ function CashChangeCalculator({
   );
 }
 
+const getKeyboardLayout = (type, shifted) => {
+  if (type === "number") {
+    return [
+      ["1", "2", "3"],
+      ["4", "5", "6"],
+      ["7", "8", "9"],
+      ["0", "00", "."],
+    ];
+  }
+
+  if (type === "email") {
+    return [
+      ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+      ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+      ["a", "s", "d", "f", "g", "h", "j", "k", "l", "@"],
+      ["z", "x", "c", "v", "b", "n", "m", ".", "_", "-"],
+    ].map((row) => row.map((key) => (shifted && /^[a-z]$/.test(key) ? key.toUpperCase() : key)));
+  }
+
+  return [
+    ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+    ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+    ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
+    ["z", "x", "c", "v", "b", "n", "m", "-", "/"],
+  ].map((row) => row.map((key) => (shifted && /^[a-z]$/.test(key) ? key.toUpperCase() : key)));
+};
+
+function TouchKeyboard({
+  open,
+  label,
+  type,
+  value,
+  shifted,
+  onInsert,
+  onBackspace,
+  onClear,
+  onSpace,
+  onToggleShift,
+  onClose,
+}) {
+  if (!open) return null;
+
+  const layout = getKeyboardLayout(type, shifted);
+  const isNumber = type === "number";
+
+  return (
+    <div className="fixed inset-0 z-[95] flex items-end bg-slate-950/55 backdrop-blur-sm">
+      <div className="w-full rounded-t-[28px] border-t border-slate-200 bg-white px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div className="mx-auto flex max-w-6xl items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-300">
+              Touch Keyboard
+            </p>
+            <p className="mt-1 truncate text-sm font-semibold text-slate-500 dark:text-slate-400">
+              {label || "Tap to type on the POS screen"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+          >
+            Done
+          </button>
+        </div>
+
+        <div className="mx-auto mt-3 max-w-6xl rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+          <p className="truncate text-lg font-black text-slate-900 dark:text-white">
+            {String(value || "") || " "}
+          </p>
+        </div>
+
+        <div className="mx-auto mt-3 flex max-w-6xl flex-col gap-2">
+          {layout.map((row, rowIndex) => (
+            <div key={`keyboard-row-${rowIndex}`} className="grid grid-cols-10 gap-2">
+              {row.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onInsert(key)}
+                  className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-white px-2 text-base font-black text-slate-900 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-950 dark:text-white dark:ring-slate-700 dark:hover:bg-slate-800"
+                >
+                  {key}
+                </button>
+              ))}
+              {row.length < 10 &&
+                Array.from({ length: 10 - row.length }).map((_, index) => (
+                  <div key={`keyboard-spacer-${rowIndex}-${index}`} />
+                ))}
+            </div>
+          ))}
+
+          <div className={`grid gap-2 ${isNumber ? "grid-cols-3" : "grid-cols-5"}`}>
+            {!isNumber && (
+              <button
+                type="button"
+                onClick={onToggleShift}
+                className={`inline-flex min-h-14 items-center justify-center rounded-2xl px-3 text-sm font-black shadow-sm ring-1 ${
+                  shifted
+                    ? "bg-emerald-600 text-white ring-emerald-600"
+                    : "bg-white text-slate-900 ring-slate-200 hover:bg-slate-100 dark:bg-slate-950 dark:text-white dark:ring-slate-700 dark:hover:bg-slate-800"
+                }`}
+              >
+                Shift
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onSpace}
+              className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-white px-3 text-sm font-black text-slate-900 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-950 dark:text-white dark:ring-slate-700 dark:hover:bg-slate-800"
+            >
+              Space
+            </button>
+            <button
+              type="button"
+              onClick={onBackspace}
+              className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-amber-50 px-3 text-sm font-black text-amber-700 shadow-sm ring-1 ring-amber-200 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900/60 dark:hover:bg-amber-950/60"
+            >
+              Backspace
+            </button>
+            <button
+              type="button"
+              onClick={onClear}
+              className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-rose-50 px-3 text-sm font-black text-rose-700 shadow-sm ring-1 ring-rose-200 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900/60 dark:hover:bg-rose-950/60"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-emerald-600 px-3 text-sm font-black text-white shadow-sm hover:bg-emerald-700"
+            >
+              Enter
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AccountantOrderBilling() {
   const [bills, setBills] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("INBOX");
+  const [kioskMode, setKioskMode] = useState(
+    () => localStorage.getItem("accountant-billing-kiosk") === "true"
+  );
+  const [isFullscreen, setIsFullscreen] = useState(
+    () => Boolean(document.fullscreenElement)
+  );
+  const [touchKeyboard, setTouchKeyboard] = useState({
+    open: false,
+    label: "",
+    type: "text",
+    value: "",
+  });
+  const [keyboardShift, setKeyboardShift] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState({});
   const [cashReceived, setCashReceived] = useState({});
   const [selectedBill, setSelectedBill] = useState(null);
@@ -806,6 +968,7 @@ export default function AccountantOrderBilling() {
   const [billTables, setBillTables] = useState([]);
   const [billTableId, setBillTableId] = useState("");
   const manualCodeInputRef = useRef(null);
+  const touchKeyboardTargetRef = useRef(null);
   const [historyFilter, setHistoryFilter] = useState({
     paymentMethod: "",
     orderType: "",
@@ -869,6 +1032,136 @@ export default function AccountantOrderBilling() {
     "Bill Preview";
   const previewSubtitle = selectedTemplate.subtitle || "";
   const previewAddress = selectedBill?.restaurant?.address || "";
+
+  useEffect(() => {
+    localStorage.setItem("accountant-billing-kiosk", String(kioskMode));
+  }, [kioskMode]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  const resolveTouchKeyboardType = (target) => {
+    const explicitType = String(target?.dataset?.touchType || "").trim().toLowerCase();
+    if (explicitType) return explicitType;
+
+    const inputType = String(target?.type || "").trim().toLowerCase();
+    if (["number", "tel"].includes(inputType)) return "number";
+    if (inputType === "email") return "email";
+    return "text";
+  };
+
+  const getNativeValueSetter = (element) => {
+    if (!element) return null;
+
+    const prototype =
+      element.tagName === "TEXTAREA"
+        ? window.HTMLTextAreaElement?.prototype
+        : window.HTMLInputElement?.prototype;
+
+    return Object.getOwnPropertyDescriptor(prototype || {}, "value")?.set || null;
+  };
+
+  const syncTouchTargetValue = (nextValue) => {
+    const target = touchKeyboardTargetRef.current;
+    if (!target) return;
+
+    const setter = getNativeValueSetter(target);
+    if (setter) {
+      setter.call(target, nextValue);
+    } else {
+      target.value = nextValue;
+    }
+
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+    target.focus({ preventScroll: true });
+
+    requestAnimationFrame(() => {
+      setTouchKeyboard((current) => ({
+        ...current,
+        value: target.value || "",
+      }));
+    });
+  };
+
+  const openTouchKeyboard = (target) => {
+    if (!kioskMode || !target) return;
+
+    touchKeyboardTargetRef.current = target;
+    setKeyboardShift(false);
+    setTouchKeyboard({
+      open: true,
+      label:
+        target.placeholder ||
+        target.getAttribute("aria-label") ||
+        target.name ||
+        "POS input",
+      type: resolveTouchKeyboardType(target),
+      value: target.value || "",
+    });
+  };
+
+  const closeTouchKeyboard = () => {
+    setTouchKeyboard((current) => ({ ...current, open: false }));
+    setKeyboardShift(false);
+    touchKeyboardTargetRef.current?.blur?.();
+    touchKeyboardTargetRef.current = null;
+  };
+
+  const handleTouchKeyboardInsert = (key) => {
+    const currentValue = String(touchKeyboardTargetRef.current?.value || "");
+    syncTouchTargetValue(`${currentValue}${key}`);
+  };
+
+  const handleTouchKeyboardBackspace = () => {
+    const currentValue = String(touchKeyboardTargetRef.current?.value || "");
+    syncTouchTargetValue(currentValue.slice(0, -1));
+  };
+
+  const handleTouchKeyboardClear = () => {
+    syncTouchTargetValue("");
+  };
+
+  const toggleKioskMode = async () => {
+    const nextMode = !kioskMode;
+    setKioskMode(nextMode);
+
+    if (nextMode && !document.fullscreenElement) {
+      try {
+        await document.documentElement.requestFullscreen?.();
+      } catch (error) {
+        console.error("FAILED TO ENTER FULLSCREEN:", error);
+      }
+      return;
+    }
+
+    if (!nextMode && document.fullscreenElement) {
+      try {
+        await document.exitFullscreen?.();
+      } catch (error) {
+        console.error("FAILED TO EXIT FULLSCREEN:", error);
+      }
+    }
+  };
+
+  const getTouchInputProps = (type = "text") => ({
+    "data-touch-type": type,
+    inputMode: kioskMode ? "none" : undefined,
+    onFocus: (event) => openTouchKeyboard(event.currentTarget),
+    onClick: (event) => {
+      if (kioskMode) {
+        event.currentTarget.focus();
+        openTouchKeyboard(event.currentTarget);
+      }
+    },
+  });
 
   const fetchBills = async () => {
     try {
@@ -1534,19 +1827,38 @@ export default function AccountantOrderBilling() {
     : [];
 
   return (
-    <div className="min-h-screen bg-slate-50 p-3 dark:bg-neutral-800 sm:p-4 lg:p-6">
-      <div className="mx-auto max-w-7xl space-y-4 sm:space-y-5">
+    <div className={`min-h-screen bg-slate-50 dark:bg-neutral-800 ${kioskMode ? "p-2 sm:p-3 lg:p-4" : "p-3 sm:p-4 lg:p-6"}`}>
+      <div className={`mx-auto space-y-4 sm:space-y-5 ${kioskMode ? "max-w-none" : "max-w-7xl"}`}>
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-300">
-              Accountant Billing
-            </p>
-            <h1 className="mt-2 text-2xl font-black text-slate-900 dark:text-white sm:text-3xl">
-              Order Billing
-            </h1>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              Generate bills, collect payments, and download PDFs from one tap-friendly workspace.
-            </p>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-300">
+                Accountant Billing
+              </p>
+              <h1 className="mt-2 text-2xl font-black text-slate-900 dark:text-white sm:text-3xl">
+                Order Billing
+              </h1>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Generate bills, collect payments, and download PDFs from one tap-friendly workspace.
+              </p>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 lg:w-auto">
+              <button
+                type="button"
+                onClick={toggleKioskMode}
+                className={`inline-flex min-h-12 items-center justify-center rounded-xl px-4 py-3 text-sm font-black transition ${
+                  kioskMode
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                {kioskMode ? "Exit POS Mode" : "Start POS Mode"}
+              </button>
+              <div className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
+                {isFullscreen ? "Fullscreen Active" : "Fullscreen Optional"}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -1599,6 +1911,7 @@ export default function AccountantOrderBilling() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="h-12 w-full bg-transparent text-base text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
+                  {...getTouchInputProps("text")}
                 />
               </div>
             )}
@@ -1717,6 +2030,7 @@ export default function AccountantOrderBilling() {
                       value={manualBill.customerPhone}
                       onChange={(e) => updateManualBill("customerPhone", e.target.value)}
                       className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      {...getTouchInputProps("number")}
                     />
                     <input
                       type="email"
@@ -1724,6 +2038,7 @@ export default function AccountantOrderBilling() {
                       value={manualBill.customerEmail}
                       onChange={(e) => updateManualBill("customerEmail", e.target.value)}
                       className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      {...getTouchInputProps("email")}
                     />
                   </div>
 
@@ -1860,6 +2175,7 @@ export default function AccountantOrderBilling() {
                             onChange={(e) => updateManualBill("complimentaryNote", e.target.value)}
                             placeholder="Complimentary reason"
                             className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            {...getTouchInputProps("text")}
                           />
                         </div>
                       )}
@@ -2074,7 +2390,7 @@ export default function AccountantOrderBilling() {
                     <input
                       ref={manualCodeInputRef}
                       type="text"
-                      inputMode="text"
+                      inputMode={kioskMode ? "none" : "text"}
                       autoCapitalize="characters"
                       autoComplete="off"
                       maxLength={20}
@@ -2094,6 +2410,7 @@ export default function AccountantOrderBilling() {
                       }}
                       placeholder="Enter code, e.g. A1 or TEA10"
                       className="min-h-12 w-full rounded-xl border border-emerald-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 dark:border-emerald-900/50 dark:bg-slate-900 dark:text-slate-100"
+                      {...getTouchInputProps("text")}
                     />
                     <button
                       type="button"
@@ -2197,6 +2514,7 @@ export default function AccountantOrderBilling() {
                               value={manualBill[field]}
                               onChange={(e) => updateManualBill(field, e.target.value)}
                               className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                              {...getTouchInputProps("number")}
                             />
                           </label>
                         ))}
@@ -2231,6 +2549,7 @@ export default function AccountantOrderBilling() {
                           onChange={(e) => updateManualBill("discount", e.target.value)}
                           className="mt-2 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           placeholder={manualBill.discountType === "PERCENT" ? "Enter % discount" : "Enter amount discount"}
+                          {...getTouchInputProps("number")}
                         />
                       </div>
                       <label className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-white px-3 text-sm font-bold text-slate-700 dark:bg-slate-950 dark:text-slate-200">
@@ -2265,6 +2584,7 @@ export default function AccountantOrderBilling() {
                           }
                           placeholder="Example: late-night packing, rush delivery, special handling..."
                           className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                          {...getTouchInputProps("text")}
                         />
                       </label>
                     </div>
@@ -2431,6 +2751,7 @@ export default function AccountantOrderBilling() {
                   value={historyFilter.dateFrom}
                   onChange={(e) => setHistoryFilter((f) => ({ ...f, dateFrom: e.target.value }))}
                   className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  {...getTouchInputProps("text")}
                 />
                 <span className="text-xs text-slate-400">to</span>
                 <input
@@ -2438,6 +2759,7 @@ export default function AccountantOrderBilling() {
                   value={historyFilter.dateTo}
                   onChange={(e) => setHistoryFilter((f) => ({ ...f, dateTo: e.target.value }))}
                   className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  {...getTouchInputProps("text")}
                 />
               </div>
 
@@ -2494,6 +2816,7 @@ export default function AccountantOrderBilling() {
                   openBillModal={openBillModal}
                   payBill={payBill}
                   printBill={printBill}
+                  cashInputProps={getTouchInputProps("number")}
                 />
               ))}
           </div>
@@ -2594,6 +2917,7 @@ export default function AccountantOrderBilling() {
                                   setCashReceived((prev) => ({ ...prev, [bill._id]: value }))
                                 }
                                 changeDue={Math.max(Number(cashReceived[bill._id] || 0) - Number(bill.totalAmount || 0), 0)}
+                                inputProps={getTouchInputProps("number")}
                               />
                             )}
                           </div>
@@ -2702,6 +3026,7 @@ export default function AccountantOrderBilling() {
                   value={manualSearch}
                   onChange={(e) => setManualSearch(e.target.value)}
                   className="h-12 w-full bg-transparent text-base text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-100"
+                  {...getTouchInputProps("text")}
                 />
               </div>
             </div>
@@ -3163,6 +3488,7 @@ export default function AccountantOrderBilling() {
                               }
                               placeholder="Example: Birthday guest, New Year offer, owner friend, service recovery..."
                               className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                              {...getTouchInputProps("text")}
                             />
                           </div>
                         </div>
@@ -3182,6 +3508,7 @@ export default function AccountantOrderBilling() {
                         handleCustomValueChange("cgstRate", e.target.value)
                       }
                       className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:text-sm"
+                      {...getTouchInputProps("number")}
                     />
                   </div>
 
@@ -3198,6 +3525,7 @@ export default function AccountantOrderBilling() {
                         handleCustomValueChange("sgstRate", e.target.value)
                       }
                       className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:text-sm"
+                      {...getTouchInputProps("number")}
                     />
                   </div>
 
@@ -3217,6 +3545,7 @@ export default function AccountantOrderBilling() {
                         )
                       }
                       className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:text-sm"
+                      {...getTouchInputProps("number")}
                     />
                     <label className="mt-2 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-slate-100 px-3 text-sm font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                       <span>Show service charge on bill</span>
@@ -3250,6 +3579,7 @@ export default function AccountantOrderBilling() {
                         )
                       }
                       className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:text-sm"
+                      {...getTouchInputProps("number")}
                     />
                     <label className="mt-2 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-slate-100 px-3 text-sm font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                       <span>Show packaging charge on bill</span>
@@ -3280,6 +3610,7 @@ export default function AccountantOrderBilling() {
                         handleCustomValueChange("extraCharge", e.target.value)
                       }
                       className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:text-sm"
+                      {...getTouchInputProps("number")}
                     />
                   </div>
 
@@ -3298,6 +3629,7 @@ export default function AccountantOrderBilling() {
                       }
                       placeholder="Example: urgent packing, delivery handling, custom service..."
                       className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      {...getTouchInputProps("text")}
                     />
                   </div>
 
@@ -3337,6 +3669,7 @@ export default function AccountantOrderBilling() {
                           ? "Enter % discount"
                           : "Enter amount discount"
                       }
+                      {...getTouchInputProps("number")}
                     />
                   </div>
 
@@ -3361,6 +3694,7 @@ export default function AccountantOrderBilling() {
                             )
                           }
                           className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 sm:text-sm"
+                          {...getTouchInputProps("email")}
                         />
                       </div>
 
@@ -3379,6 +3713,7 @@ export default function AccountantOrderBilling() {
                             )
                           }
                           className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-base text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 sm:text-sm"
+                          {...getTouchInputProps("number")}
                         />
                       </div>
 
@@ -3575,6 +3910,20 @@ export default function AccountantOrderBilling() {
           </div>
         </div>
       )}
+
+      <TouchKeyboard
+        open={touchKeyboard.open}
+        label={touchKeyboard.label}
+        type={touchKeyboard.type}
+        value={touchKeyboard.value}
+        shifted={keyboardShift}
+        onInsert={handleTouchKeyboardInsert}
+        onBackspace={handleTouchKeyboardBackspace}
+        onClear={handleTouchKeyboardClear}
+        onSpace={() => handleTouchKeyboardInsert(" ")}
+        onToggleShift={() => setKeyboardShift((value) => !value)}
+        onClose={closeTouchKeyboard}
+      />
     </div>
   );
 }

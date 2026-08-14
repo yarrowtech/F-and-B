@@ -98,6 +98,12 @@ const billingTemplateSchema = new mongoose.Schema(
       maxlength: 120,
       default: "",
     },
+    invoiceBadgeText: {
+      type: String,
+      trim: true,
+      maxlength: 40,
+      default: "",
+    },
     logoUrl: {
       type: String,
       trim: true,

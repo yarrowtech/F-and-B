@@ -1077,6 +1077,7 @@ import accountantDashboardRoutes from "./routes/accountantDashboard.routes.js";
 import chefDashboardRoutes from "./routes/chefDashboard.routes.js";
 import inventoryDashboardRoutes from "./routes/inventoryDashboard.routes.js";
 import contactRoutes from "./routes/contact.routes.js";
+import { syncBillIndexes } from "./models/Bill.model.js";
 
 dotenv.config();
 
@@ -1138,11 +1139,13 @@ app.use(async (req, res, next) => {
 /* ================= MONGODB ================= */
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("✅ MongoDB connected");
+  .then(async () => {
+    console.log("? MongoDB connected");
+    await syncBillIndexes();
+    console.log("? Bill indexes synced");
   })
   .catch((err) => {
-    console.error("❌ MongoDB error:", err.message);
+    console.error("? MongoDB error:", err.message);
     process.exit(1);
   });
 

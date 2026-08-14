@@ -250,7 +250,7 @@ const combinePrintJobs = (jobs, ensureCutAfterEach) => {
             ? ensureReceiptCut(job.receiptText)
             : String(job.receiptText || "")
         )
-        .join("\n"),
+        .join(""),
     },
   ];
 };

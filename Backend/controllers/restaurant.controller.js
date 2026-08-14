@@ -153,6 +153,7 @@ const invalidateRestaurantCaches = ({ adminId, restaurantId }) => {
 const defaultBillingTemplate = {
   headerTitle: "",
   subtitle: "",
+  invoiceBadgeText: "",
   logoUrl: "",
   primaryColor: "#183153",
   accentColor: "#f5f8f2",
@@ -223,6 +224,7 @@ const sanitizeBillingTemplate = (payload = {}) => {
   return {
     headerTitle: text(payload.headerTitle, 80),
     subtitle: text(payload.subtitle, 120),
+    invoiceBadgeText: text(payload.invoiceBadgeText, 40),
     logoUrl: text(payload.logoUrl, maxLogoDataLength),
     primaryColor: color(payload.primaryColor, defaultBillingTemplate.primaryColor),
     accentColor: color(payload.accentColor, defaultBillingTemplate.accentColor),

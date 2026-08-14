@@ -103,7 +103,8 @@ const billSchema = new mongoose.Schema(
 
     billNo: {
       type: String,
-      unique: true,
+      required: true,
+      trim: true,
     },
 
     order: {
@@ -262,6 +263,7 @@ const billSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+billSchema.index({ restaurant: 1, billNo: 1 }, { unique: true });
 billSchema.index({ restaurant: 1, paymentStatus: 1, paidAt: 1 });
 billSchema.index({ restaurant: 1, paymentStatus: 1, paymentMethod: 1, paidAt: 1 });
 billSchema.index({ restaurant: 1, accountant: 1, paidAt: 1 });
@@ -330,4 +332,33 @@ billSchema.pre("save", function (next) {
   next();
 });
 
-export default mongoose.model("Bill", billSchema);
+export const syncBillIndexes = async () => {
+  const Bill = mongoose.models.Bill || mongoose.model("Bill", billSchema);
+  const collection = Bill.collection;
+
+  try {
+    const indexes = await collection.indexes();
+    const hasLegacyBillNoIndex = indexes.some(
+      (index) =>
+        index.name === "billNo_1" &&
+        index.unique === true &&
+        Object.keys(index.key || {}).length === 1 &&
+        index.key?.billNo === 1
+    );
+
+    if (hasLegacyBillNoIndex) {
+      await collection.dropIndex("billNo_1");
+    }
+
+    await Bill.syncIndexes();
+  } catch (error) {
+    if (error?.codeName === "IndexNotFound") {
+      await Bill.syncIndexes();
+      return;
+    }
+
+    throw error;
+  }
+};
+
+export default mongoose.models.Bill || mongoose.model("Bill", billSchema);

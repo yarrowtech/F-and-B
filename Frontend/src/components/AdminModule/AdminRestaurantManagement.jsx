@@ -68,6 +68,7 @@ const normalizePaymentMethod = (value) =>
 const defaultBillingTemplate = {
   headerTitle: "",
   subtitle: "",
+  invoiceBadgeText: "",
   logoUrl: "",
   primaryColor: "#183153",
   accentColor: "#f5f8f2",
@@ -307,6 +308,14 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
                 {form.subtitle || restaurant?.address || "Restaurant address"}
               </p>
             </div>
+            {form.invoiceBadgeText ? (
+              <div
+                className="ml-auto inline-flex min-h-11 items-center rounded-xl px-4 text-xs font-bold uppercase tracking-[0.16em] text-white shadow-sm"
+                style={{ backgroundColor: form.primaryColor }}
+              >
+                {form.invoiceBadgeText}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -314,6 +323,7 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
       <div className="grid gap-4 sm:grid-cols-2">
         {textField("Bill Header Title", "headerTitle", restaurant?.name || "Restaurant name")}
         {textField("Subtitle / Tagline", "subtitle", "Fresh food, warm service")}
+        {textField("Top Right Label (optional)", "invoiceBadgeText", "TAX INVOICE")}
         {textField("Primary Color", "primaryColor", "#183153", { type: "color" })}
         {textField("Background Color", "accentColor", "#f5f8f2", { type: "color" })}
       </div>
