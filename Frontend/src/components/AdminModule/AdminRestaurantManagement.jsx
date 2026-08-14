@@ -101,8 +101,7 @@ const RestaurantForm = ({ initial, onSave, onCancel, saving }) => {
     const errs = {};
     if (!form.name.trim())    errs.name    = "Restaurant name is required";
     if (!form.address.trim()) errs.address = "Address is required";
-    if (!form.phone.trim())   errs.phone   = "Phone number is required";
-    else if (!/^\d{10}$/.test(form.phone)) errs.phone = "Must be exactly 10 digits";
+    if (form.phone.trim() && !/^\d{10}$/.test(form.phone)) errs.phone = "Must be exactly 10 digits";
     if (Object.keys(errs).length) { setErrors(errs); return; }
     onSave(form);
   };
@@ -110,7 +109,7 @@ const RestaurantForm = ({ initial, onSave, onCancel, saving }) => {
   const field = (label, key, type = "text", placeholder = "") => (
     <div>
       <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-        {label} {key !== "gstNo" && <span className="text-red-500">*</span>}
+        {label} {key !== "gstNo" && key !== "phone" && <span className="text-red-500">*</span>}
       </label>
       <input
         type={type}
@@ -129,7 +128,7 @@ const RestaurantForm = ({ initial, onSave, onCancel, saving }) => {
     <form onSubmit={submit} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         {field("Restaurant Name", "name", "text", "e.g. Spice Garden")}
-        {field("Phone Number", "phone", "tel", "10-digit number")}
+        {field("Phone Number (optional)", "phone", "tel", "10-digit number")}
       </div>
       <div>
         <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">
