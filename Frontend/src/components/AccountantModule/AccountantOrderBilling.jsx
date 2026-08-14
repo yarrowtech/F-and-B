@@ -90,8 +90,8 @@ const getRestaurantPaymentMethods = (restaurant) => {
 const getRestaurantTaxDefaults = (restaurant) => {
   const template = getBillingTemplate(restaurant);
   return {
-    cgstRate: sanitizeNumber(template.cgstRate ?? 2.5),
-    sgstRate: sanitizeNumber(template.sgstRate ?? 2.5),
+    cgstRate: sanitizeNumber(template.cgstRate ?? 0),
+    sgstRate: sanitizeNumber(template.sgstRate ?? 0),
   };
 };
 
@@ -930,8 +930,8 @@ export default function AccountantOrderBilling() {
     paymentMethod: "CASH",
     customerPhone: "",
     customerEmail: "",
-    cgstRate: 2.5,
-    sgstRate: 2.5,
+    cgstRate: 0,
+    sgstRate: 0,
     serviceCharge: 0,
     showServiceCharge: true,
     packagingCharge: 0,
@@ -946,8 +946,8 @@ export default function AccountantOrderBilling() {
     items: [],
   });
   const [customValues, setCustomValues] = useState({
-    cgstRate: 2.5,
-    sgstRate: 2.5,
+    cgstRate: 0,
+    sgstRate: 0,
     serviceCharge: 0,
     showServiceCharge: true,
     packagingCharge: 0,
@@ -1007,13 +1007,9 @@ export default function AccountantOrderBilling() {
     if (!loadedRestaurant && !userRestaurant) return;
     setManualBill((current) => {
       const nextCgstRate =
-        current.cgstRate === 2.5 && current.cgstRate !== manualTaxDefaults.cgstRate
-          ? manualTaxDefaults.cgstRate
-          : current.cgstRate;
+        current.items.length === 0 ? manualTaxDefaults.cgstRate : current.cgstRate;
       const nextSgstRate =
-        current.sgstRate === 2.5 && current.sgstRate !== manualTaxDefaults.sgstRate
-          ? manualTaxDefaults.sgstRate
-          : current.sgstRate;
+        current.items.length === 0 ? manualTaxDefaults.sgstRate : current.sgstRate;
 
       if (nextCgstRate === current.cgstRate && nextSgstRate === current.sgstRate) {
         return current;
@@ -1216,8 +1212,8 @@ export default function AccountantOrderBilling() {
     setBillTableId(bill.order?.table?._id || "");
     setBillTables([]);
     setCustomValues({
-      cgstRate: Number(bill.cgstRate ?? 2.5),
-      sgstRate: Number(bill.sgstRate ?? 2.5),
+      cgstRate: Number(bill.cgstRate ?? billTemplate.cgstRate ?? 0),
+      sgstRate: Number(bill.sgstRate ?? billTemplate.sgstRate ?? 0),
       serviceCharge: Number(bill.serviceCharge ?? 0),
       showServiceCharge:
         typeof bill.showServiceCharge === "boolean"
