@@ -1,11 +1,24 @@
 import { execFile } from "child_process";
 import http from "http";
+import os from "os";
 import { promisify } from "util";
 import { printRawReceipt } from "./rawWindowsPrinter.js";
 
 const execFileAsync = promisify(execFile);
-const HOST = "127.0.0.1";
+const HOST = String(process.env.LOCAL_PRINT_AGENT_HOST || "0.0.0.0").trim() || "0.0.0.0";
 const PORT = Number(process.env.LOCAL_PRINT_AGENT_PORT || 17877);
+
+const getLanAddresses = () =>
+  Object.values(os.networkInterfaces())
+    .flat()
+    .filter(
+      (details) =>
+        details &&
+        details.family === "IPv4" &&
+        details.internal === false &&
+        details.address
+    )
+    .map((details) => details.address);
 
 const sendJson = (res, status, payload) => {
   res.writeHead(status, {
@@ -85,5 +98,14 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
+  const lanAddresses = getLanAddresses();
   console.log(`Local device print agent running at http://${HOST}:${PORT}`);
+
+  if (HOST === "0.0.0.0") {
+    console.log("Accessible URLs:");
+    console.log(`- http://127.0.0.1:${PORT}`);
+    lanAddresses.forEach((address) => {
+      console.log(`- http://${address}:${PORT}`);
+    });
+  }
 });

@@ -35,4 +35,5 @@ Register-ScheduledTask `
 Start-ScheduledTask -TaskName $taskName
 
 Write-Host "Installed and started: $taskName"
-Write-Host "Local print agent URL: http://127.0.0.1:17877"
+Write-Host "Local print agent local URL: http://127.0.0.1:17877"
+Write-Host "For LAN POS devices, set LOCAL_PRINT_AGENT_HOST=0.0.0.0 before starting the agent and use the printer PC IP."

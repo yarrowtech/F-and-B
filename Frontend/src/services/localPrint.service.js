@@ -1,5 +1,16 @@
-const LOCAL_PRINT_AGENT_URL =
-  import.meta.env.VITE_LOCAL_PRINT_AGENT_URL || "http://127.0.0.1:17877";
+const getLocalPrintAgentUrl = () => {
+  const runtimeConfiguredUrl =
+    typeof window !== "undefined"
+      ? window.localStorage.getItem("localPrintAgentUrl") ||
+        window.localStorage.getItem("LOCAL_PRINT_AGENT_URL") ||
+        ""
+      : "";
+  return (
+    String(runtimeConfiguredUrl || "").trim() ||
+    import.meta.env.VITE_LOCAL_PRINT_AGENT_URL ||
+    "http://127.0.0.1:17877"
+  );
+};
 const USE_SERVER_PRINTER_NAME =
   String(import.meta.env.VITE_USE_SERVER_PRINTER_NAME || "").toLowerCase() === "true";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -196,7 +207,8 @@ export const printMultipleTextsInBrowser = (jobs = [], title = "Print") => {
 };
 
 export const printOnThisDevice = async ({ receiptText, printerName = "" }) => {
-  const res = await fetch(`${LOCAL_PRINT_AGENT_URL}/print`, {
+  const agentUrl = getLocalPrintAgentUrl();
+  const res = await fetch(`${agentUrl}/print`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

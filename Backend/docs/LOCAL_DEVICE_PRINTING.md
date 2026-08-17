@@ -26,13 +26,25 @@ cd Backend
 npm run local:print-agent
 ```
 
-The helper listens only on:
+By default the helper can be started for LAN access too. For example:
+
+```powershell
+cd Backend
+$env:LOCAL_PRINT_AGENT_HOST="0.0.0.0"
+npm run local:print-agent
+```
+
+Local-only URL:
 
 ```text
 http://127.0.0.1:17877
 ```
 
-So only browsers on that same PC can use it.
+If started with `LOCAL_PRINT_AGENT_HOST=0.0.0.0`, other devices on the same Wi-Fi/LAN can use:
+
+```text
+http://<printer-pc-ip>:17877
+```
 
 To start the helper automatically whenever Windows logs in:
 
@@ -68,4 +80,9 @@ For your current use case, keep it unset and use the Windows default printer.
 
 This automatic local printing works on a Windows PC where the Node helper can run.
 
-For tablets/phones, automatic USB printing depends on whether that device can run a local print helper or has a supported local print bridge. A browser alone cannot silently print to USB.
+For tablets/phones, automatic printing can work through a printer PC on the same LAN only if:
+
+- the helper is running on that printer PC
+- the helper is started with LAN access
+- the frontend points to `http://<printer-pc-ip>:17877`
+- Windows Firewall allows port `17877`
