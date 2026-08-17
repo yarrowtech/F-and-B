@@ -1846,10 +1846,10 @@ export default function AccountantOrderBilling() {
         </div>
 
         {tab === "NEW" && (
-          <div className="rounded-[28px] bg-[#f8fbff] p-2.5 shadow-sm ring-1 ring-[#dce7f3] dark:bg-slate-900 dark:ring-slate-700 lg:p-3 xl:rounded-[30px]">
-            <div className="grid gap-3 lg:grid-cols-[280px_minmax(0,1fr)_240px] xl:gap-4 xl:grid-cols-[360px_minmax(0,1fr)_300px]">
-              <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
-                <div className="rounded-[24px] border border-[#d7e3ef] bg-white p-3.5 shadow-sm dark:border-slate-700 dark:bg-slate-950 lg:p-4 xl:rounded-[26px] xl:p-5">
+          <div className="rounded-[28px] bg-[#f8fbff] p-2.5 shadow-sm ring-1 ring-[#dce7f3] dark:bg-slate-900 dark:ring-slate-700 min-[1024px]:p-3 xl:rounded-[30px]">
+            <div className="grid gap-2.5 min-[1024px]:grid-cols-[220px_minmax(0,1fr)_195px] min-[1024px]:gap-3 xl:gap-4 xl:grid-cols-[360px_minmax(0,1fr)_300px]">
+              <div className="space-y-3 min-[1024px]:sticky min-[1024px]:top-4 min-[1024px]:self-start">
+                <div className="rounded-[24px] border border-[#d7e3ef] bg-white p-3.5 shadow-sm dark:border-slate-700 dark:bg-slate-950 min-[1024px]:p-4 xl:rounded-[26px] xl:p-5">
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
                       <h3 className="text-[0.95rem] font-black uppercase tracking-[0.16em] text-slate-900 dark:text-white xl:text-[1.05rem] xl:tracking-[0.18em]">
@@ -2510,7 +2510,7 @@ export default function AccountantOrderBilling() {
                   )}
                 </div>
 
-                <div className="mt-4 space-y-2 rounded-xl bg-white p-3 text-sm dark:bg-slate-900 lg:hidden">
+                <div className="mt-4 space-y-2 rounded-xl bg-white p-3 text-sm dark:bg-slate-900 min-[1024px]:hidden">
                   <div className="flex justify-between text-slate-600 dark:text-slate-300">
                     <span>Items</span>
                     <span>{formatCurrency(manualItemsTotal)}</span>
@@ -2571,7 +2571,7 @@ export default function AccountantOrderBilling() {
                 </button>
               </div>
 
-              <div className="hidden lg:block lg:sticky lg:top-4 lg:self-start">
+              <div className="hidden min-[1024px]:block min-[1024px]:sticky min-[1024px]:top-4 min-[1024px]:self-start">
                 <div className="rounded-[24px] border border-[#d7e3ef] bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[26px] xl:p-5">
                   <div className="mb-4">
                     <h3 className="text-[1.05rem] font-black text-slate-900 dark:text-white">
@@ -2648,7 +2648,7 @@ export default function AccountantOrderBilling() {
               </div>
             </div>
 
-            <div className="sticky bottom-20 z-30 mt-4 rounded-2xl border border-emerald-200 bg-white/95 p-3 shadow-2xl shadow-slate-900/10 backdrop-blur dark:border-emerald-900/60 dark:bg-slate-950/95 lg:hidden 2xl:bottom-0">
+            <div className="sticky bottom-20 z-30 mt-4 rounded-2xl border border-emerald-200 bg-white/95 p-3 shadow-2xl shadow-slate-900/10 backdrop-blur dark:border-emerald-900/60 dark:bg-slate-950/95 min-[1024px]:hidden 2xl:bottom-0">
               <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div className="grid grid-cols-3 gap-2 text-center sm:max-w-lg">
                   <div className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-900">
@@ -3026,7 +3026,7 @@ export default function AccountantOrderBilling() {
               </div>
             </div>
 
-            <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[1fr_360px]">
+            <div className="grid min-h-0 flex-1 gap-0 overflow-hidden min-[1024px]:grid-cols-[1fr_300px]">
               <div className="min-h-0 overflow-y-auto p-4 sm:p-6">
               {Object.keys(menuGroups).length === 0 && (
                 <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-950">
@@ -3051,7 +3051,7 @@ export default function AccountantOrderBilling() {
                       </span>
                     </div>
 
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid gap-2 sm:grid-cols-2 min-[1024px]:grid-cols-3">
                       {group.items.map((item) => {
                         const selectedItem = manualBill.items.find(
                           (selected) => selected.menuItem === (item._id || item.id)
@@ -3098,7 +3098,7 @@ export default function AccountantOrderBilling() {
               </div>
               </div>
 
-              <aside className="min-h-0 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950 lg:border-l lg:border-t-0">
+              <aside className="min-h-0 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950 min-[1024px]:border-l min-[1024px]:border-t-0">
                 <div className="flex h-full min-h-0 flex-col">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
