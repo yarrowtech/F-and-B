@@ -176,11 +176,15 @@ export const printMultipleTextsInBrowser = (jobs = [], title = "Print") => {
             width: 72mm;
             margin: 0;
             padding: 3mm;
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
           .receipt-gap {
             padding-bottom: 26mm;
             border-bottom: 1px dashed #bbb;
             margin-bottom: 6mm;
+            page-break-after: always;
+            break-after: page;
           }
           pre {
             margin: 0;
