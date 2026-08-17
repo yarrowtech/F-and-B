@@ -1787,15 +1787,15 @@ export default function AccountantOrderBilling() {
     : [];
 
   return (
-    <div className={`min-h-screen bg-slate-50 dark:bg-neutral-800 ${kioskMode ? "p-2 sm:p-3 lg:p-4" : "p-3 sm:p-4 lg:p-6"}`}>
+    <div className={`min-h-screen bg-[#f3f7fc] dark:bg-neutral-800 ${kioskMode ? "p-2 sm:p-3 lg:p-4" : "p-3 sm:p-4 lg:p-6"}`}>
       <div className={`mx-auto space-y-3 sm:space-y-4 ${kioskMode ? "max-w-none" : "max-w-7xl"}`}>
-        <div className="px-0 py-1">
+        <div className="rounded-[28px] bg-[#eef4fb] px-3 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 sm:flex sm:w-fit">
+            <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-white/70 p-1.5 dark:bg-slate-800 sm:flex sm:w-fit">
               <button
                 type="button"
                 onClick={() => setTab("INBOX")}
-                className={`min-h-10 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                className={`min-h-11 rounded-xl px-4 py-2 text-sm font-bold transition ${
                   tab === "INBOX"
                     ? "bg-emerald-600 text-white shadow"
                     : "text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-900"
@@ -1807,7 +1807,7 @@ export default function AccountantOrderBilling() {
               <button
                 type="button"
                 onClick={() => setTab("NEW")}
-                className={`min-h-10 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                className={`min-h-11 rounded-xl px-4 py-2 text-sm font-bold transition ${
                   tab === "NEW"
                     ? "bg-emerald-600 text-white shadow"
                     : "text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-900"
@@ -1819,7 +1819,7 @@ export default function AccountantOrderBilling() {
               <button
                 type="button"
                 onClick={() => setTab("HISTORY")}
-                className={`min-h-10 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                className={`min-h-11 rounded-xl px-4 py-2 text-sm font-bold transition ${
                   tab === "HISTORY"
                     ? "bg-slate-900 text-white shadow"
                     : "text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-900"
@@ -1846,33 +1846,33 @@ export default function AccountantOrderBilling() {
         </div>
 
         {tab === "NEW" && (
-          <div className="rounded-[28px] bg-[#f8fbff] p-2 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:p-3">
-            <div className="grid gap-3 xl:grid-cols-[270px_minmax(0,1fr)_240px]">
-              <div className="space-y-3 xl:sticky xl:top-4 xl:self-start">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950">
+          <div className="rounded-[28px] bg-[#f8fbff] p-2.5 shadow-sm ring-1 ring-[#dce7f3] dark:bg-slate-900 dark:ring-slate-700 lg:p-3 xl:rounded-[30px]">
+            <div className="grid gap-3 lg:grid-cols-[280px_minmax(0,1fr)_240px] xl:gap-4 xl:grid-cols-[360px_minmax(0,1fr)_300px]">
+              <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
+                <div className="rounded-[24px] border border-[#d7e3ef] bg-white p-3.5 shadow-sm dark:border-slate-700 dark:bg-slate-950 lg:p-4 xl:rounded-[26px] xl:p-5">
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-xl font-black uppercase tracking-[0.12em] text-slate-900 dark:text-white">
+                      <h3 className="text-[0.95rem] font-black uppercase tracking-[0.16em] text-slate-900 dark:text-white xl:text-[1.05rem] xl:tracking-[0.18em]">
                         Bill Setup
                       </h3>
-                      <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                      <p className="mt-1.5 max-w-[13rem] text-[0.75rem] font-semibold leading-6 text-slate-500 dark:text-slate-400 xl:mt-2 xl:max-w-[14rem] xl:text-[0.82rem] xl:leading-7">
                         Choose the order type, payment mode, and guest contact before you add items.
                       </p>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                    <div className="min-w-[68px] rounded-xl border border-[#d7e3ef] bg-[#f8fbff] px-2.5 py-2.5 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900 xl:min-w-[76px] xl:rounded-2xl xl:px-3 xl:py-3">
                       <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
                         Items
                       </p>
-                      <p className="text-lg font-black text-emerald-700 dark:text-emerald-200">
+                      <p className="mt-0.5 text-xl font-black text-emerald-700 dark:text-emerald-200 xl:mt-1 xl:text-2xl">
                         {manualBill.items.length}
                       </p>
                     </div>
                   </div>
 
-                  <div className="mb-4 rounded-2xl border border-slate-200 bg-[#eef8f3] p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                  <div className="mb-4 rounded-[20px] border border-[#dcebdc] bg-[#eef8f3] p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 xl:mb-5 xl:rounded-[22px] xl:p-4">
                     <div className="grid gap-3">
                       <div className="grid grid-cols-3 gap-2 text-center">
-                        <div className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-950">
+                        <div className="rounded-xl bg-white/80 px-2.5 py-2.5 dark:bg-slate-950 xl:rounded-2xl xl:px-3 xl:py-3">
                           <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                             Items
                           </p>
@@ -1880,7 +1880,7 @@ export default function AccountantOrderBilling() {
                             {manualBill.items.length}
                           </p>
                         </div>
-                        <div className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-950">
+                        <div className="rounded-xl bg-white/80 px-2.5 py-2.5 dark:bg-slate-950 xl:rounded-2xl xl:px-3 xl:py-3">
                           <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                             Payment
                           </p>
@@ -1888,7 +1888,7 @@ export default function AccountantOrderBilling() {
                             {paymentMethodLabel(manualBill.paymentMethod)}
                           </p>
                         </div>
-                        <div className="rounded-xl bg-emerald-50 px-3 py-2 dark:bg-emerald-950/30">
+                        <div className="rounded-xl bg-[#e8f8ef] px-2.5 py-2.5 dark:bg-emerald-950/30 xl:rounded-2xl xl:px-3 xl:py-3">
                           <p className="text-[10px] font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
                             Total
                           </p>
@@ -1900,11 +1900,11 @@ export default function AccountantOrderBilling() {
                     </div>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-2 xl:gap-4">
                     <select
                       value={manualBill.orderType}
                       onChange={(e) => updateManualBill("orderType", e.target.value)}
-                      className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      className="min-h-12 rounded-xl border border-[#d7e3ef] bg-white px-4 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 xl:min-h-14 xl:rounded-2xl xl:px-5"
                     >
                       <option value="TAKEAWAY">Takeaway</option>
                       <option value="ONLINE">Online</option>
@@ -1914,7 +1914,7 @@ export default function AccountantOrderBilling() {
                     <select
                       value={manualBill.paymentMethod}
                       onChange={(e) => updateManualBill("paymentMethod", e.target.value)}
-                      className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      className="min-h-12 rounded-xl border border-[#d7e3ef] bg-white px-4 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 xl:min-h-14 xl:rounded-2xl xl:px-5"
                     >
                       {manualPaymentMethods.map((method) => (
                         <option key={method} value={method}>
@@ -1927,7 +1927,7 @@ export default function AccountantOrderBilling() {
                       placeholder="Customer phone"
                       value={manualBill.customerPhone}
                       onChange={(e) => updateManualBill("customerPhone", e.target.value)}
-                      className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      className="min-h-12 rounded-xl border border-[#d7e3ef] bg-white px-4 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 xl:min-h-14 xl:rounded-2xl xl:px-5"
                       {...getTouchInputProps("number")}
                     />
                     <input
@@ -1935,13 +1935,13 @@ export default function AccountantOrderBilling() {
                       placeholder="Customer email"
                       value={manualBill.customerEmail}
                       onChange={(e) => updateManualBill("customerEmail", e.target.value)}
-                      className="min-h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      className="min-h-12 rounded-xl border border-[#d7e3ef] bg-white px-4 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 xl:min-h-14 xl:rounded-2xl xl:px-5"
                       {...getTouchInputProps("email")}
                     />
                   </div>
 
                   <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                    <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+                    <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-[#d7e3ef] dark:bg-slate-900 dark:ring-slate-700 xl:rounded-2xl xl:px-4 xl:py-4">
                       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
                         Order Type
                       </p>
@@ -1949,7 +1949,7 @@ export default function AccountantOrderBilling() {
                         {manualBill.orderType}
                       </p>
                     </div>
-                    <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+                    <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-[#d7e3ef] dark:bg-slate-900 dark:ring-slate-700 xl:rounded-2xl xl:px-4 xl:py-4">
                       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
                         Payment
                       </p>
@@ -1957,7 +1957,7 @@ export default function AccountantOrderBilling() {
                         {paymentMethodLabel(manualBill.paymentMethod)}
                       </p>
                     </div>
-                    <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+                    <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-[#d7e3ef] dark:bg-slate-900 dark:ring-slate-700 xl:rounded-2xl xl:px-4 xl:py-4">
                       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
                         Contact
                       </p>
@@ -1970,14 +1970,14 @@ export default function AccountantOrderBilling() {
                   <button
                     type="button"
                     onClick={() => setShowMenuPicker(true)}
-                    className="mt-4 inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
+                    className="mt-4 inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-[18px] bg-[#19233b] px-4 py-3 text-sm font-black text-white transition hover:bg-[#111a30] dark:bg-slate-100 dark:text-slate-900 xl:mt-5 xl:min-h-16 xl:rounded-[22px] xl:text-base"
                   >
                     <FaReceipt />
                     Browse Menu
                   </button>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-950">
+                <div className="rounded-[22px] border border-[#d7e3ef] bg-white shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[24px]">
                   <button
                     type="button"
                     onClick={() => setShowManualComplimentary((value) => !value)}
@@ -2083,10 +2083,10 @@ export default function AccountantOrderBilling() {
 
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950">
+              <div className="rounded-[24px] border border-[#d7e3ef] bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[26px] xl:p-5">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                    <h3 className="text-[1.05rem] font-black text-slate-900 dark:text-white">
                       Selected Items
                     </h3>
                     <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
@@ -2094,7 +2094,7 @@ export default function AccountantOrderBilling() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="hidden rounded-xl bg-emerald-50 px-3 py-2 text-right sm:block dark:bg-emerald-950/30">
+                    <div className="hidden rounded-xl bg-[#eaf9ef] px-3 py-2.5 text-right sm:block dark:bg-emerald-950/30 xl:rounded-2xl xl:px-4 xl:py-3">
                       <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
                         Current Total
                       </p>
@@ -2105,7 +2105,7 @@ export default function AccountantOrderBilling() {
                     <button
                       type="button"
                       onClick={() => setShowMenuPicker(true)}
-                      className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-emerald-700"
+                      className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700 xl:min-h-14 xl:rounded-[18px] xl:px-5 xl:py-3 xl:text-base"
                     >
                       <FaPlus />
                       Add Item
@@ -2113,7 +2113,7 @@ export default function AccountantOrderBilling() {
                   </div>
                 </div>
 
-                <div className="relative mb-4 rounded-2xl border border-emerald-200 bg-[#f2fcf7] p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                <div className="relative mb-4 rounded-[22px] border border-emerald-200 bg-[#f2fcf7] p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20 xl:rounded-[24px] xl:p-5">
                   {manualBill.items.length > 0 && (
                     <div className="absolute bottom-[calc(100%+0.5rem)] left-0 right-0 z-30 overflow-hidden rounded-2xl border border-emerald-300 bg-white shadow-xl dark:border-emerald-800 dark:bg-slate-900">
                       <div className="flex items-center justify-between gap-3 border-b border-emerald-100 px-4 py-3 dark:border-emerald-900/50">
@@ -2276,10 +2276,10 @@ export default function AccountantOrderBilling() {
 
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300 xl:text-sm xl:tracking-[0.18em]">
                         Fast Add By Code
                       </p>
-                      <p className="mt-1 text-xs font-medium text-emerald-700/80 dark:text-emerald-200/80">
+                      <p className="mt-1.5 text-xs font-medium text-emerald-700/80 dark:text-emerald-200/80 xl:mt-2 xl:text-sm">
                         Type the menu code and press Enter.
                       </p>
                     </div>
@@ -2307,13 +2307,13 @@ export default function AccountantOrderBilling() {
                         }
                       }}
                       placeholder="Enter code, e.g. A1 or TEA10"
-                      className="min-h-12 w-full rounded-xl border border-emerald-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 dark:border-emerald-900/50 dark:bg-slate-900 dark:text-slate-100"
+                      className="min-h-12 w-full rounded-xl border border-emerald-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 dark:border-emerald-900/50 dark:bg-slate-900 dark:text-slate-100 xl:min-h-14 xl:rounded-2xl xl:px-5 xl:text-base"
                       {...getTouchInputProps("text")}
                     />
                     <button
                       type="button"
                       onClick={handleAddMenuByCode}
-                      className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700"
+                      className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-5 text-sm font-black text-white transition hover:bg-emerald-700 xl:min-h-14 xl:rounded-2xl xl:px-6 xl:text-base"
                     >
                       Add
                     </button>
@@ -2322,20 +2322,20 @@ export default function AccountantOrderBilling() {
 
                 <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
                   {manualBill.items.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center dark:border-slate-700 dark:bg-slate-900">
-                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                    <div className="rounded-[24px] border border-dashed border-[#dce7f3] bg-[#f7faff] px-4 py-8 text-center dark:border-slate-700 dark:bg-slate-900 xl:rounded-[28px] xl:py-12">
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300 xl:h-16 xl:w-16">
                         <FaReceipt className="text-lg" />
                       </div>
-                      <p className="mt-4 text-sm font-black text-slate-700 dark:text-slate-200">
+                      <p className="mt-4 text-base font-black text-slate-700 dark:text-slate-200 xl:mt-5 xl:text-[1.05rem]">
                         No items added yet
                       </p>
-                      <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                      <p className="mx-auto mt-2 max-w-[24rem] text-xs font-medium text-slate-500 dark:text-slate-400 xl:max-w-[28rem] xl:text-sm">
                         Start building the order by typing a code above or browsing the full menu catalog.
                       </p>
                       <button
                         type="button"
                         onClick={() => setShowMenuPicker(true)}
-                        className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700"
+                        className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700 xl:mt-5 xl:min-h-14 xl:rounded-[20px] xl:px-6 xl:py-3 xl:text-base"
                       >
                         <FaPlus />
                         Add Items from Menu
@@ -2395,7 +2395,7 @@ export default function AccountantOrderBilling() {
                   ))}
                 </div>
 
-                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
+                <div className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900 xl:rounded-[22px]">
                   <button
                     type="button"
                     onClick={() => setShowManualAdvanced((value) => !value)}
@@ -2510,7 +2510,7 @@ export default function AccountantOrderBilling() {
                   )}
                 </div>
 
-                <div className="mt-4 space-y-2 rounded-xl bg-white p-3 text-sm dark:bg-slate-900 xl:hidden">
+                <div className="mt-4 space-y-2 rounded-xl bg-white p-3 text-sm dark:bg-slate-900 lg:hidden">
                   <div className="flex justify-between text-slate-600 dark:text-slate-300">
                     <span>Items</span>
                     <span>{formatCurrency(manualItemsTotal)}</span>
@@ -2571,10 +2571,10 @@ export default function AccountantOrderBilling() {
                 </button>
               </div>
 
-              <div className="hidden xl:block xl:sticky xl:top-4 xl:self-start">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950">
+              <div className="hidden lg:block lg:sticky lg:top-4 lg:self-start">
+                <div className="rounded-[24px] border border-[#d7e3ef] bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[26px] xl:p-5">
                   <div className="mb-4">
-                    <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                    <h3 className="text-[1.05rem] font-black text-slate-900 dark:text-white">
                       Billing Summary
                     </h3>
                   </div>
@@ -2648,7 +2648,7 @@ export default function AccountantOrderBilling() {
               </div>
             </div>
 
-            <div className="sticky bottom-20 z-30 mt-4 rounded-2xl border border-emerald-200 bg-white/95 p-3 shadow-2xl shadow-slate-900/10 backdrop-blur dark:border-emerald-900/60 dark:bg-slate-950/95 xl:hidden 2xl:bottom-0">
+            <div className="sticky bottom-20 z-30 mt-4 rounded-2xl border border-emerald-200 bg-white/95 p-3 shadow-2xl shadow-slate-900/10 backdrop-blur dark:border-emerald-900/60 dark:bg-slate-950/95 lg:hidden 2xl:bottom-0">
               <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div className="grid grid-cols-3 gap-2 text-center sm:max-w-lg">
                   <div className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-900">
