@@ -170,6 +170,104 @@ const App = () => {
     return cleanupSessionTracking;
   }, []);
 
+  // Some POS touchscreens report a single finger as a plain mouse pointer
+  // (their driver emulates a mouse instead of exposing real touch input), so
+  // the browser's native single-finger touch-scroll never kicks in — only a
+  // genuine two-finger gesture is recognized as scroll. This drag-to-scroll
+  // fallback manually scrolls the nearest scrollable container whenever a
+  // "mouse" pointer drags past a small threshold, and swallows the resulting
+  // click so dragging over a button/card doesn't also trigger it.
+  useEffect(() => {
+    const DRAG_THRESHOLD = 6;
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let lastX = 0;
+    let lastY = 0;
+    let scrollTarget = null;
+    let isDragging = false;
+
+    const isTextEntryTarget = (el) =>
+      !!el?.closest?.("input, textarea, select, [contenteditable='true']");
+
+    const findScrollable = (el) => {
+      let node = el;
+      while (node && node !== document.body && node !== document.documentElement) {
+        const style = window.getComputedStyle(node);
+        const canScrollY =
+          (style.overflowY === "auto" || style.overflowY === "scroll") &&
+          node.scrollHeight > node.clientHeight;
+        const canScrollX =
+          (style.overflowX === "auto" || style.overflowX === "scroll") &&
+          node.scrollWidth > node.clientWidth;
+        if (canScrollY || canScrollX) return node;
+        node = node.parentElement;
+      }
+      return document.scrollingElement || document.documentElement;
+    };
+
+    const suppressNextClick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    const onPointerDown = (event) => {
+      if (event.pointerType !== "mouse" || event.button !== 0) return;
+      if (isTextEntryTarget(event.target)) return;
+
+      pointerId = event.pointerId;
+      startX = lastX = event.clientX;
+      startY = lastY = event.clientY;
+      scrollTarget = findScrollable(event.target);
+      isDragging = false;
+    };
+
+    const onPointerMove = (event) => {
+      if (pointerId === null || event.pointerId !== pointerId || !scrollTarget) return;
+
+      const dx = event.clientX - lastX;
+      const dy = event.clientY - lastY;
+      const totalMove = Math.hypot(event.clientX - startX, event.clientY - startY);
+
+      if (!isDragging && totalMove < DRAG_THRESHOLD) return;
+
+      isDragging = true;
+      scrollTarget.scrollTop -= dy;
+      scrollTarget.scrollLeft -= dx;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      event.preventDefault();
+    };
+
+    const endDrag = (event) => {
+      if (pointerId === null || event.pointerId !== pointerId) return;
+
+      if (isDragging) {
+        document.addEventListener("click", suppressNextClick, {
+          capture: true,
+          once: true,
+        });
+      }
+
+      pointerId = null;
+      scrollTarget = null;
+      isDragging = false;
+    };
+
+    document.addEventListener("pointerdown", onPointerDown, { passive: true });
+    document.addEventListener("pointermove", onPointerMove, { passive: false });
+    document.addEventListener("pointerup", endDrag, { passive: true });
+    document.addEventListener("pointercancel", endDrag, { passive: true });
+
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", endDrag);
+      document.removeEventListener("pointercancel", endDrag);
+      document.removeEventListener("click", suppressNextClick, { capture: true });
+    };
+  }, []);
+
   return (
     <Router>
       <ProjectAnalyticsTracker />
