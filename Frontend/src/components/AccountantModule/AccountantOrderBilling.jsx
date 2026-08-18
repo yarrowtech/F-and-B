@@ -5,7 +5,6 @@ import {
   FaFileExcel,
   FaFilePdf,
   FaFilter,
-  FaHandPointer,
   FaMinus,
   FaMoneyBillWave,
   FaPlus,
@@ -765,162 +764,11 @@ function CashChangeCalculator({
   );
 }
 
-const getKeyboardLayout = (type, shifted) => {
-  if (type === "number") {
-    return [
-      ["1", "2", "3"],
-      ["4", "5", "6"],
-      ["7", "8", "9"],
-      ["0", "00", "."],
-    ];
-  }
-
-  if (type === "email") {
-    return [
-      ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
-      ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
-      ["a", "s", "d", "f", "g", "h", "j", "k", "l", "@"],
-      ["z", "x", "c", "v", "b", "n", "m", ".", "_", "-"],
-    ].map((row) => row.map((key) => (shifted && /^[a-z]$/.test(key) ? key.toUpperCase() : key)));
-  }
-
-  return [
-    ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
-    ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
-    ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
-    ["z", "x", "c", "v", "b", "n", "m", "-", "/"],
-  ].map((row) => row.map((key) => (shifted && /^[a-z]$/.test(key) ? key.toUpperCase() : key)));
-};
-
-function TouchKeyboard({
-  open,
-  label,
-  type,
-  value,
-  shifted,
-  onInsert,
-  onBackspace,
-  onClear,
-  onSpace,
-  onToggleShift,
-  onClose,
-}) {
-  if (!open) return null;
-
-  const layout = getKeyboardLayout(type, shifted);
-  const isNumber = type === "number";
-
-  return (
-    <div className="fixed inset-0 z-[95] flex items-end bg-slate-950/55 backdrop-blur-sm">
-      <div className="w-full rounded-t-[28px] border-t border-slate-200 bg-white px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-        <div className="mx-auto flex max-w-6xl items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-300">
-              Touch Keyboard
-            </p>
-            <p className="mt-1 truncate text-sm font-semibold text-slate-500 dark:text-slate-400">
-              {label || "Tap to type on the POS screen"}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
-          >
-            Done
-          </button>
-        </div>
-
-        <div className="mx-auto mt-3 max-w-6xl rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
-          <p className="truncate text-lg font-black text-slate-900 dark:text-white">
-            {String(value || "") || " "}
-          </p>
-        </div>
-
-        <div className="mx-auto mt-3 flex max-w-6xl flex-col gap-2">
-          {layout.map((row, rowIndex) => (
-            <div key={`keyboard-row-${rowIndex}`} className="grid grid-cols-10 gap-2">
-              {row.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => onInsert(key)}
-                  className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-white px-2 text-base font-black text-slate-900 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-950 dark:text-white dark:ring-slate-700 dark:hover:bg-slate-800"
-                >
-                  {key}
-                </button>
-              ))}
-              {row.length < 10 &&
-                Array.from({ length: 10 - row.length }).map((_, index) => (
-                  <div key={`keyboard-spacer-${rowIndex}-${index}`} />
-                ))}
-            </div>
-          ))}
-
-          <div className={`grid gap-2 ${isNumber ? "grid-cols-3" : "grid-cols-5"}`}>
-            {!isNumber && (
-              <button
-                type="button"
-                onClick={onToggleShift}
-                className={`inline-flex min-h-14 items-center justify-center rounded-2xl px-3 text-sm font-black shadow-sm ring-1 ${
-                  shifted
-                    ? "bg-emerald-600 text-white ring-emerald-600"
-                    : "bg-white text-slate-900 ring-slate-200 hover:bg-slate-100 dark:bg-slate-950 dark:text-white dark:ring-slate-700 dark:hover:bg-slate-800"
-                }`}
-              >
-                Shift
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onSpace}
-              className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-white px-3 text-sm font-black text-slate-900 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-950 dark:text-white dark:ring-slate-700 dark:hover:bg-slate-800"
-            >
-              Space
-            </button>
-            <button
-              type="button"
-              onClick={onBackspace}
-              className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-amber-50 px-3 text-sm font-black text-amber-700 shadow-sm ring-1 ring-amber-200 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900/60 dark:hover:bg-amber-950/60"
-            >
-              Backspace
-            </button>
-            <button
-              type="button"
-              onClick={onClear}
-              className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-rose-50 px-3 text-sm font-black text-rose-700 shadow-sm ring-1 ring-rose-200 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900/60 dark:hover:bg-rose-950/60"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-emerald-600 px-3 text-sm font-black text-white shadow-sm hover:bg-emerald-700"
-            >
-              Enter
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function AccountantOrderBilling() {
   const [bills, setBills] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("INBOX");
-  const [kioskMode, setKioskMode] = useState(
-    () => localStorage.getItem("accountant-billing-kiosk") === "true"
-  );
-  const [touchKeyboard, setTouchKeyboard] = useState({
-    open: false,
-    label: "",
-    type: "text",
-    value: "",
-  });
-  const [keyboardShift, setKeyboardShift] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState({});
   const [cashReceived, setCashReceived] = useState({});
   const [selectedBill, setSelectedBill] = useState(null);
@@ -976,7 +824,6 @@ export default function AccountantOrderBilling() {
   const [billTables, setBillTables] = useState([]);
   const [billTableId, setBillTableId] = useState("");
   const manualCodeInputRef = useRef(null);
-  const touchKeyboardTargetRef = useRef(null);
   const [historyFilter, setHistoryFilter] = useState({
     paymentMethod: "",
     orderType: "",
@@ -1037,102 +884,7 @@ export default function AccountantOrderBilling() {
   const previewSubtitle = selectedTemplate.subtitle || "";
   const previewAddress = selectedBill?.restaurant?.address || "";
 
-  useEffect(() => {
-    localStorage.setItem("accountant-billing-kiosk", String(kioskMode));
-  }, [kioskMode]);
-
-  const resolveTouchKeyboardType = (target) => {
-    const explicitType = String(target?.dataset?.touchType || "").trim().toLowerCase();
-    if (explicitType) return explicitType;
-
-    const inputType = String(target?.type || "").trim().toLowerCase();
-    if (["number", "tel"].includes(inputType)) return "number";
-    if (inputType === "email") return "email";
-    return "text";
-  };
-
-  const getNativeValueSetter = (element) => {
-    if (!element) return null;
-
-    const prototype =
-      element.tagName === "TEXTAREA"
-        ? window.HTMLTextAreaElement?.prototype
-        : window.HTMLInputElement?.prototype;
-
-    return Object.getOwnPropertyDescriptor(prototype || {}, "value")?.set || null;
-  };
-
-  const syncTouchTargetValue = (nextValue) => {
-    const target = touchKeyboardTargetRef.current;
-    if (!target) return;
-
-    const setter = getNativeValueSetter(target);
-    if (setter) {
-      setter.call(target, nextValue);
-    } else {
-      target.value = nextValue;
-    }
-
-    target.dispatchEvent(new Event("input", { bubbles: true }));
-    target.focus({ preventScroll: true });
-
-    requestAnimationFrame(() => {
-      setTouchKeyboard((current) => ({
-        ...current,
-        value: target.value || "",
-      }));
-    });
-  };
-
-  const openTouchKeyboard = (target) => {
-    if (!kioskMode || !target) return;
-
-    touchKeyboardTargetRef.current = target;
-    setKeyboardShift(false);
-    setTouchKeyboard({
-      open: true,
-      label:
-        target.placeholder ||
-        target.getAttribute("aria-label") ||
-        target.name ||
-        "POS input",
-      type: resolveTouchKeyboardType(target),
-      value: target.value || "",
-    });
-  };
-
-  const closeTouchKeyboard = () => {
-    setTouchKeyboard((current) => ({ ...current, open: false }));
-    setKeyboardShift(false);
-    touchKeyboardTargetRef.current?.blur?.();
-    touchKeyboardTargetRef.current = null;
-  };
-
-  const handleTouchKeyboardInsert = (key) => {
-    const currentValue = String(touchKeyboardTargetRef.current?.value || "");
-    syncTouchTargetValue(`${currentValue}${key}`);
-  };
-
-  const handleTouchKeyboardBackspace = () => {
-    const currentValue = String(touchKeyboardTargetRef.current?.value || "");
-    syncTouchTargetValue(currentValue.slice(0, -1));
-  };
-
-  const handleTouchKeyboardClear = () => {
-    syncTouchTargetValue("");
-  };
-
-  const getTouchInputProps = (type = "text") => ({
-    "data-touch-type": type,
-    inputMode: kioskMode ? "none" : undefined,
-    onFocus: (event) => openTouchKeyboard(event.currentTarget),
-    onClick: (event) => {
-      if (kioskMode) {
-        event.currentTarget.focus();
-        openTouchKeyboard(event.currentTarget);
-      }
-    },
-  });
+  const getTouchInputProps = () => ({});
 
   const fetchBills = async () => {
     try {
@@ -1798,8 +1550,8 @@ export default function AccountantOrderBilling() {
     : [];
 
   return (
-    <div className={`min-h-screen bg-[#f3f7fc] dark:bg-neutral-800 ${kioskMode ? "p-2 sm:p-3 lg:p-4" : "p-3 sm:p-4 lg:p-6"}`}>
-      <div className={`mx-auto space-y-3 sm:space-y-4 ${kioskMode ? "max-w-none" : "max-w-7xl"}`}>
+    <div className="min-h-screen bg-[#f3f7fc] p-3 dark:bg-neutral-800 sm:p-4 lg:p-6">
+      <div className="mx-auto max-w-7xl space-y-3 sm:space-y-4">
         <div className="rounded-[28px] bg-[#eef4fb] px-3 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-white/70 p-1.5 dark:bg-slate-800 sm:flex sm:w-fit">
@@ -1839,20 +1591,6 @@ export default function AccountantOrderBilling() {
                 Payment History
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setKioskMode((value) => !value)}
-              title="Toggle on-screen touch keyboard for billing inputs"
-              className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${
-                kioskMode
-                  ? "bg-emerald-600 text-white shadow"
-                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-              }`}
-            >
-              <FaHandPointer />
-              {kioskMode ? "Touch Mode: ON" : "Touch Mode: OFF"}
-            </button>
 
             {tab !== "NEW" && (
               <div className="flex min-h-10 w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 dark:border-slate-700 dark:bg-slate-950 lg:max-w-md">
@@ -2313,7 +2051,7 @@ export default function AccountantOrderBilling() {
                     <input
                       ref={manualCodeInputRef}
                       type="text"
-                      inputMode={kioskMode ? "none" : "text"}
+                      inputMode="text"
                       autoCapitalize="characters"
                       autoComplete="off"
                       maxLength={20}
@@ -3930,20 +3668,6 @@ export default function AccountantOrderBilling() {
           </div>
         </div>
       )}
-
-      <TouchKeyboard
-        open={touchKeyboard.open}
-        label={touchKeyboard.label}
-        type={touchKeyboard.type}
-        value={touchKeyboard.value}
-        shifted={keyboardShift}
-        onInsert={handleTouchKeyboardInsert}
-        onBackspace={handleTouchKeyboardBackspace}
-        onClear={handleTouchKeyboardClear}
-        onSpace={() => handleTouchKeyboardInsert(" ")}
-        onToggleShift={() => setKeyboardShift((value) => !value)}
-        onClose={closeTouchKeyboard}
-      />
     </div>
   );
 }
