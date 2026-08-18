@@ -5,6 +5,7 @@ import {
   FaFileExcel,
   FaFilePdf,
   FaFilter,
+  FaHandPointer,
   FaMinus,
   FaMoneyBillWave,
   FaPlus,
@@ -262,9 +263,12 @@ const getDiscountLabel = (values) =>
     ? `Discount (${Number(values.discountValue ?? values.discount)}%)`
     : "Discount";
 
+const BILL_TIMEZONE = "Asia/Kolkata";
+
 const formatDate = (value) => {
   if (!value) return "N/A";
   return new Date(value).toLocaleString("en-IN", {
+    timeZone: BILL_TIMEZONE,
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -320,10 +324,17 @@ const receiptWrap = (value, width = 42) => {
 };
 const receiptBillDate = (value) => {
   const date = value ? new Date(value) : new Date();
-  const day = date.getDate();
-  const month = date.getMonth() + 1;
-  const year = date.getFullYear();
+  const dateParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: BILL_TIMEZONE,
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+  }).formatToParts(date);
+  const day = dateParts.find((part) => part.type === "day").value;
+  const month = dateParts.find((part) => part.type === "month").value;
+  const year = dateParts.find((part) => part.type === "year").value;
   const time = date.toLocaleTimeString("en-IN", {
+    timeZone: BILL_TIMEZONE,
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -900,7 +911,7 @@ export default function AccountantOrderBilling() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("INBOX");
-  const [kioskMode] = useState(
+  const [kioskMode, setKioskMode] = useState(
     () => localStorage.getItem("accountant-billing-kiosk") === "true"
   );
   const [touchKeyboard, setTouchKeyboard] = useState({
@@ -1829,6 +1840,20 @@ export default function AccountantOrderBilling() {
               </button>
             </div>
 
+            <button
+              type="button"
+              onClick={() => setKioskMode((value) => !value)}
+              title="Toggle on-screen touch keyboard for billing inputs"
+              className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${
+                kioskMode
+                  ? "bg-emerald-600 text-white shadow"
+                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+              }`}
+            >
+              <FaHandPointer />
+              {kioskMode ? "Touch Mode: ON" : "Touch Mode: OFF"}
+            </button>
+
             {tab !== "NEW" && (
               <div className="flex min-h-10 w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 dark:border-slate-700 dark:bg-slate-950 lg:max-w-md">
                 <FaSearch className="text-slate-400" />
@@ -2163,7 +2188,7 @@ export default function AccountantOrderBilling() {
                                 onClick={() =>
                                   changeManualItemQuantity(item.menuItem, -1)
                                 }
-                                className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                                className="flex h-11 w-11 items-center justify-center rounded-md border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
                               >
                                 <FaMinus />
                               </button>
@@ -2175,7 +2200,7 @@ export default function AccountantOrderBilling() {
                                 onClick={() =>
                                   changeManualItemQuantity(item.menuItem, 1)
                                 }
-                                className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-600 text-[10px] text-white hover:bg-emerald-700"
+                                className="flex h-11 w-11 items-center justify-center rounded-md bg-emerald-600 text-[10px] text-white hover:bg-emerald-700"
                               >
                                 <FaPlus />
                               </button>
@@ -2188,7 +2213,7 @@ export default function AccountantOrderBilling() {
                                   );
                                   manualCodeInputRef.current?.focus();
                                 }}
-                                className="ml-0.5 min-h-7 rounded-md bg-rose-50 px-1.5 text-[9px] font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
+                                className="ml-0.5 min-h-11 rounded-md bg-rose-50 px-2 text-[9px] font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
                               >
                                 Remove
                               </button>
@@ -2239,7 +2264,7 @@ export default function AccountantOrderBilling() {
                             onClick={() =>
                               changeManualItemQuantity(justAddedItem.menuItem, -1)
                             }
-                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                            className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
                           >
                             <FaMinus />
                           </button>
@@ -2251,7 +2276,7 @@ export default function AccountantOrderBilling() {
                             onClick={() =>
                               changeManualItemQuantity(justAddedItem.menuItem, 1)
                             }
-                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                            className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
                           >
                             <FaPlus />
                           </button>
@@ -2266,7 +2291,7 @@ export default function AccountantOrderBilling() {
                             );
                             manualCodeInputRef.current?.focus();
                           }}
-                          className="min-h-9 rounded-lg bg-rose-50 px-3 text-xs font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
+                          className="min-h-11 rounded-lg bg-rose-50 px-3 text-xs font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
                         >
                           Remove
                         </button>
@@ -2376,7 +2401,7 @@ export default function AccountantOrderBilling() {
                         <button
                           type="button"
                           onClick={() => changeManualItemQuantity(item.menuItem, -1)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
                         >
                           <FaMinus />
                         </button>
@@ -2386,7 +2411,7 @@ export default function AccountantOrderBilling() {
                         <button
                           type="button"
                           onClick={() => changeManualItemQuantity(item.menuItem, 1)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
                         >
                           <FaPlus />
                         </button>
@@ -3143,7 +3168,7 @@ export default function AccountantOrderBilling() {
                           <button
                             type="button"
                             onClick={() => changeManualItemQuantity(item.menuItem, -1)}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                            className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
                           >
                             <FaMinus />
                           </button>
@@ -3153,7 +3178,7 @@ export default function AccountantOrderBilling() {
                           <button
                             type="button"
                             onClick={() => changeManualItemQuantity(item.menuItem, 1)}
-                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                            className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
                           >
                             <FaPlus />
                           </button>

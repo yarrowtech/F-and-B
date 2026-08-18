@@ -59,10 +59,12 @@ const resolvePaymentMethod = async (restaurantId, value) => {
   return normalized;
 };
 
+const BILL_TIMEZONE = "Asia/Kolkata";
 const asMoney = (value) => Number(value || 0).toFixed(2);
 const formatHistoryDate = (value) =>
   value
     ? new Date(value).toLocaleString("en-IN", {
+        timeZone: BILL_TIMEZONE,
         day: "2-digit",
         month: "short",
         year: "numeric",
@@ -107,10 +109,17 @@ const receiptWrap = (value, width = 42) => {
 };
 const receiptBillDate = (value) => {
   const date = value ? new Date(value) : new Date();
-  const day = date.getDate();
-  const month = date.getMonth() + 1;
-  const year = date.getFullYear();
+  const dateParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: BILL_TIMEZONE,
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+  }).formatToParts(date);
+  const day = dateParts.find((part) => part.type === "day").value;
+  const month = dateParts.find((part) => part.type === "month").value;
+  const year = dateParts.find((part) => part.type === "year").value;
   const time = date.toLocaleTimeString("en-IN", {
+    timeZone: BILL_TIMEZONE,
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -1795,7 +1804,7 @@ const streamBillPDF = async (bill, res) => {
     doc.text(`Bill No: ${bill.billNo}`, 55, detailsTextTop + 20);
     doc.text(`Order No: ${bill.order?.orderNo || "N/A"}`, 55, detailsTextTop + 36);
     doc.text(
-      `Bill Date: ${new Date(billDate).toLocaleString("en-IN")}`,
+      `Bill Date: ${new Date(billDate).toLocaleString("en-IN", { timeZone: BILL_TIMEZONE })}`,
       55,
       detailsTextTop + 52
     );
