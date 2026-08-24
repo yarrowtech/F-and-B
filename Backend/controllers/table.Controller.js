@@ -215,6 +215,18 @@ import Table from "../models/Table.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import Order from "../models/Order.model.js";
 
+const ensureTableManagementEnabled = (restaurant, res) => {
+  if (restaurant?.restaurantType === "MANUAL_ONLY") {
+    res.status(409).json({
+      success: false,
+      message: "Table management is disabled for manual-only restaurants",
+    });
+    return false;
+  }
+
+  return true;
+};
+
 /* ===============================
    CREATE TABLE
 =============================== */
@@ -242,6 +254,8 @@ const createTable = async (req, res) => {
         message: "Access denied",
       });
     }
+
+    if (!ensureTableManagementEnabled(restaurant, res)) return;
 
     const table = await Table.create({
       restaurant: restaurantId,
@@ -307,6 +321,8 @@ const getTables = async (req, res) => {
         message: "Access denied for this restaurant",
       });
     }
+
+    if (!ensureTableManagementEnabled(restaurant, res)) return;
 
     const tables = await Table.find({
       restaurant: restaurantId,
@@ -392,6 +408,12 @@ const updateTableStatus = async (req, res) => {
     const { restaurantId, id } = req.params;
     const { status } = req.body;
 
+    const restaurant = await Restaurant.findById(restaurantId).select("restaurantType");
+    if (!restaurant) {
+      return res.status(404).json({ success: false, message: "Restaurant not found" });
+    }
+    if (!ensureTableManagementEnabled(restaurant, res)) return;
+
     if (!["available", "occupied", "reserved"].includes(status)) {
       return res.status(400).json({
         success: false,
@@ -436,6 +458,12 @@ const updateTable = async (req, res) => {
     const { restaurantId, id } = req.params;
     const { capacity, status } = req.body;
 
+    const restaurant = await Restaurant.findById(restaurantId).select("restaurantType");
+    if (!restaurant) {
+      return res.status(404).json({ success: false, message: "Restaurant not found" });
+    }
+    if (!ensureTableManagementEnabled(restaurant, res)) return;
+
     const updates = {};
     if (capacity !== undefined) {
       const cap = Number(capacity);
@@ -473,6 +501,12 @@ const updateTable = async (req, res) => {
 const deleteTable = async (req, res) => {
   try {
     const { restaurantId, id } = req.params;
+
+    const restaurant = await Restaurant.findById(restaurantId).select("restaurantType");
+    if (!restaurant) {
+      return res.status(404).json({ success: false, message: "Restaurant not found" });
+    }
+    if (!ensureTableManagementEnabled(restaurant, res)) return;
 
     const table = await Table.findOneAndDelete({
       _id: id,

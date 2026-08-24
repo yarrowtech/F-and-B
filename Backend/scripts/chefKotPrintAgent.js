@@ -73,7 +73,7 @@ const poll = async () => {
 
   for (const job of jobs) {
     try {
-      console.log(`Printing KOT ${job._id} (${job.cuisine})`);
+      console.log(`Printing KOT ${job._id} (${job.payload?.cuisine || job.cuisine})`);
       await printToWindowsQueue(job);
       await markPrinted(job._id);
     } catch (err) {

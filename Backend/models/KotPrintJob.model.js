@@ -21,9 +21,9 @@ const kotPrintJobSchema = new mongoose.Schema(
       index: true,
     },
     cuisine: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "KitchenSection",
       required: true,
-      trim: true,
       index: true,
     },
     printerName: {

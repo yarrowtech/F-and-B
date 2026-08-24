@@ -243,13 +243,16 @@ const employeeSchema = new mongoose.Schema(
     },
 
     cuisineTypes: {
-      type: [String],
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "KitchenSection",
+        },
+      ],
       default: [],
       set: (values) =>
         Array.isArray(values)
-          ? values
-              .map((value) => String(value || "").trim())
-              .filter(Boolean)
+          ? [...new Set(values.filter(Boolean).map((value) => String(value)))]
           : [],
     },
 

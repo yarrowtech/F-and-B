@@ -241,6 +241,13 @@ const restaurantSchema = new mongoose.Schema(
       default: true,
     },
 
+    restaurantType: {
+      type: String,
+      enum: ["MANUAL_ONLY", "HYBRID"],
+      default: "HYBRID",
+      index: true,
+    },
+
     billingStartNumber: {
       type: Number,
       default: 1,

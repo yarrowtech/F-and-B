@@ -4,6 +4,7 @@ import PDFDocument from "pdfkit";
 import Bill from "../models/Bill.model.js";
 import Inventory from "../models/Inventory.model.js";
 import InventoryLog from "../models/InventoryLog.model.js";
+import InventoryStock from "../models/InventoryStock.model.js";
 import KotPrintJob from "../models/KotPrintJob.model.js";
 import Menu from "../models/Menu.model.js";
 import Order from "../models/Order.model.js";
@@ -51,7 +52,9 @@ const REPORTS = [
   ["item-month-wise", "Item Month Wise", "menu", "itemMonth"],
   ["product-wise-sale", "Product Wise Sale", "menu", "productSales"],
   ["cost-report", "Cost Report", "menu", "inventoryUsage"],
-  ["inventory-report", "Inventory Report", "menu", "inventoryStock"],
+  ["inventory-report", "All Inventory Report", "inventory", "inventoryStock"],
+  ["warehouse-inventory-report", "Warehouse Inventory Report", "inventory", "warehouseInventoryStock"],
+  ["section-inventory-report", "Section Inventory Report", "inventory", "sectionInventoryStock"],
   ["liquor-report", "Liquor Report", "operations", "liquorDetail"],
   ["liquor-summary", "Liquor Summary", "operations", "liquorSummary"],
   ["time-periodical-report", "Time Periodical Report", "operations", "hourlySales"],
@@ -119,6 +122,24 @@ const getRestaurantScope = async (adminId, requestedRestaurantId) => {
     error.status = 403;
     throw error;
   }
+  return restaurants;
+};
+
+const getSingleRestaurantScope = async (restaurantId) => {
+  if (!restaurantId || !mongoose.Types.ObjectId.isValid(restaurantId)) {
+    throw reportError("Invalid restaurant");
+  }
+
+  const restaurants = await Restaurant.find({ _id: restaurantId })
+    .select("_id name")
+    .lean();
+
+  if (restaurants.length === 0) {
+    const error = new Error("Assigned restaurant not found");
+    error.status = 404;
+    throw error;
+  }
+
   return restaurants;
 };
 
@@ -314,6 +335,221 @@ const runVendorPurchaseReport = async (context, report) => {
       ),
     }
   );
+};
+
+const buildWarehouseInventoryRows = async (context) => {
+  const rows = await Inventory.aggregate([
+    {
+      $match: {
+        restaurant: { $in: context.restaurantIds },
+        isActive: true,
+      },
+    },
+    {
+      $lookup: {
+        from: "restaurants",
+        localField: "restaurant",
+        foreignField: "_id",
+        as: "restaurantDoc",
+      },
+    },
+    { $unwind: { path: "$restaurantDoc", preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: "inventorystocks",
+        let: { itemId: "$_id", restaurantId: "$restaurant" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$item", "$$itemId"] },
+                  { $eq: ["$restaurant", "$$restaurantId"] },
+                  { $eq: ["$locationType", "SECTION"] },
+                ],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              issuedToSections: { $sum: { $ifNull: ["$quantity", 0] } },
+            },
+          },
+        ],
+        as: "sectionTotals",
+      },
+    },
+    {
+      $addFields: {
+        issuedToSections: {
+          $ifNull: [{ $first: "$sectionTotals.issuedToSections" }, 0],
+        },
+      },
+    },
+    {
+      $addFields: {
+        warehouseQuantity: {
+          $max: [
+            0,
+            {
+              $subtract: [
+                { $ifNull: ["$quantity", 0] },
+                { $ifNull: ["$issuedToSections", 0] },
+              ],
+            },
+          ],
+        },
+      },
+    },
+    {
+      $addFields: {
+        stockValue: {
+          $multiply: [
+            "$warehouseQuantity",
+            { $ifNull: ["$averageCost", "$unitCost"] },
+          ],
+        },
+        lowStock: {
+          $cond: [
+            {
+              $lte: [
+                "$warehouseQuantity",
+                { $ifNull: ["$lowStockThreshold", 0] },
+              ],
+            },
+            "Low",
+            "OK",
+          ],
+        },
+      },
+    },
+    { $sort: { restaurant: 1, category: 1, name: 1 } },
+    { $limit: context.limit },
+    {
+      $project: {
+        _id: 0,
+        restaurant: { $ifNull: ["$restaurantDoc.name", "Restaurant"] },
+        item: "$name",
+        category: { $ifNull: ["$category", "-"] },
+        unit: { $ifNull: ["$unit", "-"] },
+        warehouseQuantity: { $round: ["$warehouseQuantity", 3] },
+        averageCost: { $round: [{ $ifNull: ["$averageCost", "$unitCost"] }, 2] },
+        lastPurchasePrice: { $round: [{ $ifNull: ["$lastPurchasePrice", 0] }, 2] },
+        stockValue: { $round: ["$stockValue", 2] },
+        lowStockThreshold: { $round: [{ $ifNull: ["$lowStockThreshold", 0] }, 3] },
+        status: "$lowStock",
+        lastUpdated: {
+          $dateToString: {
+            date: "$updatedAt",
+            format: "%Y-%m-%d %H:%M",
+            timezone: BUSINESS_TIMEZONE,
+          },
+        },
+      },
+    },
+  ]);
+
+  return rows;
+};
+
+const buildSectionInventoryRows = async (context, selectedSectionId = "") => {
+  const sectionMatch = selectedSectionId
+    ? {
+        section: new mongoose.Types.ObjectId(selectedSectionId),
+      }
+    : {};
+
+  const rows = await InventoryStock.aggregate([
+    {
+      $match: {
+        restaurant: { $in: context.restaurantIds },
+        locationType: "SECTION",
+        ...sectionMatch,
+      },
+    },
+    {
+      $lookup: {
+        from: "inventories",
+        localField: "item",
+        foreignField: "_id",
+        as: "inventoryDoc",
+      },
+    },
+    { $unwind: { path: "$inventoryDoc", preserveNullAndEmptyArrays: false } },
+    {
+      $match: {
+        "inventoryDoc.isActive": true,
+      },
+    },
+    {
+      $lookup: {
+        from: "restaurants",
+        localField: "restaurant",
+        foreignField: "_id",
+        as: "restaurantDoc",
+      },
+    },
+    { $unwind: { path: "$restaurantDoc", preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: "kitchensections",
+        localField: "section",
+        foreignField: "_id",
+        as: "sectionDoc",
+      },
+    },
+    { $unwind: { path: "$sectionDoc", preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        stockValue: {
+          $multiply: [
+            { $ifNull: ["$quantity", 0] },
+            { $ifNull: ["$inventoryDoc.averageCost", "$inventoryDoc.unitCost"] },
+          ],
+        },
+        lowStock: {
+          $cond: [
+            {
+              $lte: [
+                { $ifNull: ["$quantity", 0] },
+                { $ifNull: ["$inventoryDoc.lowStockThreshold", 0] },
+              ],
+            },
+            "Low",
+            "OK",
+          ],
+        },
+      },
+    },
+    { $sort: { "sectionDoc.name": 1, "inventoryDoc.category": 1, "inventoryDoc.name": 1 } },
+    { $limit: context.limit },
+    {
+      $project: {
+        _id: 0,
+        restaurant: { $ifNull: ["$restaurantDoc.name", "Restaurant"] },
+        section: { $ifNull: ["$sectionDoc.name", "Section"] },
+        item: "$inventoryDoc.name",
+        category: { $ifNull: ["$inventoryDoc.category", "-"] },
+        unit: { $ifNull: ["$inventoryDoc.unit", "-"] },
+        quantity: { $round: [{ $ifNull: ["$quantity", 0] }, 3] },
+        averageCost: { $round: [{ $ifNull: ["$inventoryDoc.averageCost", "$inventoryDoc.unitCost"] }, 2] },
+        lastPurchasePrice: { $round: [{ $ifNull: ["$inventoryDoc.lastPurchasePrice", 0] }, 2] },
+        stockValue: { $round: ["$stockValue", 2] },
+        lowStockThreshold: { $round: [{ $ifNull: ["$inventoryDoc.lowStockThreshold", 0] }, 3] },
+        status: "$lowStock",
+        lastUpdated: {
+          $dateToString: {
+            date: "$updatedAt",
+            format: "%Y-%m-%d %H:%M",
+            timezone: BUSINESS_TIMEZONE,
+          },
+        },
+      },
+    },
+  ]);
+
+  return rows;
 };
 
 const runVendorSettlementReport = async (context, report) => {
@@ -978,6 +1214,8 @@ const runItemTransactionDetails = async (context, extraMatch = {}) => {
     { $match: { "orderDoc.items.status": { $ne: "CANCELLED" } } },
     { $lookup: { from: "menus", localField: "orderDoc.items.menuItem", foreignField: "_id", as: "menuDoc" } },
     { $unwind: { path: "$menuDoc", preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: "kitchensections", localField: "menuDoc.cuisine", foreignField: "_id", as: "kitchenSectionDoc" } },
+    { $unwind: { path: "$kitchenSectionDoc", preserveNullAndEmptyArrays: true } },
     { $match: extraMatch },
     { $sort: { reportDate: -1, billNo: 1 } },
     { $limit: context.limit },
@@ -997,7 +1235,7 @@ const runItemTransactionDetails = async (context, extraMatch = {}) => {
         orderType: "$orderDoc.orderType",
         menuCode: { $ifNull: ["$menuDoc.menuCode", "-"] },
         item: { $ifNull: ["$menuDoc.name", "Deleted Menu Item"] },
-        cuisine: { $ifNull: ["$menuDoc.cuisine", "-"] },
+        cuisine: { $ifNull: ["$kitchenSectionDoc.name", "-"] },
         section: { $ifNull: ["$menuDoc.courseType", "-"] },
         quantity: "$orderDoc.items.quantity",
         rate: { $round: ["$orderDoc.items.price", 2] },
@@ -1049,6 +1287,8 @@ const runReportDetails = async (context, report, reportData) => {
     "menuPrices",
     "inventoryUsage",
     "inventoryStock",
+    "warehouseInventoryStock",
+    "sectionInventoryStock",
     "kotAnalysis",
     "cancelledOrders",
   ]);
@@ -1094,7 +1334,7 @@ const runReportDetails = async (context, report, reportData) => {
   if (report.type === "liquorDetail" || report.type === "liquorSummary") {
     return runItemTransactionDetails(context, {
       $or: [
-        { "menuDoc.cuisine": /liquor|bar|beverage|alcohol/i },
+        { "kitchenSectionDoc.name": /liquor|bar|beverage|alcohol/i },
         { "menuDoc.courseType": /liquor|bar|beverage|alcohol/i },
       ],
     });
@@ -1103,7 +1343,7 @@ const runReportDetails = async (context, report, reportData) => {
   if (report.type === "foodSales") {
     return runItemTransactionDetails(context, {
       $nor: [
-        { "menuDoc.cuisine": /liquor|bar|beverage|alcohol/i },
+        { "kitchenSectionDoc.name": /liquor|bar|beverage|alcohol/i },
         { "menuDoc.courseType": /liquor|bar|beverage|alcohol/i },
       ],
     });
@@ -1488,6 +1728,8 @@ const itemSalesPipeline = (context, extraMatch = {}) => [
   { $match: { "orderDoc.items.status": { $ne: "CANCELLED" } } },
   { $lookup: { from: "menus", localField: "orderDoc.items.menuItem", foreignField: "_id", as: "menuDoc" } },
   { $unwind: { path: "$menuDoc", preserveNullAndEmptyArrays: true } },
+  { $lookup: { from: "kitchensections", localField: "menuDoc.cuisine", foreignField: "_id", as: "kitchenSectionDoc" } },
+  { $unwind: { path: "$kitchenSectionDoc", preserveNullAndEmptyArrays: true } },
   { $match: extraMatch },
   {
     $group: {
@@ -1495,7 +1737,7 @@ const itemSalesPipeline = (context, extraMatch = {}) => [
       restaurant: { $first: { $ifNull: ["$restaurantDoc.name", "-"] } },
       menuCode: { $first: { $ifNull: ["$menuDoc.menuCode", "-"] } },
       name: { $first: { $ifNull: ["$menuDoc.name", "Deleted Menu Item"] } },
-      cuisine: { $first: { $ifNull: ["$menuDoc.cuisine", "-"] } },
+      cuisine: { $first: { $ifNull: ["$kitchenSectionDoc.name", "-"] } },
       courseType: { $first: { $ifNull: ["$menuDoc.courseType", "-"] } },
       billIds: { $addToSet: "$_id" },
       quantity: { $sum: "$orderDoc.items.quantity" },
@@ -1579,11 +1821,13 @@ const runMenuSectionSales = async (context, report, extraMatch = {}) => {
     { $match: { "orderDoc.items.status": { $ne: "CANCELLED" } } },
     { $lookup: { from: "menus", localField: "orderDoc.items.menuItem", foreignField: "_id", as: "menuDoc" } },
     { $unwind: { path: "$menuDoc", preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: "kitchensections", localField: "menuDoc.cuisine", foreignField: "_id", as: "kitchenSectionDoc" } },
+    { $unwind: { path: "$kitchenSectionDoc", preserveNullAndEmptyArrays: true } },
     { $match: extraMatch },
     {
       $group: {
         _id: {
-          cuisine: { $ifNull: ["$menuDoc.cuisine", "Uncategorised"] },
+          cuisine: { $ifNull: ["$kitchenSectionDoc.name", "Uncategorised"] },
           courseType: { $ifNull: ["$menuDoc.courseType", "Uncategorised"] },
         },
         bills: { $addToSet: "$_id" },
@@ -1899,6 +2143,8 @@ const runSpecialReport = async (context, report) => {
             },
           },
         },
+        { $lookup: { from: "kitchensections", localField: "cuisine", foreignField: "_id", as: "kitchenSectionDoc" } },
+        { $unwind: { path: "$kitchenSectionDoc", preserveNullAndEmptyArrays: true } },
         {
           $group: {
             _id: {
@@ -1909,7 +2155,7 @@ const runSpecialReport = async (context, report) => {
                   timezone: BUSINESS_TIMEZONE,
                 },
               },
-              cuisine: { $ifNull: ["$cuisine", "GENERAL"] },
+              cuisine: { $ifNull: ["$kitchenSectionDoc.name", "GENERAL"] },
               status: { $ifNull: ["$status", "PENDING"] },
             },
             kots: { $sum: 1 },
@@ -1997,6 +2243,8 @@ const runSpecialReport = async (context, report) => {
             },
           },
           { $unwind: { path: "$menuDoc", preserveNullAndEmptyArrays: true } },
+          { $lookup: { from: "kitchensections", localField: "menuDoc.cuisine", foreignField: "_id", as: "kitchenSectionDoc" } },
+          { $unwind: { path: "$kitchenSectionDoc", preserveNullAndEmptyArrays: true } },
           {
             $group: {
               _id: {
@@ -2008,7 +2256,7 @@ const runSpecialReport = async (context, report) => {
                     timezone: BUSINESS_TIMEZONE,
                   },
                 },
-                cuisine: { $ifNull: ["$menuDoc.cuisine", "GENERAL"] },
+                cuisine: { $ifNull: ["$kitchenSectionDoc.name", "GENERAL"] },
               },
               items: { $sum: "$items.quantity" },
             },
@@ -2056,14 +2304,15 @@ const runSpecialReport = async (context, report) => {
       const soldIds = await Bill.aggregate([...itemSalesPipeline(context), { $project: { _id: 1 } }]);
       const rows = await Menu.find({ restaurant: { $in: context.restaurantIds }, _id: { $nin: soldIds.map((row) => row._id) } })
         .populate("restaurant", "name")
+        .populate("cuisine", "name")
         .select("name menuCode cuisine courseType price restaurant")
         .sort({ name: 1 })
         .limit(context.limit)
         .lean();
-      return reportResponse(report, ["restaurant", "menuCode", "name", "cuisine", "courseType", "price"], rows.map((row) => ({ restaurant: row.restaurant?.name || "-", menuCode: row.menuCode, name: row.name, cuisine: row.cuisine, courseType: row.courseType, price: row.price })));
+      return reportResponse(report, ["restaurant", "menuCode", "name", "cuisine", "courseType", "price"], rows.map((row) => ({ restaurant: row.restaurant?.name || "-", menuCode: row.menuCode, name: row.name, cuisine: row.cuisine?.name || "-", courseType: row.courseType, price: row.price })));
     }
     case "menuPrices": {
-      const rows = await Menu.find({ restaurant: { $in: context.restaurantIds } }).populate("restaurant", "name").sort({ updatedAt: -1 }).limit(context.limit).lean();
+      const rows = await Menu.find({ restaurant: { $in: context.restaurantIds } }).populate("restaurant", "name").populate("cuisine", "name").sort({ updatedAt: -1 }).limit(context.limit).lean();
       return reportResponse(
         report,
         ["restaurant", "menuCode", "name", "cuisine", "courseType", "currentPrice", "lastUpdated"],
@@ -2071,7 +2320,7 @@ const runSpecialReport = async (context, report) => {
           restaurant: row.restaurant?.name || "-",
           menuCode: row.menuCode,
           name: row.name,
-          cuisine: row.cuisine,
+          cuisine: row.cuisine?.name || "-",
           courseType: row.courseType,
           currentPrice: money(row.price),
           lastUpdated: row.updatedAt,
@@ -2219,6 +2468,73 @@ const runSpecialReport = async (context, report) => {
           ),
           lowStockItems: rows.filter((row) => row.status === "Low").length,
           message: "This report shows the current inventory snapshot for the selected restaurant.",
+        }
+      );
+    }
+    case "warehouseInventoryStock": {
+      const rows = await buildWarehouseInventoryRows(context);
+      return reportResponse(
+        report,
+        [
+          "restaurant",
+          "item",
+          "category",
+          "unit",
+          "warehouseQuantity",
+          "averageCost",
+          "lastPurchasePrice",
+          "stockValue",
+          "lowStockThreshold",
+          "status",
+          "lastUpdated",
+        ],
+        rows,
+        {
+          items: rows.length,
+          totalQuantity: money(
+            rows.reduce((sum, row) => sum + Number(row.warehouseQuantity || 0), 0)
+          ),
+          totalStockValue: money(
+            rows.reduce((sum, row) => sum + Number(row.stockValue || 0), 0)
+          ),
+          lowStockItems: rows.filter((row) => row.status === "Low").length,
+          message: "This report shows the current warehouse stock snapshot for the selected restaurant.",
+        }
+      );
+    }
+    case "sectionInventoryStock": {
+      const selectedSectionId = String(context.sectionId || "");
+      const rows = await buildSectionInventoryRows(context, selectedSectionId);
+      return reportResponse(
+        report,
+        [
+          "restaurant",
+          "section",
+          "item",
+          "category",
+          "unit",
+          "quantity",
+          "averageCost",
+          "lastPurchasePrice",
+          "stockValue",
+          "lowStockThreshold",
+          "status",
+          "lastUpdated",
+        ],
+        rows,
+        {
+          rows: rows.length,
+          totalQuantity: money(
+            rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0)
+          ),
+          totalStockValue: money(
+            rows.reduce((sum, row) => sum + Number(row.stockValue || 0), 0)
+          ),
+          sections: new Set(rows.map((row) => row.section)).size,
+          lowStockItems: rows.filter((row) => row.status === "Low").length,
+          message: selectedSectionId
+            ? "This report shows the current stock snapshot for the selected kitchen section."
+            : "This report shows the current section-wise inventory snapshot for the selected restaurant.",
         }
       );
     }
@@ -2523,7 +2839,7 @@ const runReport = async (context, report) => {
       return runItemSales(context, report, {
         extraMatch: {
           $nor: [
-            { "menuDoc.cuisine": /liquor|bar|beverage|alcohol/i },
+            { "kitchenSectionDoc.name": /liquor|bar|beverage|alcohol/i },
             { "menuDoc.courseType": /liquor|bar|beverage|alcohol/i },
           ],
         },
@@ -2549,7 +2865,7 @@ const runReport = async (context, report) => {
       return runItemSales(context, report, {
         extraMatch: {
           $or: [
-            { "menuDoc.cuisine": /liquor|bar|beverage|alcohol/i },
+            { "kitchenSectionDoc.name": /liquor|bar|beverage|alcohol/i },
             { "menuDoc.courseType": /liquor|bar|beverage|alcohol/i },
           ],
         },
@@ -2557,12 +2873,12 @@ const runReport = async (context, report) => {
     case "liquorSummary":
       return runMenuSectionSales(context, report, {
         $or: [
-          { "menuDoc.cuisine": /liquor|bar|beverage|alcohol/i },
+          { "kitchenSectionDoc.name": /liquor|bar|beverage|alcohol/i },
           { "menuDoc.courseType": /liquor|bar|beverage|alcohol/i },
         ],
       });
     case "liquorSales":
-      return runItemSales(context, report, { extraMatch: { $or: [{ "menuDoc.cuisine": /liquor|bar|beverage|alcohol/i }, { "menuDoc.courseType": /liquor|bar|beverage|alcohol/i }] } });
+      return runItemSales(context, report, { extraMatch: { $or: [{ "kitchenSectionDoc.name": /liquor|bar|beverage|alcohol/i }, { "menuDoc.courseType": /liquor|bar|beverage|alcohol/i }] } });
     case "sectionSales":
       return runMenuSectionSales(context, report);
     case "itemWeekday":
@@ -2673,6 +2989,30 @@ export const getAdminReportRestaurants = async (req, res) => {
   }
 };
 
+export const getManagerReportCatalog = (_req, res) => {
+  res.json({ success: true, data: REPORTS.map(({ type, ...report }) => report) });
+};
+
+export const getManagerReportRestaurant = async (req, res) => {
+  try {
+    const restaurants = await getSingleRestaurantScope(req.user.restaurant);
+    const restaurant = restaurants[0];
+
+    res.json({
+      success: true,
+      data: restaurant
+        ? { _id: restaurant._id, name: restaurant.name }
+        : null,
+    });
+  } catch (error) {
+    console.error("MANAGER REPORT RESTAURANT ERROR:", error);
+    res.status(error.status || 500).json({
+      success: false,
+      message: error.message || "Failed to load assigned restaurant",
+    });
+  }
+};
+
 const buildAdminReportData = async (req) => {
   const report = REPORT_BY_KEY.get(req.params.key);
   if (!report) throw reportError("Report not found", 404);
@@ -2689,6 +3029,7 @@ const buildAdminReportData = async (req) => {
     start,
     end,
     limit,
+    sectionId: req.query.sectionId || "",
     restaurantIds,
     billMatch:
       report.type === "hourlySales"
@@ -2719,6 +3060,56 @@ const buildAdminReportData = async (req) => {
         restaurantName:
           selectedRestaurant?.name ||
           (restaurants.length > 1 ? "All Restaurants" : "Restaurant"),
+        restaurants: restaurants.map(({ _id, name }) => ({ _id, name })),
+        startTime: req.query.startTime || "",
+        endTime: req.query.endTime || "",
+      },
+    },
+  };
+};
+
+const buildManagerReportData = async (req) => {
+  const report = REPORT_BY_KEY.get(req.params.key);
+  if (!report) throw reportError("Report not found", 404);
+
+  const { start, end } = parseRange(req.query);
+  const restaurants = await getSingleRestaurantScope(req.user.restaurant);
+  const restaurantIds = restaurants.map((restaurant) => restaurant._id);
+  const requestedLimit = Number(req.query.limit || 1000);
+  if (!Number.isFinite(requestedLimit)) {
+    throw reportError("Report limit must be a number");
+  }
+  const limit = Math.min(Math.max(Math.floor(requestedLimit), 1), 5000);
+  const context = {
+    start,
+    end,
+    limit,
+    sectionId: req.query.sectionId || "",
+    restaurantIds,
+    billMatch:
+      report.type === "hourlySales"
+        ? addTimeRangeToBillMatch(
+            billMatch(restaurantIds, start, end),
+            req.query.startTime,
+            req.query.endTime
+          )
+        : billMatch(restaurantIds, start, end),
+  };
+
+  const data = await runReport(context, report);
+  const details = await runReportDetails(context, report, data);
+  const selectedRestaurant = restaurants[0] || null;
+
+  return {
+    report,
+    data: {
+      ...data,
+      details,
+      filters: {
+        startDate: start,
+        endDate: end,
+        restaurantId: selectedRestaurant?._id?.toString() || "",
+        restaurantName: selectedRestaurant?.name || "Assigned Restaurant",
         restaurants: restaurants.map(({ _id, name }) => ({ _id, name })),
         startTime: req.query.startTime || "",
         endTime: req.query.endTime || "",
@@ -2921,6 +3312,19 @@ export const generateAdminReport = async (req, res) => {
     res.json({ success: true, data });
   } catch (error) {
     console.error("ADMIN REPORT ERROR:", error);
+    res.status(error.status || 500).json({
+      success: false,
+      message: error.message || "Failed to generate report",
+    });
+  }
+};
+
+export const generateManagerReport = async (req, res) => {
+  try {
+    const { data } = await buildManagerReportData(req);
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error("MANAGER REPORT ERROR:", error);
     res.status(error.status || 500).json({
       success: false,
       message: error.message || "Failed to generate report",
@@ -3164,6 +3568,253 @@ export const exportAdminReport = async (req, res) => {
     return res.send(`\uFEFF${csv}`);
   } catch (error) {
     console.error("ADMIN REPORT EXPORT ERROR:", error);
+    res.status(error.status || 500).json({
+      success: false,
+      message: error.message || "Failed to export report",
+    });
+  }
+};
+
+const sendManagerExportResponse = async (res, report, data, format) => {
+  const generatedAt = new Date();
+  const periodStart = businessDateString(data.filters.startDate);
+  const periodEnd = businessDateString(data.filters.endDate);
+  const periodLabel =
+    data.filters.startTime && data.filters.endTime
+      ? `${periodStart} ${data.filters.startTime} to ${periodEnd} ${data.filters.endTime}`
+      : `${periodStart} to ${periodEnd}`;
+  const safeRestaurantName = String(data.filters.restaurantName || "restaurant")
+    .replace(/[<>:"/\\|?*]+/g, "-")
+    .replace(/\s+/g, "-")
+    .toLowerCase();
+  const fileBase = `${safeRestaurantName}-${report.key}-${periodStart}-to-${periodEnd}`;
+  const detailColumns = data.details?.columns || [];
+  const detailRows = data.details?.rows || [];
+  const summaryRows = Object.entries(data.summary || {}).map(([label, value]) => ({
+    label: humanizeColumn(label),
+    value: exportValue(value),
+  }));
+
+  if (format === "xlsx") {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "Restaurant Manager Reports";
+    workbook.created = generatedAt;
+    workbook.modified = generatedAt;
+    workbook.subject = report.title;
+    workbook.title = `${data.filters.restaurantName} - ${report.title}`;
+
+    const excelDetailColumns =
+      detailColumns.length > 0 ? detailColumns : data.columns || [];
+    const excelDetailRows =
+      detailColumns.length > 0 ? detailRows : data.rows || [];
+    addExcelDataSheet(
+      workbook,
+      "Detailed Report",
+      excelDetailColumns,
+      excelDetailRows,
+      {
+        restaurantName: data.filters.restaurantName,
+        reportTitle: report.title,
+        period: periodLabel,
+      }
+    );
+    workbook.views = [{ activeTab: 0, firstSheet: 0, visibility: "visible" }];
+
+    const overview = workbook.addWorksheet("Overview", {
+      properties: { tabColor: { argb: "FF047857" } },
+    });
+    configureExcelSheet(overview);
+    overview.mergeCells("A1:D1");
+    overview.getCell("A1").value = data.filters.restaurantName;
+    overview.getCell("A1").font = {
+      bold: true,
+      size: 20,
+      color: { argb: "FFFFFFFF" },
+    };
+    overview.getCell("A1").alignment = { vertical: "middle", horizontal: "center" };
+    overview.getCell("A1").fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF047857" },
+    };
+    overview.getRow(1).height = 34;
+    overview.mergeCells("A2:D2");
+    overview.getCell("A2").value = report.title;
+    overview.getCell("A2").font = { bold: true, size: 16, color: { argb: "FF0F172A" } };
+    overview.getCell("A2").alignment = { horizontal: "center" };
+    overview.addRow([]);
+    [
+      ["Report Period", periodLabel],
+      ["Generated At", generatedAt.toLocaleString("en-IN", { timeZone: BUSINESS_TIMEZONE })],
+      ["Summary Rows", (data.rows || []).length],
+      ["Detailed Records", detailRows.length],
+    ].forEach(([label, value]) => {
+      const row = overview.addRow([label, value]);
+      row.getCell(1).font = { bold: true, color: { argb: "FF475569" } };
+      row.getCell(2).font = { bold: true, color: { argb: "FF0F172A" } };
+    });
+    overview.addRow([]);
+    const summaryHeader = overview.addRow(["Summary Metric", "Value"]);
+    styleExcelHeader(summaryHeader);
+    summaryRows.forEach((item, index) => {
+      const row = overview.addRow([item.label, item.value]);
+      if (index % 2 === 1) {
+        row.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFF8FAFC" },
+        };
+      }
+      if (typeof item.value === "number") row.getCell(2).numFmt = "#,##0.00";
+    });
+    overview.getColumn(1).width = 28;
+    overview.getColumn(2).width = 30;
+    overview.views = [{ state: "frozen", ySplit: 2 }];
+
+    addExcelDataSheet(workbook, "Report Summary", data.columns || [], data.rows || []);
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${fileBase}.xlsx"`);
+    await workbook.xlsx.write(res);
+    return res.end();
+  }
+
+  if (format === "pdf") {
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileBase}.pdf"`);
+    const doc = new PDFDocument({
+      size: "A4",
+      layout: "landscape",
+      margin: 30,
+      bufferPages: true,
+      info: {
+        Title: `${data.filters.restaurantName} - ${report.title}`,
+        Author: "Restaurant Manager Reports",
+        Subject: periodLabel,
+      },
+    });
+    doc.pipe(res);
+
+    const drawPageHeader = () => {
+      const left = doc.page.margins.left;
+      const width = doc.page.width - left - doc.page.margins.right;
+      doc.rect(left, 22, width, 46).fill("#047857");
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(15)
+        .fillColor("#ffffff")
+        .text(data.filters.restaurantName, left + 12, 31, {
+          width: width - 24,
+          align: "center",
+        });
+      doc
+        .font("Helvetica")
+        .fontSize(8)
+        .fillColor("#d1fae5")
+        .text(report.title, left + 12, 51, {
+          width: width - 24,
+          align: "center",
+        });
+      doc.y = 78;
+    };
+
+    drawPageHeader();
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(18)
+      .fillColor("#0f172a")
+      .text(report.title);
+    doc
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor("#475569")
+      .text(`Report period: ${periodLabel}`)
+      .text(
+        `Generated: ${generatedAt.toLocaleString("en-IN", {
+          timeZone: BUSINESS_TIMEZONE,
+        })}`
+      );
+    doc.moveDown();
+    writePdfTable(doc, "Executive Summary", ["label", "value"], summaryRows, drawPageHeader);
+    writePdfTable(
+      doc,
+      "Report Summary Data",
+      data.columns || [],
+      data.rows || [],
+      drawPageHeader
+    );
+    if (detailColumns.length > 0) {
+      writePdfTable(
+        doc,
+        "Detailed Records",
+        detailColumns,
+        detailRows,
+        drawPageHeader
+      );
+    }
+
+    const pageRange = doc.bufferedPageRange();
+    for (let index = 0; index < pageRange.count; index += 1) {
+      doc.switchToPage(pageRange.start + index);
+      const footerY = doc.page.height - 22;
+      doc
+        .font("Helvetica")
+        .fontSize(7)
+        .fillColor("#64748b")
+        .text(
+          `${data.filters.restaurantName}  •  ${report.title}`,
+          doc.page.margins.left,
+          footerY,
+          { continued: true }
+        )
+        .text(`Page ${index + 1} of ${pageRange.count}`, {
+          align: "right",
+        });
+    }
+    return doc.end();
+  }
+
+  const csvCell = (value) => `"${String(exportValue(value)).replaceAll('"', '""')}"`;
+  const section = (title, columns, rows) => [
+    csvCell(title),
+    columns.map((column) => csvCell(humanizeColumn(column))).join(","),
+    ...rows.map((row) => columns.map((column) => csvCell(row[column])).join(",")),
+    "",
+  ];
+  const csv = [
+    [csvCell("Restaurant"), csvCell(data.filters.restaurantName)].join(","),
+    [csvCell("Report"), csvCell(report.title)].join(","),
+    [csvCell("Report Period"), csvCell(periodLabel)].join(","),
+    [
+      csvCell("Generated At"),
+      csvCell(generatedAt.toLocaleString("en-IN", { timeZone: BUSINESS_TIMEZONE })),
+    ].join(","),
+    "",
+    ...section("EXECUTIVE SUMMARY", ["label", "value"], summaryRows),
+    ...section("REPORT SUMMARY DATA", data.columns || [], data.rows || []),
+    ...(detailColumns.length > 0
+      ? section("DETAILED RECORDS", detailColumns, detailRows)
+      : []),
+  ].join("\r\n");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileBase}.csv"`);
+  return res.send(`\uFEFF${csv}`);
+};
+
+export const exportManagerReport = async (req, res) => {
+  try {
+    const format = String(req.query.format || "xlsx").toLowerCase();
+    if (!["xlsx", "pdf", "csv"].includes(format)) {
+      throw reportError("Export format must be xlsx, pdf, or csv");
+    }
+
+    const { report, data } = await buildManagerReportData(req);
+    await sendManagerExportResponse(res, report, data, format);
+  } catch (error) {
+    console.error("MANAGER REPORT EXPORT ERROR:", error);
     res.status(error.status || 500).json({
       success: false,
       message: error.message || "Failed to export report",

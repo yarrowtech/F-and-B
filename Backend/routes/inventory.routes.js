@@ -79,7 +79,7 @@ router.get(
 router.get(
   "/stock-approvals",
   auth,
-  allowRoles("admin"),
+  allowRoles("admin", "manager", "inventory_manager"),
   getStockApprovalRequests
 );
 
@@ -87,7 +87,7 @@ router.get(
 router.put(
   "/stock-approvals/:id/approve",
   auth,
-  allowRoles("admin"),
+  allowRoles("admin", "manager", "inventory_manager"),
   approveStockApprovalRequest
 );
 
@@ -95,7 +95,7 @@ router.put(
 router.put(
   "/stock-approvals/:id/reject",
   auth,
-  allowRoles("admin"),
+  allowRoles("admin", "manager", "inventory_manager"),
   rejectStockApprovalRequest
 );
 
@@ -140,7 +140,7 @@ router.put(
 router.delete(
   "/:restaurantId/:id",
   auth,
-  allowRoles("admin", "inventory_manager"),
+  allowRoles("admin", "manager", "inventory_manager"),
   deleteInventoryItem
 );
 

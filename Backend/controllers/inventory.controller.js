@@ -4,6 +4,7 @@ import InventoryStockApproval from "../models/InventoryStockApproval.model.js";
 import InventoryCategory from "../models/InventoryCategory.model.js";
 import Order from "../models/Order.model.js";
 import ExcelJS from "exceljs";
+import { adjustStockQuantity } from "../utils/inventoryStock.js";
 
 /* ================= HELPER ================= */
 
@@ -252,6 +253,15 @@ const applyStockChange = async ({
   item.lastUpdatedBy = user.id;
   await item.save();
 
+  // Manual corrections represent stock the business owns, which lives in the
+  // warehouse until it's transferred out to a kitchen section.
+  await adjustStockQuantity({
+    restaurant: restaurantId,
+    item: item._id,
+    locationType: "WAREHOUSE",
+    delta: diff,
+  });
+
   const appliedUnitCost = roundMoney(
     normalizedUnitCost !== null ? normalizedUnitCost : item.averageCost || item.unitCost || 0
   );
@@ -335,6 +345,13 @@ export const createInventoryItem = async (req, res) => {
       addedBy: req.user.id,
       addedByName: req.user.name || "",
       effectiveDate: logEffectiveDate,
+    });
+
+    await adjustStockQuantity({
+      restaurant: restaurantId,
+      item: item._id,
+      locationType: "WAREHOUSE",
+      delta: Number(quantity || 0),
     });
 
     return sendSuccess(res, item, 201);

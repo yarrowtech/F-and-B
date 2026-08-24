@@ -701,6 +701,7 @@ import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import Employee from "../models/Employee.model.js";
 import Restaurant from "../models/Restaurant.model.js";
+import KitchenSection from "../models/KitchenSection.model.js";
 import Log from "../models/Log.model.js";
 import Order from "../models/Order.model.js";
 import Bill from "../models/Bill.model.js";
@@ -722,14 +723,14 @@ const ROLE_CODES = {
   ACCOUNTANT: "ACC",
 };
 
-const normalizeCuisineTypes = (values) =>
-  Array.isArray(values)
-    ? [...new Set(
-        values
-          .map((value) => String(value || "").trim())
-          .filter(Boolean)
-      )]
-    : [];
+const normalizeCuisineTypes = async (values, restaurantId) => {
+  if (!Array.isArray(values) || values.length === 0 || !restaurantId) return [];
+  const ids = [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+  return KitchenSection.find({
+    _id: { $in: ids },
+    restaurant: restaurantId,
+  }).distinct("_id");
+};
 
 const employeeSafeResponse = (employee) => ({
   id: employee._id,
@@ -808,7 +809,9 @@ const createEmployee = async (req, res) => {
       ...rest,
       role: normalizedRole,
       cuisineTypes:
-        normalizedRole === "CHEF" ? normalizeCuisineTypes(cuisineTypes) : [],
+        normalizedRole === "CHEF"
+          ? await normalizeCuisineTypes(cuisineTypes, restaurantId)
+          : [],
       employeeId,
       password: hashedPassword,
       createdBy: req.user.id,
@@ -905,14 +908,22 @@ const updateEmployee = async (req, res) => {
     const allowedUpdates = ["name", "email", "phone", "role", "address", "cuisineTypes"];
     const updates = {};
 
-    allowedUpdates.forEach((field) => {
-      if (req.body[field] !== undefined) {
-        updates[field] =
-          field === "cuisineTypes"
-            ? normalizeCuisineTypes(req.body[field])
-            : req.body[field];
-      }
-    });
+    let cuisineRestaurantId = req.body.restaurantId;
+    if (!cuisineRestaurantId && req.body.cuisineTypes !== undefined) {
+      const existing = await Employee.findOne({
+        _id: req.params.id,
+        createdBy: req.user.id,
+      }).select("restaurant");
+      cuisineRestaurantId = existing?.restaurant;
+    }
+
+    for (const field of allowedUpdates) {
+      if (req.body[field] === undefined) continue;
+      updates[field] =
+        field === "cuisineTypes"
+          ? await normalizeCuisineTypes(req.body[field], cuisineRestaurantId)
+          : req.body[field];
+    }
 
     if (updates.role !== undefined) {
       updates.role = String(updates.role || "").toUpperCase();

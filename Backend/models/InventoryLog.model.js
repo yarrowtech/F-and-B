@@ -69,8 +69,20 @@ const inventoryLogSchema = new mongoose.Schema(
 
     action: {
       type: String,
-      enum: ["ADD", "UPDATE", "DELETE", "CONSUME"],
+      enum: ["ADD", "UPDATE", "DELETE", "CONSUME", "TRANSFER_OUT", "TRANSFER_IN"],
       default: "ADD",
+    },
+
+    locationType: {
+      type: String,
+      enum: ["WAREHOUSE", "SECTION"],
+      default: undefined,
+    },
+
+    section: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "KitchenSection",
+      default: null,
     },
 
     effectiveDate: {

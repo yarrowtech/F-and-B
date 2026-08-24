@@ -174,6 +174,7 @@ const defaultPaymentMethods = ["CASH", "CARD", "UPI"];
 const defaultVendorInventoryIntegration = {
   enabled: false,
 };
+const defaultRestaurantType = "HYBRID";
 
 const normalizePaymentMethod = (value) =>
   String(value || "")
@@ -212,6 +213,16 @@ const sanitizeKotCopyCount = (value, fallback = 1) => {
 
   const normalized = Math.floor(parsed);
   return Math.min(Math.max(normalized, 1), 10);
+};
+
+const sanitizeRestaurantType = (value, fallback = defaultRestaurantType) => {
+  const normalized = String(value || "")
+    .trim()
+    .toUpperCase();
+
+  return ["MANUAL_ONLY", "HYBRID"].includes(normalized)
+    ? normalized
+    : fallback;
 };
 
 const sanitizeBillingTemplate = (payload = {}) => {
@@ -311,7 +322,14 @@ export const createRestaurant = async (req, res) => {
       });
     }
 
-    const { name, address, phone, gstNo, billingStartNumber } = req.body;
+    const {
+      name,
+      address,
+      phone,
+      gstNo,
+      billingStartNumber,
+      restaurantType,
+    } = req.body;
 
     if (!name) {
       return res.status(400).json({
@@ -327,6 +345,7 @@ export const createRestaurant = async (req, res) => {
       address,
       phone,
       gstNo,
+      restaurantType: sanitizeRestaurantType(restaurantType),
       billingStartNumber: normalizeBillingNumber(billingStartNumber, 1),
       nextBillNumber: normalizeBillingNumber(billingStartNumber, 1),
       vendorInventoryIntegration: sanitizeVendorInventoryIntegration(
@@ -438,6 +457,13 @@ export const updateRestaurant = async (req, res) => {
 
     if (req.body.isActive !== undefined) {
       restaurant.isActive = Boolean(req.body.isActive);
+    }
+
+    if (req.body.restaurantType !== undefined) {
+      restaurant.restaurantType = sanitizeRestaurantType(
+        req.body.restaurantType,
+        restaurant.restaurantType || defaultRestaurantType
+      );
     }
 
     if (req.body.billingStartNumber !== undefined) {

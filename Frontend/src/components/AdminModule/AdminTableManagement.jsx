@@ -14,6 +14,8 @@ const STATUS_MAP = {
 };
 
 const emptyForm = { tableNumber: "", capacity: "", status: "FREE" };
+const isTableEnabledRestaurant = (restaurant) =>
+  String(restaurant?.restaurantType || "HYBRID").toUpperCase() !== "MANUAL_ONLY";
 
 const AdminTableManagement = () => {
   const [restaurants, setRestaurants] = useState([]);
@@ -46,9 +48,10 @@ const AdminTableManagement = () => {
   const loadRestaurants = async () => {
     try {
       const data = await getRestaurants();
-      const list = data || [];
+      const list = (data || []).filter(isTableEnabledRestaurant);
       setRestaurants(list);
       if (list.length > 0) setSelectedRestaurant(list[0]._id);
+      else setSelectedRestaurant("");
     } catch {
       showFeedback("error", "Failed to load restaurants");
     }
@@ -215,6 +218,12 @@ const handleDelete = async (id) => {
           Showing tables for{" "}
           <span className="font-semibold text-gray-700 dark:text-gray-200">{selectedRestaurantName}</span>
         </p>
+      )}
+
+      {restaurants.length === 0 && (
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+          No hybrid restaurants are available for table management. Manual-only restaurants do not use tables.
+        </div>
       )}
 
       <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-white p-2 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700 sm:flex sm:w-fit">

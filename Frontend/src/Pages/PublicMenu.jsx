@@ -45,7 +45,7 @@ export default function PublicMenu() {
   );
 
   const cuisines = useMemo(
-    () => [...new Set(data.items.map((item) => item.cuisine).filter(Boolean))],
+    () => [...new Map(data.items.map((item) => [item.cuisine?._id, item.cuisine]).filter(([id]) => id)).values()],
     [data.items]
   );
 
@@ -53,13 +53,13 @@ export default function PublicMenu() {
     const term = search.trim().toLowerCase();
 
     const filtered = data.items.filter((item) => {
-      const matchesSearch = `${item.name} ${item.cuisine} ${item.courseType}`
+      const matchesSearch = `${item.name} ${item.cuisine?.name || ""} ${item.courseType}`
         .toLowerCase()
         .includes(term);
       const matchesCourse =
         courseFilter === "all" || item.courseType === courseFilter;
       const matchesCuisine =
-        cuisineFilter === "all" || item.cuisine === cuisineFilter;
+        cuisineFilter === "all" || item.cuisine?._id === cuisineFilter;
 
       return matchesSearch && matchesCourse && matchesCuisine;
     });
@@ -71,7 +71,7 @@ export default function PublicMenu() {
 
       return (
         String(a.courseType || "").localeCompare(String(b.courseType || "")) ||
-        String(a.cuisine || "").localeCompare(String(b.cuisine || "")) ||
+        String(a.cuisine?.name || "").localeCompare(String(b.cuisine?.name || "")) ||
         String(a.name || "").localeCompare(String(b.name || ""))
       );
     });
@@ -146,8 +146,8 @@ export default function PublicMenu() {
                 >
                   <option value="all">All Cuisines</option>
                   {cuisines.map((cuisine) => (
-                    <option key={cuisine} value={cuisine}>
-                      {cuisine}
+                    <option key={cuisine._id} value={cuisine._id}>
+                      {cuisine.name}
                     </option>
                   ))}
                 </select>
@@ -216,7 +216,7 @@ export default function PublicMenu() {
                           {item.name}
                         </h3>
                         <p className="mt-1 text-sm font-medium text-slate-500">
-                          {item.cuisine || "-"} | {item.courseType || "-"}
+                          {item.cuisine?.name || "-"} | {item.courseType || "-"}
                         </p>
                       </div>
                       <p className="text-base font-black text-emerald-700">

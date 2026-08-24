@@ -341,7 +341,14 @@ export const login = async (req, res, next) => {
         employeeId: user.employeeId,
         name: user.name,
         role: user.role,
-        restaurant: user.restaurant._id,
+        restaurant: {
+          _id: user.restaurant._id,
+          name: user.restaurant.name,
+          restaurantType: user.restaurant.restaurantType || "HYBRID",
+        },
+        restaurantId: user.restaurant._id,
+        restaurantName: user.restaurant.name,
+        restaurantType: user.restaurant.restaurantType || "HYBRID",
       },
     });
 

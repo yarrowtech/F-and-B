@@ -620,7 +620,11 @@ export const getAdminAccountHistory = async (req, res) => {
         populate: [
           { path: "table", select: "tableNumber" },
           { path: "waiter", select: "name" },
-          { path: "items.menuItem", select: "name price cuisine courseType" },
+          {
+            path: "items.menuItem",
+            select: "name price cuisine courseType",
+            populate: { path: "cuisine", select: "name" },
+          },
         ],
       })
       .populate("accountant", "name employeeId")

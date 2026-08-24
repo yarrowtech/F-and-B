@@ -11,7 +11,7 @@ export const getInventoryDashboard = async (req,res)=>{
     const items = await Inventory.find({ restaurant });
 
     const totalItems = items.length;
-    const lowStock = items.filter(i=> i.quantity <= i.minStock).length;
+    const lowStock = items.filter(i=> i.quantity <= i.lowStockThreshold).length;
     const outOfStock = items.filter(i=> i.quantity === 0).length;
 
     const totalDays = new Date().getDate();

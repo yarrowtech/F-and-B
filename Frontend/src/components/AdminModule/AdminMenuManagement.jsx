@@ -4,11 +4,11 @@ import { FaCheckCircle, FaEdit, FaFileExcel, FaPlus, FaSearch, FaStore, FaTimes,
 import { createMenu, deleteMenu, downloadMenuSalesExcel, getMenu, getMenuAnalytics, getMenuOrdersByDate, updateMenu } from "../../services/menu.service";
 import { getRestaurants } from "../../services/restaurant.service";
 import { getInventory } from "../../services/inventory.service";
+import { createKitchenSection, getKitchenSections } from "../../services/kitchenSection.service";
 import MenuQrModal, { MenuQrButton } from "../common/MenuQrModal";
 
-const CUISINE_PRESETS = ["Indian", "Chinese", "Italian", "Continental", "Mexican", "Thai", "Arabian"];
 const COURSE_PRESETS = ["Starter", "Main Course", "Dessert", "Beverage", "Snack", "Soup"];
-const emptyForm = { name: "", price: "", menuCode: "", cuisine: "", cuisineCustom: "", courseType: "", courseTypeCustom: "", isAvailable: true };
+const emptyForm = { name: "", price: "", menuCode: "", cuisine: "", newSectionName: "", newSectionPrinter: "", courseType: "", courseTypeCustom: "", isAvailable: true };
 const emptyIngredient = () => ({ itemId: "", quantity: "" });
 const ORDER_FILTERS = [
   { key: "today", label: "Today" },
@@ -32,7 +32,6 @@ const Modal = ({ title, onClose, children }) => (
   </div>
 );
 
-const resolveCuisine = (form) => (form.cuisine === "__custom__" ? form.cuisineCustom.trim() : form.cuisine);
 const resolveCourse = (form) => (form.courseType === "__custom__" ? form.courseTypeCustom.trim() : form.courseType);
 
 export default function AdminMenuManagement() {
@@ -41,6 +40,7 @@ export default function AdminMenuManagement() {
   const [selectedRestaurant, setSelectedRestaurant] = useState("");
   const [menus, setMenus] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
+  const [kitchenSections, setKitchenSections] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState("");
@@ -78,6 +78,7 @@ export default function AdminMenuManagement() {
     if (!selectedRestaurant) {
       setMenus([]);
       setInventoryItems([]);
+      setKitchenSections([]);
       setOrderAnalytics([]);
       return;
     }
@@ -85,6 +86,7 @@ export default function AdminMenuManagement() {
     setSearch("");
     loadMenus();
     loadInventory();
+    loadKitchenSections();
   }, [selectedRestaurant]);
 
   useEffect(() => {
@@ -118,6 +120,15 @@ export default function AdminMenuManagement() {
     }
   };
 
+  const loadKitchenSections = async () => {
+    try {
+      const data = await getKitchenSections(selectedRestaurant);
+      setKitchenSections(Array.isArray(data) ? data : []);
+    } catch (err) {
+      alert(err?.response?.data?.message || "Failed to load kitchen sections");
+    }
+  };
+
   const loadOrderAnalytics = async () => {
     try {
       setOrdersLoading(true);
@@ -137,17 +148,15 @@ export default function AdminMenuManagement() {
     }
   };
 
-  const cuisines = [...new Set(menus.map((m) => m.cuisine).filter(Boolean))];
   const courseTypes = [...new Set(menus.map((m) => m.courseType).filter(Boolean))];
-  const cuisineOptions = [...new Set([...CUISINE_PRESETS, ...cuisines])];
   const courseOptions = [...new Set([...COURSE_PRESETS, ...courseTypes])];
 
   const filteredMenus = useMemo(() => {
     return menus.filter((item) => {
-      const matchesSearch = `${item.name} ${item.menuCode || ""} ${item.cuisine} ${item.courseType}`.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = `${item.name} ${item.menuCode || ""} ${item.cuisine?.name || ""} ${item.courseType}`.toLowerCase().includes(search.toLowerCase());
       if (!matchesSearch) return false;
       if (activeTab === "all") return true;
-      if (activeTab.startsWith("cuisine:")) return item.cuisine === activeTab.slice(8);
+      if (activeTab.startsWith("cuisine:")) return item.cuisine?._id === activeTab.slice(8);
       if (activeTab.startsWith("course:")) return item.courseType === activeTab.slice(7);
       return true;
     });
@@ -159,16 +168,39 @@ export default function AdminMenuManagement() {
     );
   }, [orderAnalytics, ordersSearch]);
 
-  const buildPayload = () => {
-    const cuisine = resolveCuisine(form);
+  const resolveCuisineId = async () => {
+    if (form.cuisine === "__new__") {
+      const name = form.newSectionName.trim();
+      if (!name) return null;
+      try {
+        const created = await createKitchenSection(selectedRestaurant, {
+          name,
+          printerQueueName: form.newSectionPrinter.trim(),
+        });
+        setKitchenSections((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+        return created._id;
+      } catch (err) {
+        alert(err?.response?.data?.message || "Failed to create kitchen section");
+        return null;
+      }
+    }
+    return form.cuisine || null;
+  };
+
+  const buildPayload = async () => {
     const courseType = resolveCourse(form);
     if (!form.name.trim()) return alert("Enter dish name"), null;
     if (!form.price || Number(form.price) < 0) return alert("Enter valid price"), null;
-    if (!cuisine) return alert("Enter cuisine"), null;
+    if (!form.cuisine) return alert("Select a kitchen section"), null;
+    if (form.cuisine === "__new__" && !form.newSectionName.trim()) {
+      return alert("Enter a name for the new kitchen section"), null;
+    }
     if (!courseType) return alert("Enter course type"), null;
     if (!/^[A-Z0-9]{1,20}$/.test(String(form.menuCode || "").trim().toUpperCase())) {
       return alert("Enter a unique menu code using letters and numbers"), null;
     }
+    const cuisine = await resolveCuisineId();
+    if (!cuisine) return null;
     return {
       name: form.name.trim(),
       price: Number(form.price),
@@ -194,14 +226,14 @@ export default function AdminMenuManagement() {
 
   const openEditModal = (item) => {
     setEditingId(item._id);
-    const cuisineIsPreset = CUISINE_PRESETS.includes(item.cuisine);
     const courseIsPreset = COURSE_PRESETS.includes(item.courseType);
     setForm({
       name: item.name,
       price: item.price,
       menuCode: item.menuCode || "",
-      cuisine: cuisineIsPreset ? item.cuisine : "__custom__",
-      cuisineCustom: cuisineIsPreset ? "" : item.cuisine,
+      cuisine: item.cuisine?._id || item.cuisine || "",
+      newSectionName: "",
+      newSectionPrinter: "",
       courseType: courseIsPreset ? item.courseType : "__custom__",
       courseTypeCustom: courseIsPreset ? "" : item.courseType,
       isAvailable: item.isAvailable,
@@ -219,7 +251,7 @@ export default function AdminMenuManagement() {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    const payload = buildPayload();
+    const payload = await buildPayload();
     if (!payload) return;
     try {
       setSubmitting(true);
@@ -235,7 +267,7 @@ export default function AdminMenuManagement() {
 
   const handleEdit = async (e) => {
     e.preventDefault();
-    const payload = buildPayload();
+    const payload = await buildPayload();
     if (!payload) return;
     try {
       setSubmitting(true);
@@ -330,21 +362,30 @@ export default function AdminMenuManagement() {
         <div>
           <select
             value={form.cuisine}
-            onChange={(e) => setForm({ ...form, cuisine: e.target.value, cuisineCustom: "" })}
+            onChange={(e) => setForm({ ...form, cuisine: e.target.value })}
             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white"
           >
-            <option value="">Select Cuisine</option>
-            {cuisineOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-            <option value="__custom__">Other (Custom)</option>
+            <option value="">Select Kitchen Section</option>
+            {kitchenSections.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
+            <option value="__new__">+ Add New Section</option>
           </select>
-          {form.cuisine === "__custom__" && (
-            <input
-              type="text"
-              placeholder="Custom cuisine"
-              value={form.cuisineCustom}
-              onChange={(e) => setForm({ ...form, cuisineCustom: e.target.value })}
-              className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white"
-            />
+          {form.cuisine === "__new__" && (
+            <div className="mt-3 space-y-3">
+              <input
+                type="text"
+                placeholder="New section name (e.g. Indian, Bar)"
+                value={form.newSectionName}
+                onChange={(e) => setForm({ ...form, newSectionName: e.target.value })}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white"
+              />
+              <input
+                type="text"
+                placeholder="Printer queue name (optional)"
+                value={form.newSectionPrinter}
+                onChange={(e) => setForm({ ...form, newSectionPrinter: e.target.value })}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:bg-white"
+              />
+            </div>
           )}
         </div>
 
@@ -466,7 +507,7 @@ export default function AdminMenuManagement() {
           <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
             <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
               <button onClick={() => setActiveTab("all")} className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === "all" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>All ({menus.length})</button>
-              {cuisines.map((c) => <button key={c} onClick={() => setActiveTab(`cuisine:${c}`)} className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === `cuisine:${c}` ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700"}`}>{c}</button>)}
+              {kitchenSections.map((s) => <button key={s._id} onClick={() => setActiveTab(`cuisine:${s._id}`)} className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === `cuisine:${s._id}` ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700"}`}>{s.name}</button>)}
               {courseTypes.map((c) => <button key={c} onClick={() => setActiveTab(`course:${c}`)} className={`rounded-full px-4 py-2 text-sm font-semibold ${activeTab === `course:${c}` ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700"}`}>{c}</button>)}
             </div>
           </div>
@@ -498,7 +539,7 @@ export default function AdminMenuManagement() {
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{item.cuisine || "-"}</span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{item.cuisine?.name || "-"}</span>
                     <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">{item.courseType || "-"}</span>
                   </div>
 
@@ -552,7 +593,7 @@ export default function AdminMenuManagement() {
                         <p className="font-semibold text-slate-900">{item.name}</p>
                       </td>
                       <td className="px-5 py-4 text-sm font-bold text-slate-700">{item.menuCode || "-"}</td>
-                      <td className="px-5 py-4 text-sm text-slate-700">{item.cuisine || "-"}</td>
+                      <td className="px-5 py-4 text-sm text-slate-700">{item.cuisine?.name || "-"}</td>
                       <td className="px-5 py-4 text-sm text-slate-700">{item.courseType || "-"}</td>
                       <td className="px-5 py-4 text-sm font-semibold text-emerald-700">Rs. {item.price}</td>
                       <td className="px-5 py-4">
@@ -725,7 +766,7 @@ export default function AdminMenuManagement() {
               <div className="rounded-3xl bg-slate-50 p-5">
                 <p className="text-lg font-semibold text-slate-900">{deleteTarget.name}</p>
                 <p className="mt-2 text-sm text-slate-600">Price: Rs. {deleteTarget.price}</p>
-                <p className="mt-1 text-sm text-slate-600">Cuisine: {deleteTarget.cuisine}</p>
+                <p className="mt-1 text-sm text-slate-600">Cuisine: {deleteTarget.cuisine?.name || "-"}</p>
                 <p className="mt-1 text-sm text-slate-600">Course: {deleteTarget.courseType}</p>
               </div>
               <div className="grid grid-cols-2 gap-3">

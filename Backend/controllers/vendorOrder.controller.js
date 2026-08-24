@@ -10,6 +10,7 @@ import Inventory from "../models/Inventory.model.js";
 import InventoryLog from "../models/InventoryLog.model.js";
 import VendorInventoryLink from "../models/VendorInventoryLink.model.js";
 import { buildWhatsAppChatUrl } from "../utils/whatsapp.service.js";
+import { adjustStockQuantity } from "../utils/inventoryStock.js";
 
 const toObjectId = (value) =>
   mongoose.Types.ObjectId.isValid(value) ? new mongoose.Types.ObjectId(value) : null;
@@ -697,6 +698,16 @@ const applyInventoryReceiptToItem = async ({ inventoryItem, order, orderItem, us
     addedBy: user.id,
     addedByName: user.name || "",
     effectiveDate: new Date(),
+    locationType: "WAREHOUSE",
+  });
+
+  // Vendor deliveries always land in the warehouse first; issuing to a
+  // kitchen section is a separate, explicit transfer.
+  await adjustStockQuantity({
+    restaurant: order.restaurant?._id || order.restaurant,
+    item: inventoryItem._id,
+    locationType: "WAREHOUSE",
+    delta: receivedQuantity,
   });
 
   orderItem.inventoryLinkedItem = inventoryItem._id;

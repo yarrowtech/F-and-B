@@ -83,9 +83,6 @@ const markKotPrintJobFailed = async (req, res) => {
   }
 };
 
-const normalizeCuisine = (value) => String(value || "").trim().toLowerCase();
-const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
 const deriveOrderStatus = (items = []) => {
   const activeItems = items.filter((item) => item.status !== "CANCELLED");
   if (activeItems.length === 0) return "CANCELLED";
@@ -107,13 +104,13 @@ const markKotOrderItemsPreparing = async (job, chefId = null) => {
   if (!order) return;
 
   const now = new Date();
-  const jobCuisine = normalizeCuisine(job.cuisine);
+  const jobCuisine = String(job.cuisine);
   let changed = false;
 
   order.items.forEach((item) => {
     if (
       item.status !== "PENDING" ||
-      normalizeCuisine(item.menuItem?.cuisine) !== jobCuisine
+      String(item.menuItem?.cuisine) !== jobCuisine
     ) {
       return;
     }
@@ -142,16 +139,12 @@ const getRoleCuisineFilter = async (req) => {
     isActive: true,
   }).select("cuisineTypes");
 
-  const cuisines = (chef?.cuisineTypes || [])
-    .map(normalizeCuisine)
-    .filter(Boolean);
+  const cuisines = (chef?.cuisineTypes || []).filter(Boolean);
 
   if (cuisines.length === 0) return {};
 
   return {
-    cuisine: {
-      $in: cuisines.map((cuisine) => new RegExp(`^${escapeRegex(cuisine)}$`, "i")),
-    },
+    cuisine: { $in: cuisines },
   };
 };
 

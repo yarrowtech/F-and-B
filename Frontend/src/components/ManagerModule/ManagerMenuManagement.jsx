@@ -3,6 +3,7 @@ import { createElement, useEffect, useMemo, useState } from "react";
 import { FaCheckCircle, FaEdit, FaFileExcel, FaPlus, FaSearch, FaStore, FaTimes, FaTrash, FaUtensils } from "react-icons/fa";
 import { createMenu, downloadMenuSalesExcel, getMenu, getMenuAnalytics, getMenuOrdersByDate, updateMenu } from "../../services/menu.service";
 import { getInventory } from "../../services/inventory.service";
+import { createKitchenSection, getKitchenSections } from "../../services/kitchenSection.service";
 import MenuQrModal, { MenuQrButton } from "../common/MenuQrModal";
 
 const Modal = ({ title, onClose, children }) => (
@@ -32,11 +33,9 @@ const ORDER_FILTERS = [
   { key: "date", label: "Date Wise" },
 ];
 
-const CUISINE_PRESETS = ["Indian", "Chinese", "Italian", "Continental", "Mexican", "Thai", "Arabian"];
 const COURSE_PRESETS = ["Starter", "Main Course", "Dessert", "Beverage", "Snack", "Soup"];
-const emptyForm = { name: "", price: "", menuCode: "", cuisine: "", cuisineCustom: "", courseType: "", courseTypeCustom: "", isAvailable: true };
+const emptyForm = { name: "", price: "", menuCode: "", cuisine: "", newSectionName: "", newSectionPrinter: "", courseType: "", courseTypeCustom: "", isAvailable: true };
 const emptyIngredient = () => ({ itemId: "", quantity: "" });
-const resolveCuisine = (form) => (form.cuisine === "__custom__" ? form.cuisineCustom.trim() : form.cuisine);
 const resolveCourse = (form) => (form.courseType === "__custom__" ? form.courseTypeCustom.trim() : form.courseType);
 
 const StatCard = ({ label, value, icon: Icon, tone = "slate" }) => {
@@ -92,7 +91,7 @@ const MenuMobileCard = ({ item, onEdit }) => (
       <div className="min-w-0">
         <p className="text-base font-bold text-slate-900 dark:text-white">{item.name}</p>
         <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">
-          {item.cuisine || "-"} | {formatCourseType(item.courseType)}
+          {item.cuisine?.name || "-"} | {formatCourseType(item.courseType)}
         </p>
       </div>
       <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${item.isAvailable ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : "bg-slate-200 text-slate-700 dark:bg-neutral-800 dark:text-neutral-300"}`}>
@@ -150,6 +149,7 @@ export default function ManagerMenuManagement() {
   const [viewTab, setViewTab] = useState("menu");
   const [menus, setMenus] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
+  const [kitchenSections, setKitchenSections] = useState([]);
   const [menuLoading, setMenuLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState("");
@@ -173,11 +173,13 @@ export default function ManagerMenuManagement() {
     if (!assignedRestaurantId) {
       setMenus([]);
       setInventoryItems([]);
+      setKitchenSections([]);
       setMenuLoading(false);
       return;
     }
     loadMenus();
     loadInventory();
+    loadKitchenSections();
   }, [assignedRestaurantId]);
 
   useEffect(() => {
@@ -221,19 +223,17 @@ export default function ManagerMenuManagement() {
     }
   };
 
-  const cuisines = [...new Set(menus.map((item) => item.cuisine).filter(Boolean))];
   const courseTypes = [...new Set(menus.map((item) => item.courseType).filter(Boolean))];
-  const cuisineOptions = [...new Set([...CUISINE_PRESETS, ...cuisines])];
   const courseOptions = [...new Set([...COURSE_PRESETS, ...courseTypes])];
   const availableCount = menus.filter((item) => item.isAvailable).length;
   const totalOrders = orderAnalytics.reduce((sum, item) => sum + Number(item.totalOrders || 0), 0);
 
   const filteredMenus = useMemo(() => {
     return menus.filter((item) => {
-      const matchesSearch = `${item.name} ${item.cuisine} ${item.courseType}`.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = `${item.name} ${item.cuisine?.name || ""} ${item.courseType}`.toLowerCase().includes(search.toLowerCase());
       if (!matchesSearch) return false;
       if (activeMenuFilter === "all") return true;
-      if (activeMenuFilter.startsWith("cuisine:")) return item.cuisine === activeMenuFilter.slice(8);
+      if (activeMenuFilter.startsWith("cuisine:")) return item.cuisine?._id === activeMenuFilter.slice(8);
       if (activeMenuFilter.startsWith("course:")) return item.courseType === activeMenuFilter.slice(7);
       return true;
     });
@@ -245,17 +245,41 @@ export default function ManagerMenuManagement() {
     );
   }, [orderAnalytics, ordersSearch]);
 
-  const buildPayload = () => {
-    const cuisine = resolveCuisine(form);
+  const resolveCuisineId = async () => {
+    if (form.cuisine === "__new__") {
+      const name = form.newSectionName.trim();
+      if (!name) return null;
+      try {
+        const created = await createKitchenSection(assignedRestaurantId, {
+          name,
+          printerQueueName: form.newSectionPrinter.trim(),
+        });
+        setKitchenSections((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+        return created._id;
+      } catch (err) {
+        alert(err?.response?.data?.message || "Failed to create kitchen section");
+        return null;
+      }
+    }
+    return form.cuisine || null;
+  };
+
+  const buildPayload = async () => {
     const courseType = resolveCourse(form);
 
     if (!form.name.trim()) return alert("Enter dish name"), null;
     if (!form.price || Number(form.price) < 0) return alert("Enter valid price"), null;
-    if (!cuisine) return alert("Enter cuisine"), null;
+    if (!form.cuisine) return alert("Select a kitchen section"), null;
+    if (form.cuisine === "__new__" && !form.newSectionName.trim()) {
+      return alert("Enter a name for the new kitchen section"), null;
+    }
     if (!courseType) return alert("Enter course type"), null;
     if (!/^[A-Z0-9]{1,20}$/.test(String(form.menuCode || "").trim().toUpperCase())) {
       return alert("Enter a unique menu code using letters and numbers"), null;
     }
+
+    const cuisine = await resolveCuisineId();
+    if (!cuisine) return null;
 
     return {
       name: form.name.trim(),
@@ -281,7 +305,6 @@ export default function ManagerMenuManagement() {
   };
 
   const openEditModal = (item) => {
-    const cuisineIsPreset = CUISINE_PRESETS.includes(item.cuisine);
     const courseIsPreset = COURSE_PRESETS.includes(item.courseType);
 
     setEditingId(item._id);
@@ -289,8 +312,9 @@ export default function ManagerMenuManagement() {
       name: item.name || "",
       price: item.price || "",
       menuCode: item.menuCode || "",
-      cuisine: cuisineIsPreset ? item.cuisine : "__custom__",
-      cuisineCustom: cuisineIsPreset ? "" : item.cuisine || "",
+      cuisine: item.cuisine?._id || item.cuisine || "",
+      newSectionName: "",
+      newSectionPrinter: "",
       courseType: courseIsPreset ? item.courseType : "__custom__",
       courseTypeCustom: courseIsPreset ? "" : item.courseType || "",
       isAvailable: Boolean(item.isAvailable),
@@ -314,7 +338,7 @@ export default function ManagerMenuManagement() {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    const payload = buildPayload();
+    const payload = await buildPayload();
     if (!payload) return;
 
     try {
@@ -331,7 +355,7 @@ export default function ManagerMenuManagement() {
 
   const handleEdit = async (e) => {
     e.preventDefault();
-    const payload = buildPayload();
+    const payload = await buildPayload();
     if (!payload || !editingId) return;
 
     try {
@@ -379,6 +403,15 @@ export default function ManagerMenuManagement() {
     }
   };
 
+  const loadKitchenSections = async () => {
+    try {
+      const data = await getKitchenSections(assignedRestaurantId);
+      setKitchenSections(Array.isArray(data) ? data : []);
+    } catch (err) {
+      alert(err?.response?.data?.message || "Failed to load kitchen sections");
+    }
+  };
+
   const renderForm = (onSubmit, submitLabel) => (
     <form onSubmit={onSubmit} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -389,13 +422,16 @@ export default function ManagerMenuManagement() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <select value={form.cuisine} onChange={(e) => setForm({ ...form, cuisine: e.target.value, cuisineCustom: "" })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white">
-            <option value="">Select Cuisine</option>
-            {cuisineOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-            <option value="__custom__">Other (Custom)</option>
+          <select value={form.cuisine} onChange={(e) => setForm({ ...form, cuisine: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white">
+            <option value="">Select Kitchen Section</option>
+            {kitchenSections.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
+            <option value="__new__">+ Add New Section</option>
           </select>
-          {form.cuisine === "__custom__" && (
-            <input type="text" placeholder="Custom cuisine" value={form.cuisineCustom} onChange={(e) => setForm({ ...form, cuisineCustom: e.target.value })} className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" />
+          {form.cuisine === "__new__" && (
+            <div className="mt-3 space-y-3">
+              <input type="text" placeholder="New section name (e.g. Indian, Bar)" value={form.newSectionName} onChange={(e) => setForm({ ...form, newSectionName: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" />
+              <input type="text" placeholder="Printer queue name (optional)" value={form.newSectionPrinter} onChange={(e) => setForm({ ...form, newSectionPrinter: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" />
+            </div>
           )}
         </div>
         <div>
@@ -517,7 +553,7 @@ export default function ManagerMenuManagement() {
               <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700">
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   <button onClick={() => setActiveMenuFilter("all")} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${activeMenuFilter === "all" ? "bg-slate-900 text-white dark:bg-emerald-600" : "bg-slate-100 text-slate-600 dark:bg-neutral-800 dark:text-neutral-300"}`}>All ({menus.length})</button>
-                  {cuisines.map((cuisine) => <button key={cuisine} onClick={() => setActiveMenuFilter(`cuisine:${cuisine}`)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${activeMenuFilter === `cuisine:${cuisine}` ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"}`}>{cuisine}</button>)}
+                  {kitchenSections.map((s) => <button key={s._id} onClick={() => setActiveMenuFilter(`cuisine:${s._id}`)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${activeMenuFilter === `cuisine:${s._id}` ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"}`}>{s.name}</button>)}
                   {courseTypes.map((courseType) => <button key={courseType} onClick={() => setActiveMenuFilter(`course:${courseType}`)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${activeMenuFilter === `course:${courseType}` ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"}`}>{formatCourseType(courseType)}</button>)}
                 </div>
               </div>
@@ -556,7 +592,7 @@ export default function ManagerMenuManagement() {
                       {filteredMenus.map((item) => (
                         <tr key={item._id} className="align-top hover:bg-slate-50/80 dark:hover:bg-neutral-800/80">
                           <td className="px-5 py-4"><p className="font-semibold text-slate-900 dark:text-white">{item.name}</p></td>
-                          <td className="px-5 py-4 text-sm text-slate-700 dark:text-neutral-300">{item.cuisine || "-"}</td>
+                          <td className="px-5 py-4 text-sm text-slate-700 dark:text-neutral-300">{item.cuisine?.name || "-"}</td>
                           <td className="px-5 py-4 text-sm text-slate-700 dark:text-neutral-300">{formatCourseType(item.courseType)}</td>
                           <td className="px-5 py-4 text-sm font-semibold text-emerald-700 dark:text-emerald-300">Rs. {item.price}</td>
                           <td className="px-5 py-4">

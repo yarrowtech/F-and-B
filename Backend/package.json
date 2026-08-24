@@ -12,6 +12,7 @@
     "chef:kot-agent": "node scripts/chefKotPrintAgent.js",
     "local:print-agent": "node scripts/localDevicePrintAgent.js",
     "menu:assign-codes": "node scripts/assignMenuCodes.js",
+    "migrate:cuisine-to-kitchen-sections": "node scripts/migrateCuisineToKitchenSections.js",
     "reset:super-admin": "node scripts/resetSuperAdminCredentials.js",
     "delete:super-admin": "node scripts/deleteSuperAdmin.js"
   },

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   FaHome,
+  FaChartBar,
   FaTachometerAlt,
   FaUsers,
   FaBoxes,
@@ -21,6 +22,7 @@ const ManagerSidebar = ({
   mobileOpen,
   onMobileClose,
   showMobileTopBar = true,
+  restaurantType = "HYBRID",
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const navigate = useNavigate();
@@ -52,12 +54,17 @@ const ManagerSidebar = ({
     { name: "Attendance",       icon: FaClipboardCheck,key: "attendance" },
     { name: "Staff Management", icon: FaUsers,         key: "staff-management" },
     { name: "Inventory",        icon: FaBoxes,         key: "inventory" },
+    { name: "Reports",          icon: FaChartBar,      key: "reports" },
     { name: "Menu Management",  icon: FaUtensils,      key: "menu-management" },
     { name: "Table Management", icon: FaTable,         key: "table-management" },
     { name: "Account",          icon: FaWallet,        key: "account" },
     { name: "Profile",          icon: FaUserCircle,    key: "profile" },
     { name: "Notes",            icon: FaStickyNote,    key: "notes" },
-  ];
+  ].filter((item) =>
+    item.key === "table-management"
+      ? String(restaurantType || "HYBRID").toUpperCase() !== "MANUAL_ONLY"
+      : true
+  );
 
   return (
     <>

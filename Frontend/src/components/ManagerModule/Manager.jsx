@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaBoxes,
+  FaChartBar,
   FaClipboardCheck,
   FaSignOutAlt,
   FaStickyNote,
@@ -27,6 +28,7 @@ import ManagerNotification from "./ManagerNotification";
 import ManagerSettings from "./ManagerSettings";
 import ManagerDashboard from "./ManagerDashboard";
 import ManagerAttendancePage from "./ManagerAttendence";
+import ManagerReports from "./ManagerReports";
 
 /* ─── Profile Popup ─── */
 function ManagerProfileButton() {
@@ -124,6 +126,7 @@ const BOTTOM_NAV = [
   { key: "attendance",       label: "Attendance", icon: FaClipboardCheck },
   { key: "staff-management", label: "Staff",      icon: FaUsers },
   { key: "inventory",        label: "Inventory",  icon: FaBoxes },
+  { key: "reports",          label: "Reports",    icon: FaChartBar },
   { key: "menu-management",  label: "Menu",       icon: FaUtensils },
   { key: "table-management", label: "Tables",     icon: FaTable },
   { key: "account",          label: "Account",    icon: FaWallet },
@@ -141,10 +144,23 @@ const getInitialDarkMode = () => {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
 };
 
+const getManagerRestaurantType = () => {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  return String(
+    user?.restaurant?.restaurantType || user?.restaurantType || "HYBRID"
+  ).toUpperCase();
+};
+
 const ManagerPanel = () => {
   const [active, setActive] = useState("dashboard");
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const mainRef = useRef(null);
+  const restaurantType = getManagerRestaurantType();
+  const tableManagementEnabled = restaurantType !== "MANUAL_ONLY";
+
+  const navigationItems = BOTTOM_NAV.filter((item) =>
+    item.key === "table-management" ? tableManagementEnabled : true
+  );
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -156,6 +172,12 @@ const ManagerPanel = () => {
     if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
   }, [active]);
 
+  useEffect(() => {
+    if (!tableManagementEnabled && active === "table-management") {
+      setActive("dashboard");
+    }
+  }, [active, tableManagementEnabled]);
+
   const handleSetActive = useCallback((section) => {
     setActive(section);
   }, []);
@@ -165,8 +187,10 @@ const ManagerPanel = () => {
       case "dashboard":        return <ManagerDashboard />;
       case "staff-management": return <EmployeeManagement />;
       case "inventory":        return <ManagerInventoryManagement />;
+      case "reports":          return <ManagerReports />;
       case "menu-management":  return <ManagerMenuManagement />;
-      case "table-management": return <ManagerTableManagement />;
+      case "table-management":
+        return tableManagementEnabled ? <ManagerTableManagement /> : <ManagerDashboard />;
       case "account":          return <ManagerAccount />;
       case "profile":          return <ManagerProfile />;
       case "notes":            return <ManagerNotes />;
@@ -184,7 +208,7 @@ const ManagerPanel = () => {
       <div className="2xl:hidden sticky top-0 z-40 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between px-4 py-3">
           <span className="text-base font-bold text-green-700 dark:text-green-400 capitalize">
-            {BOTTOM_NAV.find((n) => n.key === active)?.label ?? "Manager"}
+            {navigationItems.find((n) => n.key === active)?.label ?? "Manager"}
           </span>
           <div className="flex items-center gap-3">
             <button
@@ -203,7 +227,11 @@ const ManagerPanel = () => {
       <div className="flex h-full">
         {/* ===== Sidebar (desktop) ===== */}
         <aside className="hidden 2xl:block w-72 shrink-0">
-          <ManagerSidebar active={active} setActive={handleSetActive} />
+          <ManagerSidebar
+            active={active}
+            setActive={handleSetActive}
+            restaurantType={restaurantType}
+          />
         </aside>
 
         {/* ===== Right Column ===== */}
@@ -238,7 +266,7 @@ const ManagerPanel = () => {
 
       {/* ===== Bottom Navigation (mobile & tablet only) ===== */}
       <nav className="2xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch overflow-x-auto shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
-        {BOTTOM_NAV.map(({ key, label, icon: Icon }) => {
+        {navigationItems.map(({ key, label, icon: Icon }) => {
           const isActive = active === key;
           return (
             <button

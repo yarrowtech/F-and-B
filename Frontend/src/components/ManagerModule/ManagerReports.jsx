@@ -14,13 +14,13 @@ import {
   Search,
   Utensils,
 } from "lucide-react";
-import {
-  generateAdminReport,
-  downloadAdminReport,
-  getAdminReportCatalog,
-  getAdminReportRestaurants,
-} from "../../services/adminReports.service";
 import { getKitchenSections } from "../../services/kitchenSection.service";
+import {
+  downloadManagerReport,
+  generateManagerReport,
+  getManagerReportCatalog,
+  getManagerReportRestaurant,
+} from "../../services/managerReports.service";
 
 const REPORT_GROUPS = [
   {
@@ -191,6 +191,15 @@ const LABEL_OVERRIDES = {
 
 const formatLabel = (value) => LABEL_OVERRIDES[value] || humanize(value);
 
+const formatTime12 = (time) => {
+  const [hourValue, minuteValue = "00"] = String(time || "").split(":");
+  const hour = Number(hourValue);
+  if (Number.isNaN(hour)) return time || "-";
+  const period = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${String(displayHour).padStart(2, "0")}:${minuteValue.padStart(2, "0")} ${period}`;
+};
+
 const formatValue = (value) => {
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "object") return JSON.stringify(value);
@@ -201,15 +210,6 @@ const formatValue = (value) => {
   }
   if (/^\d{1,2}:\d{2}$/.test(text)) return formatTime12(text);
   return text;
-};
-
-const formatTime12 = (time) => {
-  const [hourValue, minuteValue = "00"] = String(time || "").split(":");
-  const hour = Number(hourValue);
-  if (Number.isNaN(hour)) return time || "-";
-  const period = hour >= 12 ? "PM" : "AM";
-  const displayHour = hour % 12 || 12;
-  return `${String(displayHour).padStart(2, "0")}:${minuteValue.padStart(2, "0")} ${period}`;
 };
 
 const HOURS_12 = Array.from({ length: 12 }, (_, index) =>
@@ -299,7 +299,7 @@ function FieldLabel({ label, icon, children, helper }) {
   );
 }
 
-export default function AdminReports() {
+export default function ManagerReports() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [catalog, setCatalog] = useState([]);
@@ -309,15 +309,14 @@ export default function AdminReports() {
   const [endDate, setEndDate] = useState(() => toDateInput(new Date()));
   const [startTime, setStartTime] = useState("00:00");
   const [endTime, setEndTime] = useState("23:59");
-  const [restaurantId, setRestaurantId] = useState("");
-  const [restaurants, setRestaurants] = useState([]);
+  const [restaurant, setRestaurant] = useState(null);
   const [kitchenSections, setKitchenSections] = useState([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    getAdminReportCatalog()
+    getManagerReportCatalog()
       .then(setCatalog)
       .catch((requestError) => {
         setError(
@@ -325,29 +324,60 @@ export default function AdminReports() {
         );
       });
 
-    getAdminReportRestaurants()
-      .then(setRestaurants)
+    getManagerReportRestaurant()
+      .then(setRestaurant)
       .catch((requestError) => {
         setError(
-          requestError.response?.data?.message || "Unable to load restaurants."
+          requestError.response?.data?.message ||
+            "Unable to load assigned restaurant."
         );
       });
   }, []);
 
   useEffect(() => {
-    if (!restaurantId) {
+    if (!restaurant?._id) {
       setKitchenSections([]);
       return;
     }
 
-    getKitchenSections(restaurantId)
+    getKitchenSections(restaurant._id)
       .then((data) => setKitchenSections(Array.isArray(data) ? data : []))
       .catch(() => setKitchenSections([]));
-  }, [restaurantId]);
+  }, [restaurant]);
+
+  const loadReport = async (definition = selectedReport) => {
+    if (!definition) return;
+
+    try {
+      setLoading(true);
+      setError("");
+      const data = await generateManagerReport(definition.key, {
+        startDate,
+        endDate,
+        ...(definition.params || {}),
+        ...(definition.key === "time-periodical-report"
+          ? { startTime, endTime }
+          : {}),
+      });
+      setReportData(data);
+      if (data?.filters?.restaurantId && !restaurant?._id) {
+        setRestaurant({
+          _id: data.filters.restaurantId,
+          name: data.filters.restaurantName || "Assigned Restaurant",
+        });
+      }
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.message || "Unable to generate this report."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const openReport = async (input) => {
-    if (!restaurantId) {
-      setError("Please select a restaurant before opening a report.");
+    if (!restaurant?._id) {
+      setError("No restaurant is assigned to this manager.");
       return;
     }
 
@@ -365,44 +395,15 @@ export default function AdminReports() {
     await loadReport(definition);
   };
 
-  const loadReport = async (definition = selectedReport) => {
-    if (!definition) return;
-
-    try {
-      setLoading(true);
-      setError("");
-      const data = await generateAdminReport(definition.key, {
-        startDate,
-        endDate,
-        restaurantId: restaurantId || undefined,
-        ...(definition.params || {}),
-        ...(definition.key === "time-periodical-report"
-          ? { startTime, endTime }
-          : {}),
-      });
-      setReportData(data);
-      if (restaurants.length === 0 && Array.isArray(data?.filters?.restaurants)) {
-        setRestaurants(data.filters.restaurants);
-      }
-    } catch (requestError) {
-      setError(
-        requestError.response?.data?.message || "Unable to generate this report."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const downloadReport = async (format) => {
-    if (!selectedReport || !restaurantId) return;
+    if (!selectedReport) return;
 
     try {
       setExporting(format);
       setError("");
-      const blob = await downloadAdminReport(selectedReport.key, format, {
+      const blob = await downloadManagerReport(selectedReport.key, format, {
         startDate,
         endDate,
-        restaurantId,
         ...(selectedReport.params || {}),
         ...(selectedReport.key === "time-periodical-report"
           ? { startTime, endTime }
@@ -418,7 +419,8 @@ export default function AdminReports() {
       URL.revokeObjectURL(url);
     } catch (requestError) {
       setError(
-        requestError.response?.data?.message || `Unable to download ${format.toUpperCase()} report.`
+        requestError.response?.data?.message ||
+          `Unable to download ${format.toUpperCase()} report.`
       );
     } finally {
       setExporting("");
@@ -439,10 +441,6 @@ export default function AdminReports() {
     () => [inventoryGroup, ...REPORT_GROUPS],
     [inventoryGroup]
   );
-
-  const handleInventoryReportClick = async (report) => {
-    await openReport(report);
-  };
 
   const filteredGroups = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -475,8 +473,8 @@ export default function AdminReports() {
     const detailColumns = reportData?.details?.columns || [];
     const selectedRestaurantName =
       reportData?.filters?.restaurantName ||
-      restaurants.find((restaurant) => restaurant._id === restaurantId)?.name ||
-      "Selected Restaurant";
+      restaurant?.name ||
+      "Assigned Restaurant";
     const summary = Object.entries(reportData?.summary || {}).filter(
       ([key, value]) => key !== "message" && typeof value !== "object"
     );
@@ -491,29 +489,29 @@ export default function AdminReports() {
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-start gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedReport(null);
-                  setReportData(null);
-                  setError("");
-                }}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-neutral-700 dark:text-white"
-                aria-label="Back to reports"
-              >
-                <ArrowLeft size={19} />
-              </button>
-              <div>
-                <p className="text-xs font-bold uppercase text-emerald-600">
-                  Admin Report
-                </p>
-                <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
-                  {selectedReport.title}
-                </h1>
-                <p className="mt-1 text-base font-bold text-emerald-700 dark:text-emerald-300">
-                  {selectedRestaurantName}
-                </p>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedReport(null);
+                    setReportData(null);
+                    setError("");
+                  }}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-neutral-700 dark:text-white"
+                  aria-label="Back to reports"
+                >
+                  <ArrowLeft size={19} />
+                </button>
+                <div>
+                  <p className="text-xs font-bold uppercase text-emerald-600">
+                    Manager Report
+                  </p>
+                  <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
+                    {selectedReport.title}
+                  </h1>
+                  <p className="mt-1 text-base font-bold text-emerald-700 dark:text-emerald-300">
+                    {selectedRestaurantName}
+                  </p>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -581,21 +579,14 @@ export default function AdminReports() {
                 </div>
 
                 <div className={isTimePeriodical ? "xl:col-span-4" : "xl:col-span-6"}>
-                  <FieldLabel label="Restaurant" icon={<Utensils size={15} />}>
-                    <select
-                      value={restaurantId}
-                      onChange={(event) => setRestaurantId(event.target.value)}
-                      className="min-h-12 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-neutral-600 dark:bg-neutral-950 dark:text-white dark:focus:ring-emerald-950"
-                    >
-                      <option value="" disabled>
-                        Select Restaurant
-                      </option>
-                      {restaurants.map((restaurant) => (
-                        <option key={restaurant._id} value={restaurant._id}>
-                          {restaurant.name}
-                        </option>
-                      ))}
-                    </select>
+                  <FieldLabel
+                    label="Restaurant"
+                    icon={<Utensils size={15} />}
+                    helper="Assigned restaurant only"
+                  >
+                    <div className="flex min-h-12 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 dark:border-neutral-600 dark:bg-neutral-950 dark:text-white">
+                      {selectedRestaurantName}
+                    </div>
                   </FieldLabel>
                 </div>
 
@@ -603,18 +594,12 @@ export default function AdminReports() {
                   <>
                     <div className="xl:col-span-2">
                       <FieldLabel label="From Time" icon={<Clock size={15} />}>
-                        <Time12Select
-                          value={startTime}
-                          onChange={setStartTime}
-                        />
+                        <Time12Select value={startTime} onChange={setStartTime} />
                       </FieldLabel>
                     </div>
                     <div className="xl:col-span-2">
                       <FieldLabel label="To Time" icon={<Clock size={15} />}>
-                        <Time12Select
-                          value={endTime}
-                          onChange={setEndTime}
-                        />
+                        <Time12Select value={endTime} onChange={setEndTime} />
                       </FieldLabel>
                     </div>
                   </>
@@ -746,7 +731,7 @@ export default function AdminReports() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-bold uppercase text-emerald-700 dark:text-emerald-300">
-                Admin
+                Manager
               </p>
               <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
                 Reports
@@ -756,25 +741,10 @@ export default function AdminReports() {
               </p>
             </div>
 
-            <div className="grid w-full gap-2 sm:grid-cols-2 lg:max-w-2xl">
-              <select
-                value={restaurantId}
-                onChange={(event) => {
-                  setRestaurantId(event.target.value);
-                  setError("");
-                }}
-                className="min-h-12 w-full rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
-                aria-label="Select restaurant for reports"
-              >
-                <option value="" disabled>
-                  Select Restaurant
-                </option>
-                {restaurants.map((restaurant) => (
-                  <option key={restaurant._id} value={restaurant._id}>
-                    {restaurant.name}
-                  </option>
-                ))}
-              </select>
+            <div className="grid w-full gap-2 lg:max-w-2xl">
+              <div className="flex min-h-12 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-white">
+                {restaurant?.name || "Assigned restaurant not available"}
+              </div>
 
               <div className="flex min-h-12 items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
                 <Search size={18} className="shrink-0 text-slate-400" />
@@ -806,19 +776,16 @@ export default function AdminReports() {
             ))}
           </div>
 
-          {restaurantId ? (
-            <p className="mt-3 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-              Showing reports for:{" "}
-              {restaurants.find((restaurant) => restaurant._id === restaurantId)
-                ?.name || "Selected restaurant"}
-            </p>
-          ) : (
-            <p className="mt-3 text-sm font-semibold text-amber-600">
-              Select a restaurant to open its reports.
-            </p>
-          )}
-
+          <p className="mt-3 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+            Showing reports for: {restaurant?.name || "Assigned restaurant"}
+          </p>
         </div>
+
+        {error ? (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+            {error}
+          </div>
+        ) : null}
 
         {filteredGroups.length === 0 ? (
           <div className="flex min-h-64 items-center justify-center text-sm font-medium text-slate-500 dark:text-neutral-400">
@@ -851,61 +818,60 @@ export default function AdminReports() {
                     {group.reports.map((report) => {
                       const reportTitle =
                         typeof report === "string" ? report : report.title;
+
                       return (
-                      <button
-                        key={reportTitle}
-                        type="button"
-                        onClick={() =>
-                          group.key === "inventory"
-                            ? handleInventoryReportClick(report)
-                            : openReport(reportTitle)
-                        }
-                        className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border bg-white px-4 py-3 text-left shadow-sm transition dark:bg-neutral-800 ${
-                          group.key === "inventory"
-                            ? "border-teal-200 hover:border-teal-300 hover:bg-teal-50 dark:border-teal-900/40 dark:hover:border-teal-700 dark:hover:bg-teal-950/30"
-                            : "border-slate-200 hover:border-sky-300 hover:bg-sky-50 dark:border-neutral-700 dark:hover:border-sky-700 dark:hover:bg-sky-950/30"
-                        }`}
-                      >
-                        {group.key === "billing" ? (
-                          <Banknote size={18} className="shrink-0 text-sky-600" />
-                        ) : group.key === "menu" ? (
-                          <FileBarChart
-                            size={18}
-                            className="shrink-0 text-amber-600"
-                          />
-                        ) : group.key === "vendor" ? (
-                          <Handshake
-                            size={18}
-                            className="shrink-0 text-violet-600"
-                          />
-                        ) : group.key === "inventory" ? (
-                          <FileSpreadsheet
-                            size={18}
-                            className="shrink-0 text-teal-600"
-                          />
-                        ) : (
-                          <FileText
-                            size={18}
-                            className="shrink-0 text-emerald-600"
-                          />
-                        )}
-                        <div className="min-w-0">
-                          <span className="block text-sm font-semibold text-slate-700 dark:text-neutral-200">
-                            {reportTitle}
-                          </span>
-                          {group.key === "inventory" ? (
-                            <span className="mt-1 block text-xs font-medium text-slate-500 dark:text-neutral-400">
-                              {reportTitle === "All Inventory Report"
-                                ? "Current full inventory snapshot."
-                                : reportTitle === "Warehouse Inventory Report"
-                                  ? "Warehouse stock snapshot for the selected restaurant."
-                                  : reportTitle === "Section Inventory Report"
-                                    ? "All section inventory stock for the selected restaurant."
-                                    : "Section-specific inventory snapshot."}
+                        <button
+                          key={reportTitle}
+                          type="button"
+                          onClick={() =>
+                            openReport(group.key === "inventory" ? report : reportTitle)
+                          }
+                          className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border bg-white px-4 py-3 text-left shadow-sm transition dark:bg-neutral-800 ${
+                            group.key === "inventory"
+                              ? "border-teal-200 hover:border-teal-300 hover:bg-teal-50 dark:border-teal-900/40 dark:hover:border-teal-700 dark:hover:bg-teal-950/30"
+                              : "border-slate-200 hover:border-sky-300 hover:bg-sky-50 dark:border-neutral-700 dark:hover:border-sky-700 dark:hover:bg-sky-950/30"
+                          }`}
+                        >
+                          {group.key === "billing" ? (
+                            <Banknote size={18} className="shrink-0 text-sky-600" />
+                          ) : group.key === "menu" ? (
+                            <FileBarChart
+                              size={18}
+                              className="shrink-0 text-amber-600"
+                            />
+                          ) : group.key === "vendor" ? (
+                            <Handshake
+                              size={18}
+                              className="shrink-0 text-violet-600"
+                            />
+                          ) : group.key === "inventory" ? (
+                            <FileSpreadsheet
+                              size={18}
+                              className="shrink-0 text-teal-600"
+                            />
+                          ) : (
+                            <FileText
+                              size={18}
+                              className="shrink-0 text-emerald-600"
+                            />
+                          )}
+                          <div className="min-w-0">
+                            <span className="block text-sm font-semibold text-slate-700 dark:text-neutral-200">
+                              {reportTitle}
                             </span>
-                          ) : null}
-                        </div>
-                      </button>
+                            {group.key === "inventory" ? (
+                              <span className="mt-1 block text-xs font-medium text-slate-500 dark:text-neutral-400">
+                                {reportTitle === "All Inventory Report"
+                                  ? "Current full inventory snapshot."
+                                  : reportTitle === "Warehouse Inventory Report"
+                                    ? "Warehouse stock snapshot for the assigned restaurant."
+                                    : reportTitle === "Section Inventory Report"
+                                      ? "All section inventory stock for the assigned restaurant."
+                                      : "Section-specific inventory snapshot."}
+                              </span>
+                            ) : null}
+                          </div>
+                        </button>
                       );
                     })}
                   </div>

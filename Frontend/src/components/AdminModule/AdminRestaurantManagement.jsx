@@ -37,7 +37,26 @@ const Modal = ({ title, onClose, children, wide }) => (
 /* ═══════════════════════════════════
    RESTAURANT FORM (shared by add/edit)
 ═══════════════════════════════════ */
-const emptyForm = { name: "", address: "", phone: "", gstNo: "" };
+const RESTAURANT_TYPE_OPTIONS = [
+  {
+    value: "HYBRID",
+    label: "Manual + System Billing",
+    hint: "Uses both manual billing and table/system billing.",
+  },
+  {
+    value: "MANUAL_ONLY",
+    label: "Manual Billing Only",
+    hint: "No table management or table-based billing flow.",
+  },
+];
+
+const emptyForm = {
+  name: "",
+  address: "",
+  phone: "",
+  gstNo: "",
+  restaurantType: "HYBRID",
+};
 const DEFAULT_PAYMENT_METHODS = ["CASH", "CARD", "UPI"];
 const SUGGESTED_PAYMENT_METHODS = [
   "CASH",
@@ -88,7 +107,7 @@ const defaultBillingTemplate = {
 const maxLogoBytes = 700 * 1024;
 
 const RestaurantForm = ({ initial, onSave, onCancel, saving }) => {
-  const [form, setForm]     = useState(initial || emptyForm);
+  const [form, setForm]     = useState({ ...emptyForm, ...(initial || {}) });
   const [errors, setErrors] = useState({});
 
   const change = (field, value) => {
@@ -147,6 +166,46 @@ const RestaurantForm = ({ initial, onSave, onCancel, saving }) => {
         {errors.address && <p className="text-red-500 text-sm mt-1">{errors.address}</p>}
       </div>
       {field("GST Number (optional)", "gstNo", "text", "Enter GST number")}
+
+      <div>
+        <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+          Restaurant Type <span className="text-red-500">*</span>
+        </label>
+        <div className="grid gap-3">
+          {RESTAURANT_TYPE_OPTIONS.map((option) => {
+            const active = form.restaurantType === option.value;
+            return (
+              <label
+                key={option.value}
+                className={`cursor-pointer rounded-2xl border px-4 py-3 transition ${
+                  active
+                    ? "border-green-500 bg-green-50 dark:border-green-500 dark:bg-green-900/20"
+                    : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    name="restaurantType"
+                    value={option.value}
+                    checked={active}
+                    onChange={(e) => change("restaurantType", e.target.value)}
+                    className="mt-1 h-4 w-4 accent-green-600"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                      {option.label}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {option.hint}
+                    </p>
+                  </div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="sticky bottom-0 -mx-5 grid grid-cols-2 gap-3 border-t border-gray-100 bg-white px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 dark:border-gray-700 dark:bg-gray-800 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-2 sm:dark:bg-transparent">
         <button
@@ -736,6 +795,9 @@ const handleDelete = async () => {
     r.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  const restaurantTypeLabel = (value) =>
+    value === "MANUAL_ONLY" ? "Manual Only" : "Manual + System";
+
   /* ── role badge colour ── */
   const roleBadge = (role) => {
     const map = {
@@ -814,6 +876,11 @@ const handleDelete = async () => {
                 )}
               </div>
               <p className="mt-3 line-clamp-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{r.address || "-"}</p>
+              <div className="mt-3">
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                  {restaurantTypeLabel(r.restaurantType)}
+                </span>
+              </div>
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <button onClick={() => openStaff(r)} className="rounded-xl bg-blue-50 px-2 py-2 text-xs font-semibold text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">Staff</button>
                 <button onClick={() => setBillingTarget(r)} className="rounded-xl bg-purple-50 px-2 py-2 text-xs font-semibold text-purple-700 dark:bg-purple-900/20 dark:text-purple-300">Billing Update</button>
@@ -837,6 +904,7 @@ const handleDelete = async () => {
               <th className="px-5 py-4 text-left font-semibold">#</th>
               <th className="px-5 py-4 text-left font-semibold">Name</th>
               <th className="px-5 py-4 text-left font-semibold">Phone</th>
+              <th className="px-5 py-4 text-left font-semibold">Type</th>
               <th className="px-5 py-4 text-left font-semibold">Address</th>
               <th className="px-5 py-4 text-right font-semibold">Actions</th>
             </tr>
@@ -844,7 +912,7 @@ const handleDelete = async () => {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-5 py-10 text-center text-gray-400 dark:text-gray-500 text-lg">
+                <td colSpan={6} className="px-5 py-10 text-center text-gray-400 dark:text-gray-500 text-lg">
                   No restaurants found
                 </td>
               </tr>
@@ -857,6 +925,11 @@ const handleDelete = async () => {
                   <td className="px-5 py-4 text-gray-400 dark:text-gray-500">{idx + 1}</td>
                   <td className="px-5 py-4 font-semibold text-gray-800 dark:text-gray-100">{r.name}</td>
                   <td className="px-5 py-4 text-gray-600 dark:text-gray-300">{r.phone}</td>
+                  <td className="px-5 py-4">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                      {restaurantTypeLabel(r.restaurantType)}
+                    </span>
+                  </td>
                   <td className="px-5 py-4 text-gray-600 dark:text-gray-300 max-w-xs truncate" title={r.address}>{r.address}</td>
                   <td className="px-5 py-4 text-right">
                     <div className="flex items-center justify-end gap-2 flex-wrap">

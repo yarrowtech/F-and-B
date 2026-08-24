@@ -1101,6 +1101,7 @@ import SalesAnalytics from "../models/SalesAnalytics.model.js";
 import Menu from "../models/Menu.model.js";
 import Inventory from "../models/Inventory.model.js";
 import InventoryLog from "../models/InventoryLog.model.js";
+import { getOrCreateStockRow } from "../utils/inventoryStock.js";
 import Employee from "../models/Employee.model.js";
 import KotPrintJob from "../models/KotPrintJob.model.js";
 import Restaurant from "../models/Restaurant.model.js";
@@ -1146,31 +1147,24 @@ const getItemsForInventoryDeduction = (order) => {
   return sourceItems.filter((item) => !item.inventoryDeducted);
 };
 
-const normalizeCuisine = (value) => String(value || "").trim().toLowerCase();
-
-const displayCuisine = (value) => String(value || "General").trim() || "General";
-
-const getKotPrinterMap = () => {
-  try {
-    const parsed = JSON.parse(process.env.KOT_PRINTER_MAP_JSON || "{}");
-    return Object.entries(parsed).reduce((map, [key, value]) => {
-      const normalizedKey = normalizeCuisine(key);
-      const printerName = String(value || "").trim();
-      if (normalizedKey && printerName) map[normalizedKey] = printerName;
-      return map;
-    }, {});
-  } catch {
-    return {};
-  }
+// `section` may be a populated KitchenSection doc, a raw ObjectId, or null/undefined.
+const getSectionId = (section) => {
+  if (!section) return "";
+  if (typeof section === "object" && section._id) return String(section._id);
+  return String(section);
 };
 
-const getKotPrinterName = (cuisine) => {
-  const printerMap = getKotPrinterMap();
-  return (
-    printerMap[normalizeCuisine(cuisine)] ||
-    process.env.KOT_DEFAULT_PRINTER ||
-    "Kitchen KOT"
-  );
+const getSectionName = (section) =>
+  section && typeof section === "object" && section.name ? section.name : "General";
+
+// Printer queue comes from the KitchenSection itself (per-restaurant), falling
+// back to the platform default only when the section has none configured.
+const getKotPrinterName = (section) => {
+  const printerName =
+    section && typeof section === "object"
+      ? String(section.printerQueueName || "").trim()
+      : "";
+  return printerName || process.env.KOT_DEFAULT_PRINTER || "Kitchen KOT";
 };
 
 const getTaxRate = (value, fallback = 2.5) => {
@@ -1311,12 +1305,12 @@ const getChefCuisineSet = async (chefId, restaurantId) => {
 
   if (!chef) return null;
 
-  return new Set((chef.cuisineTypes || []).map(normalizeCuisine).filter(Boolean));
+  return new Set((chef.cuisineTypes || []).map((id) => String(id)).filter(Boolean));
 };
 
 const isChefCuisineItem = (item, cuisineSet) => {
   if (!cuisineSet || cuisineSet.size === 0) return true;
-  return cuisineSet.has(normalizeCuisine(item.menuItem?.cuisine));
+  return cuisineSet.has(getSectionId(item.menuItem?.cuisine));
 };
 
 const deriveOrderStatus = (items = []) => {
@@ -1329,7 +1323,7 @@ const deriveOrderStatus = (items = []) => {
 };
 
 const getKotCuisineKey = (orderId, cuisine) =>
-  `${String(orderId)}:${normalizeCuisine(cuisine)}`;
+  `${String(orderId)}:${getSectionId(cuisine)}`;
 
 const getPrintedKotCuisineKeys = async (restaurantId, orders) => {
   const orderIds = orders.map((order) => order._id).filter(Boolean);
@@ -1434,7 +1428,11 @@ const populateOrderDetails = (query) =>
     .populate("table", "tableNumber")
     .populate("waiter", "name")
     .populate("chef", "name")
-    .populate("items.menuItem", "name price cuisine courseType ingredients")
+    .populate({
+      path: "items.menuItem",
+      select: "name price cuisine courseType ingredients",
+      populate: { path: "cuisine", select: "name printerQueueName" },
+    })
     .populate("items.assignedChef", "name")
     .populate("tableChangeHistory.fromTable", "tableNumber")
     .populate("tableChangeHistory.toTable", "tableNumber")
@@ -1535,7 +1533,7 @@ const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt, dailyKot
     kotLine(),
     kotPair("KOT NO", dailyKotNumber || kotNo || "-"),
     kotPair("TABLE", tableNo),
-    kotPair("SECTION", displayCuisine(cuisine)),
+    kotPair("SECTION", cuisine || "General"),
     kotPair("WAITER", waiterName),
     kotPair("TIME", formatKotDateTime(printedAt)),
     kotLine(),
@@ -1567,15 +1565,13 @@ const groupKotItemsByCuisine = (order) => {
   (order.items || []).forEach((item) => {
     if (item.status === "CANCELLED") return;
 
-    const cuisine = displayCuisine(item.menuItem?.cuisine);
-    const key = normalizeCuisine(cuisine) || "general";
-    const group = groups.get(key) || {
-      cuisine,
-      items: [],
-    };
+    const section = item.menuItem?.cuisine;
+    const sectionId = getSectionId(section);
+    if (!sectionId) return;
 
+    const group = groups.get(sectionId) || { section, items: [] };
     group.items.push(item);
-    groups.set(key, group);
+    groups.set(sectionId, group);
   });
 
   return Array.from(groups.values());
@@ -1595,6 +1591,8 @@ const createKotPrintJobs = async ({ order, session }) => {
   const jobs = [];
 
   for (const group of groups) {
+    const sectionId = getSectionId(group.section);
+    const sectionName = getSectionName(group.section);
     const kotNo = String(dailySerial);
     const payload = {
       kotNo,
@@ -1604,7 +1602,7 @@ const createKotPrintJobs = async ({ order, session }) => {
       orderNo: order.orderNo,
       tableNumber: order.table?.tableNumber || "",
       waiterName: order.waiter?.name || "",
-      cuisine: group.cuisine,
+      cuisine: sectionName,
       copyCount: kotCopyCount,
       printedAt,
       items: group.items.map((item) => ({
@@ -1616,7 +1614,7 @@ const createKotPrintJobs = async ({ order, session }) => {
 
     const receiptText = buildKotReceiptText({
       order,
-      cuisine: group.cuisine,
+      cuisine: sectionName,
       items: group.items,
       kotNo,
       printedAt,
@@ -1625,14 +1623,14 @@ const createKotPrintJobs = async ({ order, session }) => {
     const receiptTextWithCopies = repeatKotReceiptText(receiptText, kotCopyCount);
 
     const job = await KotPrintJob.findOneAndUpdate(
-      { order: order._id, cuisine: group.cuisine },
+      { order: order._id, cuisine: sectionId },
       {
         $set: {
           restaurant: restaurantId,
           order: order._id,
           waiter: order.waiter?._id || order.waiter,
-          cuisine: group.cuisine,
-          printerName: getKotPrinterName(group.cuisine),
+          cuisine: sectionId,
+          printerName: getKotPrinterName(group.section),
           payload,
           receiptText: receiptTextWithCopies,
           status: "PENDING",
@@ -1685,6 +1683,10 @@ const deductInventoryForOrder = async (order, session, user = {}) => {
       throw new Error("Menu item ingredients not configured properly");
     }
 
+    const section = item.menuItem.cuisine;
+    const sectionId = getSectionId(section);
+    const sectionName = getSectionName(section);
+
     for (const ingredient of item.menuItem.ingredients) {
       const ingredientName = ingredient.item?.name || "";
       const multiplier = getIngredientMultiplier(
@@ -1706,17 +1708,26 @@ const deductInventoryForOrder = async (order, session, user = {}) => {
         throw new Error("Inventory item not found");
       }
 
-      if (inventory.quantity < requiredQty) {
-        throw new Error(`Insufficient stock for ${inventory.name}`);
+      const stockRow = await getOrCreateStockRow(
+        { restaurant: inventory.restaurant, item: inventory._id, locationType: "SECTION", section: sectionId },
+        session
+      );
+
+      if (Number(stockRow.quantity || 0) < requiredQty) {
+        throw new Error(`Insufficient ${inventory.name} stock in ${sectionName} section`);
       }
 
       const previousQuantity = Number(inventory.quantity || 0);
       const unitCost = Number(inventory.averageCost || inventory.unitCost || 0);
+
+      stockRow.quantity -= requiredQty;
+      await stockRow.save({ session });
+
       inventory.quantity -= requiredQty;
       inventory.lastUpdatedBy = user.id || inventory.lastUpdatedBy;
       await inventory.save({ session });
 
-      await InventoryLog.create(
+      await InventoryLog.insertMany(
         [
           {
             item: inventory._id,
@@ -1733,6 +1744,8 @@ const deductInventoryForOrder = async (order, session, user = {}) => {
             reason: "Order item inventory deduction",
             addedBy: user.id || null,
             addedByName: user.name || "",
+            locationType: "SECTION",
+            section: sectionId || null,
           },
         ],
         { session }
@@ -2119,7 +2132,11 @@ export const acceptOrder = async (req, res) => {
       _id: req.params.id,
       restaurant: req.user.restaurant,
       status: { $in: ["PENDING", "ACCEPTED", "PREPARING", "READY"] },
-    }).populate("items.menuItem", "name price cuisine courseType ingredients");
+    }).populate({
+      path: "items.menuItem",
+      select: "name price cuisine courseType ingredients",
+      populate: { path: "cuisine", select: "name printerQueueName" },
+    });
 
     if (!order) return sendError(res, "Invalid order");
 
@@ -2175,7 +2192,11 @@ export const markPreparing = async (req, res) => {
       _id: req.params.id,
       restaurant: req.user.restaurant,
       status: { $in: ["PENDING", "ACCEPTED", "PREPARING"] },
-    }).populate("items.menuItem", "name price cuisine courseType ingredients");
+    }).populate({
+      path: "items.menuItem",
+      select: "name price cuisine courseType ingredients",
+      populate: { path: "cuisine", select: "name printerQueueName" },
+    });
 
     if (!order)
       return sendError(res, "Order must be active first", 404);
@@ -2332,7 +2353,11 @@ export const cancelOrderItem = async (req, res) => {
       .populate("table", "tableNumber")
       .populate("waiter", "name")
       .populate("chef", "name")
-      .populate("items.menuItem", "name price cuisine courseType ingredients")
+      .populate({
+      path: "items.menuItem",
+      select: "name price cuisine courseType ingredients",
+      populate: { path: "cuisine", select: "name printerQueueName" },
+    })
       .populate("items.assignedChef", "name");
 
     if (!order) {
@@ -2421,7 +2446,10 @@ export const printKOT = async (req, res) => {
       .populate("restaurant", "name restaurantCode")
       .populate({
         path: "items.menuItem",
-        populate: { path: "ingredients.item" },
+        populate: [
+          { path: "ingredients.item" },
+          { path: "cuisine", select: "name printerQueueName" },
+        ],
       })
       .session(session);
 

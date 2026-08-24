@@ -103,11 +103,11 @@ const menuSchema = new mongoose.Schema(
       match: /^[A-Z0-9]+$/,
     },
 
-    // 🔥 Cuisine Type (Indian, Chinese, etc.)
+    // 🔥 Kitchen section / cuisine (Indian, Chinese, etc.) - restaurant-owned list
     cuisine: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "KitchenSection",
       required: true,
-      trim: true,
     },
 
     // 🔥 Course Type (Starter, Main Course, Dessert, etc.)

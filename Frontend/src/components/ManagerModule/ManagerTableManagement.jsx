@@ -8,8 +8,12 @@ const getAssignedRestaurant = () => {
     typeof user?.restaurant === "object" ? user?.restaurant?._id : user?.restaurant || "";
   const restaurantName =
     typeof user?.restaurant === "object" ? user?.restaurant?.name : user?.restaurantName || "Assigned Restaurant";
+  const restaurantType =
+    typeof user?.restaurant === "object"
+      ? user?.restaurant?.restaurantType
+      : user?.restaurantType || "HYBRID";
 
-  return { restaurantId, restaurantName };
+  return { restaurantId, restaurantName, restaurantType };
 };
 
 const getOrderTotal = (order) =>
@@ -19,18 +23,23 @@ const getOrderTotal = (order) =>
   );
 
 const ManagerTableManagement = () => {
-  const { restaurantId, restaurantName } = getAssignedRestaurant();
+  const { restaurantId, restaurantName, restaurantType } = getAssignedRestaurant();
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState(null);
+  const [feedback, setFeedback] = useState("");
+  const tableManagementEnabled =
+    String(restaurantType || "HYBRID").toUpperCase() !== "MANUAL_ONLY";
 
   const loadTables = useCallback(async () => {
     try {
       setLoading(true);
+      setFeedback("");
       const data = await getTables(restaurantId);
       setTables(Array.isArray(data) ? data : []);
     } catch (err) {
-      alert(err?.response?.data?.message || "Failed to load tables");
+      setTables([]);
+      setFeedback(err?.response?.data?.message || "Failed to load tables");
     } finally {
       setLoading(false);
     }
@@ -42,8 +51,14 @@ const ManagerTableManagement = () => {
       setLoading(false);
       return;
     }
+    if (!tableManagementEnabled) {
+      setTables([]);
+      setFeedback("");
+      setLoading(false);
+      return;
+    }
     loadTables();
-  }, [restaurantId, loadTables]);
+  }, [restaurantId, loadTables, tableManagementEnabled]);
 
   const occupiedTables = tables.filter((table) => table.status === "occupied");
   const freeTables = tables.filter((table) => table.status === "available");
@@ -63,6 +78,12 @@ const ManagerTableManagement = () => {
           </p>
         </div>
 
+        {feedback ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
+            {feedback}
+          </div>
+        ) : null}
+
         <div className="grid gap-3 sm:grid-cols-3">
           <StatCard label="Total Tables" value={tables.length} icon={FaTable} />
           <StatCard label="Free Tables" value={freeTables.length} icon={FaCheckCircle} tone="emerald" />
@@ -71,6 +92,8 @@ const ManagerTableManagement = () => {
 
         {!restaurantId ? (
           <EmptyState>No restaurant is assigned to this manager.</EmptyState>
+        ) : !tableManagementEnabled ? (
+          <EmptyState>Table management is disabled for manual-only restaurants.</EmptyState>
         ) : loading ? (
           <EmptyState>Loading live tables...</EmptyState>
         ) : tables.length === 0 ? (

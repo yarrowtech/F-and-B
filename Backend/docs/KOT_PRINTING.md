@@ -15,12 +15,16 @@ Set these values on the backend:
 ```env
 PRINT_AGENT_TOKEN=change-this-strong-token
 KOT_DEFAULT_PRINTER=Kitchen KOT
-KOT_PRINTER_MAP_JSON={"indian":"Kitchen Indian","chinese":"Kitchen Chinese","tandoor":"Kitchen Tandoor"}
 ```
 
-`KOT_PRINTER_MAP_JSON` keys must match menu item cuisine names. Matching is case-insensitive.
+Printer queues are no longer configured globally via `.env`. Each restaurant
+manages its own **Kitchen Sections** (Indian, Chinese, Tandoor, ...) under
+`Admin/Manager > Menu > Kitchen Sections`, and each section has its own
+`printerQueueName`. A menu item picks a section instead of typing a cuisine
+name, and KOT jobs for that item print to that section's queue.
 
-If a cuisine is not mapped, the job uses `KOT_DEFAULT_PRINTER`.
+If a section has no `printerQueueName` set, its jobs fall back to
+`KOT_DEFAULT_PRINTER`.
 
 ## Windows USB Printer Logic
 

@@ -301,7 +301,7 @@ export const printJobsOnThisDevice = async (jobs = [], options = {}) => {
         shouldUseCombinedBrowserFallback = true;
         break;
       }
-      printTextInBrowser(job.receiptText, job.cuisine ? `KOT - ${job.cuisine}` : "Print");
+      printTextInBrowser(job.receiptText, job.payload?.cuisine ? `KOT - ${job.payload.cuisine}` : "Print");
       printedCount += 1;
     }
   }

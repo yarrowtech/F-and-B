@@ -230,10 +230,10 @@ const Chef = () => {
 
     try {
       setKotPrintingId(job._id);
-      printTextInBrowser(job.receiptText, job.cuisine ? `KOT - ${job.cuisine}` : "KOT");
+      printTextInBrowser(job.receiptText, job.payload?.cuisine ? `KOT - ${job.payload.cuisine}` : "KOT");
       await markMyKotPrintJobPrinted(job._id);
       window.dispatchEvent(new CustomEvent("chef-kot-printed"));
-      setPrintNotice(`KOT printed: ${job.cuisine || "Kitchen"}`);
+      setPrintNotice(`KOT printed: ${job.payload?.cuisine || "Kitchen"}`);
       await loadKotPrintJobs();
     } catch (err) {
       setPrintNotice(
@@ -328,7 +328,7 @@ const Chef = () => {
                     {job.payload?.kotNo || "Kitchen KOT"}
                   </p>
                   <p className="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
-                    {job.cuisine || "Kitchen"} - Table {job.payload?.tableNumber || "N/A"}
+                    {job.payload?.cuisine || "Kitchen"} - Table {job.payload?.tableNumber || "N/A"}
                   </p>
                 </div>
                 <button

@@ -317,7 +317,7 @@ import {
 } from "../../services/employee.service";
 
 import { getRestaurants } from "../../services/restaurant.service";
-import { getMenu } from "../../services/menu.service";
+import { getKitchenSections } from "../../services/kitchenSection.service";
 import AdminVendorManagement from "./AdminVendorManagement";
 
 const ROLE_OPTIONS = [
@@ -399,7 +399,7 @@ export default function AdminStaffManagement() {
     address: { ...emptyAddress },
     cuisineTypes: [],
   });
-  const [menuCuisines, setMenuCuisines] = useState([]);
+  const [kitchenSections, setKitchenSections] = useState([]);
 
 
   /* =========================
@@ -423,27 +423,22 @@ export default function AdminStaffManagement() {
       : form.restaurantId;
 
     if (!restaurantId) {
-      setMenuCuisines([]);
+      setKitchenSections([]);
       return;
     }
 
-    const loadCuisines = async () => {
+    const loadKitchenSections = async () => {
       try {
-        const items = await getMenu(restaurantId);
-        const cuisines = [
-          ...new Set(
-            (Array.isArray(items) ? items : [])
-              .map((item) => String(item.cuisine || "").trim())
-              .filter(Boolean)
-          ),
-        ].sort();
-        setMenuCuisines(cuisines);
+        const sections = await getKitchenSections(restaurantId);
+        setKitchenSections(
+          [...sections].sort((a, b) => a.name.localeCompare(b.name))
+        );
       } catch {
-        setMenuCuisines([]);
+        setKitchenSections([]);
       }
     };
 
-    loadCuisines();
+    loadKitchenSections();
   }, [form.restaurantId, editForm.restaurantId, showEmployeeDetails]);
 
   const fetchEmployees = async () => {
@@ -1032,23 +1027,23 @@ export default function AdminStaffManagement() {
                       Chef Cuisine Assignment
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {menuCuisines.length === 0 ? (
+                      {kitchenSections.length === 0 ? (
                         <p className="text-sm text-gray-500">
-                          Create menu items with cuisine first, then assign cuisines to this chef.
+                          Create a kitchen section for this restaurant first, then assign it to this chef.
                         </p>
                       ) : (
-                        menuCuisines.map((cuisine) => (
+                        kitchenSections.map((section) => (
                           <button
-                            key={cuisine}
+                            key={section._id}
                             type="button"
-                            onClick={() => toggleCuisine("add", cuisine)}
+                            onClick={() => toggleCuisine("add", section._id)}
                             className={`rounded-full px-3 py-2 text-xs font-bold transition ${
-                              form.cuisineTypes.includes(cuisine)
+                              form.cuisineTypes.includes(section._id)
                                 ? "bg-emerald-600 text-white"
                                 : "bg-white text-emerald-700 ring-1 ring-emerald-200"
                             }`}
                           >
-                            {cuisine}
+                            {section.name}
                           </button>
                         ))
                       )}
@@ -1261,23 +1256,23 @@ export default function AdminStaffManagement() {
                     Chef Cuisine Assignment
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {menuCuisines.length === 0 ? (
+                    {kitchenSections.length === 0 ? (
                       <p className="text-sm text-gray-500">
-                        Create menu items with cuisine first, then assign cuisines to this chef.
+                        Create a kitchen section for this restaurant first, then assign it to this chef.
                       </p>
                     ) : (
-                      menuCuisines.map((cuisine) => (
+                      kitchenSections.map((section) => (
                         <button
-                          key={cuisine}
+                          key={section._id}
                           type="button"
-                          onClick={() => toggleCuisine("edit", cuisine)}
+                          onClick={() => toggleCuisine("edit", section._id)}
                           className={`rounded-full px-3 py-2 text-xs font-bold transition ${
-                            editForm.cuisineTypes.includes(cuisine)
+                            editForm.cuisineTypes.includes(section._id)
                               ? "bg-emerald-600 text-white"
                               : "bg-white text-emerald-700 ring-1 ring-emerald-200"
                           }`}
                         >
-                          {cuisine}
+                          {section.name}
                         </button>
                       ))
                     )}

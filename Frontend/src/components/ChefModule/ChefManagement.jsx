@@ -307,7 +307,7 @@ export default function ChefManagement() {
             <div className="flex flex-wrap items-center gap-2">
               <p className="truncate font-semibold text-slate-900 dark:text-white">{item.menuItem?.name || "Menu Item"}</p>
               <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700 ring-1 ring-sky-100 dark:bg-sky-900/30 dark:text-sky-200 dark:ring-sky-900/50">
-                {item.menuItem?.cuisine || "Cuisine"}
+                {item.menuItem?.cuisine?.name || "Cuisine"}
               </span>
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusStyles[item.status] || statusStyles.PENDING}`}>
                 {item.status || "PENDING"}

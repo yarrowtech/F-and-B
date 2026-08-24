@@ -230,6 +230,7 @@ import Menu from "../models/Menu.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import Employee from "../models/Employee.model.js";
 import Inventory from "../models/Inventory.model.js";
+import KitchenSection from "../models/KitchenSection.model.js";
 import Order from "../models/Order.model.js";
 import mongoose from "mongoose";
 import ExcelJS from "exceljs";
@@ -322,6 +323,16 @@ export const createMenuItem = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
+    const kitchenSection = await KitchenSection.findOne({
+      _id: cuisine,
+      restaurant: restaurantId,
+    });
+    if (!kitchenSection) {
+      return res.status(400).json({
+        message: "Invalid kitchen section selected",
+      });
+    }
+
     /* 🔥 VALIDATE INGREDIENTS (only if provided) */
     if (Array.isArray(ingredients) && ingredients.length > 0) {
       for (const ing of ingredients) {
@@ -352,7 +363,7 @@ export const createMenuItem = async (req, res) => {
       menuCode: menuCode
         ? normalizeMenuCode(menuCode)
         : await generateNextMenuCode(restaurantId),
-      cuisine: cuisine.trim(),
+      cuisine: kitchenSection._id,
       courseType: courseType.trim(),
       description: description || "",
       isAvailable: isAvailable ?? true,
@@ -415,6 +426,7 @@ export const getMenu = async (req, res) => {
       restaurant: restaurantId,
     })
       .populate({ path: "ingredients.item", select: "name unit", strictPopulate: false })
+      .populate("cuisine", "name printerQueueName")
       .sort({ createdAt: -1 });
 
     res.json(items);
@@ -448,7 +460,8 @@ export const getPublicMenu = async (req, res) => {
       isAvailable: true,
     })
       .select("name cuisine courseType price")
-      .sort({ courseType: 1, cuisine: 1, name: 1 })
+      .populate("cuisine", "name")
+      .sort({ courseType: 1, name: 1 })
       .lean();
 
     res.json({
@@ -473,7 +486,8 @@ export const getMenuItemById = async (req, res) => {
       restaurant: restaurantId,
     })
       .populate("restaurant", "name")
-      .populate("ingredients.item", "name unit quantity");
+      .populate("ingredients.item", "name unit quantity")
+      .populate("cuisine", "name printerQueueName");
 
     if (!item) {
       return res.status(404).json({
@@ -553,7 +567,18 @@ export const updateMenuItem = async (req, res) => {
       }
       item.menuCode = normalizeMenuCode(menuCode);
     }
-    if (cuisine !== undefined) item.cuisine = cuisine.trim();
+    if (cuisine !== undefined) {
+      const kitchenSection = await KitchenSection.findOne({
+        _id: cuisine,
+        restaurant: restaurantId,
+      });
+      if (!kitchenSection) {
+        return res.status(400).json({
+          message: "Invalid kitchen section selected",
+        });
+      }
+      item.cuisine = kitchenSection._id;
+    }
     if (courseType !== undefined) item.courseType = courseType.trim();
     if (description !== undefined) item.description = description;
     if (isAvailable !== undefined) item.isAvailable = isAvailable;
@@ -740,9 +765,22 @@ const buildMenuSalesAnalytics = async (restaurantId, start, end) =>
     },
     { $unwind: "$menu" },
     {
+      $lookup: {
+        from: "kitchensections",
+        localField: "menu.cuisine",
+        foreignField: "_id",
+        as: "kitchenSection",
+      },
+    },
+    {
       $project: {
         name: "$menu.name",
-        cuisine: "$menu.cuisine",
+        cuisine: {
+          $ifNull: [
+            { $arrayElemAt: ["$kitchenSection.name", 0] },
+            "General",
+          ],
+        },
         courseType: "$menu.courseType",
         price: "$menu.price",
         totalOrders: 1,
@@ -889,9 +927,23 @@ const result = await Order.aggregate([
   },
 
   {
+    $lookup: {
+      from: "kitchensections",
+      localField: "menu.cuisine",
+      foreignField: "_id",
+      as: "kitchenSection"
+    }
+  },
+
+  {
     $project: {
       name: "$menu.name",
-      cuisine: "$menu.cuisine",
+      cuisine: {
+        $ifNull: [
+          { $arrayElemAt: ["$kitchenSection.name", 0] },
+          "General",
+        ],
+      },
       courseType: "$menu.courseType",
       totalOrders: 1
     }

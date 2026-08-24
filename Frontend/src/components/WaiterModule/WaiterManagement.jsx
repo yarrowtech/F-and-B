@@ -56,6 +56,9 @@ export default function WaiterManagement() {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const restaurantId =
     typeof user?.restaurant === "object" ? user?.restaurant?._id : user?.restaurant || "";
+  const restaurantType = String(
+    user?.restaurant?.restaurantType || user?.restaurantType || "HYBRID"
+  ).toUpperCase();
   const currentWaiterId = String(user?._id || user?.id || "");
 
   const [tables, setTables] = useState([]);
@@ -215,15 +218,15 @@ export default function WaiterManagement() {
     [menuItems]
   );
 
-  const cuisines = [...new Set(availableMenuItems.map((item) => item.cuisine).filter(Boolean))];
+  const cuisines = [...new Map(availableMenuItems.map((item) => [item.cuisine?._id, item.cuisine]).filter(([id]) => id)).values()];
   const courseTypes = [...new Set(availableMenuItems.map((item) => item.courseType).filter(Boolean))];
 
   const filteredMenuItems = useMemo(() => {
     return availableMenuItems.filter((item) => {
-      const matchesSearch = `${item.name} ${item.cuisine} ${item.courseType}`.toLowerCase().includes(menuSearch.toLowerCase());
+      const matchesSearch = `${item.name} ${item.cuisine?.name || ""} ${item.courseType}`.toLowerCase().includes(menuSearch.toLowerCase());
       if (!matchesSearch) return false;
       if (activeMenuFilter === "all") return true;
-      if (activeMenuFilter.startsWith("cuisine:")) return item.cuisine === activeMenuFilter.slice(8);
+      if (activeMenuFilter.startsWith("cuisine:")) return item.cuisine?._id === activeMenuFilter.slice(8);
       if (activeMenuFilter.startsWith("course:")) return item.courseType === activeMenuFilter.slice(7);
       return true;
     });
@@ -233,10 +236,6 @@ export default function WaiterManagement() {
     () => cartItems.reduce((sum, item) => sum + item.price * item.qty, 0),
     [cartItems]
   );
-
-  if (!restaurantId) {
-    return <div className="p-10 text-xl text-red-600">No restaurant assigned to this waiter.</div>;
-  }
 
   const hasReadyItems = (order) =>
     (order?.items || []).some((item) => item.status === "READY");
@@ -306,6 +305,28 @@ export default function WaiterManagement() {
       return matchesFilter && matchesSearch;
     });
   }, [tables, tableOrders, tableSearch, tableViewFilter]);
+
+  if (!restaurantId) {
+    return <div className="p-10 text-xl text-red-600">No restaurant assigned to this waiter.</div>;
+  }
+
+  if (restaurantType === "MANUAL_ONLY") {
+    return (
+      <div className="flex min-h-[320px] items-center justify-center rounded-3xl border border-amber-200 bg-amber-50 p-6 text-center dark:border-amber-900/40 dark:bg-amber-950/30">
+        <div className="max-w-xl">
+          <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300">
+            Waiter Billing Disabled
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
+            This restaurant uses manual-only billing
+          </h2>
+          <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+            Table-based order taking is not available for this restaurant type. Use the manual billing flow instead.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const handleBill = async (order) => {
     if (!order || !canBillOrder(order) || isBillingSent(order)) return;
@@ -505,16 +526,6 @@ export default function WaiterManagement() {
     } finally {
       setKotPrintingId("");
     }
-  };
-
-  const handleCancelOrderItem = async (order, item) => {
-    setCancelDialog({
-      open: true,
-      orderId: order?._id || "",
-      itemId: item?._id || "",
-      itemName: item?.menuItem?.name || "Menu Item",
-      reason: "",
-    });
   };
 
   const closeCancelDialog = () => {
@@ -870,7 +881,7 @@ export default function WaiterManagement() {
                     <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
                       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:flex-wrap lg:overflow-visible">
                         <button onClick={() => setActiveMenuFilter("all")} className={`min-h-9 shrink-0 rounded-full px-3 py-2 text-xs font-semibold ${activeMenuFilter === "all" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200"}`}>All ({availableMenuItems.length})</button>
-                        {cuisines.map((cuisine) => <button key={cuisine} onClick={() => setActiveMenuFilter(`cuisine:${cuisine}`)} className={`min-h-9 shrink-0 rounded-full px-3 py-2 text-xs font-semibold ${activeMenuFilter === `cuisine:${cuisine}` ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"}`}>{cuisine}</button>)}
+                        {cuisines.map((cuisine) => <button key={cuisine._id} onClick={() => setActiveMenuFilter(`cuisine:${cuisine._id}`)} className={`min-h-9 shrink-0 rounded-full px-3 py-2 text-xs font-semibold ${activeMenuFilter === `cuisine:${cuisine._id}` ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"}`}>{cuisine.name}</button>)}
                         {courseTypes.map((courseType) => <button key={courseType} onClick={() => setActiveMenuFilter(`course:${courseType}`)} className={`min-h-9 shrink-0 rounded-full px-3 py-2 text-xs font-semibold ${activeMenuFilter === `course:${courseType}` ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200"}`}>{formatCourseType(courseType)}</button>)}
                       </div>
                     </div>
@@ -889,7 +900,7 @@ export default function WaiterManagement() {
                               <div className="min-w-0 pr-1">
                                 <p className="text-base font-bold text-slate-900 dark:text-white">{item.name}</p>
                                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                  {[item.cuisine, formatCourseType(item.courseType)].filter(Boolean).join(" - ")}
+                                  {[item.cuisine?.name, formatCourseType(item.courseType)].filter(Boolean).join(" - ")}
                                 </p>
                                 <p className="mt-2 text-base font-bold text-emerald-700 dark:text-emerald-300">Rs. {item.price}</p>
                               </div>
@@ -921,7 +932,7 @@ export default function WaiterManagement() {
                             {filteredMenuItems.map((item) => (
                               <tr key={item._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/40">
                                 <td className="px-5 py-4 font-semibold text-slate-900 dark:text-white">{item.name}</td>
-                                <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-300">{item.cuisine || "-"}</td>
+                                <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-300">{item.cuisine?.name || "-"}</td>
                                 <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-300">{formatCourseType(item.courseType)}</td>
                                 <td className="px-5 py-4 text-sm font-semibold text-emerald-700 dark:text-emerald-300">Rs. {item.price}</td>
                                 <td className="px-5 py-4 text-right">
