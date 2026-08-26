@@ -124,6 +124,7 @@ import ProjectAnalyticsTracker from "./components/ProjectAnalyticsTracker";
 const About = lazy(() => import("./Pages/About"));
 const Services = lazy(() => import("./Pages/Services"));
 const Contact = lazy(() => import("./Pages/Contact"));
+const PrivacyPolicy = lazy(() => import("./Pages/PrivacyPolicy"));
 const Subscription = lazy(() => import("./Pages/Subscription"));
 const Department = lazy(() => import("./Pages/Department"));
 const KitchenPage = lazy(() => import("./Pages/Kitchen"));
@@ -278,6 +279,7 @@ const App = () => {
           <Route path="/about" element={<About />} />
           <Route path="/services" element={<Services />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/subscription" element={<Subscription />} />
           <Route path="/project-document" element={<ProjectDocument />} />
           <Route path="/public-menu/:restaurantId" element={<PublicMenu />} />
