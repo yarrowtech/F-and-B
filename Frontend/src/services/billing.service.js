@@ -96,6 +96,11 @@ export const getBillingInbox = async () => {
   return res.data.data;
 };
 
+export const getBillingSettings = async () => {
+  const res = await API.get("/billing/settings");
+  return res.data.data;
+};
+
 /**
  * 📜 Paid Bills History
  * GET /api/billing/history

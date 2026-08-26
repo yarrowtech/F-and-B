@@ -59,6 +59,13 @@ router.get(
 );
 
 router.get(
+  "/settings",
+  auth,
+  allowRoles("accountant"),
+  billingController.getBillingSettings
+);
+
+router.get(
   "/inbox",
   auth,
   allowRoles("accountant"),

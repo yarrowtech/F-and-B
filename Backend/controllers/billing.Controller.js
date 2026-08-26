@@ -1122,6 +1122,30 @@ const getInbox = async (req, res) => {
   }
 };
 
+const getBillingSettings = async (req, res) => {
+  try {
+    const restaurant = await Restaurant.findById(req.user.restaurant)
+      .select("name restaurantType billingTemplate")
+      .lean();
+
+    if (!restaurant) {
+      return sendError(res, "Restaurant not found", 404);
+    }
+
+    return sendSuccess(res, {
+      restaurant: {
+        _id: restaurant._id,
+        name: restaurant.name,
+        restaurantType: restaurant.restaurantType || "HYBRID",
+        billingTemplate: getBillingTemplate(restaurant),
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    return sendError(res, err.message);
+  }
+};
+
 const createManualBill = async (req, res) => {
   let session;
 
@@ -2053,6 +2077,7 @@ const generatePublicBillPDF = async (req, res) => {
 };
 
 export default {
+  getBillingSettings,
   getInbox,
   getHistory,
   exportBillingHistoryExcel,

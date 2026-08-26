@@ -22,6 +22,7 @@ import {
   getBillPrintBundle,
   getBillingHistory,
   getBillingInbox,
+  getBillingSettings,
   markBillPaid,
 } from "../../services/billing.service";
 import { printJobsOnThisDevice } from "../../services/localPrint.service";
@@ -836,6 +837,7 @@ export default function AccountantOrderBilling() {
     dateFrom: "",
     dateTo: "",
   });
+  const [billingSettingsRestaurant, setBillingSettingsRestaurant] = useState(null);
   const selectedTemplate = selectedBill
     ? getBillingTemplate(selectedBill.restaurant)
     : defaultBillingTemplate;
@@ -845,7 +847,11 @@ export default function AccountantOrderBilling() {
   const loadedRestaurant =
     bills.find((bill) => typeof bill?.restaurant === "object")?.restaurant || null;
   const activeRestaurant =
-    selectedBill?.restaurant || loadedRestaurant || userRestaurant || null;
+    selectedBill?.restaurant ||
+    loadedRestaurant ||
+    billingSettingsRestaurant ||
+    userRestaurant ||
+    null;
   const isManualOnlyRestaurant = getRestaurantType(activeRestaurant) === "MANUAL_ONLY";
   const manualPaymentMethods = getRestaurantPaymentMethods(
     activeRestaurant
@@ -863,12 +869,26 @@ export default function AccountantOrderBilling() {
   );
 
   useEffect(() => {
+    const loadBillingSettings = async () => {
+      try {
+        const data = await getBillingSettings();
+        setBillingSettingsRestaurant(data?.restaurant || null);
+      } catch (err) {
+        console.error("FETCH BILLING SETTINGS ERROR:", err);
+        setBillingSettingsRestaurant(null);
+      }
+    };
+
+    loadBillingSettings();
+  }, []);
+
+  useEffect(() => {
     if (manualPaymentMethods.includes(manualBill.paymentMethod)) return;
     updateManualBill("paymentMethod", manualPaymentMethods[0] || "CASH");
   }, [manualPaymentMethods, manualBill.paymentMethod]);
 
   useEffect(() => {
-    if (!loadedRestaurant && !userRestaurant) return;
+    if (!activeRestaurant) return;
     setManualBill((current) => {
       const nextCgstRate =
         current.items.length === 0 ? manualTaxDefaults.cgstRate : current.cgstRate;
@@ -885,7 +905,7 @@ export default function AccountantOrderBilling() {
         sgstRate: nextSgstRate,
       };
     });
-  }, [manualTaxDefaults.cgstRate, manualTaxDefaults.sgstRate, loadedRestaurant, userRestaurant]);
+  }, [activeRestaurant, manualTaxDefaults.cgstRate, manualTaxDefaults.sgstRate]);
 
   useEffect(() => {
     if (isManualOnlyRestaurant && tab !== "NEW") {
