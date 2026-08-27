@@ -23,6 +23,63 @@ body {
   background: #070907;
 }
 
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  [class*="backdrop-blur"] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  header[class*="backdrop-blur"],
+  [class*="bg-white/95"][class*="backdrop-blur"],
+  [class*="bg-white/90"][class*="backdrop-blur"],
+  [class*="bg-white/88"][class*="backdrop-blur"],
+  [class*="bg-white/85"][class*="backdrop-blur"],
+  [class*="bg-white/82"][class*="backdrop-blur"],
+  [class*="bg-white/80"][class*="backdrop-blur"] {
+    background-color: rgba(255, 255, 255, 0.98) !important;
+  }
+
+  [class*="bg-[#174914]/"][class*="backdrop-blur"],
+  [class*="bg-[#17100d]/"][class*="backdrop-blur"],
+  [class*="bg-[#10170f]/"][class*="backdrop-blur"] {
+    background-color: rgba(23, 73, 20, 0.96) !important;
+  }
+}
+
+@supports not (height: 100dvh) {
+  [class*="h-[100dvh]"] {
+    height: 100vh !important;
+  }
+
+  [class*="max-h-[100dvh]"] {
+    max-height: 100vh !important;
+  }
+
+  [class*="max-h-[calc(100dvh-190px)]"] {
+    max-height: calc(100vh - 190px) !important;
+  }
+}
+
+@supports not (height: 100svh) {
+  [class*="h-[100svh]"] {
+    height: 100vh !important;
+  }
+}
+
+@supports not (padding: env(safe-area-inset-bottom)) {
+  [class*="pb-[calc(0.75rem+env(safe-area-inset-bottom))]"] {
+    padding-bottom: 0.75rem !important;
+  }
+
+  [class*="pb-[env(safe-area-inset-bottom)]"] {
+    padding-bottom: 0.75rem !important;
+  }
+
+  [class*="pt-[env(safe-area-inset-top)]"] {
+    padding-top: 0 !important;
+  }
+}
+
 input,
 textarea,
 select,

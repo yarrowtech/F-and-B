@@ -10,6 +10,19 @@ const navLinks = [
   { to: "/#contact", label: "Contact", sectionId: "contact" },
 ];
 
+const getLastVisibleSection = (sectionIds) => {
+  for (let index = sectionIds.length - 1; index >= 0; index -= 1) {
+    const sectionId = sectionIds[index];
+    const section = document.getElementById(sectionId);
+    if (!section) continue;
+    if (section.getBoundingClientRect().top <= 130) {
+      return sectionId;
+    }
+  }
+
+  return "hero";
+};
+
 const Header = ({ landingTheme, onLandingThemeToggle }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -75,12 +88,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
 
         if (!isHomePage) return;
 
-        const currentSection =
-          sectionIds.findLast((sectionId) => {
-            const section = document.getElementById(sectionId);
-            if (!section) return false;
-            return section.getBoundingClientRect().top <= 130;
-          }) || "hero";
+        const currentSection = getLastVisibleSection(sectionIds);
 
         setActiveSection((current) =>
           current === currentSection ? current : currentSection
@@ -156,7 +164,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
 
   return (
     <header className={`fixed top-0 z-50 w-full px-4 pt-2 transition-all duration-300 md:px-6 lg:px-8 lg:pt-2.5 ${isScrolled ? "backdrop-blur-sm" : ""}`}>
-      <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-4">
+      <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-4 lg:grid lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
           <Link
             to="/"
             className="flex min-w-[76px] flex-col items-center transition duration-300 hover:scale-[1.02] lg:min-w-[112px]"
@@ -169,7 +177,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
             </span>
           </Link>
 
-          <nav className={`absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 rounded-full border px-4 py-2 backdrop-blur-xl lg:flex lg:gap-2 lg:px-5 ${navShellClass}`}>
+          <nav className={`hidden min-w-0 items-center justify-self-center overflow-x-auto rounded-full border px-4 py-2 backdrop-blur-xl lg:flex lg:max-w-full lg:gap-2 lg:px-5 ${navShellClass}`}>
             {navLinks.map(({ to, label, sectionId }) => {
               const isActive = sectionId
                 ? isHomePage && activeSection === sectionId
@@ -180,7 +188,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
                   key={label}
                   to={to}
                   onClick={(event) => handleNavClick(event, sectionId)}
-                  className={`rounded-full px-2.5 py-1 text-sm font-semibold transition-all duration-300 lg:px-3 lg:text-base ${
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-sm font-semibold transition-all duration-300 lg:px-3 lg:text-base ${
                     isActive
                       ? "text-[#93d36c]"
                       : `${headerTextClass} hover:text-[#93d36c]`
@@ -192,11 +200,11 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
             })}
           </nav>
 
-          <div className="hidden items-center gap-2 lg:flex xl:gap-3">
+          <div className="hidden shrink-0 items-center gap-2 lg:flex xl:gap-3">
             {user ? (
               <div className="flex items-center gap-2">
                 {displayName ? (
-                  <span className={`max-w-[150px] truncate rounded-full border px-3 py-2.5 text-sm font-medium xl:max-w-[180px] xl:px-4 xl:py-3 ${isLandingLight ? "border-emerald-900/10 bg-white/75 text-emerald-950" : "border-white/10 bg-white/6 text-white/90"}`}>
+                  <span className={`max-w-[120px] truncate rounded-full border px-3 py-2.5 text-sm font-medium xl:max-w-[160px] xl:px-4 xl:py-3 ${isLandingLight ? "border-emerald-900/10 bg-white/75 text-emerald-950" : "border-white/10 bg-white/6 text-white/90"}`}>
                     {displayName}
                   </span>
                 ) : null}
@@ -262,18 +270,18 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
           </button>
 
         <div
-          className={`absolute left-4 right-4 top-20 overflow-hidden rounded-3xl border backdrop-blur-xl transition-all duration-500 lg:hidden ${
+          className={`absolute right-0 top-17 w-[min(18rem,calc(100vw-1.5rem))] overflow-hidden rounded-[1.6rem] border shadow-[0_18px_42px_-28px_rgba(15,23,42,0.38)] backdrop-blur-xl transition-all duration-500 lg:hidden ${
             isMenuOpen ? "max-h-screen opacity-100" : "max-h-0 opacity-0"
           } ${isLandingLight ? "border-emerald-900/10 bg-white/90" : "border-white/10 bg-[#174914]/92"}`}
         >
-          <nav className="px-5 py-5">
-            <ul className="flex flex-col gap-3">
+          <nav className="px-3.5 py-3.5">
+            <ul className="flex flex-col gap-2">
               {navLinks.map(({ to, label, sectionId }) => (
                 <li key={label}>
                   <Link
                     to={to}
                     onClick={(event) => handleNavClick(event, sectionId)}
-                    className={`block rounded-full border px-4 py-2 text-center text-sm transition ${
+                    className={`block rounded-full border px-3.5 py-1.5 text-center text-[12.5px] font-medium transition ${
                       (sectionId
                         ? isHomePage && activeSection === sectionId
                         : location.pathname === to)
@@ -295,7 +303,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
                       onLandingThemeToggle();
                       setIsMenuOpen(false);
                     }}
-                    className={`mb-3 flex w-full items-center justify-center gap-2 rounded-full border px-4 py-2 text-center text-sm font-semibold ${
+                    className={`mb-2 flex w-full items-center justify-center gap-2 rounded-full border px-3.5 py-1.5 text-center text-[12.5px] font-medium ${
                       isLandingLight
                         ? "border-emerald-900/10 bg-white/60 text-emerald-950"
                         : "border-white/8 bg-white/6 text-white/85"
@@ -308,19 +316,25 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
                 {user ? (
                   <div className="flex flex-col gap-2">
                     {displayName ? (
-                      <span className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-center text-sm font-medium text-white/90">
+                      <span
+                        className={`rounded-full border px-3.5 py-1.5 text-center text-[12.5px] font-medium ${
+                          isLandingLight
+                            ? "border-emerald-900/10 bg-white/60 text-emerald-950"
+                            : "border-white/10 bg-white/6 text-white/90"
+                        }`}
+                      >
                         {displayName}
                       </span>
                     ) : null}
                     <button
                       onClick={handleDashboard}
-                      className="rounded-full bg-[#4ade80] px-4 py-2 text-sm font-semibold text-[#140d09]"
+                      className="rounded-full bg-[#4ade80] px-3.5 py-1.5 text-[12.5px] font-semibold text-[#140d09]"
                     >
                       Dashboard
                     </button>
                     <button
                       onClick={handleLogout}
-                      className={`rounded-full border px-4 py-2 text-sm font-semibold ${
+                      className={`rounded-full border px-3.5 py-1.5 text-[12.5px] font-semibold ${
                         isLandingLight
                           ? "border-red-200 bg-red-50 text-red-700"
                           : "border-red-400/25 bg-red-500/12 text-red-200"
@@ -335,7 +349,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
                       setIsMenuOpen(false);
                       navigate("/login");
                     }}
-                    className={`landing-login-button w-full rounded-full border px-5 py-3 text-sm font-semibold uppercase ${
+                    className={`landing-login-button w-full rounded-full border px-4 py-2 text-[12.5px] font-semibold uppercase tracking-[0.1em] ${
                       isLandingLight
                         ? "bg-emerald-950 text-white"
                         : "bg-white/80 text-[#174914]"
