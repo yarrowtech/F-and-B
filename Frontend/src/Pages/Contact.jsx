@@ -6,7 +6,7 @@ import PublicPageShell from "../components/PublicPageShell";
 void motion;
 
 const contactCards = [
-  { title: "Email", value: "contact@efnbmmsgmail.com", icon: <FaEnvelope /> },
+  { title: "Email", value: "yarrowtech@yarrowtech.in", icon: <FaEnvelope /> },
   { title: "Phone", value: "+91 98305 90929", icon: <FaPhoneAlt /> },
   { title: "Location", value: "3A, Bertram Street, Esplanade, Kolkata 700087", icon: <FaMapMarkerAlt /> },
 ];
