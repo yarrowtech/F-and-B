@@ -92,6 +92,26 @@ const vendorOrderItemSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    receiptStatus: {
+      type: String,
+      enum: ["pending", "received", "mismatch", "returned"],
+      default: "pending",
+    },
+    returnedQuantity: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    mismatchReason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    returnReason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
   },
   { _id: false }
 );
@@ -250,6 +270,36 @@ const vendorOrderSchema = new mongoose.Schema(
     paidAt: {
       type: Date,
       default: null,
+    },
+    vendorBill: {
+      invoiceNo: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      billDate: {
+        type: Date,
+        default: null,
+      },
+      amount: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
+      notes: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      recordedAt: {
+        type: Date,
+        default: null,
+      },
+      recordedByAdmin: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Admin",
+        default: null,
+      },
     },
   },
   { timestamps: true }

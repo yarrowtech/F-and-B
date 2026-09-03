@@ -322,6 +322,7 @@ const AdminSubscriptionOverview = lazy(() => import("./AdminSubscriptionOverview
 const Account = lazy(() => import("./AdminAccount"));
 const Analytical = lazy(() => import("./AdminAnalytics"));
 const Reports = lazy(() => import("./AdminReports"));
+const AdminSupport = lazy(() => import("./AdminSupport"));
 const Notes = lazy(() => import("./AdminNotes"));
 const Settings = lazy(() => import("./AdminSettings"));
 const Message = lazy(() => import("./AdminMessage"));
@@ -330,7 +331,7 @@ const TableManagement = lazy(() => import("./AdminTableManagement"));
 const AdminVendorDirectory = lazy(() => import("./AdminVendorDirectory"));
 const AdminVendorStorefront = lazy(() => import("./AdminVendorStorefront"));
 
-import { FaBox, FaChartBar, FaHandshake, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList, FaCogs } from "react-icons/fa";
+import { FaBox, FaChartBar, FaHandshake, FaHeadset, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList, FaCogs } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 import API from "../../services/api";
 import {
@@ -449,6 +450,7 @@ const BOTTOM_NAV = [
   { key: "account",    label: "Account",    icon: FaUserCircle },
   { key: "analytical", label: "Analytical", icon: FaChartBar },
   { key: "reports",    label: "Reports",    icon: FaChartBar },
+  { key: "support",    label: "Support",    icon: FaHeadset },
   { key: "notes",      label: "Notes",      icon: FaStickyNote },
   { key: "settings",   label: "Settings",   icon: FaCogs },
 ];
@@ -641,6 +643,9 @@ const Admin = () => {
 
       case "reports":
         return <Reports />;
+
+      case "support":
+        return <AdminSupport />;
 
       case "notes":
         return <Notes />;

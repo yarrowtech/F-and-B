@@ -13,6 +13,8 @@ import axios from "axios";
 import { employeeLogin } from "../../services/employeeAuth.service";
 import { startSession } from "../../services/session.service";
 import { trackAnalyticsEvent } from "../../services/projectAnalytics.service";
+import logoBlack from "../../assets/Images/Logo_black.png";
+import logoWhite from "../../assets/Images/Logo_white.png";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
@@ -641,10 +643,11 @@ export default function StaffLogin() {
 
             <div className="relative max-w-sm">
               <div className="mb-7">
-                <span className="mb-2 block h-12 w-12 rounded-full bg-[#6fbd58]" />
-                <p className={`text-3xl font-black tracking-wide ${isDark ? "text-[#7fc84f]" : "text-[#2f7d2f]"}`}>
-                  EFNBM
-                </p>
+                <img
+                  src={isDark ? logoWhite : logoBlack}
+                  alt="EFNBMMS"
+                  className="h-12 w-auto object-contain"
+                />
               </div>
               <p className={`text-xs font-semibold uppercase tracking-[0.28em] ${isDark ? "text-[#8bd96f]" : "text-[#3e8f4f]"}`}>
                 Restaurant ERP
@@ -669,9 +672,7 @@ export default function StaffLogin() {
                   <FaArrowLeft className="text-xs" />
                   Back
                 </button>
-                <span className="text-sm font-black uppercase tracking-[0.2em] text-[#7fc84f]">
-                  EFNBM
-                </span>
+                <img src={logoWhite} alt="EFNBMMS" className="h-8 w-auto object-contain" />
               </div>
 
               {!showCreateAccount && !showForgotPassword ? (

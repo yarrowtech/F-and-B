@@ -145,6 +145,7 @@ const getInventoryReports = (sections = []) => [
   { title: "All Inventory Report", key: "inventory-report" },
   { title: "Warehouse Inventory Report", key: "warehouse-inventory-report" },
   { title: "Section Inventory Report", key: "section-inventory-report" },
+  { title: "Menu Item Inventory Consumption Report", key: "inventory-menu-usage-report" },
   ...sections.map((section) => ({
     title: `${section.name} Section Inventory Report`,
     key: "section-inventory-report",

@@ -195,6 +195,16 @@ const AdminInventory = ({
   fixedRestaurantId = "",
   fixedRestaurantName = "",
 }) => {
+  const currentUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "null");
+    } catch {
+      return null;
+    }
+  })();
+  const canManageStockApprovals =
+    String(currentUser?.role || "").trim().toLowerCase() === "admin";
+
   const [restaurants, setRestaurants]         = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState(fixedRestaurantId || "");
 
@@ -239,6 +249,7 @@ const AdminInventory = ({
   const [showSectionInventoryPage, setShowSectionInventoryPage] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferForm, setTransferForm]           = useState(emptyTransferForm);
+  const [transferItemSearch, setTransferItemSearch] = useState("");
   const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [transferError, setTransferError]         = useState("");
 
@@ -272,7 +283,12 @@ const AdminInventory = ({
     if (selectedRestaurant) {
       loadInventory(selectedRestaurant);
       loadCategories(selectedRestaurant);
-      loadStockApprovals(selectedRestaurant);
+      if (canManageStockApprovals) {
+        loadStockApprovals(selectedRestaurant);
+      } else {
+        setStockApprovals([]);
+        setShowApprovalModal(false);
+      }
       loadKitchenSections(selectedRestaurant);
       loadLocationStock(selectedRestaurant);
       setLogs([]); setLogsItemName(""); setSearch(""); setCategoryFilter("all");
@@ -282,7 +298,7 @@ const AdminInventory = ({
       setShowSectionInventoryPage(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRestaurant]);
+  }, [selectedRestaurant, canManageStockApprovals]);
 
   const loadInventory = async (rId) => {
     try {
@@ -328,8 +344,22 @@ const AdminInventory = ({
 
   const openTransferModal = () => {
     setTransferForm(emptyTransferForm);
+    setTransferItemSearch("");
     setTransferError("");
     setShowTransferModal(true);
+  };
+
+  const handleTransferItemInputChange = (value) => {
+    setTransferItemSearch(value);
+    const normalized = value.trim().toLowerCase();
+    const matchedItem = inventory.find(
+      (item) => String(item?.name || "").trim().toLowerCase() === normalized
+    );
+
+    setTransferForm((current) => ({
+      ...current,
+      item: matchedItem?._id || "",
+    }));
   };
 
   const handleTransferStock = async (e) => {
@@ -566,6 +596,11 @@ const AdminInventory = ({
     const matchCategory = categoryFilter === "all" || itemCategory === categoryFilter;
     return matchSearch && matchStatus && matchCategory;
   });
+  const filteredTransferItems = inventory.filter((item) =>
+    String(item?.name || "")
+      .toLowerCase()
+      .includes(transferItemSearch.trim().toLowerCase())
+  );
 
   const totalItems = inventory.length;
   const lowCount   = inventory.filter((i) => i.quantity <= i.lowStockThreshold).length;
@@ -587,6 +622,19 @@ const AdminInventory = ({
       row.sections.find((s) => String(s.section?._id) === locationFilter)?.quantity || 0;
     return { ...row.item, locationQty: qty };
   });
+  const sectionItems = locationRows.filter((item) => Number(item.locationQty || 0) > 0);
+  const sectionTotalItems = sectionItems.length;
+  const sectionLowCount = sectionItems.filter(
+    (item) => Number(item.locationQty || 0) <= Number(item.lowStockThreshold || 0)
+  ).length;
+  const sectionOkCount = sectionTotalItems - sectionLowCount;
+  const sectionInventoryValue = sectionItems.reduce(
+    (sum, item) =>
+      sum +
+      Number(item.locationQty || 0) *
+        Number(item.averageCost || item.unitCost || 0),
+    0
+  );
   const filteredLocationRows = locationRows.filter((item) => {
     const matchSearch = item.name.toLowerCase().includes(sectionSearch.toLowerCase()) ||
       (item.category || "").toLowerCase().includes(sectionSearch.toLowerCase());
@@ -629,7 +677,7 @@ const AdminInventory = ({
           </div>
         </div>
 
-        {selectedRestaurant && (
+        {selectedRestaurant && !showSectionInventoryPage && (
           <div className="space-y-2">
             <div className="grid gap-2 sm:grid-cols-3">
               <SummaryCard label="In Stock" value={okCount} hint={`${totalItems} total items`} tone="emerald" />
@@ -637,18 +685,60 @@ const AdminInventory = ({
               <SummaryCard label="Inventory Value" value={formatCurrency(totalInventoryValue)} hint="Current stock cost value" tone="slate" />
             </div>
 
-            <div className="flex items-start justify-start">
-              <button
-                type="button"
-                onClick={() => setShowApprovalModal(true)}
-                className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/40"
-              >
-                <span>Stock Approvals</span>
-                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:bg-gray-800 dark:text-amber-300">
-                  {approvalLoading ? "..." : stockApprovals.length}
-                </span>
-              </button>
+            {canManageStockApprovals ? (
+              <div className="flex items-start justify-start">
+                <button
+                  type="button"
+                  onClick={() => setShowApprovalModal(true)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/40"
+                >
+                  <span>Stock Approvals</span>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:bg-gray-800 dark:text-amber-300">
+                    {approvalLoading ? "..." : stockApprovals.length}
+                  </span>
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {selectedRestaurant && showSectionInventoryPage && (
+          <div className="space-y-2">
+            <div className="grid gap-2 sm:grid-cols-3">
+              <SummaryCard
+                label="In Stock"
+                value={sectionOkCount}
+                hint={`${sectionTotalItems} issued items`}
+                tone="emerald"
+              />
+              <SummaryCard
+                label="Low Stock"
+                value={sectionLowCount}
+                hint="Needs section restock attention"
+                tone="rose"
+              />
+              <SummaryCard
+                label="Inventory Value"
+                value={formatCurrency(sectionInventoryValue)}
+                hint="Current section stock cost value"
+                tone="slate"
+              />
             </div>
+
+            {canManageStockApprovals ? (
+              <div className="flex items-start justify-start">
+                <button
+                  type="button"
+                  onClick={() => setShowApprovalModal(true)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/40"
+                >
+                  <span>Stock Approvals</span>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:bg-gray-800 dark:text-amber-300">
+                    {approvalLoading ? "..." : stockApprovals.length}
+                  </span>
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -1019,7 +1109,7 @@ const AdminInventory = ({
         </Modal>
       )}
 
-      {showApprovalModal && (
+      {canManageStockApprovals && showApprovalModal && (
         <Modal
           title="Pending Stock Approvals"
           accent="bg-gradient-to-r from-amber-500 to-orange-500"
@@ -1236,7 +1326,7 @@ const AdminInventory = ({
 
       {/* TRANSFER STOCK MODAL */}
       {showTransferModal && (
-        <Modal title="Transfer Stock" accent="bg-emerald-600" onClose={() => { setTransferError(""); setShowTransferModal(false); }}>
+        <Modal title="Transfer Stock" accent="bg-emerald-600" onClose={() => { setTransferError(""); setTransferItemSearch(""); setShowTransferModal(false); }}>
           <form onSubmit={handleTransferStock} className="space-y-4">
             {transferError ? (
               <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
@@ -1265,15 +1355,20 @@ const AdminInventory = ({
               </div>
             </Field>
             <Field label="Item">
-              <select
-                value={transferForm.item}
-                onChange={(e) => setTransferForm((f) => ({ ...f, item: e.target.value }))}
+              <input
+                type="text"
+                value={transferItemSearch}
+                onChange={(e) => handleTransferItemInputChange(e.target.value)}
+                placeholder="Select item"
+                list="transfer-item-options"
                 className={inputCls}
                 required
-              >
-                <option value="">Select item</option>
-                {inventory.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}
-              </select>
+              />
+              <datalist id="transfer-item-options">
+                {filteredTransferItems.map((item) => (
+                  <option key={item._id} value={item.name} />
+                ))}
+              </datalist>
             </Field>
             <Field label="Kitchen Section">
               <select
@@ -1307,7 +1402,7 @@ const AdminInventory = ({
               />
             </Field>
             <div className="grid grid-cols-2 gap-3 pt-2">
-              <button type="button" onClick={() => { setTransferError(""); setShowTransferModal(false); }} className="flex-1 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</button>
+              <button type="button" onClick={() => { setTransferError(""); setTransferItemSearch(""); setShowTransferModal(false); }} className="flex-1 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Cancel</button>
               <button type="submit" disabled={transferSubmitting} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60 transition-colors">{transferSubmitting ? "Transferring..." : "Transfer"}</button>
             </div>
           </form>

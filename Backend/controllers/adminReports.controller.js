@@ -5,6 +5,7 @@ import Bill from "../models/Bill.model.js";
 import Inventory from "../models/Inventory.model.js";
 import InventoryLog from "../models/InventoryLog.model.js";
 import InventoryStock from "../models/InventoryStock.model.js";
+import KitchenSection from "../models/KitchenSection.model.js";
 import KotPrintJob from "../models/KotPrintJob.model.js";
 import Menu from "../models/Menu.model.js";
 import Order from "../models/Order.model.js";
@@ -55,6 +56,7 @@ const REPORTS = [
   ["inventory-report", "All Inventory Report", "inventory", "inventoryStock"],
   ["warehouse-inventory-report", "Warehouse Inventory Report", "inventory", "warehouseInventoryStock"],
   ["section-inventory-report", "Section Inventory Report", "inventory", "sectionInventoryStock"],
+  ["inventory-menu-usage-report", "Menu Item Inventory Consumption Report", "inventory", "inventoryMenuUsageMap"],
   ["liquor-report", "Liquor Report", "operations", "liquorDetail"],
   ["liquor-summary", "Liquor Summary", "operations", "liquorSummary"],
   ["time-periodical-report", "Time Periodical Report", "operations", "hourlySales"],
@@ -76,6 +78,60 @@ const businessDateString = (date = new Date()) =>
     month: "2-digit",
     day: "2-digit",
   }).format(date);
+
+const normalizeOrderCustomization = (value) =>
+  Array.isArray(value)
+    ? value
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+    : [];
+
+const getReportIngredientMultiplier = (ingredientName, customizations = []) => {
+  const name = String(ingredientName || "").toLowerCase();
+  if (!name) return 1;
+  const singularName = name.endsWith("s") ? name.slice(0, -1) : name;
+
+  const notes = normalizeOrderCustomization(customizations).map((item) =>
+    item.toLowerCase()
+  );
+  const mentionsIngredient = (note) =>
+    note.includes(name) || note.includes(singularName);
+
+  if (
+    notes.some(
+      (note) =>
+        mentionsIngredient(note) &&
+        /\b(no|without|remove|skip|less)\b/.test(note)
+    )
+  ) {
+    return 0;
+  }
+
+  if (
+    notes.some(
+      (note) =>
+        mentionsIngredient(note) &&
+        /\b(extra|more|add|double)\b/.test(note)
+    )
+  ) {
+    return 2;
+  }
+
+  return 1;
+};
+
+const formatBusinessDateTime = (value) =>
+  value
+    ? new Date(value).toLocaleString("en-IN", {
+        timeZone: BUSINESS_TIMEZONE,
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : "-";
 
 const parseRange = (query) => {
   const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -1289,6 +1345,7 @@ const runReportDetails = async (context, report, reportData) => {
     "inventoryStock",
     "warehouseInventoryStock",
     "sectionInventoryStock",
+    "inventoryMenuUsageMap",
     "kotAnalysis",
     "cancelledOrders",
   ]);
@@ -2468,6 +2525,176 @@ const runSpecialReport = async (context, report) => {
           ),
           lowStockItems: rows.filter((row) => row.status === "Low").length,
           message: "This report shows the current inventory snapshot for the selected restaurant.",
+        }
+      );
+    }
+    case "inventoryMenuUsageMap": {
+      const bills = await Bill.find(context.billMatch)
+        .select("billNo paidAt updatedAt createdAt complimentaryType complimentaryItems order")
+        .populate({
+          path: "order",
+          select: "orderNo orderType items restaurant",
+          populate: {
+            path: "items.menuItem",
+            select: "name menuCode price courseType cuisine ingredients",
+            populate: {
+              path: "ingredients.item",
+              select: "name category unit averageCost unitCost isActive",
+            },
+          },
+        })
+        .populate("restaurant", "name")
+        .lean();
+
+      const sectionIds = [
+        ...new Set(
+          bills
+            .flatMap((bill) =>
+              Array.isArray(bill.order?.items)
+                ? bill.order.items.map((item) => item?.menuItem?.cuisine)
+                : []
+            )
+            .map((value) => String(value || "").trim())
+            .filter((value) => mongoose.Types.ObjectId.isValid(value))
+        ),
+      ];
+
+      const sections = await KitchenSection.find({
+        _id: { $in: sectionIds },
+      })
+        .select("_id name")
+        .lean();
+      const sectionNameById = new Map(
+        sections.map((section) => [String(section._id), section.name || "-"])
+      );
+
+      const rows = [];
+
+      bills.forEach((bill) => {
+        const complimentaryIds = new Set(
+          Array.isArray(bill.complimentaryItems)
+            ? bill.complimentaryItems.map((item) => String(item))
+            : []
+        );
+
+        const orderItems = Array.isArray(bill.order?.items)
+          ? bill.order.items.filter((item) => item?.status !== "CANCELLED")
+          : [];
+
+        orderItems.forEach((orderItem) => {
+          const menuItem = orderItem?.menuItem;
+          if (!menuItem || !Array.isArray(menuItem.ingredients)) return;
+
+          const menuQuantity = Number(orderItem.quantity || 0);
+          const isComplimentary =
+            bill.complimentaryType === "FULL_ORDER" ||
+            complimentaryIds.has(String(orderItem._id));
+
+          menuItem.ingredients.forEach((ingredient) => {
+            const inventoryItem = ingredient?.item;
+            if (!inventoryItem || inventoryItem.isActive === false) return;
+
+            const multiplier = getReportIngredientMultiplier(
+              inventoryItem.name,
+              orderItem.customization
+            );
+            const quantityPerMenu =
+              Number(ingredient.quantity || 0) * multiplier;
+            const totalInventoryUsed = quantityPerMenu * menuQuantity;
+
+            if (!totalInventoryUsed) return;
+
+            const unitCost = Number(
+              inventoryItem.averageCost || inventoryItem.unitCost || 0
+            );
+
+            rows.push({
+              _sortAt: new Date(
+                bill.paidAt || bill.updatedAt || bill.createdAt || 0
+              ).getTime(),
+              restaurant: bill.restaurant?.name || "Restaurant",
+              billNo: bill.billNo || "-",
+              billDate: formatBusinessDateTime(
+                bill.paidAt || bill.updatedAt || bill.createdAt
+              ),
+              orderNo: bill.order?.orderNo || "-",
+              orderType: bill.order?.orderType || "-",
+              menuItem: menuItem.name || "Menu Item",
+              menuCode: menuItem.menuCode || "-",
+              menuQty: menuQuantity,
+              section:
+                sectionNameById.get(String(menuItem.cuisine || "")) || "-",
+              courseType: menuItem.courseType || "-",
+              inventoryItem: inventoryItem.name || "Inventory Item",
+              inventoryCategory: inventoryItem.category || "-",
+              unit: inventoryItem.unit || "-",
+              quantityPerMenu: money(quantityPerMenu),
+              totalInventoryUsed: money(totalInventoryUsed),
+              inventoryCost: money(totalInventoryUsed * unitCost),
+              complimentary: isComplimentary ? "Yes" : "No",
+              customization:
+                normalizeOrderCustomization(orderItem.customization).join(", ") || "-",
+            });
+          });
+        });
+      });
+
+      rows.sort((left, right) => {
+        if (left._sortAt !== right._sortAt) return right._sortAt - left._sortAt;
+        if (left.menuItem !== right.menuItem) {
+          return left.menuItem.localeCompare(right.menuItem);
+        }
+        return left.inventoryItem.localeCompare(right.inventoryItem);
+      });
+
+      const limitedRows = rows.slice(0, context.limit).map(({ _sortAt, ...row }) => row);
+
+      return reportResponse(
+        report,
+        [
+          "restaurant",
+          "billNo",
+          "billDate",
+          "orderNo",
+          "orderType",
+          "menuItem",
+          "menuCode",
+          "menuQty",
+          "section",
+          "courseType",
+          "inventoryItem",
+          "inventoryCategory",
+          "unit",
+          "quantityPerMenu",
+          "totalInventoryUsed",
+          "inventoryCost",
+          "complimentary",
+          "customization",
+        ],
+        limitedRows,
+        {
+          rows: limitedRows.length,
+          menuItems: new Set(limitedRows.map((row) => row.menuItem)).size,
+          inventoryItems: new Set(
+            limitedRows.map((row) => row.inventoryItem)
+          ).size,
+          totalMenuQty: money(
+            limitedRows.reduce((sum, row) => sum + Number(row.menuQty || 0), 0)
+          ),
+          totalInventoryUsed: money(
+            limitedRows.reduce(
+              (sum, row) => sum + Number(row.totalInventoryUsed || 0),
+              0
+            )
+          ),
+          totalInventoryCost: money(
+            limitedRows.reduce(
+              (sum, row) => sum + Number(row.inventoryCost || 0),
+              0
+            )
+          ),
+          message:
+            "This report shows paid ordered menu items and how much inventory was consumed for each item.",
         }
       );
     }

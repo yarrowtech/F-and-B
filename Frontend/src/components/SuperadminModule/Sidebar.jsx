@@ -9,10 +9,11 @@ import {
   FaEnvelope,
   FaCreditCard,
   FaChartLine,
+  FaTools,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
-const Sidebar = ({ active, setActive }) => {
+const Sidebar = ({ active, setActive, supportPendingCount = 0 }) => {
   const navigate = useNavigate();
 
   const user = JSON.parse(localStorage.getItem("user")) || {};
@@ -27,6 +28,7 @@ const Sidebar = ({ active, setActive }) => {
     { name: "Admin Management",   icon: FaShieldAlt,     key: "admin-management" },
     { name: "Subscription Plans", icon: FaCreditCard,    key: "subscription-management" },
     { name: "Contact Inquiries",  icon: FaEnvelope,      key: "contact-inquiries" },
+    { name: "Support",            icon: FaTools,         key: "support-tickets" },
     { name: "Notes",              icon: FaStickyNote,    key: "notepad" },
   ];
 
@@ -54,6 +56,7 @@ const Sidebar = ({ active, setActive }) => {
       <nav className="flex-1 p-4 overflow-y-auto">
         {menuItems.map(({ name, icon: Icon, key }) => {
           const isActive = active === key;
+          const badgeCount = key === "support-tickets" ? supportPendingCount : 0;
           return (
             <button
               key={key}
@@ -66,7 +69,12 @@ const Sidebar = ({ active, setActive }) => {
                 }`}
             >
               {React.createElement(Icon, { className: "text-lg shrink-0" })}
-              <span>{name}</span>
+              <span className="min-w-0 flex-1 text-left">{name}</span>
+              {badgeCount > 0 && (
+                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold leading-none text-white shadow">
+                  {badgeCount > 99 ? "99+" : badgeCount}
+                </span>
+              )}
             </button>
           );
         })}

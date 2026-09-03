@@ -1069,6 +1069,7 @@ import printAgentRoutes from "./routes/printAgent.routes.js";
 import subscriptionRoutes from "./routes/subscription.Routes.js";
 import vendorSubscriptionRoutes from "./routes/vendorSubscription.Routes.js";
 import projectAnalyticsRoutes from "./routes/projectAnalytics.routes.js";
+import supportTicketRoutes from "./routes/supportTicket.routes.js";
 
 // dashboards
 import adminDashboardRoutes from "./routes/adminDashboard.routes.js";
@@ -1184,6 +1185,7 @@ app.use("/api/print-agent", printAgentRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/vendor-subscriptions", vendorSubscriptionRoutes);
 app.use("/api/project-analytics", projectAnalyticsRoutes);
+app.use("/api/support-tickets", supportTicketRoutes);
 
 // 📊 DASHBOARDS
 app.use("/api/admin-dashboard", adminDashboardRoutes);

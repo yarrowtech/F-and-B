@@ -146,6 +146,76 @@ const buildSessionMeta = (req, body = {}) => {
   };
 };
 
+const isDuplicateKeyError = (error) => Number(error?.code) === 11000;
+
+const buildUpdateDocument = ({
+  setOnInsert = {},
+  set = {},
+  inc = {},
+}) => {
+  const update = {};
+
+  if (Object.keys(setOnInsert).length > 0) {
+    update.$setOnInsert = setOnInsert;
+  }
+
+  if (Object.keys(set).length > 0) {
+    update.$set = set;
+  }
+
+  if (Object.keys(inc).length > 0) {
+    update.$inc = inc;
+  }
+
+  return update;
+};
+
+const upsertAnalyticsSession = async ({
+  sessionId,
+  setOnInsert = {},
+  set = {},
+  inc = {},
+  returnDocument = false,
+}) => {
+  const update = buildUpdateDocument({ setOnInsert, set, inc });
+
+  try {
+    if (returnDocument) {
+      return await ProjectAnalyticsSession.findOneAndUpdate(
+        { sessionId },
+        update,
+        { new: true, upsert: true }
+      );
+    }
+
+    await ProjectAnalyticsSession.updateOne(
+      { sessionId },
+      update,
+      { upsert: true }
+    );
+    return null;
+  } catch (error) {
+    if (!isDuplicateKeyError(error)) {
+      throw error;
+    }
+
+    const fallbackUpdate = buildUpdateDocument({ set, inc });
+
+    if (Object.keys(fallbackUpdate).length > 0) {
+      await ProjectAnalyticsSession.updateOne(
+        { sessionId },
+        fallbackUpdate
+      );
+    }
+
+    if (returnDocument) {
+      return ProjectAnalyticsSession.findOne({ sessionId });
+    }
+
+    return null;
+  }
+};
+
 const incrementSessionDuration = (session) => {
   const end = session.endedAt || session.lastSeenAt || new Date();
   return Math.max(0, end.getTime() - new Date(session.startedAt).getTime());
@@ -1093,29 +1163,24 @@ export const startProjectAnalyticsSession = async (req, res) => {
     const identity = resolveIdentity(req);
     const meta = buildSessionMeta(req, body);
 
-    const session = await ProjectAnalyticsSession.findOneAndUpdate(
-      { sessionId },
-      {
-        $setOnInsert: {
-          sessionId,
-          startedAt: now,
-          entryPath: path,
-          pageViewCount: 0,
-        },
-        $set: {
-          ...identity,
-          ...meta,
-          lastPath: path,
-          lastSeenAt: now,
-          endedAt: null,
-          isActive: true,
-        },
+    const session = await upsertAnalyticsSession({
+      sessionId,
+      setOnInsert: {
+        sessionId,
+        startedAt: now,
+        entryPath: path,
+        pageViewCount: 0,
       },
-      {
-        new: true,
-        upsert: true,
-      }
-    );
+      set: {
+        ...identity,
+        ...meta,
+        lastPath: path,
+        lastSeenAt: now,
+        endedAt: null,
+        isActive: true,
+      },
+      returnDocument: true,
+    });
 
     res.status(201).json({
       success: true,
@@ -1157,31 +1222,25 @@ export const trackProjectPageView = async (req, res) => {
       viewedAt: now,
     });
 
-    await ProjectAnalyticsSession.findOneAndUpdate(
-      { sessionId },
-      {
-        $setOnInsert: {
-          sessionId,
-          startedAt: now,
-          entryPath: path,
-          ...identity,
-          ...meta,
-        },
-        $set: {
-          lastPath: path,
-          lastSeenAt: now,
-          endedAt: null,
-          isActive: true,
-          ...identity,
-        },
-        $inc: {
-          pageViewCount: 1,
-        },
+    await upsertAnalyticsSession({
+      sessionId,
+      setOnInsert: {
+        sessionId,
+        startedAt: now,
+        entryPath: path,
+        ...meta,
       },
-      {
-        upsert: true,
-      }
-    );
+      set: {
+        lastPath: path,
+        lastSeenAt: now,
+        endedAt: null,
+        isActive: true,
+        ...identity,
+      },
+      inc: {
+        pageViewCount: 1,
+      },
+    });
 
     res.status(201).json({ success: true });
   } catch (error) {
@@ -1291,19 +1350,16 @@ export const trackProjectActivityEvent = async (req, res) => {
       updates.loginAt = new Date();
     }
 
-    await ProjectAnalyticsSession.findOneAndUpdate(
-      { sessionId },
-      {
-        $setOnInsert: {
-          sessionId,
-          startedAt: new Date(),
-          entryPath: path,
-          ...identity,
-        },
-        $set: updates,
+    await upsertAnalyticsSession({
+      sessionId,
+      setOnInsert: {
+        sessionId,
+        startedAt: new Date(),
+        entryPath: path,
+        ...identity,
       },
-      { upsert: true }
-    );
+      set: updates,
+    });
 
     res.status(201).json({ success: true });
   } catch (error) {

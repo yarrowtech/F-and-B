@@ -79,7 +79,7 @@ router.get(
 router.get(
   "/stock-approvals",
   auth,
-  allowRoles("admin", "manager", "inventory_manager"),
+  allowRoles("admin"),
   getStockApprovalRequests
 );
 
@@ -87,7 +87,7 @@ router.get(
 router.put(
   "/stock-approvals/:id/approve",
   auth,
-  allowRoles("admin", "manager", "inventory_manager"),
+  allowRoles("admin"),
   approveStockApprovalRequest
 );
 
@@ -95,7 +95,7 @@ router.put(
 router.put(
   "/stock-approvals/:id/reject",
   auth,
-  allowRoles("admin", "manager", "inventory_manager"),
+  allowRoles("admin"),
   rejectStockApprovalRequest
 );
 

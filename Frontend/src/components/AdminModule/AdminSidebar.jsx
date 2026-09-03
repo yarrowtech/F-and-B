@@ -12,6 +12,7 @@ import {
   FaChartBar,
   FaStickyNote,
   FaCogs,
+  FaHeadset,
   FaBars,
   FaTimes,
 } from "react-icons/fa";
@@ -67,6 +68,7 @@ const Sidebar = ({
     { name: "Account",             icon: FaUserCircle,    key: "account" },
     { name: "Analytical",          icon: FaChartBar,      key: "analytical" },
     { name: "Reports",             icon: FaChartBar,      key: "reports" },
+    { name: "Support",             icon: FaHeadset,       key: "support" },
     { name: "Notes",               icon: FaStickyNote,    key: "notes" },
     { name: "Settings",            icon: FaCogs,          key: "settings" },
   ];

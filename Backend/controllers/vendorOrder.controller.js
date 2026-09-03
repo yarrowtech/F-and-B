@@ -11,6 +11,7 @@ import InventoryLog from "../models/InventoryLog.model.js";
 import VendorInventoryLink from "../models/VendorInventoryLink.model.js";
 import { buildWhatsAppChatUrl } from "../utils/whatsapp.service.js";
 import { adjustStockQuantity } from "../utils/inventoryStock.js";
+import { isMailerConfigured, sendVendorOrderBillEmail } from "../utils/mailer.js";
 
 const toObjectId = (value) =>
   mongoose.Types.ObjectId.isValid(value) ? new mongoose.Types.ObjectId(value) : null;
@@ -230,6 +231,15 @@ const toDateOrNull = (value) => {
 const buildSettlementTotals = (orders) =>
   orders.reduce(
     (acc, order) => {
+      const isAdminManagedOrder = order?.vendor?.loginAccess === "not_required";
+      if (isAdminManagedOrder) {
+        const manualBillAmount = normalizePositiveNumber(order?.vendorBill?.amount);
+        acc.grossAmount += manualBillAmount;
+        acc.taxableAmount += manualBillAmount;
+        acc.netPayable += manualBillAmount;
+        return acc;
+      }
+
       const billSummary = getVendorBillSummary(order);
       acc.grossAmount += Number(billSummary.itemsTotal || 0);
       acc.discountAmount += Number(billSummary.discountAmount || 0);
@@ -284,10 +294,9 @@ const buildSettlementResponse = (settlement) => ({
 const getSettlementOrdersQuery = ({ vendorId, restaurantId, fromDate, toDate, orderIds = [] }) => {
   const query = {
     vendor: vendorId,
-    status: { $ne: "cancelled" },
+    status: "completed",
     paymentStatus: { $ne: "paid" },
     settlementStatus: "unsettled",
-    billGeneratedAt: { $ne: null },
   };
 
   if (restaurantId) {
@@ -539,6 +548,7 @@ const buildOrderResponse = (order) => ({
   billSummary: getVendorBillSummary(order),
   delivery: order.billGeneratedAt ? buildVendorDelivery(order) : null,
   inventoryReceipt: buildInventoryReceipt(order),
+  vendorBill: order.vendorBill || null,
 });
 
 const RESTAURANT_VENDOR_ORDER_SELECT =
@@ -823,7 +833,13 @@ export const createVendorOrder = async (req, res) => {
 
     const requestedItems = Array.isArray(req.body.items) ? req.body.items : [];
     if (requestedItems.length === 0) {
-      return res.status(400).json({ success: false, message: "Select at least one product" });
+      return res.status(400).json({
+        success: false,
+        message:
+          vendor.loginAccess === "not_required"
+            ? "Add at least one manual item"
+            : "Select at least one product",
+      });
     }
 
     const restaurant = await Restaurant.findById(restaurantId).select(
@@ -833,92 +849,172 @@ export const createVendorOrder = async (req, res) => {
       return res.status(404).json({ success: false, message: "Restaurant not found" });
     }
 
-    const productIds = requestedItems.map((item) => item.productId).filter(Boolean);
-    const products = await VendorProduct.find({
-      _id: { $in: productIds },
-      vendor: vendorId,
-      isActive: true,
-      isForSale: true,
-    });
-    const productMap = new Map(products.map((product) => [String(product._id), product]));
-
     const orderItems = [];
     let totalAmount = 0;
+    let billing;
 
-    for (const requested of requestedItems) {
-      const product = productMap.get(String(requested.productId));
-      const quantity = Number(requested.quantity);
+    if (vendor.loginAccess === "not_required") {
+      const requestedInventoryIds = requestedItems
+        .map((item) => item?.inventoryItemId)
+        .filter(Boolean)
+        .map(String);
+      const manualInventoryItems = requestedInventoryIds.length
+        ? await Inventory.find({
+            _id: { $in: requestedInventoryIds },
+            restaurant: restaurantId,
+            isActive: true,
+          }).select("name unit")
+        : [];
+      const manualInventoryMap = new Map(
+        manualInventoryItems.map((item) => [String(item._id), item])
+      );
 
-      if (!product) {
-        return res.status(404).json({
-          success: false,
-          message: "One or more selected products are unavailable",
+      for (const requested of requestedItems) {
+        const name = sanitizeText(requested?.name);
+        const quantity = Number(requested?.quantity);
+        const unit = sanitizeText(requested?.unit);
+        const inventoryItemId = sanitizeText(requested?.inventoryItemId);
+        const selectedInventoryItem = inventoryItemId
+          ? manualInventoryMap.get(String(inventoryItemId))
+          : null;
+
+        if (inventoryItemId && !selectedInventoryItem) {
+          return res.status(400).json({
+            success: false,
+            message: `${name || "Selected item"} was not found in this restaurant inventory`,
+          });
+        }
+
+        if (!name) {
+          return res.status(400).json({
+            success: false,
+            message: "Each manual item needs a name",
+          });
+        }
+
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: `Enter a valid quantity for ${name}`,
+          });
+        }
+
+        const normalizedQuantity = roundQuantity(quantity);
+
+        orderItems.push({
+          product: null,
+          name,
+          price: 0,
+          effectivePrice: 0,
+          discountType: "none",
+          discountValue: 0,
+          discountAmount: 0,
+          unit,
+          inventoryUnit: "",
+          quantity: normalizedQuantity,
+          stockDeductionQuantity: 0,
+          buyingPrice: 0,
+          costAmount: 0,
+          lineTotal: 0,
+          inventoryLinkedItem: selectedInventoryItem?._id || null,
         });
       }
 
-      if (!Number.isInteger(quantity) || quantity < 1) {
-        return res.status(400).json({
-          success: false,
-          message: `Enter a valid quantity for ${product.name}`,
-        });
-      }
-
-      const availableOrderQuantity = getAvailableOrderQuantity(product);
-
-      if (quantity > availableOrderQuantity) {
-        return res.status(400).json({
-          success: false,
-          message: `Only ${availableOrderQuantity} ${getDisplayUnit(product) || "unit"} of ${product.name} available`,
-        });
-      }
-
-      const orderPackQuantity = getOrderPackQuantity(product);
-      const stockDeductionQuantity =
-        (quantity * orderPackQuantity) / normalizeConversionFactor(product.orderUnitsPerStockUnit);
-      const pricing = getProductDiscountSummary(product, quantity);
-      const lineTotal = product.price * quantity;
-      const costAmount = Number(product.buyingPrice || 0) * stockDeductionQuantity;
-
-      orderItems.push({
-        product: product._id,
-        name: product.name,
-        price: product.price,
-        effectivePrice: pricing.effectivePrice,
-        discountType: pricing.discountType,
-        discountValue: pricing.discountValue,
-        discountAmount: pricing.totalDiscountAmount,
-        unit: getDisplayUnit(product),
-        inventoryUnit: String(product.stockUnit || product.unit || "").trim(),
-        quantity,
-        stockDeductionQuantity,
-        buyingPrice: Number(product.buyingPrice || 0),
-        costAmount,
-        lineTotal,
+      totalAmount = roundMoney(totalAmount);
+      billing = calculateVendorBillSummary({
+        itemsTotal: totalAmount,
+        restaurantTemplate: restaurant.billingTemplate || {},
+        discountAmount: 0,
+        discountType: "none",
+        discountValue: 0,
+        discountSource: "manual",
       });
-      totalAmount += lineTotal;
-    }
+    } else {
+      const productIds = requestedItems.map((item) => item.productId).filter(Boolean);
+      const products = await VendorProduct.find({
+        _id: { $in: productIds },
+        vendor: vendorId,
+        isActive: true,
+        isForSale: true,
+      });
+      const productMap = new Map(products.map((product) => [String(product._id), product]));
 
-    const vendorDiscountAmount = roundMoney(
-      orderItems.reduce((sum, item) => sum + Number(item.discountAmount || 0), 0)
-    );
+      for (const requested of requestedItems) {
+        const product = productMap.get(String(requested.productId));
+        const quantity = Number(requested.quantity);
 
-    const billing = calculateVendorBillSummary({
-      itemsTotal: totalAmount,
-      restaurantTemplate: restaurant.billingTemplate || {},
-      discountAmount: vendorDiscountAmount,
-      discountType: vendorDiscountAmount > 0 ? "amount" : "none",
-      discountValue: vendorDiscountAmount,
-      discountSource: vendorDiscountAmount > 0 ? "vendor_catalog" : "none",
-    });
+        if (!product) {
+          return res.status(404).json({
+            success: false,
+            message: "One or more selected products are unavailable",
+          });
+        }
 
-    await Promise.all(
-      orderItems.map((item) =>
-        VendorProduct.updateOne(
-          { _id: item.product },
-          { $inc: { stock: -Number(item.stockDeductionQuantity || 0) } }
+        if (!Number.isInteger(quantity) || quantity < 1) {
+          return res.status(400).json({
+            success: false,
+            message: `Enter a valid quantity for ${product.name}`,
+          });
+        }
+
+        const availableOrderQuantity = getAvailableOrderQuantity(product);
+
+        if (quantity > availableOrderQuantity) {
+          return res.status(400).json({
+            success: false,
+            message: `Only ${availableOrderQuantity} ${getDisplayUnit(product) || "unit"} of ${product.name} available`,
+          });
+        }
+
+        const orderPackQuantity = getOrderPackQuantity(product);
+        const stockDeductionQuantity =
+          (quantity * orderPackQuantity) /
+          normalizeConversionFactor(product.orderUnitsPerStockUnit);
+        const pricing = getProductDiscountSummary(product, quantity);
+        const lineTotal = product.price * quantity;
+        const costAmount = Number(product.buyingPrice || 0) * stockDeductionQuantity;
+
+        orderItems.push({
+          product: product._id,
+          name: product.name,
+          price: product.price,
+          effectivePrice: pricing.effectivePrice,
+          discountType: pricing.discountType,
+          discountValue: pricing.discountValue,
+          discountAmount: pricing.totalDiscountAmount,
+          unit: getDisplayUnit(product),
+          inventoryUnit: String(product.stockUnit || product.unit || "").trim(),
+          quantity,
+          stockDeductionQuantity,
+          buyingPrice: Number(product.buyingPrice || 0),
+          costAmount,
+          lineTotal,
+        });
+        totalAmount += lineTotal;
+      }
+
+      const vendorDiscountAmount = roundMoney(
+        orderItems.reduce((sum, item) => sum + Number(item.discountAmount || 0), 0)
+      );
+
+      billing = calculateVendorBillSummary({
+        itemsTotal: totalAmount,
+        restaurantTemplate: restaurant.billingTemplate || {},
+        discountAmount: vendorDiscountAmount,
+        discountType: vendorDiscountAmount > 0 ? "amount" : "none",
+        discountValue: vendorDiscountAmount,
+        discountSource: vendorDiscountAmount > 0 ? "vendor_catalog" : "none",
+      });
+
+      await Promise.all(
+        orderItems.map((item) =>
+          VendorProduct.updateOne(
+            { _id: item.product },
+            { $inc: { stock: -Number(item.stockDeductionQuantity || 0) } }
+          )
         )
-      )
-    );
+      );
+    }
 
     const order = await VendorOrder.create({
       vendor: vendorId,
@@ -1322,6 +1418,257 @@ export const receiveVendorOrderStock = async (req, res) => {
   }
 };
 
+export const receiveAdminManagedVendorOrder = async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+    const order = await VendorOrder.findOne({
+      _id: req.params.orderId,
+      vendor: vendorId,
+    })
+      .populate("vendor", "name loginAccess")
+      .populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can receive manual vendor orders",
+      });
+    }
+
+    const allowed = await canAccessRestaurantForVendor(
+      req,
+      vendorId,
+      order.restaurant?._id || order.restaurant
+    );
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    if (order.vendor?.loginAccess !== "not_required") {
+      return res.status(400).json({
+        success: false,
+        message: "Manual receiving is only for no-login vendors",
+      });
+    }
+
+    if (order.status === "cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Cancelled orders cannot be received",
+      });
+    }
+
+    if (order.status === "completed") {
+      return res.status(400).json({
+        success: false,
+        message: "This order has already been received",
+      });
+    }
+
+    const submittedItems = Array.isArray(req.body.items) ? req.body.items : [];
+    if (submittedItems.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Add received item details",
+      });
+    }
+
+    const restaurantId = order.restaurant?._id || order.restaurant;
+    const submittedInventoryIds = submittedItems
+      .map((item) => item?.inventoryItemId)
+      .filter(Boolean)
+      .map(String);
+    const existingInventoryIds = order.items
+      .map((item) => item.inventoryLinkedItem?._id || item.inventoryLinkedItem?.id || item.inventoryLinkedItem)
+      .filter(Boolean)
+      .map(String);
+    const inventoryIds = [...new Set([...submittedInventoryIds, ...existingInventoryIds])];
+    const inventoryItems = inventoryIds.length
+      ? await Inventory.find({
+          _id: { $in: inventoryIds },
+          restaurant: restaurantId,
+          isActive: true,
+        }).select("name unit quantity averageCost unitCost")
+      : [];
+    const inventoryMap = new Map(inventoryItems.map((item) => [String(item._id), item]));
+    const now = new Date();
+    const receivedSummary = [];
+    const issueSummary = [];
+
+    for (const submittedItem of submittedItems) {
+      const itemIndex = Number(submittedItem?.itemIndex);
+      if (!Number.isInteger(itemIndex) || itemIndex < 0 || itemIndex >= order.items.length) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid received item row",
+        });
+      }
+
+      const orderItem = order.items[itemIndex];
+      const orderedQuantity = roundQuantity(Number(orderItem.quantity || 0));
+      const receivedQuantity = roundQuantity(Number(submittedItem?.receivedQuantity || 0));
+      const returnedQuantity = roundQuantity(Number(submittedItem?.returnedQuantity || 0));
+      const inventoryItemId = sanitizeText(
+        submittedItem?.inventoryItemId ||
+          orderItem.inventoryLinkedItem?._id ||
+          orderItem.inventoryLinkedItem?.id ||
+          orderItem.inventoryLinkedItem ||
+          ""
+      );
+      const mismatchReason = sanitizeText(submittedItem?.mismatchReason);
+      const returnReason = sanitizeText(submittedItem?.returnReason);
+
+      if (receivedQuantity < 0 || returnedQuantity < 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Received and returned quantity cannot be negative for ${orderItem.name}`,
+        });
+      }
+
+      if (roundQuantity(receivedQuantity + returnedQuantity) > orderedQuantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Received plus returned quantity cannot be more than ordered quantity for ${orderItem.name}`,
+        });
+      }
+
+      if (receivedQuantity > 0 && !inventoryItemId) {
+        return res.status(400).json({
+          success: false,
+          message: `Select inventory item for ${orderItem.name}`,
+        });
+      }
+
+      const inventoryItem = inventoryItemId ? inventoryMap.get(String(inventoryItemId)) : null;
+      if (receivedQuantity > 0 && !inventoryItem) {
+        return res.status(400).json({
+          success: false,
+          message: `${orderItem.name} inventory item was not found for this restaurant`,
+        });
+      }
+
+      const shortageQuantity = roundQuantity(orderedQuantity - receivedQuantity - returnedQuantity);
+      const receiptStatus =
+        returnedQuantity >= orderedQuantity && receivedQuantity === 0
+          ? "returned"
+          : shortageQuantity > 0 || returnedQuantity > 0
+            ? "mismatch"
+            : "received";
+
+      if (receiptStatus === "mismatch" && !mismatchReason && returnedQuantity < orderedQuantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Enter mismatch reason for ${orderItem.name}`,
+        });
+      }
+
+      if ((receiptStatus === "returned" || returnedQuantity > 0) && !returnReason) {
+        return res.status(400).json({
+          success: false,
+          message: `Enter return reason for ${orderItem.name}`,
+        });
+      }
+
+      if (receivedQuantity > 0 && inventoryItem) {
+        const previousQuantity = Number(inventoryItem.quantity || 0);
+        const unitCost = normalizePositiveNumber(
+          inventoryItem.lastPurchasePrice || inventoryItem.averageCost || inventoryItem.unitCost
+        );
+
+        await adjustStockQuantity({
+          restaurant: restaurantId,
+          item: inventoryItem._id,
+          locationType: "WAREHOUSE",
+          delta: receivedQuantity,
+        });
+
+        inventoryItem.quantity = roundQuantity(previousQuantity + receivedQuantity);
+        inventoryItem.lastUpdatedBy = req.user.id;
+        await inventoryItem.save();
+
+        await InventoryLog.create({
+          item: inventoryItem._id,
+          restaurant: restaurantId,
+          quantityAdded: receivedQuantity,
+          previousQuantity,
+          newQuantity: Number(inventoryItem.quantity || 0),
+          unit: inventoryItem.unit,
+          action: "ADD",
+          unitCost,
+          totalCost: roundMoney(receivedQuantity * unitCost),
+          previousAverageCost: normalizePositiveNumber(inventoryItem.averageCost || inventoryItem.unitCost),
+          newAverageCost: normalizePositiveNumber(inventoryItem.averageCost || inventoryItem.unitCost),
+          reason: `Manual vendor order received from ${order.vendor?.name || "vendor"} for ${order.orderNo}`,
+          addedBy: req.user.id,
+          addedByName: req.user.name || "",
+          effectiveDate: now,
+          locationType: "WAREHOUSE",
+        });
+
+        receivedSummary.push({
+          name: orderItem.name,
+          inventoryItem: inventoryItem.name,
+          quantity: receivedQuantity,
+        });
+      }
+
+      if (receiptStatus !== "received") {
+        issueSummary.push({
+          name: orderItem.name,
+          orderedQuantity,
+          receivedQuantity,
+          returnedQuantity,
+          shortageQuantity,
+          status: receiptStatus,
+        });
+      }
+
+      orderItem.inventoryLinkedItem = inventoryItem?._id || orderItem.inventoryLinkedItem || null;
+      orderItem.inventoryReceivedQuantity = receivedQuantity;
+      orderItem.returnedQuantity = returnedQuantity;
+      orderItem.mismatchReason = receiptStatus === "mismatch" ? mismatchReason : "";
+      orderItem.returnReason = returnedQuantity > 0 || receiptStatus === "returned" ? returnReason : "";
+      orderItem.receiptStatus = receiptStatus;
+      orderItem.inventoryReceivedAt = now;
+    }
+
+    order.status = "completed";
+    order.completedAt = now;
+    order.vendorBill = {
+      invoiceNo: sanitizeText(req.body.vendorBill?.invoiceNo),
+      billDate: req.body.vendorBill?.billDate ? new Date(req.body.vendorBill.billDate) : null,
+      amount: normalizePositiveNumber(req.body.vendorBill?.amount),
+      notes: sanitizeText(req.body.vendorBill?.notes),
+      recordedAt: now,
+      recordedByAdmin: req.user.id,
+    };
+
+    await order.save();
+    await order.populate("vendor", "name email phone loginAccess");
+    await order.populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT);
+    await order.populate(ORDER_SETTLEMENT_POPULATE);
+
+    return res.json({
+      success: true,
+      message:
+        issueSummary.length > 0
+          ? "Order received with mismatch/return details"
+          : "Order received and inventory updated",
+      order: buildOrderResponse(order),
+      summary: {
+        receivedItems: receivedSummary,
+        issues: issueSummary,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const generateVendorOrderBill = async (req, res) => {
   try {
     const vendorId = req.params.id;
@@ -1360,6 +1707,77 @@ export const generateVendorOrderBill = async (req, res) => {
   }
 };
 
+export const sendVendorOrderEmail = async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+    const allowed = await canAccessVendorOrders(req, vendorId);
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    if (!isMailerConfigured()) {
+      return res.status(400).json({
+        success: false,
+        message: "SMTP is not configured, so order email cannot be sent",
+      });
+    }
+
+    const order = await VendorOrder.findOne({ _id: req.params.orderId, vendor: vendorId })
+      .populate("vendor", "name email phone vendorId loginAccess")
+      .populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT);
+    await order?.populate?.(ORDER_SETTLEMENT_POPULATE);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    if (order.status === "cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Cancelled orders cannot be emailed",
+      });
+    }
+
+    const vendorEmail = sanitizeText(order.vendor?.email);
+    if (!vendorEmail) {
+      return res.status(400).json({
+        success: false,
+        message: "Vendor email is missing",
+      });
+    }
+
+    const isAdminManagedVendor = order.vendor?.loginAccess === "not_required";
+
+    if (!isAdminManagedVendor && !order.billGeneratedAt) {
+      order.billGeneratedAt = new Date();
+      await order.save();
+    }
+
+    try {
+      await sendVendorOrderBillEmail({
+        to: vendorEmail,
+        vendorName: order.vendor?.name,
+        order,
+        billSummary: getVendorBillSummary(order),
+        publicBillUrl: isAdminManagedVendor ? "" : buildVendorPublicBillPdfUrl(order._id),
+        isOrderSheet: isAdminManagedVendor,
+      });
+    } catch (mailError) {
+      return res.status(400).json({
+        success: false,
+        message: mailError?.message || "Order email could not be sent",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `Order ${isAdminManagedVendor ? "sheet" : "bill"} emailed to ${vendorEmail}`,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const previewVendorSettlement = async (req, res) => {
   try {
     const vendorId = req.params.id;
@@ -1382,7 +1800,8 @@ export const previewVendorSettlement = async (req, res) => {
       });
     }
 
-    const orders = await VendorOrder.find(
+    const orders = (
+      await VendorOrder.find(
       getSettlementOrdersQuery({
         vendorId,
         restaurantId: restaurantId || null,
@@ -1391,9 +1810,14 @@ export const previewVendorSettlement = async (req, res) => {
         orderIds,
       })
     )
-      .populate("vendor", "name email phone vendorId")
+      .populate("vendor", "name email phone vendorId loginAccess")
       .populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT)
-      .sort({ createdAt: 1 });
+      .sort({ createdAt: 1 })
+    ).filter((order) =>
+      order.vendor?.loginAccess === "not_required"
+        ? normalizePositiveNumber(order.vendorBill?.amount) > 0
+        : Boolean(order.billGeneratedAt)
+    );
 
     const totals = normalizeSettlementTotals(buildSettlementTotals(orders));
 
@@ -1442,7 +1866,8 @@ export const createVendorSettlement = async (req, res) => {
       });
     }
 
-    const orders = await VendorOrder.find(
+    const orders = (
+      await VendorOrder.find(
       getSettlementOrdersQuery({
         vendorId,
         restaurantId: restaurantId || null,
@@ -1451,9 +1876,14 @@ export const createVendorSettlement = async (req, res) => {
         orderIds,
       })
     )
-      .populate("vendor", "name email phone vendorId")
+      .populate("vendor", "name email phone vendorId loginAccess")
       .populate("restaurant", RESTAURANT_VENDOR_ORDER_SELECT)
-      .sort({ createdAt: 1 });
+      .sort({ createdAt: 1 })
+    ).filter((order) =>
+      order.vendor?.loginAccess === "not_required"
+        ? normalizePositiveNumber(order.vendorBill?.amount) > 0
+        : Boolean(order.billGeneratedAt)
+    );
 
     if (orders.length === 0) {
       return res.status(400).json({
@@ -1487,12 +1917,12 @@ export const createVendorSettlement = async (req, res) => {
     );
 
     const populatedSettlement = await VendorSettlement.findById(settlement._id)
-      .populate("vendor", "name email phone vendorId")
+      .populate("vendor", "name email phone vendorId loginAccess")
       .populate("restaurant", "name restaurantCode")
       .populate({
         path: "orders",
         populate: [
-          { path: "vendor", select: "name email phone vendorId" },
+          { path: "vendor", select: "name email phone vendorId loginAccess" },
           { path: "restaurant", select: RESTAURANT_VENDOR_ORDER_SELECT },
         ],
       });
@@ -1516,12 +1946,12 @@ export const getVendorSettlements = async (req, res) => {
     }
 
     const settlements = await VendorSettlement.find({ vendor: vendorId })
-      .populate("vendor", "name email phone vendorId")
+      .populate("vendor", "name email phone vendorId loginAccess")
       .populate("restaurant", "name restaurantCode")
       .populate({
         path: "orders",
         populate: [
-          { path: "vendor", select: "name email phone vendorId" },
+          { path: "vendor", select: "name email phone vendorId loginAccess" },
           { path: "restaurant", select: RESTAURANT_VENDOR_ORDER_SELECT },
         ],
       })
@@ -1591,7 +2021,7 @@ export const payVendorSettlement = async (req, res) => {
     );
 
     const populatedSettlement = await VendorSettlement.findById(settlement._id)
-      .populate("vendor", "name email phone vendorId")
+      .populate("vendor", "name email phone vendorId loginAccess")
       .populate("restaurant", "name restaurantCode")
       .populate({
         path: "orders",
@@ -1788,7 +2218,9 @@ export default {
   generateVendorOrderBill,
   updateVendorOrderPayment,
   receiveVendorOrderStock,
+  receiveAdminManagedVendorOrder,
   generateVendorOrderPdf,
   generateVendorOrderPublicPdf,
+  sendVendorOrderEmail,
   getAdminOrderHistory,
 };

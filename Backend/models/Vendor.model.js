@@ -85,6 +85,12 @@ const vendorSchema = new mongoose.Schema(
       default: "local",
       index: true,
     },
+    loginAccess: {
+      type: String,
+      enum: ["required", "not_required"],
+      default: "required",
+      index: true,
+    },
     createdByRole: {
       type: String,
       enum: ["admin", "super_admin", "self_signup"],

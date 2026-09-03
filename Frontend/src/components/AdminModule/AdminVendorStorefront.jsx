@@ -4,6 +4,8 @@ import {
   CheckCircle2,
   History,
   Link2,
+  Mail,
+  MessageCircle,
   Minus,
   Package,
   Plus,
@@ -35,6 +37,8 @@ const sanitizeRate = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 };
+
+const normalizePhoneDigits = (phone) => String(phone || "").replace(/\D/g, "");
 
 const roundMoney = (value) => Number(Number(value || 0).toFixed(2));
 const getProductEffectivePrice = (product) => Number(product?.effectivePrice ?? product?.price ?? 0);
@@ -73,6 +77,11 @@ const getOrderBillSummary = (order) =>
     totalAmount: Number(order?.totalAmount || 0),
     showTaxBreakup: false,
   };
+
+const getSettlementOrderAmount = (order) =>
+  order?.vendor?.loginAccess === "not_required"
+    ? Number(order?.vendorBill?.amount || 0)
+    : Number(getOrderBillSummary(order).totalAmount || 0);
 
 const getCartBillSummary = ({ cartItems, billingTemplate }) => {
   const normalizedItems = Array.isArray(cartItems) ? cartItems : [];
@@ -138,17 +147,168 @@ const escapeHtml = (value) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
-const buildReceiptPrintHtml = ({ order, vendor, billSummary }) => {
+const buildOrderShareMessage = (order, vendor) => {
+  const billSummary = getOrderBillSummary(order);
+  const isAdminManagedVendor = vendor?.loginAccess === "not_required";
+  const restaurantName = order?.restaurant?.name || "Restaurant";
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const itemLines = items
+    .map(
+      (item, index) =>
+        `${index + 1}. ${item?.name || "Item"}${item?.unit ? ` (${item.unit})` : ""} x ${
+          item?.quantity || 0
+        }${isAdminManagedVendor ? "" : ` = ${formatCurrency(Number(item?.price || 0) * Number(item?.quantity || 0))}`}`
+    )
+    .join("\n");
+
+  return [
+    `Hello ${vendor?.name || "Vendor"},`,
+    `${restaurantName} has placed a new order.`,
+    `Order No: ${order?.orderNo || "-"}`,
+    `Date: ${formatDateTime(order?.createdAt)}`,
+    "",
+    "Items:",
+    itemLines || "No items",
+    "",
+    ...(isAdminManagedVendor ? [] : [`Grand Total: ${formatCurrency(billSummary.totalAmount)}`]),
+  ].join("\n");
+};
+
+const buildOrderWhatsAppUrl = (phone, message) => {
+  const digits = normalizePhoneDigits(phone);
+  if (!digits) return "";
+
+  const normalized = digits.length === 10 ? `91${digits}` : digits;
+  return `https://wa.me/${normalized}?text=${encodeURIComponent(message)}`;
+};
+
+const buildOrderEmailUrl = (email, order, vendor) => {
+  const trimmedEmail = String(email || "").trim();
+  if (!trimmedEmail) return "";
+
+  const subject = `Vendor Order Sheet ${order?.orderNo || ""}`.trim();
+  const body = buildOrderShareMessage(order, vendor);
+  return `mailto:${encodeURIComponent(trimmedEmail)}?subject=${encodeURIComponent(
+    subject
+  )}&body=${encodeURIComponent(body)}`;
+};
+
+const createManualOrderItem = () => ({
+  id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  inventoryItemId: "",
+  name: "",
+  unit: "",
+  quantity: "1",
+});
+
+function ManualInventoryPicker({ item, options, onSelect }) {
+  const selectedInventoryItem = useMemo(
+    () =>
+      options.find(
+        (inventoryItem) =>
+          String(inventoryItem.id || inventoryItem._id) === String(item.inventoryItemId)
+      ),
+    [item.inventoryItemId, options]
+  );
+  const [query, setQuery] = useState(selectedInventoryItem?.name || "");
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    setQuery(selectedInventoryItem?.name || "");
+  }, [selectedInventoryItem]);
+
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return options;
+
+    return options.filter((inventoryItem) =>
+      [inventoryItem.name, inventoryItem.unit, inventoryItem.category]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedQuery)
+    );
+  }, [options, query]);
+
+  return (
+    <div className="relative">
+      <Search
+        size={15}
+        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+      />
+      <input
+        value={query}
+        onChange={(event) => {
+          const nextQuery = event.target.value;
+          setQuery(nextQuery);
+          setIsOpen(true);
+
+          if (!nextQuery.trim()) {
+            onSelect("");
+          }
+        }}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
+        placeholder="Search inventory item"
+        className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+      />
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-xl dark:border-neutral-700 dark:bg-neutral-800">
+          {filteredOptions.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-gray-400">No inventory item found</p>
+          ) : (
+            filteredOptions.map((inventoryItem) => {
+              const inventoryItemId = inventoryItem.id || inventoryItem._id;
+              const isSelected = String(inventoryItemId) === String(item.inventoryItemId);
+
+              return (
+                <button
+                  key={inventoryItemId}
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    onSelect(inventoryItemId);
+                    setQuery(inventoryItem.name || "");
+                    setIsOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition ${
+                    isSelected
+                      ? "bg-green-50 font-semibold text-green-700 dark:bg-green-950/30 dark:text-green-300"
+                      : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-neutral-700"
+                  }`}
+                >
+                  <span className="truncate">{inventoryItem.name}</span>
+                  {inventoryItem.unit && (
+                    <span className="shrink-0 text-xs text-gray-400">{inventoryItem.unit}</span>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const buildManualReceiptItem = (item, itemIndex) => ({
+  itemIndex,
+  inventoryItemId: item.inventoryLinkedItem?._id || item.inventoryLinkedItem?.id || item.inventoryLinkedItem || "",
+  receivedQuantity: String(item.inventoryReceivedQuantity ?? item.quantity ?? ""),
+  returnedQuantity: String(item.returnedQuantity ?? 0),
+  mismatchReason: item.mismatchReason || "",
+  returnReason: item.returnReason || "",
+});
+
+const buildReceiptPrintHtml = ({ order, vendor, billSummary, isAdminManagedVendor }) => {
+  const documentLabel = isAdminManagedVendor ? "Order Sheet" : "Vendor Bill";
   const itemRows = (Array.isArray(order?.items) ? order.items : [])
     .map(
       (item) => `
         <tr>
           <td>${escapeHtml(item?.name || "")}${item?.unit ? ` <span class="muted">(${escapeHtml(item.unit)})</span>` : ""}</td>
           <td class="right">${escapeHtml(item?.quantity || 0)}</td>
-          <td class="right">${escapeHtml(formatCurrency(item?.price || 0))}</td>
-          <td class="right strong">${escapeHtml(
-            formatCurrency(Number(item?.price || 0) * Number(item?.quantity || 0))
-          )}</td>
+          ${isAdminManagedVendor ? "" : `<td class="right">${escapeHtml(formatCurrency(item?.price || 0))}</td><td class="right strong">${escapeHtml(formatCurrency(Number(item?.price || 0) * Number(item?.quantity || 0)))}</td>`}
         </tr>
       `
     )
@@ -181,7 +341,7 @@ const buildReceiptPrintHtml = ({ order, vendor, billSummary }) => {
   <html lang="en">
     <head>
       <meta charset="UTF-8" />
-      <title>${escapeHtml(order?.orderNo || "Vendor Bill")}</title>
+      <title>${escapeHtml(order?.orderNo || documentLabel)}</title>
       <style>
         * { box-sizing: border-box; }
         body {
@@ -301,7 +461,7 @@ const buildReceiptPrintHtml = ({ order, vendor, billSummary }) => {
         <h1>${escapeHtml(order?.orderNo || "")}</h1>
 
         <div class="meta">
-          <span>Bill No: ${escapeHtml(order?.orderNo || "")}</span>
+          <span>${documentLabel === "Order Sheet" ? "Order No" : "Bill No"}: ${escapeHtml(order?.orderNo || "")}</span>
           <span>${escapeHtml(formatDateTime(order?.createdAt))}</span>
         </div>
 
@@ -320,14 +480,13 @@ const buildReceiptPrintHtml = ({ order, vendor, billSummary }) => {
             <tr>
               <th>Item</th>
               <th class="right">Qty</th>
-              <th class="right">Price</th>
-              <th class="right">Total</th>
+              ${isAdminManagedVendor ? "" : '<th class="right">Price</th><th class="right">Total</th>'}
             </tr>
           </thead>
           <tbody>${itemRows}</tbody>
         </table>
 
-        <div class="summary">
+        ${isAdminManagedVendor ? "" : `<div class="summary">
           <div class="summary-row">
             <span>Subtotal</span>
             <span class="strong">${escapeHtml(formatCurrency(billSummary.itemsTotal))}</span>
@@ -342,16 +501,18 @@ const buildReceiptPrintHtml = ({ order, vendor, billSummary }) => {
             <span>Grand Total</span>
             <span>${escapeHtml(formatCurrency(billSummary.totalAmount))}</span>
           </div>
-        </div>
+        </div>`}
       </div>
     </body>
   </html>`;
 };
 
-function ReceiptModal({ order, vendor, onClose }) {
+function ReceiptModal({ order, vendor, onShareWhatsApp, onShareEmail, onClose }) {
   if (!order) return null;
 
   const billSummary = getOrderBillSummary(order);
+  const isAdminManagedVendor = vendor?.loginAccess === "not_required";
+  const documentLabel = isAdminManagedVendor ? "Order Sheet" : "Bill";
 
   const handlePrint = () => {
     const printWindow = window.open("", "_blank", "width=900,height=700");
@@ -361,7 +522,9 @@ function ReceiptModal({ order, vendor, onClose }) {
     }
 
     printWindow.document.open();
-    printWindow.document.write(buildReceiptPrintHtml({ order, vendor, billSummary }));
+    printWindow.document.write(
+      buildReceiptPrintHtml({ order, vendor, billSummary, isAdminManagedVendor })
+    );
     printWindow.document.close();
     printWindow.focus();
     printWindow.onload = () => {
@@ -393,7 +556,7 @@ function ReceiptModal({ order, vendor, onClose }) {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           <div className="mb-4 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-            <span>Bill No: {order.orderNo}</span>
+              <span>{isAdminManagedVendor ? "Order No" : "Bill No"}: {order.orderNo}</span>
             <span>{formatDateTime(order.createdAt)}</span>
           </div>
           <div className="mb-4 rounded-2xl border border-gray-100 bg-gray-50/70 px-4 py-3 text-sm dark:border-neutral-700 dark:bg-neutral-900/40">
@@ -411,8 +574,8 @@ function ReceiptModal({ order, vendor, onClose }) {
               <tr>
                 <th className="pb-2 text-left font-medium">Item</th>
                 <th className="pb-2 text-right font-medium">Qty</th>
-                <th className="pb-2 text-right font-medium">Price</th>
-                <th className="pb-2 text-right font-medium">Total</th>
+                {!isAdminManagedVendor && <th className="pb-2 text-right font-medium">Price</th>}
+                {!isAdminManagedVendor && <th className="pb-2 text-right font-medium">Total</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
@@ -425,18 +588,22 @@ function ReceiptModal({ order, vendor, onClose }) {
                   <td className="py-2 text-right text-gray-600 dark:text-gray-300">
                     {item.quantity}
                   </td>
-                  <td className="py-2 text-right text-gray-600 dark:text-gray-300">
-                    {formatCurrency(item.price)}
-                  </td>
-                  <td className="py-2 text-right font-medium text-gray-900 dark:text-gray-100">
-                    {formatCurrency(item.price * item.quantity)}
-                  </td>
+                  {!isAdminManagedVendor && (
+                    <td className="py-2 text-right text-gray-600 dark:text-gray-300">
+                      {formatCurrency(item.price)}
+                    </td>
+                  )}
+                  {!isAdminManagedVendor && (
+                    <td className="py-2 text-right font-medium text-gray-900 dark:text-gray-100">
+                      {formatCurrency(item.price * item.quantity)}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
 
-          <div className="mt-5 rounded-2xl border border-green-100 bg-green-50/70 p-4 dark:border-green-900 dark:bg-green-950/20">
+          {!isAdminManagedVendor && <div className="mt-5 rounded-2xl border border-green-100 bg-green-50/70 p-4 dark:border-green-900 dark:bg-green-950/20">
             <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
               <span>Subtotal</span>
               <span className="font-semibold text-gray-900 dark:text-gray-100">
@@ -486,10 +653,22 @@ function ReceiptModal({ order, vendor, onClose }) {
                 {formatCurrency(billSummary.totalAmount)}
               </span>
             </div>
-          </div>
+          </div>}
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-gray-100 bg-white px-6 py-4 dark:border-neutral-700 dark:bg-neutral-800 print:hidden">
+        <div className="flex flex-wrap justify-end gap-3 border-t border-gray-100 bg-white px-6 py-4 dark:border-neutral-700 dark:bg-neutral-800 print:hidden">
+          <button
+            onClick={() => onShareWhatsApp?.(order)}
+            className="inline-flex items-center gap-2 rounded-xl border border-green-200 px-4 py-2.5 text-sm font-semibold text-green-700 transition hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-950/30"
+          >
+            <MessageCircle size={15} /> WhatsApp
+          </button>
+          <button
+            onClick={() => onShareEmail?.(order)}
+            className="inline-flex items-center gap-2 rounded-xl border border-blue-200 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+          >
+            <Mail size={15} /> Email
+          </button>
           <button
             onClick={onClose}
             className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-neutral-700"
@@ -500,7 +679,7 @@ function ReceiptModal({ order, vendor, onClose }) {
             onClick={handlePrint}
             className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700"
           >
-            <Printer size={15} /> Print Bill
+            <Printer size={15} /> Print {documentLabel}
           </button>
         </div>
       </div>
@@ -524,10 +703,12 @@ function SettlementModal({ vendorId, orders, onClose, onRefresh, notify }) {
     () =>
       (Array.isArray(orders) ? orders : []).filter(
         (order) =>
-          order.billGeneratedAt &&
-          order.status !== "cancelled" &&
+          order.status === "completed" &&
           order.paymentStatus !== "paid" &&
-          order.settlementStatus !== "settled"
+          order.settlementStatus !== "settled" &&
+          (order?.vendor?.loginAccess === "not_required"
+            ? Number(order?.vendorBill?.amount || 0) > 0
+            : Boolean(order.billGeneratedAt))
       ),
     [orders]
   );
@@ -546,7 +727,7 @@ function SettlementModal({ vendorId, orders, onClose, onRefresh, notify }) {
 
     return {
       orders: matched,
-      total: matched.reduce((sum, order) => sum + Number(getOrderBillSummary(order).totalAmount || 0), 0),
+      total: matched.reduce((sum, order) => sum + getSettlementOrderAmount(order), 0),
     };
   }, [unpaidBilledOrders, fromDate, toDate]);
 
@@ -700,7 +881,7 @@ function SettlementModal({ vendorId, orders, onClose, onRefresh, notify }) {
               <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
                 {preview.orders.length === 0 ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    No billed unpaid orders in this period.
+                    No payable unpaid orders in this period.
                   </p>
                 ) : (
                   preview.orders.map((order) => (
@@ -715,7 +896,7 @@ function SettlementModal({ vendorId, orders, onClose, onRefresh, notify }) {
                         </p>
                       </div>
                       <span className="font-semibold text-gray-900 dark:text-gray-100">
-                        {formatCurrency(getOrderBillSummary(order).totalAmount)}
+                        {formatCurrency(getSettlementOrderAmount(order))}
                       </span>
                     </div>
                   ))
@@ -1015,6 +1196,264 @@ function InventoryLinkModal({
   );
 }
 
+function AdminManagedReceiveModal({
+  order,
+  inventoryItems,
+  receivingOrderId,
+  onSubmit,
+  onClose,
+}) {
+  const [items, setItems] = useState([]);
+  const [vendorBill, setVendorBill] = useState({
+    invoiceNo: "",
+    billDate: "",
+    amount: "",
+    notes: "",
+  });
+
+  useEffect(() => {
+    if (!order) return;
+
+    setItems(
+      (Array.isArray(order.items) ? order.items : []).map((item, index) =>
+        buildManualReceiptItem(item, index)
+      )
+    );
+    setVendorBill({
+      invoiceNo: order.vendorBill?.invoiceNo || "",
+      billDate: order.vendorBill?.billDate
+        ? new Date(order.vendorBill.billDate).toISOString().slice(0, 10)
+        : "",
+      amount: order.vendorBill?.amount ? String(order.vendorBill.amount) : "",
+      notes: order.vendorBill?.notes || "",
+    });
+  }, [order]);
+
+  if (!order) return null;
+
+  const updateReceiptItem = (itemIndex, field, value) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.itemIndex === itemIndex ? { ...item, [field]: value } : item
+      )
+    );
+  };
+
+  const getReceiptLabel = (sourceItem, receiptItem) => {
+    const orderedQuantity = Number(sourceItem.quantity || 0);
+    const receivedQuantity = Number(receiptItem.receivedQuantity || 0);
+    const returnedQuantity = Number(receiptItem.returnedQuantity || 0);
+
+    if (returnedQuantity >= orderedQuantity && receivedQuantity === 0) {
+      return "Return";
+    }
+
+    if (receivedQuantity + returnedQuantity !== orderedQuantity || returnedQuantity > 0) {
+      return "Mismatch";
+    }
+
+    return "Received";
+  };
+
+  const handleSubmit = () => {
+    onSubmit({
+      items,
+      vendorBill,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-neutral-800">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5 dark:border-neutral-700">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-green-600 dark:text-green-400">
+              Receive Manual Order
+            </p>
+            <h2 className="mt-1 text-xl font-bold text-gray-900 dark:text-gray-100">
+              {order.orderNo}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {order.restaurant?.name || "Restaurant"} · Check received, return, and mismatch quantity
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <div className="space-y-3">
+            {(Array.isArray(order.items) ? order.items : []).map((sourceItem, index) => {
+              const receiptItem = items.find((item) => item.itemIndex === index) || buildManualReceiptItem(sourceItem, index);
+              const receiptLabel = getReceiptLabel(sourceItem, receiptItem);
+              const needsMismatchReason = receiptLabel === "Mismatch";
+              const needsReturnReason = Number(receiptItem.returnedQuantity || 0) > 0 || receiptLabel === "Return";
+
+              return (
+                <div
+                  key={`${order.id}-${index}`}
+                  className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-900/30"
+                >
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-gray-100">
+                        {sourceItem.name}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Ordered {sourceItem.quantity}
+                        {sourceItem.unit ? ` ${sourceItem.unit}` : ""}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        receiptLabel === "Received"
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                          : receiptLabel === "Return"
+                            ? "bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300"
+                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                      }`}
+                    >
+                      {receiptLabel}
+                    </span>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-300">
+                        Received qty
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={receiptItem.receivedQuantity}
+                        onChange={(event) =>
+                          updateReceiptItem(index, "receivedQuantity", event.target.value)
+                        }
+                        placeholder="Received qty"
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-300">
+                        Return qty
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={receiptItem.returnedQuantity}
+                        onChange={(event) =>
+                          updateReceiptItem(index, "returnedQuantity", event.target.value)
+                        }
+                        placeholder="Return qty"
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                      />
+                    </label>
+                    <input
+                      value={needsReturnReason ? receiptItem.returnReason : receiptItem.mismatchReason}
+                      onChange={(event) =>
+                        updateReceiptItem(
+                          index,
+                          needsReturnReason ? "returnReason" : "mismatchReason",
+                          event.target.value
+                        )
+                      }
+                      placeholder={needsReturnReason ? "Return reason" : needsMismatchReason ? "Mismatch reason" : "Note optional"}
+                      className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                    />
+                  </div>
+                  {needsMismatchReason && needsReturnReason && (
+                    <input
+                      value={receiptItem.mismatchReason}
+                      onChange={(event) =>
+                        updateReceiptItem(index, "mismatchReason", event.target.value)
+                      }
+                      placeholder="Mismatch reason"
+                      className="mt-3 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              Vendor Bill Record
+            </h3>
+            <div className="mt-3 grid gap-3 md:grid-cols-4">
+              <input
+                value={vendorBill.invoiceNo}
+                onChange={(event) =>
+                  setVendorBill((prev) => ({ ...prev, invoiceNo: event.target.value }))
+                }
+                placeholder="Invoice no"
+                className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+              />
+              <input
+                type="date"
+                value={vendorBill.billDate}
+                onChange={(event) =>
+                  setVendorBill((prev) => ({ ...prev, billDate: event.target.value }))
+                }
+                className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={vendorBill.amount}
+                onChange={(event) =>
+                  setVendorBill((prev) => ({ ...prev, amount: event.target.value }))
+                }
+                placeholder="Bill amount"
+                className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+              />
+              <input
+                value={vendorBill.notes}
+                onChange={(event) =>
+                  setVendorBill((prev) => ({ ...prev, notes: event.target.value }))
+                }
+                placeholder="Notes"
+                className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 px-6 py-4 dark:border-neutral-700">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-neutral-700"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={receivingOrderId === order.id}
+            className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {receivingOrderId === order.id ? (
+              <RefreshCw size={15} className="animate-spin" />
+            ) : (
+              <CheckCircle2 size={15} />
+            )}
+            {receivingOrderId === order.id ? "Saving..." : "Mark Received"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VendorOrderHistoryModal({
   vendor,
   orders,
@@ -1023,9 +1462,14 @@ function VendorOrderHistoryModal({
   onUpdateStatus,
   onManageLinks,
   onReceiveStock,
+  onReceiveManualOrder,
   onViewBill,
+  onShareWhatsApp,
+  onShareEmail,
   onClose,
 }) {
+  const isAdminManagedVendor = vendor?.loginAccess === "not_required";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
       <div className="flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-neutral-800">
@@ -1061,7 +1505,9 @@ function VendorOrderHistoryModal({
                     <th className="px-4 py-3 text-left font-medium">Restaurant</th>
                     <th className="px-4 py-3 text-left font-medium">Date</th>
                     <th className="px-4 py-3 text-left font-medium">Items</th>
-                    <th className="px-4 py-3 text-left font-medium">Total</th>
+                    {!isAdminManagedVendor && (
+                      <th className="px-4 py-3 text-left font-medium">Total</th>
+                    )}
                     <th className="px-4 py-3 text-left font-medium">Status</th>
                     <th className="px-4 py-3 text-left font-medium">Action</th>
                   </tr>
@@ -1070,8 +1516,8 @@ function VendorOrderHistoryModal({
                   {orders.map((order) => (
                     <tr
                       key={order.id}
-                      onClick={() => onViewBill(order)}
-                      className="cursor-pointer transition hover:bg-gray-50 dark:hover:bg-neutral-700/40"
+                      onClick={() => !isAdminManagedVendor && onViewBill(order)}
+                      className={isAdminManagedVendor ? "transition hover:bg-gray-50 dark:hover:bg-neutral-700/40" : "cursor-pointer transition hover:bg-gray-50 dark:hover:bg-neutral-700/40"}
                     >
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-blue-600 dark:text-blue-300">
                         {order.orderNo}
@@ -1085,14 +1531,76 @@ function VendorOrderHistoryModal({
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
                         {order.items.length} item(s)
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
-                        {formatCurrency(getOrderBillSummary(order).totalAmount)}
-                      </td>
+                      {!isAdminManagedVendor && (
+                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
+                          {formatCurrency(getOrderBillSummary(order).totalAmount)}
+                        </td>
+                      )}
                       <td className="px-4 py-3">
                         <OrderStatusPill status={order.status} />
                       </td>
                       <td className="px-4 py-3">
-                        {!isVendorInventoryIntegrationEnabledForRestaurant(order.restaurant) ? (
+                        {isAdminManagedVendor ? (
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onViewBill(order);
+                              }}
+                              className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
+                            >
+                              View Order Sheet
+                            </button>
+                            {order.status !== "completed" && order.status !== "cancelled" && (
+                              <>
+                                <button
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    onReceiveManualOrder(order);
+                                  }}
+                                  disabled={receivingOrderId === order.id}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-2.5 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-50 disabled:opacity-60 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-950/30"
+                                >
+                                  <Package size={12} />
+                                  {receivingOrderId === order.id ? "Receiving..." : "Receive Order"}
+                                </button>
+                                <button
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    onUpdateStatus(order, "cancelled");
+                                  }}
+                                  disabled={updatingOrderId === order.id}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
+                                >
+                                  <XCircle size={12} /> Cancel
+                                </button>
+                              </>
+                            )}
+                            {order.status === "completed" && (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-green-100 px-2.5 py-1.5 text-xs font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                                <CheckCircle2 size={12} /> Received
+                              </span>
+                            )}
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onShareWhatsApp(order);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-2.5 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-950/30"
+                            >
+                              <MessageCircle size={12} /> WhatsApp
+                            </button>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onShareEmail(order);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+                            >
+                              <Mail size={12} /> Email
+                            </button>
+                          </div>
+                        ) : !isVendorInventoryIntegrationEnabledForRestaurant(order.restaurant) ? (
                           <div className="flex flex-wrap gap-2">
                             <span className="inline-flex items-center rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-600 dark:bg-neutral-700 dark:text-gray-300">
                               Manual Inventory
@@ -1105,6 +1613,24 @@ function VendorOrderHistoryModal({
                               className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
                             >
                               View Bill
+                            </button>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onShareWhatsApp(order);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-2.5 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-950/30"
+                            >
+                              <MessageCircle size={12} /> WhatsApp
+                            </button>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onShareEmail(order);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+                            >
+                              <Mail size={12} /> Email
                             </button>
                           </div>
                         ) : order.status === "ready" ? (
@@ -1139,6 +1665,24 @@ function VendorOrderHistoryModal({
                             >
                               <XCircle size={12} /> Cancel
                             </button>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onShareWhatsApp(order);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-2.5 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-950/30"
+                            >
+                              <MessageCircle size={12} /> WhatsApp
+                            </button>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onShareEmail(order);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+                            >
+                              <Mail size={12} /> Email
+                            </button>
                           </div>
                         ) : order.status === "processing" ? (
                           <div className="flex flex-wrap gap-2">
@@ -1160,6 +1704,24 @@ function VendorOrderHistoryModal({
                               className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
                             >
                               <XCircle size={12} /> Cancel
+                            </button>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onShareWhatsApp(order);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-2.5 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-950/30"
+                            >
+                              <MessageCircle size={12} /> WhatsApp
+                            </button>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onShareEmail(order);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+                            >
+                              <Mail size={12} /> Email
                             </button>
                           </div>
                         ) : (
@@ -1202,6 +1764,24 @@ function VendorOrderHistoryModal({
                             >
                               View Bill
                             </button>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onShareWhatsApp(order);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-2.5 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-950/30"
+                            >
+                              <MessageCircle size={12} /> WhatsApp
+                            </button>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onShareEmail(order);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+                            >
+                              <Mail size={12} /> Email
+                            </button>
                           </div>
                         )}
                       </td>
@@ -1226,6 +1806,7 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [productSearch, setProductSearch] = useState("");
   const [cart, setCart] = useState({});
+  const [manualOrderItems, setManualOrderItems] = useState([createManualOrderItem()]);
   const [selectedRestaurantId, setSelectedRestaurantId] = useState("");
   const [placingOrder, setPlacingOrder] = useState(false);
   const [receiptOrder, setReceiptOrder] = useState(null);
@@ -1234,16 +1815,24 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
   const [updatingOrderId, setUpdatingOrderId] = useState("");
   const [receivingOrderId, setReceivingOrderId] = useState("");
   const [linkOrder, setLinkOrder] = useState(null);
+  const [manualReceiptOrder, setManualReceiptOrder] = useState(null);
   const [inventoryItems, setInventoryItems] = useState([]);
+  const [manualInventoryOptions, setManualInventoryOptions] = useState([]);
   const [linksByProductId, setLinksByProductId] = useState({});
   const [savingLinkProductId, setSavingLinkProductId] = useState("");
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
+  const [sendSuccessMessage, setSendSuccessMessage] = useState("");
 
   const notify = (text, error = false) => {
     setIsError(error);
     setMessage(text);
     window.setTimeout(() => setMessage(""), 3500);
+  };
+
+  const showSendSuccess = (text) => {
+    setSendSuccessMessage(text);
+    window.setTimeout(() => setSendSuccessMessage(""), 3500);
   };
 
   const loadData = async () => {
@@ -1308,6 +1897,8 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
       : [assignmentVendor.primaryRestaurant].filter(Boolean);
   }, [assignmentVendor]);
 
+  const isAdminManagedVendor = vendor?.loginAccess === "not_required";
+
   useEffect(() => {
     const handleVendorInventorySettingsUpdated = (event) => {
       const changedRestaurantId = String(event?.detail?.restaurantId || "");
@@ -1335,6 +1926,34 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignedRestaurants, vendorId]);
+
+  useEffect(() => {
+    if (!isAdminManagedVendor || !selectedRestaurantId) {
+      setManualInventoryOptions([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadManualInventory = async () => {
+      try {
+        const items = await getInventory(selectedRestaurantId);
+        if (cancelled) return;
+        setManualInventoryOptions(
+          [...items].sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || "")))
+        );
+      } catch {
+        if (cancelled) return;
+        setManualInventoryOptions([]);
+      }
+    };
+
+    loadManualInventory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdminManagedVendor, selectedRestaurantId]);
 
   const selectedRestaurant = assignedRestaurants.find(
     (restaurant) => restaurant._id === selectedRestaurantId
@@ -1369,6 +1988,24 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
     [cartItems, selectedRestaurant]
   );
 
+  const manualPreviewItems = useMemo(
+    () =>
+      manualOrderItems
+        .map((item) => {
+          const quantity = Number(item.quantity || 0);
+          return {
+            ...item,
+            quantity,
+          };
+        })
+        .filter(
+          (item) =>
+            String(item.name || "").trim() ||
+            Number(item.quantity || 0) > 0
+        ),
+    [manualOrderItems]
+  );
+
   const setQuantity = (product, quantity) => {
     const maxOrderQuantity = Number(product.availableOrderQuantity ?? 0);
     const clamped = Math.max(0, Math.min(quantity, maxOrderQuantity));
@@ -1388,28 +2025,159 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
     });
   };
 
+  const addManualOrderRow = () => {
+    setManualOrderItems((prev) => [...prev, createManualOrderItem()]);
+  };
+
+  const updateManualOrderRow = (rowId, field, value) => {
+    setManualOrderItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== rowId) return item;
+
+        if (field === "inventoryItemId") {
+          const selectedInventoryItem = manualInventoryOptions.find(
+            (inventoryItem) => String(inventoryItem.id || inventoryItem._id) === String(value)
+          );
+
+          return {
+            ...item,
+            inventoryItemId: value,
+            name: selectedInventoryItem?.name || "",
+            unit: selectedInventoryItem?.unit || "",
+          };
+        }
+
+        return { ...item, [field]: value };
+      })
+    );
+  };
+
+  const removeManualOrderRow = (rowId) => {
+    setManualOrderItems((prev) =>
+      prev.length === 1 ? [createManualOrderItem()] : prev.filter((item) => item.id !== rowId)
+    );
+  };
+
   const handlePlaceOrder = async () => {
-    if (cartItems.length === 0 || !selectedRestaurantId) return;
+    if (!selectedRestaurantId) return;
 
     try {
       setPlacingOrder(true);
-      const payload = {
-        restaurantId: selectedRestaurantId,
-        items: cartItems.map((item) => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-        })),
-      };
+      const payload = isAdminManagedVendor
+        ? {
+            restaurantId: selectedRestaurantId,
+            items: manualPreviewItems.map((item) => ({
+              inventoryItemId: item.inventoryItemId,
+              name: String(item.name || "").trim(),
+              unit: String(item.unit || "").trim(),
+              quantity: Number(item.quantity || 0),
+            })),
+          }
+        : {
+            restaurantId: selectedRestaurantId,
+            items: cartItems.map((item) => ({
+              productId: item.product.id,
+              quantity: item.quantity,
+            })),
+          };
+
+      if (isAdminManagedVendor) {
+        if (payload.items.length === 0) {
+          notify("Add at least one manual item", true);
+          return;
+        }
+
+        const invalidItem = payload.items.find(
+          (item) => !item.name || !Number.isFinite(item.quantity) || item.quantity <= 0
+        );
+        if (invalidItem) {
+          notify("Each manual item needs a name and valid quantity", true);
+          return;
+        }
+      } else if (cartItems.length === 0) {
+        notify("Add products to place an order", true);
+        return;
+      }
+
       const res = await API.post(`/vendor/${sourceVendorId}/orders`, payload);
       const order = res.data?.order;
       notify("Order placed successfully");
       setCart({});
+      setManualOrderItems([createManualOrderItem()]);
       setReceiptOrder(order);
       loadData();
     } catch (error) {
       notify(error?.response?.data?.message || "Failed to place order", true);
     } finally {
       setPlacingOrder(false);
+    }
+  };
+
+  const handleShareOrderWhatsApp = (order) => {
+    const url = buildOrderWhatsAppUrl(
+      vendor?.phone,
+      buildOrderShareMessage(order, vendor)
+    );
+
+    if (!url) {
+      notify("Vendor WhatsApp number is missing or invalid", true);
+      return;
+    }
+
+    window.open(url, "_blank", "noopener,noreferrer");
+    showSendSuccess("Order sheet opened in WhatsApp. Press Send to deliver it.");
+  };
+
+  const handleShareOrderEmail = (order) => {
+    API.post(`/vendor/${sourceVendorId}/orders/${order.id}/send-email`)
+      .then((res) => {
+        showSendSuccess(res.data?.message || "Order sheet sent successfully by email.");
+      })
+      .catch((error) => {
+        const fallbackUrl = buildOrderEmailUrl(vendor?.email, order, vendor);
+        if (fallbackUrl) {
+          window.location.href = fallbackUrl;
+          showSendSuccess("Order sheet opened in your email app. Press Send to deliver it.");
+          return;
+        }
+
+        notify(error?.response?.data?.message || "Failed to send order email", true);
+      });
+  };
+
+  const handleOpenManualReceipt = async (order) => {
+    const restaurantId = order?.restaurant?._id || order?.restaurant?.id || selectedRestaurantId;
+    if (!restaurantId) {
+      notify("Restaurant not found for this order", true);
+      return;
+    }
+
+    try {
+      const loadedInventory = await getInventory(restaurantId);
+      setInventoryItems(loadedInventory);
+      setManualReceiptOrder(order);
+      setShowOrderHistory(false);
+    } catch {
+      notify("Failed to load restaurant inventory", true);
+    }
+  };
+
+  const handleSubmitManualReceipt = async (payload) => {
+    if (!manualReceiptOrder?.id) return;
+
+    try {
+      setReceivingOrderId(manualReceiptOrder.id);
+      const res = await API.put(
+        `/vendor/${sourceVendorId}/orders/${manualReceiptOrder.id}/manual-receipt`,
+        payload
+      );
+      notify(res.data?.message || "Order received successfully");
+      setManualReceiptOrder(null);
+      await loadData();
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to receive manual order", true);
+    } finally {
+      setReceivingOrderId("");
     }
   };
 
@@ -1643,6 +2411,148 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
         </div>
       )}
 
+      {sendSuccessMessage && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-2xl dark:bg-neutral-800">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-950/50 dark:text-green-300">
+              <CheckCircle2 size={30} />
+            </div>
+            <h2 className="mt-4 text-xl font-bold text-gray-900 dark:text-gray-100">
+              Sent Successfully
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
+              {sendSuccessMessage}
+            </p>
+            <button
+              type="button"
+              onClick={() => setSendSuccessMessage("")}
+              className="mt-6 w-full rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isAdminManagedVendor && (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  Manual Order
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Add items manually and send the order to this vendor through WhatsApp.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={addManualOrderRow}
+                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-neutral-700"
+              >
+                <Plus size={15} /> Add Item
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {manualOrderItems.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-neutral-700 dark:bg-neutral-900/30"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      Item {index + 1}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => removeManualOrderRow(item.id)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 transition hover:text-red-700 dark:text-red-300"
+                    >
+                      <Trash2 size={12} /> Remove
+                    </button>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <ManualInventoryPicker
+                      item={item}
+                      options={manualInventoryOptions}
+                      onSelect={(inventoryItemId) =>
+                        updateManualOrderRow(item.id, "inventoryItemId", inventoryItemId)
+                      }
+                    />
+                    <input
+                      value={item.unit}
+                      onChange={(event) => updateManualOrderRow(item.id, "unit", event.target.value)}
+                      placeholder="Unit"
+                      className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={item.quantity}
+                      onChange={(event) => updateManualOrderRow(item.id, "quantity", event.target.value)}
+                      placeholder="Quantity"
+                      className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:border-neutral-600 dark:bg-neutral-800 dark:text-gray-100"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <aside className="h-fit rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-neutral-700 dark:bg-neutral-800 lg:sticky lg:top-4">
+            <div className="mb-4 flex items-center gap-2">
+              <ShoppingCart size={18} className="text-green-600 dark:text-green-400" />
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Manual Summary ({manualPreviewItems.length})
+              </h2>
+            </div>
+
+            <div className="mb-4 flex items-center gap-2 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300">
+              <Store size={13} />
+              {selectedRestaurant ? `For: ${selectedRestaurant.name}` : "Select a restaurant above"}
+            </div>
+
+            {manualPreviewItems.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-400 dark:border-neutral-700">
+                Add manual items to create an order.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {manualPreviewItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900/30"
+                  >
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
+                      {item.name || "Unnamed item"}
+                    </p>
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      <span>
+                        {item.quantity}
+                        {item.unit ? ` ${item.unit}` : ""}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  onClick={handlePlaceOrder}
+                  disabled={placingOrder || !selectedRestaurantId}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {placingOrder ? <RefreshCw size={15} className="animate-spin" /> : <MessageCircle size={15} />}
+                  {placingOrder ? "Creating Order..." : "Create Manual Order"}
+                </button>
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
+
+      {!isAdminManagedVendor && (
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1901,8 +2811,15 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
           )}
         </aside>
       </div>
+      )}
 
-      <ReceiptModal order={receiptOrder} vendor={vendor} onClose={() => setReceiptOrder(null)} />
+      <ReceiptModal
+        order={receiptOrder}
+        vendor={vendor}
+        onShareWhatsApp={handleShareOrderWhatsApp}
+        onShareEmail={handleShareOrderEmail}
+        onClose={() => setReceiptOrder(null)}
+      />
 
       {showSettlements && (
         <SettlementModal
@@ -1923,11 +2840,24 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
           onUpdateStatus={handleUpdateOrderStatus}
           onManageLinks={loadInventoryLinksForOrder}
           onReceiveStock={handleReceiveOrderStock}
+          onReceiveManualOrder={handleOpenManualReceipt}
+          onShareWhatsApp={handleShareOrderWhatsApp}
+          onShareEmail={handleShareOrderEmail}
           onViewBill={(order) => {
             setReceiptOrder(order);
             setShowOrderHistory(false);
           }}
           onClose={() => setShowOrderHistory(false)}
+        />
+      )}
+
+      {manualReceiptOrder && (
+        <AdminManagedReceiveModal
+          order={manualReceiptOrder}
+          inventoryItems={inventoryItems}
+          receivingOrderId={receivingOrderId}
+          onSubmit={handleSubmitManualReceipt}
+          onClose={() => setManualReceiptOrder(null)}
         />
       )}
 

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { FaMoon, FaSun } from "react-icons/fa";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import logoBlack from "../assets/Images/Logo_black.png";
+import logoWhite from "../assets/Images/Logo_white.png";
 
 const navLinks = [
   { to: "/", label: "Home", sectionId: "hero" },
@@ -169,12 +171,11 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
             to="/"
             className="flex min-w-[76px] flex-col items-center transition duration-300 hover:scale-[1.02] lg:min-w-[112px]"
           >
-            <span className="mb-1 h-7 w-7 rounded-full bg-[#6fbd58] shadow-[0_0_24px_rgba(111,189,88,0.28)] lg:h-8 lg:w-8" />
-            <span className="leading-none">
-              <span className="block text-lg font-black tracking-wide text-[#7fc84f] lg:text-xl">
-                EFNBM
-              </span>
-            </span>
+            <img
+              src={isLandingLight ? logoBlack : logoWhite}
+              alt="EFNBMMS"
+              className="h-9 w-auto object-contain lg:h-10"
+            />
           </Link>
 
           <nav className={`hidden min-w-0 items-center justify-self-center overflow-x-auto rounded-full border px-4 py-2 backdrop-blur-xl lg:flex lg:max-w-full lg:gap-2 lg:px-5 ${navShellClass}`}>

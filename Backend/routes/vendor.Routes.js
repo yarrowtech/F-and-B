@@ -131,9 +131,19 @@ router.put(
   vendorOrderController.receiveVendorOrderStock
 );
 router.put(
+  "/:id/orders/:orderId/manual-receipt",
+  allowRoles("admin", "super_admin"),
+  vendorOrderController.receiveAdminManagedVendorOrder
+);
+router.put(
   "/:id/orders/:orderId/bill",
   allowRoles("admin", "super_admin", "vendor"),
   vendorOrderController.generateVendorOrderBill
+);
+router.post(
+  "/:id/orders/:orderId/send-email",
+  allowRoles("admin", "super_admin"),
+  vendorOrderController.sendVendorOrderEmail
 );
 router.get(
   "/:id/orders/:orderId/pdf",

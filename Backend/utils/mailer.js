@@ -410,4 +410,169 @@ export const sendPasswordResetOtpEmail = async ({
   });
 };
 
+export const sendVendorOrderBillEmail = async ({
+  to,
+  vendorName,
+  order,
+  billSummary,
+  publicBillUrl = "",
+  isOrderSheet = false,
+}) => {
+  const email = String(to || "").trim();
+  if (!email) {
+    throw new Error("Recipient email is required");
+  }
+
+  const transport = getTransporter();
+  const greetingName = vendorName || "Vendor";
+  const restaurantName = String(order?.restaurant?.name || "Restaurant").trim();
+  const orderNo = String(order?.orderNo || "N/A").trim();
+  const orderDate = order?.createdAt
+    ? new Date(order.createdAt).toLocaleString("en-IN", { hour12: true })
+    : "N/A";
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const totalAmount = Number(billSummary?.totalAmount || order?.totalAmount || 0).toFixed(2);
+  const itemsText = items
+    .map((item, index) => {
+      const quantity = Number(item?.quantity || 0);
+      const price = Number(item?.price || 0).toFixed(2);
+      const lineTotal = Number(item?.lineTotal || quantity * Number(item?.price || 0)).toFixed(2);
+      const unit = String(item?.unit || "").trim();
+      return isOrderSheet
+        ? `${index + 1}. ${item?.name || "Item"}${unit ? ` (${unit})` : ""} x ${quantity}`
+        : `${index + 1}. ${item?.name || "Item"}${unit ? ` (${unit})` : ""} x ${quantity} @ Rs.${price} = Rs.${lineTotal}`;
+    })
+    .join("\n");
+
+  const documentLabel = isOrderSheet ? "order sheet" : "vendor order bill";
+  const subject = `${isOrderSheet ? "Vendor Order Sheet" : "Vendor Order Bill"} ${orderNo}`;
+  const text = [
+    documentLabel,
+    "",
+    `Hello ${greetingName},`,
+    "",
+    `${restaurantName} has placed an order for you.`,
+    `Order No: ${orderNo}`,
+    `Order Date: ${orderDate}`,
+    "",
+    "Items:",
+    itemsText || "No items",
+    "",
+    !isOrderSheet ? `Grand Total: Rs.${totalAmount}` : "",
+    publicBillUrl ? "" : "",
+    !isOrderSheet && publicBillUrl ? `Bill PDF: ${publicBillUrl}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const itemRows = items
+    .map((item, index) => {
+      const quantity = Number(item?.quantity || 0);
+      const price = Number(item?.price || 0).toFixed(2);
+      const lineTotal = Number(item?.lineTotal || quantity * Number(item?.price || 0)).toFixed(2);
+      return `
+        <tr>
+          <td style="padding:12px 14px; border-bottom:1px solid #e5e7eb; font-size:14px; color:#111827;">${index + 1}</td>
+          <td style="padding:12px 14px; border-bottom:1px solid #e5e7eb; font-size:14px; color:#111827;">${item?.name || "Item"}</td>
+          <td style="padding:12px 14px; border-bottom:1px solid #e5e7eb; font-size:14px; color:#4b5563;">${item?.unit || "-"}</td>
+          <td style="padding:12px 14px; border-bottom:1px solid #e5e7eb; font-size:14px; color:#111827; text-align:right;">${quantity}</td>
+          ${isOrderSheet ? "" : `<td style="padding:12px 14px; border-bottom:1px solid #e5e7eb; font-size:14px; color:#111827; text-align:right;">Rs.${price}</td><td style="padding:12px 14px; border-bottom:1px solid #e5e7eb; font-size:14px; color:#111827; text-align:right;">Rs.${lineTotal}</td>`}
+        </tr>
+      `;
+    })
+    .join("");
+
+  const html = `
+    <div style="margin:0; padding:36px 18px; background:#f3f7f4; font-family:Arial,Helvetica,sans-serif; color:#111827;">
+      <div style="max-width:760px; margin:0 auto; background:#ffffff; border:1px solid #dfe7e2; border-radius:24px; overflow:hidden; box-shadow:0 12px 32px rgba(15,23,42,0.08);">
+        <div style="background:linear-gradient(135deg,#f3fbf5 0%,#ffffff 52%,#ecfdf3 100%); padding:28px 32px 22px; border-bottom:1px solid #e5e7eb;">
+          <div style="display:inline-block; padding:8px 12px; border-radius:999px; background:#ecfdf3; color:#169c52; font-size:12px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase;">
+            ${isOrderSheet ? "Vendor Order Sheet" : "Vendor Order Bill"}
+          </div>
+          <h1 style="margin:18px 0 10px; font-size:34px; line-height:1.08; font-weight:800; color:#111827;">
+            New order from ${restaurantName}
+          </h1>
+          <p style="margin:0; max-width:620px; font-size:16px; line-height:1.7; color:#4b5563;">
+            ${isOrderSheet ? "Order details are below." : `Order bill details are below${publicBillUrl ? ", and the PDF bill link is included at the bottom." : "."}`}
+          </p>
+        </div>
+
+        <div style="padding:30px 32px 36px;">
+          <p style="margin:0 0 18px; font-size:18px; font-weight:700; color:#111827;">
+            Hello ${greetingName},
+          </p>
+
+          <div style="margin:0 0 22px; display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px;">
+            <div style="padding:16px 18px; border-radius:18px; background:#f8faf9; border:1px solid #e5e7eb;">
+              <p style="margin:0 0 6px; font-size:11px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#6b7280;">Order No</p>
+              <p style="margin:0; font-size:16px; font-weight:700; color:#111827;">${orderNo}</p>
+            </div>
+            <div style="padding:16px 18px; border-radius:18px; background:#f8faf9; border:1px solid #e5e7eb;">
+              <p style="margin:0 0 6px; font-size:11px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#6b7280;">Order Date</p>
+              <p style="margin:0; font-size:16px; font-weight:700; color:#111827;">${orderDate}</p>
+            </div>
+            ${isOrderSheet ? "" : `<div style="padding:16px 18px; border-radius:18px; background:#ecfdf3; border:1px solid #bbf7d0;">
+              <p style="margin:0 0 6px; font-size:11px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#15803d;">Grand Total</p>
+              <p style="margin:0; font-size:18px; font-weight:800; color:#166534;">Rs.${totalAmount}</p>
+            </div>`}
+          </div>
+
+          <div style="margin:0 0 24px; border:1px solid #e5e7eb; border-radius:20px; overflow:hidden;">
+            <table style="width:100%; border-collapse:collapse;">
+              <thead style="background:#f8fafc;">
+                <tr>
+                  <th style="padding:12px 14px; text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">#</th>
+                  <th style="padding:12px 14px; text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">Item</th>
+                  <th style="padding:12px 14px; text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">Unit</th>
+                  <th style="padding:12px 14px; text-align:right; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">Qty</th>
+                  ${isOrderSheet ? "" : `<th style="padding:12px 14px; text-align:right; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">Price</th><th style="padding:12px 14px; text-align:right; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">Total</th>`}
+                </tr>
+              </thead>
+              <tbody>
+                ${itemRows || `
+                  <tr>
+                    <td colspan="6" style="padding:18px; text-align:center; font-size:14px; color:#6b7280;">No items found</td>
+                  </tr>
+                `}
+              </tbody>
+            </table>
+          </div>
+
+          ${
+            !isOrderSheet && publicBillUrl
+              ? `
+                <div style="margin:0 0 20px;">
+                  <a
+                    href="${publicBillUrl}"
+                    style="display:inline-block; background:#16a34a; color:#ffffff; text-decoration:none; padding:16px 24px; border-radius:14px; font-size:15px; font-weight:800; box-shadow:0 10px 18px rgba(22,163,74,0.22);"
+                  >
+                    Open Bill PDF
+                  </a>
+                </div>
+                <p style="margin:0; font-size:13px; line-height:1.7; color:#6b7280; word-break:break-all;">
+            ${publicBillUrl}
+                </p>
+              `
+              : `
+                <p style="margin:0; font-size:14px; line-height:1.7; color:#6b7280;">
+                  Bill details are included in this email.
+                </p>
+              `
+          }
+        </div>
+      </div>
+    </div>
+  `;
+
+  const { mailFrom } = getMailerConfig();
+
+  return transport.sendMail({
+    from: mailFrom,
+    to: email,
+    subject,
+    text,
+    html,
+  });
+};
+
 export { isMailerConfigured };

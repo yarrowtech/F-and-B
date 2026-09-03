@@ -75,6 +75,7 @@ const buildVendorResponse = (vendor, lastOrder = null) => ({
   category: vendor.category,
   role: "vendor",
   vendorType: vendor.vendorType,
+  loginAccess: vendor.loginAccess || "required",
   createdByRole: vendor.createdByRole,
   createdByAdmin: vendor.createdByAdmin,
   createdBySuperAdmin: vendor.createdBySuperAdmin,
@@ -380,6 +381,13 @@ export const loginVendor = async (req, res) => {
       });
     }
 
+    if (vendor.loginAccess === "not_required") {
+      return res.status(403).json({
+        success: false,
+        message: "This vendor profile is admin-managed and does not support vendor login",
+      });
+    }
+
     if (!vendor.isActive) {
       return res.status(403).json({
         success: false,
@@ -418,7 +426,7 @@ export const forgotVendorPassword = async (req, res) => {
       });
     }
 
-    const vendor = await Vendor.findOne({ email }).select("_id name email isActive");
+    const vendor = await Vendor.findOne({ email }).select("_id name email isActive loginAccess");
     if (!vendor) {
       return res.status(404).json({
         success: false,
@@ -430,6 +438,13 @@ export const forgotVendorPassword = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: "Vendor account is inactive",
+      });
+    }
+
+    if (vendor.loginAccess === "not_required") {
+      return res.status(403).json({
+        success: false,
+        message: "This vendor profile is admin-managed and does not support vendor login",
       });
     }
 
@@ -697,14 +712,25 @@ export const createLocalVendor = async (req, res) => {
     const category = String(req.body.category || "").trim();
     const requestedVendorId = normalizeVendorId(req.body.vendorId);
     const restaurantId = req.body.restaurantId;
+    const loginAccess =
+      String(req.body.loginAccess || "").trim().toLowerCase() === "not_required"
+        ? "not_required"
+        : "required";
     const requestedRestaurantIds = sanitizeRestaurantIds(
       req.body.accessibleRestaurantIds || req.body.restaurantIds
     );
 
-    if (!name || !email || (!restaurantId && requestedRestaurantIds.length === 0)) {
+    if (!name || (!restaurantId && requestedRestaurantIds.length === 0)) {
       return res.status(400).json({
         success: false,
-        message: "Name, email, and at least one restaurant are required",
+        message: "Name and at least one restaurant are required",
+      });
+    }
+
+    if (loginAccess === "required" && !email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required when vendor login access is enabled",
       });
     }
 
@@ -748,32 +774,53 @@ export const createLocalVendor = async (req, res) => {
     const vendor = new Vendor({
       vendorId,
       name,
-      email,
+      email: email || undefined,
       phone,
       address,
       governmentId,
       governmentIdType,
       category,
       vendorType: "local",
+      loginAccess,
       createdByRole: "admin",
       createdByAdmin: req.user.id,
       primaryRestaurant: restaurants[0]._id,
       accessibleRestaurants: restaurants.map((restaurant) => restaurant._id),
       allRestaurantsAccess: false,
     });
-    applyVendorInvitation(vendor, invitationToken);
+    if (loginAccess === "required") {
+      applyVendorInvitation(vendor, invitationToken);
+    } else {
+      vendor.password = null;
+      vendor.invitationStatus = "none";
+      vendor.invitationTokenHash = null;
+      vendor.invitationSentAt = null;
+      vendor.invitationExpiresAt = null;
+      vendor.invitationAcceptedAt = null;
+      vendor.isActive = true;
+    }
     await vendor.save();
-    const invitationDelivery = await sendInvitationIfPossible({
-      vendor,
-      req,
-      invitationToken,
-    });
+    const invitationDelivery =
+      loginAccess === "required"
+        ? await sendInvitationIfPossible({
+            vendor,
+            req,
+            invitationToken,
+          })
+        : {
+            invitationLink: "",
+            invitationEmailSent: false,
+            invitationEmailMessage: "Vendor created without login access",
+          };
 
     res.status(201).json({
       success: true,
-      message: invitationDelivery.invitationEmailSent
-        ? "Local vendor created and invitation email sent successfully"
-        : "Local vendor created and invitation link generated successfully",
+      message:
+        loginAccess === "required"
+          ? invitationDelivery.invitationEmailSent
+            ? "Local vendor created and invitation email sent successfully"
+            : "Local vendor created and invitation link generated successfully"
+          : "Admin-managed local vendor created successfully",
       vendor: buildVendorResponse(vendor),
       invitationLink: invitationDelivery.invitationLink,
       invitationEmailSent: invitationDelivery.invitationEmailSent,
@@ -1084,6 +1131,13 @@ export const resetVendorPassword = async (req, res) => {
     const vendor = await Vendor.findById(req.params.id).select("+password");
     if (!vendor) {
       return res.status(404).json({ success: false, message: "Vendor not found" });
+    }
+
+    if (vendor.loginAccess === "not_required") {
+      return res.status(400).json({
+        success: false,
+        message: "This vendor profile does not use login access",
+      });
     }
 
     if (req.user.role === "admin" && String(vendor.createdByAdmin) !== String(req.user.id)) {

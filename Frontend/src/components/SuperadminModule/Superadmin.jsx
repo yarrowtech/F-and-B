@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaShieldAlt, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUsers, FaEnvelope, FaGlobe, FaChartLine } from "react-icons/fa";
+import { FaShieldAlt, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUsers, FaEnvelope, FaGlobe, FaChartLine, FaTools } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import Sidebar from "./Sidebar";
@@ -12,7 +12,9 @@ import SubscriptionManagement from "./SubscriptionManagement";
 import Notepad from "./Notepad";
 import ContactInquiries from "./ContactInquiries";
 import ProjectAnalytics from "./ProjectAnalytics";
+import SupportTickets from "./SupportTickets";
 import { endAnalyticsSession } from "../../services/projectAnalytics.service";
+import { getAllSupportTickets } from "../../services/supportTicket.service";
 
 /* ─── Profile Popup ─── */
 function SuperAdminProfileButton() {
@@ -118,6 +120,7 @@ const BOTTOM_NAV = [
   { key: "admin-management",   label: "Admins",    icon: FaShieldAlt },
   { key: "subscription-management", label: "Plans", icon: FaShieldAlt },
   { key: "contact-inquiries",  label: "Inquiries", icon: FaEnvelope },
+  { key: "support-tickets",    label: "Support",   icon: FaTools },
   { key: "notepad",            label: "Notes",     icon: FaStickyNote },
 ];
 
@@ -134,6 +137,7 @@ const getInitialDarkMode = () => {
 const SuperAdmin = () => {
   const [active, setActive] = useState("dashboard");
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
+  const [supportPendingCount, setSupportPendingCount] = useState(0);
 
   const mainRef = useRef(null);
 
@@ -148,6 +152,29 @@ const SuperAdmin = () => {
       mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [active]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchSupportPendingCount = async () => {
+      try {
+        const data = await getAllSupportTickets({ page: 1, limit: 1 });
+        if (!mounted) return;
+        setSupportPendingCount(Number(data.stats?.open) || 0);
+      } catch {
+        if (!mounted) return;
+        setSupportPendingCount(0);
+      }
+    };
+
+    fetchSupportPendingCount();
+    const intervalId = window.setInterval(fetchSupportPendingCount, 30000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   const handleModeChange = () => {
     setDarkMode((current) => !current);
@@ -166,6 +193,9 @@ const SuperAdmin = () => {
       case "admin-management": return <AdminManagement />;
       case "subscription-management": return <SubscriptionManagement />;
       case "contact-inquiries": return <ContactInquiries />;
+      case "support-tickets": return (
+        <SupportTickets onPendingCountChange={setSupportPendingCount} />
+      );
       case "notepad":           return <Notepad />;
       default:                  return <div className="p-4">Page not found</div>;
     }
@@ -196,7 +226,11 @@ const SuperAdmin = () => {
       <div className="flex h-full">
         {/* ===== Sidebar (desktop) ===== */}
         <aside className="hidden 2xl:block shrink-0">
-          <Sidebar active={active} setActive={handleSetActive} />
+          <Sidebar
+            active={active}
+            setActive={handleSetActive}
+            supportPendingCount={supportPendingCount}
+          />
         </aside>
 
         {/* ===== Right Column ===== */}
@@ -233,6 +267,7 @@ const SuperAdmin = () => {
       <nav className="2xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
         {BOTTOM_NAV.map(({ key, label, icon: Icon }) => {
           const isActive = active === key;
+          const badgeCount = key === "support-tickets" ? supportPendingCount : 0;
           return (
             <button
               key={key}
@@ -246,6 +281,11 @@ const SuperAdmin = () => {
               <span className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors
                 ${isActive ? "bg-green-100 dark:bg-green-900/40" : ""}`}>
                 {React.createElement(Icon, { size: 18 })}
+                {badgeCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold leading-none text-white">
+                    {badgeCount > 9 ? "9+" : badgeCount}
+                  </span>
+                )}
               </span>
               {label}
             </button>
