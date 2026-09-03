@@ -34,7 +34,7 @@ const Hero = () => {
             Smart ERP solution
           </p>
           <h1
-            className="hero-title mt-5 max-w-4xl text-5xl font-black leading-[0.96] text-[#68b957] sm:text-6xl md:text-7xl lg:text-[5.8rem]"
+            className="hero-title mt-5 max-w-4xl text-5xl font-black leading-[0.96] text-[#D96B27] sm:text-6xl md:text-7xl lg:text-[5.8rem]"
             aria-label={heroTitle}
           >
             {heroTitle.split(" ").map((word, wordIndex) => (
