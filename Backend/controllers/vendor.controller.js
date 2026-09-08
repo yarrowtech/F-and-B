@@ -10,6 +10,7 @@ import {
   sendVendorInvitationEmail,
 } from "../utils/mailer.js";
 import { requestPasswordResetOtp, resetPasswordWithOtp } from "../utils/passwordReset.service.js";
+import { recordLogin } from "../utils/sessionUsage.js";
 
 const toObjectId = (value) =>
   mongoose.Types.ObjectId.isValid(value)
@@ -404,6 +405,8 @@ export const loginVendor = async (req, res) => {
     }
 
     const token = createToken(vendor);
+
+    await recordLogin("vendor", vendor._id);
 
     res.json({
       success: true,

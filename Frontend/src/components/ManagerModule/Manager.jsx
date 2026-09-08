@@ -16,6 +16,7 @@ import {
 import { Moon, Sun } from "lucide-react";
 
 import ManagerSidebar from "./ManagerSidebar";
+import { recordLogout } from "../../services/systemUsage.service";
 import EmployeeManagement from "./ManagerEmployeeManagement";
 import ManagerInventoryManagement from "./ManagerInventoryManagement";
 import ManagerMenuManagement from "./ManagerMenuManagement";
@@ -49,7 +50,8 @@ function ManagerProfileButton() {
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await recordLogout();
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/manager-login");

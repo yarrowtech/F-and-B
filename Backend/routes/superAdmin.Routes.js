@@ -37,6 +37,7 @@ import {
 import protect from "../middlewares/auth.middleware.js";
 import serviceTokenOrProtect from "../middlewares/serviceTokenOrProtect.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
+import { getSystemUsage } from "../controllers/superAdminSystemUsage.controller.js";
 
 const router = express.Router();
 
@@ -126,6 +127,13 @@ router.get(
   protect,
   allowRoles("super_admin"),
   getHistory
+);
+
+router.get(
+  "/system-usage",
+  protect,
+  allowRoles("super_admin"),
+  getSystemUsage
 );
 
 /* ================= PASSWORD ================= */

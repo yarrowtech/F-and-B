@@ -87,14 +87,14 @@ const getCartBillSummary = ({ cartItems, billingTemplate }) => {
   const normalizedItems = Array.isArray(cartItems) ? cartItems : [];
   const normalizedItemsTotal = roundMoney(
     normalizedItems.reduce(
-      (sum, item) => sum + Number(item.product?.price || 0) * Number(item.quantity || 0),
+      (sum, item) => sum + Number(item.unitPrice ?? item.product?.price ?? 0) * Number(item.quantity || 0),
       0
     )
   );
   let discountAmount = roundMoney(
     normalizedItems.reduce(
       (sum, item) =>
-        sum + getProductUnitDiscountAmount(item.product) * Number(item.quantity || 0),
+        sum + (item.negotiation ? 0 : getProductUnitDiscountAmount(item.product)) * Number(item.quantity || 0),
       0
     )
   );
@@ -123,6 +123,43 @@ const getCartBillSummary = ({ cartItems, billingTemplate }) => {
     discountSource: discountAmount > 0 ? "vendor_catalog" : "none",
   };
 };
+
+function PriceNegotiationModal({ product, negotiation, onClose, onSend, onUsePrice, saving }) {
+  const [price, setPrice] = useState(negotiation?.agreedPrice ?? product?.price ?? "");
+  const [message, setMessage] = useState("");
+  if (!product) return null;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-neutral-800">
+        <div className="flex items-start justify-between border-b border-gray-100 px-5 py-4 dark:border-neutral-700">
+          <div><p className="text-xs font-bold uppercase tracking-wider text-amber-600">Private negotiation</p><h2 className="mt-1 text-lg font-bold">{product.name}</h2></div>
+          <button onClick={onClose} className="text-xl text-gray-400">&times;</button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
+          <p className="text-sm text-gray-500">Listed price: {formatCurrency(product.price)}. This discussion is visible only to you and the vendor.</p>
+          {(negotiation?.messages || []).map((entry) => (
+            <div key={entry._id || `${entry.createdAt}-${entry.senderRole}`} className={`rounded-2xl p-3 text-sm ${entry.senderRole === "admin" ? "ml-8 bg-green-50 text-green-900 dark:bg-green-950/30 dark:text-green-100" : "mr-8 bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-gray-100"}`}>
+              <p className="text-xs font-bold uppercase opacity-60">{entry.senderRole}</p>
+              {entry.offeredPrice !== null && entry.offeredPrice !== undefined && <p className="mt-1 font-bold">Offer: {formatCurrency(entry.offeredPrice)}</p>}
+              {entry.text && <p className="mt-1">{entry.text}</p>}
+            </div>
+          ))}
+          {negotiation?.status === "accepted" && <div className="rounded-2xl bg-green-100 p-3 text-sm font-semibold text-green-800 dark:bg-green-950/40 dark:text-green-200">Vendor accepted {formatCurrency(negotiation.agreedPrice)}.</div>}
+        </div>
+        <div className="border-t border-gray-100 p-4 dark:border-neutral-700">
+          {negotiation?.status === "accepted" ? (
+            <button onClick={() => onUsePrice(negotiation)} className="w-full rounded-xl bg-green-600 px-4 py-3 font-semibold text-white">Use agreed price in cart</button>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex gap-2"><input type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} className="w-32 rounded-xl border px-3 py-2" /><input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Message for vendor (optional)" className="min-w-0 flex-1 rounded-xl border px-3 py-2" /></div>
+              <button disabled={saving} onClick={() => onSend({ offeredPrice: Number(price), text: message })} className="w-full rounded-xl bg-amber-500 px-4 py-3 font-semibold text-white disabled:opacity-60">{saving ? "Sending..." : "Send offer"}</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const PAYMENT_METHODS = ["UPI", "Cash", "Card", "Net Banking", "Bank Transfer"];
 const SETTLEMENT_CYCLES = [
@@ -1806,6 +1843,10 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [productSearch, setProductSearch] = useState("");
   const [cart, setCart] = useState({});
+  const [agreedPrices, setAgreedPrices] = useState({});
+  const [negotiationProduct, setNegotiationProduct] = useState(null);
+  const [negotiation, setNegotiation] = useState(null);
+  const [negotiationSaving, setNegotiationSaving] = useState(false);
   const [manualOrderItems, setManualOrderItems] = useState([createManualOrderItem()]);
   const [selectedRestaurantId, setSelectedRestaurantId] = useState("");
   const [placingOrder, setPlacingOrder] = useState(false);
@@ -1974,10 +2015,18 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
       .filter(([, quantity]) => quantity > 0)
       .map(([productId, quantity]) => {
         const product = products.find((p) => p.id === productId);
-        return product ? { product, quantity } : null;
+        const agreement = agreedPrices[productId] || null;
+        return product
+          ? {
+              product,
+              quantity,
+              negotiation: agreement,
+              unitPrice: agreement?.agreedPrice ?? getProductEffectivePrice(product),
+            }
+          : null;
       })
       .filter(Boolean);
-  }, [cart, products]);
+  }, [agreedPrices, cart, products]);
 
   const cartBillSummary = useMemo(
     () =>
@@ -2023,6 +2072,48 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
       delete next[productId];
       return next;
     });
+  };
+
+  const openNegotiation = async (product) => {
+    if (!selectedRestaurantId) {
+      notify("Select a restaurant before negotiating", true);
+      return;
+    }
+    try {
+      const res = await API.get(`/vendor/${sourceVendorId}/price-negotiations`, {
+        params: { productId: product.id, restaurantId: selectedRestaurantId },
+      });
+      setNegotiationProduct(product);
+      setNegotiation(res.data?.negotiations?.[0] || null);
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to load negotiation", true);
+    }
+  };
+
+  const sendNegotiationOffer = async ({ offeredPrice, text }) => {
+    if (!negotiationProduct || !Number.isFinite(offeredPrice) || offeredPrice < 0) {
+      notify("Enter a valid offer price", true);
+      return;
+    }
+    try {
+      setNegotiationSaving(true);
+      const res = negotiation?.id
+        ? await API.post(`/vendor/${sourceVendorId}/price-negotiations/${negotiation.id}/reply`, { offeredPrice, text })
+        : await API.post(`/vendor/${sourceVendorId}/products/${negotiationProduct.id}/price-negotiations`, { restaurantId: selectedRestaurantId, offeredPrice, text });
+      setNegotiation(res.data?.negotiation || null);
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to send offer", true);
+    } finally {
+      setNegotiationSaving(false);
+    }
+  };
+
+  const useAgreedPrice = (agreement) => {
+    setAgreedPrices((prev) => ({ ...prev, [negotiationProduct.id]: agreement }));
+    setCart((prev) => ({ ...prev, [negotiationProduct.id]: Math.max(1, prev[negotiationProduct.id] || 0) }));
+    setNegotiationProduct(null);
+    setNegotiation(null);
+    notify("Agreed price applied to your cart");
   };
 
   const addManualOrderRow = () => {
@@ -2078,6 +2169,7 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
             items: cartItems.map((item) => ({
               productId: item.product.id,
               quantity: item.quantity,
+              ...(item.negotiation ? { negotiationId: item.negotiation.id } : {}),
             })),
           };
 
@@ -2631,6 +2723,15 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
                           <span className="text-xs font-normal text-gray-400"> / {product.displayUnit || product.unit}</span>
                         )}
                       </p>
+                      <span
+                        className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          product.isPriceNegotiable
+                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                            : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                        }`}
+                      >
+                        {product.isPriceNegotiable ? "Negotiable" : "Fixed price"}
+                      </span>
                       {getProductUnitDiscountAmount(product) > 0 && (
                         <p className="mt-1 text-xs text-amber-600 dark:text-amber-300">
                           Vendor discount: -{formatCurrency(getProductUnitDiscountAmount(product))}
@@ -2649,6 +2750,16 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
                             ? "Out of stock"
                             : `Available in ${product.displayUnit || product.unit || "order pack"}`}
                       </p>
+
+                      {product.isPriceNegotiable && (
+                        <button
+                          type="button"
+                          onClick={() => openNegotiation(product)}
+                          className="mt-2 w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 transition hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200"
+                        >
+                          {agreedPrices[product.id] ? `Using agreed price: ${formatCurrency(agreedPrices[product.id].agreedPrice)}` : "Negotiate price"}
+                        </button>
+                      )}
 
                       <div className="mt-3 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1 dark:border-neutral-600 dark:bg-neutral-800">
@@ -2715,7 +2826,7 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
             </p>
           ) : (
             <div className="space-y-3">
-              {cartItems.map(({ product, quantity }) => (
+              {cartItems.map(({ product, quantity, unitPrice, negotiation: agreement }) => (
                 <div
                   key={product.id}
                   className="flex items-center justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900/30"
@@ -2725,12 +2836,12 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
                       {product.name}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {quantity} × {formatCurrency(product.price)}
+                      {quantity} × {formatCurrency(unitPrice)}{agreement ? " (agreed)" : ""}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      {formatCurrency(getProductEffectivePrice(product) * quantity)}
+                      {formatCurrency(unitPrice * quantity)}
                     </span>
                     <button
                       onClick={() => removeFromCart(product.id)}
@@ -2872,6 +2983,17 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
           onRemoveLink={handleRemoveInventoryLink}
           onReceiveStock={handleReceiveOrderStock}
           onClose={() => setLinkOrder(null)}
+        />
+      )}
+
+      {negotiationProduct && (
+        <PriceNegotiationModal
+          product={negotiationProduct}
+          negotiation={negotiation}
+          saving={negotiationSaving}
+          onClose={() => { setNegotiationProduct(null); setNegotiation(null); }}
+          onSend={sendNegotiationOffer}
+          onUsePrice={useAgreedPrice}
         />
       )}
     </div>

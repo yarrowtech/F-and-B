@@ -2,6 +2,7 @@ import express from "express";
 import vendorController from "../controllers/vendor.controller.js";
 import vendorProductController from "../controllers/vendorProduct.controller.js";
 import vendorOrderController from "../controllers/vendorOrder.controller.js";
+import vendorPriceNegotiationController from "../controllers/vendorPriceNegotiation.controller.js";
 import auth from "../middlewares/auth.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
 
@@ -118,6 +119,21 @@ router.get(
   "/:id/orders",
   allowRoles("admin", "super_admin", "vendor"),
   vendorOrderController.getVendorOrders
+);
+router.get(
+  "/:id/price-negotiations",
+  allowRoles("admin", "vendor"),
+  vendorPriceNegotiationController.getNegotiations
+);
+router.post(
+  "/:id/products/:productId/price-negotiations",
+  allowRoles("admin"),
+  vendorPriceNegotiationController.createOffer
+);
+router.post(
+  "/:id/price-negotiations/:negotiationId/reply",
+  allowRoles("admin", "vendor"),
+  vendorPriceNegotiationController.replyToNegotiation
 );
 router.post("/:id/orders", allowRoles("admin"), vendorOrderController.createVendorOrder);
 router.put(

@@ -39,6 +39,7 @@ const UNIT_FACTORS = {
 const initialForm = {
   inventoryProductId: "",
   price: "",
+  isPriceNegotiable: false,
   discountType: "none",
   discountValue: "",
   unit: "pcs",
@@ -297,6 +298,15 @@ function ProductModal({
                   onChange={(e) => onChange("price", e.target.value.replace(/-/g, ""))}
                   className={fieldClass}
                 />
+                <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={form.isPriceNegotiable}
+                    onChange={(e) => onChange("isPriceNegotiable", e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  Price is negotiable
+                </label>
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -587,6 +597,7 @@ const VendorInventory = () => {
     setForm({
       inventoryProductId: product.id,
       price: "",
+      isPriceNegotiable: false,
       discountType: "none",
       discountValue: "",
       unit: nextUnit,
@@ -699,6 +710,7 @@ const VendorInventory = () => {
 
     const payload = {
       price: Number(form.price),
+      isPriceNegotiable: Boolean(form.isPriceNegotiable),
       discountType: form.discountType,
       discountValue: form.discountType === "none" ? 0 : Number(form.discountValue || 0),
       unit: form.unit,
@@ -733,6 +745,7 @@ const VendorInventory = () => {
     setForm({
       inventoryProductId: product.id,
       price: String(product.price ?? ""),
+      isPriceNegotiable: Boolean(product.isPriceNegotiable),
       discountType: product.discountType || "none",
       discountValue:
         product.discountType && product.discountType !== "none"
@@ -941,6 +954,11 @@ const VendorInventory = () => {
                       </td>
                       <td className="px-4 py-3 font-semibold text-gray-900 dark:text-gray-100">
                         Rs. {product.price} / {product.displayUnit || product.unit || "unit"}
+                        {product.isPriceNegotiable && (
+                          <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                            Negotiable
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="text-xs text-gray-500 dark:text-gray-400">

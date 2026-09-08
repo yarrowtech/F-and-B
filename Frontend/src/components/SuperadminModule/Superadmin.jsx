@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaShieldAlt, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUsers, FaEnvelope, FaGlobe, FaChartLine, FaTools } from "react-icons/fa";
+import { FaShieldAlt, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUsers, FaEnvelope, FaGlobe, FaChartLine, FaTools, FaHeartbeat } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import Sidebar from "./Sidebar";
@@ -15,6 +15,8 @@ import ProjectAnalytics from "./ProjectAnalytics";
 import SupportTickets from "./SupportTickets";
 import { endAnalyticsSession } from "../../services/projectAnalytics.service";
 import { getAllSupportTickets } from "../../services/supportTicket.service";
+import { getSystemUsage, recordLogout } from "../../services/systemUsage.service";
+import SystemUsage from "./SystemUsage";
 
 /* ─── Profile Popup ─── */
 function SuperAdminProfileButton() {
@@ -37,7 +39,8 @@ function SuperAdminProfileButton() {
     };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await recordLogout();
     endAnalyticsSession({ path: window.location.pathname || "/superadmin" }).finally(() => {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
@@ -117,6 +120,7 @@ const BOTTOM_NAV = [
   { key: "user-management",    label: "Users",     icon: FaUsers },
   { key: "global-vendor-management", label: "Vendors", icon: FaGlobe },
   { key: "project-analytics", label: "Analytics", icon: FaChartLine },
+  { key: "system-usage",       label: "Usage",     icon: FaHeartbeat },
   { key: "admin-management",   label: "Admins",    icon: FaShieldAlt },
   { key: "subscription-management", label: "Plans", icon: FaShieldAlt },
   { key: "contact-inquiries",  label: "Inquiries", icon: FaEnvelope },
@@ -138,6 +142,7 @@ const SuperAdmin = () => {
   const [active, setActive] = useState("dashboard");
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const [supportPendingCount, setSupportPendingCount] = useState(0);
+  const [usageAlertCount, setUsageAlertCount] = useState(0);
 
   const mainRef = useRef(null);
 
@@ -176,6 +181,29 @@ const SuperAdmin = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchUsageAlertCount = async () => {
+      try {
+        const data = await getSystemUsage();
+        if (!mounted) return;
+        setUsageAlertCount(Number(data.summary?.notificationCount) || 0);
+      } catch {
+        if (!mounted) return;
+        setUsageAlertCount(0);
+      }
+    };
+
+    fetchUsageAlertCount();
+    const intervalId = window.setInterval(fetchUsageAlertCount, 60000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
   const handleModeChange = () => {
     setDarkMode((current) => !current);
   };
@@ -190,6 +218,9 @@ const SuperAdmin = () => {
       case "user-management":  return <UserManagement />;
       case "global-vendor-management": return <GlobalVendorManagement />;
       case "project-analytics": return <ProjectAnalytics />;
+      case "system-usage": return (
+        <SystemUsage onAlertCountChange={setUsageAlertCount} />
+      );
       case "admin-management": return <AdminManagement />;
       case "subscription-management": return <SubscriptionManagement />;
       case "contact-inquiries": return <ContactInquiries />;
@@ -230,6 +261,7 @@ const SuperAdmin = () => {
             active={active}
             setActive={handleSetActive}
             supportPendingCount={supportPendingCount}
+            usageAlertCount={usageAlertCount}
           />
         </aside>
 
@@ -267,7 +299,12 @@ const SuperAdmin = () => {
       <nav className="2xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
         {BOTTOM_NAV.map(({ key, label, icon: Icon }) => {
           const isActive = active === key;
-          const badgeCount = key === "support-tickets" ? supportPendingCount : 0;
+          const badgeCount =
+            key === "support-tickets"
+              ? supportPendingCount
+              : key === "system-usage"
+              ? usageAlertCount
+              : 0;
           return (
             <button
               key={key}

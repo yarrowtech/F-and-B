@@ -4,6 +4,7 @@ import { FaBell, FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTachometerAlt, 
 import { Moon, Sun } from "lucide-react";
 
 import WaiterSidebar from "./WaiterSidebar";
+import { recordLogout } from "../../services/systemUsage.service";
 import WaiterManagement from "./WaiterManagement";
 import WaiterAttendancePage from "./WaiterAttendance";
 import WaiterProfile from "./WaiterProfile";
@@ -33,7 +34,8 @@ function WaiterProfileButton() {
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await recordLogout();
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/waiter-login");

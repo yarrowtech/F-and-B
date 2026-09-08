@@ -8,6 +8,7 @@ import {
   getAdminAccountHistory,
   exportAdminAccountHistoryExcel,
 } from "../controllers/adminDashboard.controller.js";
+import { getAdminSystemUsage } from "../controllers/adminSystemUsage.controller.js";
 import auth from "../middlewares/auth.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
 import { cacheResponse } from "../middlewares/cache.middleware.js";
@@ -100,5 +101,7 @@ router.get(
   }),
   getAdminAccountHistory
 );
+
+router.get("/system-usage", getAdminSystemUsage);
 
 export default router;

@@ -4,6 +4,7 @@ import Admin from "../models/Admin.model.js";
 import Employee from "../models/Employee.model.js";
 import SuperAdmin from "../models/superAdmin.js";
 import Vendor from "../models/Vendor.model.js";
+import { touchActivity } from "../utils/sessionUsage.js";
 
 const auth = async (req, res, next) => {
   try {
@@ -56,6 +57,8 @@ const auth = async (req, res, next) => {
         email: superAdmin.email,
       };
 
+      touchActivity("super_admin", superAdmin._id, superAdmin.lastActivityAt);
+
       return next();
     }
 
@@ -75,6 +78,8 @@ const auth = async (req, res, next) => {
         name: admin.businessName || admin.email || "Admin",
         restaurant: admin.restaurant || null,
       };
+
+      touchActivity("admin", admin._id, admin.lastActivityAt);
     } else if (role === "vendor") {
       const vendor = await Vendor.findById(decoded.id)
         .select("-password")
@@ -99,6 +104,8 @@ const auth = async (req, res, next) => {
         accessibleRestaurants: vendor.accessibleRestaurants || [],
         allRestaurantsAccess: Boolean(vendor.allRestaurantsAccess),
       };
+
+      touchActivity("vendor", vendor._id, vendor.lastActivityAt);
     } else if (
       [
         "manager",
@@ -126,6 +133,8 @@ const auth = async (req, res, next) => {
         employeeId: employee.employeeId,
         restaurant: employee.restaurant,
       };
+
+      touchActivity(role, employee._id, employee.lastActivityAt);
     } else {
       return res.status(401).json({
         success: false,

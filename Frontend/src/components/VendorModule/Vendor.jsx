@@ -13,6 +13,7 @@ import VendorSettings from "./VendorSettings";
 import VendorMessages from "./VendorMessages";
 import VendorDashboard from "./VendorDashboard";
 import VendorNotification from "./VendorNotification";
+import VendorNegotiations from "./VendorNegotiations";
 import VendorAnalytics from "./VendorAnalytics";
 import VendorReports from "./VendorReports";
 import VendorSubscriptionOverview from "./VendorSubscriptionOverview";
@@ -22,6 +23,7 @@ import {
   endAnalyticsSession,
   trackAnalyticsEvent,
 } from "../../services/projectAnalytics.service";
+import { recordLogout } from "../../services/systemUsage.service";
 
 const PAGE_LABELS = {
   dashboard: "Dashboard",
@@ -36,6 +38,7 @@ const PAGE_LABELS = {
   settings: "Settings",
   messages: "Messages",
   notifications: "Notifications",
+  negotiations: "Negotiations",
 };
 
 const SUBSCRIPTION_OPEN_SECTIONS = new Set(["dashboard", "subscription", "settings"]);
@@ -47,6 +50,7 @@ const PLAN_REQUIREMENTS = {
   analytics: "PRO_VENDOR",
   reports: "PRO_VENDOR",
   notes: "BASIC_VENDOR",
+  negotiations: "BASIC_VENDOR",
 };
 const PLAN_RANK = {
   BASIC_VENDOR: 1,
@@ -85,7 +89,8 @@ function VendorProfileButton() {
     };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await recordLogout();
     endAnalyticsSession({ path: window.location.pathname || "/vendor" }).finally(() => {
       localStorage.clear();
       navigate("/login");
@@ -307,6 +312,8 @@ const VendorPanel = () => {
         return <VendorDashboard />;
       case "notifications":
         return <VendorNotification />;
+      case "negotiations":
+        return <VendorNegotiations />;
       case "analytics":
         return <VendorAnalytics />;
       case "reports":

@@ -11,6 +11,7 @@ import {
   FaTimes,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import { recordLogout } from "../../services/systemUsage.service";
 
 const CleanerSidebar = ({ activeSection, setActiveSection }) => {
   const [isOpen, setIsOpen] = useState(() => window.innerWidth >= 1024);
@@ -38,7 +39,8 @@ const CleanerSidebar = ({ activeSection, setActiveSection }) => {
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await recordLogout();
     localStorage.clear();
     navigate("/cleaner-login");
   };

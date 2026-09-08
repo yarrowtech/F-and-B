@@ -121,6 +121,13 @@ const adminSchema = new mongoose.Schema(
       default: true,
     },
 
+    /* =========================
+       SESSION USAGE TRACKING
+    ========================= */
+    lastLoginAt: { type: Date, default: null },
+    lastLogoutAt: { type: Date, default: null },
+    lastActivityAt: { type: Date, default: null },
+
     createdBySource: {
       type: String,
       enum: ["super_admin_created", "self_signup"],

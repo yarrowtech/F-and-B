@@ -197,6 +197,7 @@ const buildProductResponse = (product, viewerRole = "vendor") => {
     name: product.name,
     description: product.description,
     price: product.price,
+    isPriceNegotiable: Boolean(product.isPriceNegotiable),
     effectivePrice: pricing.effectivePrice,
     discountType: pricing.discountType,
     discountValue: pricing.discountValue,
@@ -353,6 +354,7 @@ export const createVendorProduct = async (req, res) => {
     const unit = requestedUnit || stockUnit;
     const isForSale = req.body.isForSale === true;
     const isListedInMyProducts = req.body.isListedInMyProducts === true;
+    const isPriceNegotiable = req.body.isPriceNegotiable === true;
     const imageDataUrl = String(req.body.imageDataUrl || "").trim();
 
     if (!name) {
@@ -438,6 +440,7 @@ export const createVendorProduct = async (req, res) => {
       name,
       description: String(req.body.description || "").trim(),
       price,
+      isPriceNegotiable,
       discountType,
       discountValue: discountType === "none" ? 0 : discountValue,
       buyingPrice,
@@ -490,6 +493,7 @@ export const updateVendorProduct = async (req, res) => {
       "name",
       "description",
       "price",
+      "isPriceNegotiable",
       "discountType",
       "discountValue",
       "buyingPrice",
@@ -586,6 +590,8 @@ export const updateVendorProduct = async (req, res) => {
         product.isActive = Boolean(req.body.isActive);
       } else if (field === "isForSale") {
         product.isForSale = Boolean(req.body.isForSale);
+      } else if (field === "isPriceNegotiable") {
+        product.isPriceNegotiable = Boolean(req.body.isPriceNegotiable);
       } else if (field === "isListedInMyProducts") {
         product.isListedInMyProducts = Boolean(req.body.isListedInMyProducts);
       } else if (field === "name") {

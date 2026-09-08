@@ -1053,6 +1053,7 @@ import adminRoutes from "./routes/admin.Routes.js";
 import vendorRoutes from "./routes/vendor.Routes.js";
 import employeeRoutes from "./routes/employee.Routes.js";
 import authRoutes from "./routes/auth.routes.js";
+import sessionRoutes from "./routes/session.routes.js";
 import orderRoutes from "./routes/order.Routes.js";
 import menuRoutes from "./routes/Menu.Routes.js";
 import billingRoutes from "./routes/billing.Routes.js";
@@ -1081,9 +1082,13 @@ import accountantDashboardRoutes from "./routes/accountantDashboard.routes.js";
 import chefDashboardRoutes from "./routes/chefDashboard.routes.js";
 import inventoryDashboardRoutes from "./routes/inventoryDashboard.routes.js";
 import contactRoutes from "./routes/contact.routes.js";
+import pushRoutes from "./routes/push.routes.js";
 import { syncBillIndexes } from "./models/Bill.model.js";
+import { initWebPush } from "./utils/webPush.js";
+import { startInactivityAlerts } from "./jobs/inactivityAlerts.job.js";
 
 dotenv.config();
+initWebPush();
 
 const app = express();
 
@@ -1147,6 +1152,7 @@ mongoose
     console.log("? MongoDB connected");
     await syncBillIndexes();
     console.log("? Bill indexes synced");
+    startInactivityAlerts();
   })
   .catch((err) => {
     console.error("? MongoDB error:", err.message);
@@ -1160,6 +1166,7 @@ app.use("/api/super_admin", superAdminRoutes);
 
 // 🔐 AUTH
 app.use("/api/employee", authRoutes);
+app.use("/api/session", sessionRoutes);
 
 // 🧑‍💼 ADMIN
 app.use("/api/admin", adminRoutes);
@@ -1199,6 +1206,7 @@ app.use("/api/inventory-dashboard", inventoryDashboardRoutes);
 
 // 📬 CONTACT (landing page)
 app.use("/api/contact", contactRoutes);
+app.use("/api/push", pushRoutes);
 
 /* ================= HEALTH ================= */
 app.get("/", (req, res) => {

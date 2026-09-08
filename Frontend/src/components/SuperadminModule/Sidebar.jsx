@@ -10,10 +10,11 @@ import {
   FaCreditCard,
   FaChartLine,
   FaTools,
+  FaHeartbeat,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
-const Sidebar = ({ active, setActive, supportPendingCount = 0 }) => {
+const Sidebar = ({ active, setActive, supportPendingCount = 0, usageAlertCount = 0 }) => {
   const navigate = useNavigate();
 
   const user = JSON.parse(localStorage.getItem("user")) || {};
@@ -25,6 +26,7 @@ const Sidebar = ({ active, setActive, supportPendingCount = 0 }) => {
     { name: "User Management",    icon: FaUsers,         key: "user-management" },
     { name: "Global Vendor Management", icon: FaGlobe,   key: "global-vendor-management" },
     { name: "Project Analytics", icon: FaChartLine, key: "project-analytics" },
+    { name: "System Usage",      icon: FaHeartbeat,     key: "system-usage" },
     { name: "Admin Management",   icon: FaShieldAlt,     key: "admin-management" },
     { name: "Subscription Plans", icon: FaCreditCard,    key: "subscription-management" },
     { name: "Contact Inquiries",  icon: FaEnvelope,      key: "contact-inquiries" },
@@ -56,7 +58,12 @@ const Sidebar = ({ active, setActive, supportPendingCount = 0 }) => {
       <nav className="flex-1 p-4 overflow-y-auto">
         {menuItems.map(({ name, icon: Icon, key }) => {
           const isActive = active === key;
-          const badgeCount = key === "support-tickets" ? supportPendingCount : 0;
+          const badgeCount =
+            key === "support-tickets"
+              ? supportPendingCount
+              : key === "system-usage"
+              ? usageAlertCount
+              : 0;
           return (
             <button
               key={key}

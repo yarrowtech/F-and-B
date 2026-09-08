@@ -13,6 +13,7 @@ import {
   FaStickyNote,
   FaCogs,
   FaHeadset,
+  FaHeartbeat,
   FaBars,
   FaTimes,
 } from "react-icons/fa";
@@ -25,6 +26,7 @@ const Sidebar = ({
   onMobileClose,
   showMobileTopBar = true,
   inventoryPendingCount = 0,
+  usageAlertCount = 0,
 }) => {
   const navigate = useNavigate();
 
@@ -62,6 +64,7 @@ const Sidebar = ({
     { name: "Restaurant Management",icon: FaUtensils,     key: "restaurant" },
     { name: "Inventory",           icon: FaBox,           key: "inventory" },
     { name: "Vendor Management",   icon: FaHandshake,     key: "vendor" },
+    { name: "System Usage",        icon: FaHeartbeat,     key: "system-usage" },
     { name: "Menu Management",     icon: FaClipboardList, key: "menu" },
     { name: "Table Management",    icon: FaUtensils,      key: "table" },
     { name: "Subscription",        icon: FaCreditCard,    key: "subscription" },
@@ -128,7 +131,12 @@ const Sidebar = ({
         <nav className="flex-1 p-4 overflow-y-auto">
           {menuItems.map(({ name, icon: Icon, key }) => {
             const isActive = active === key;
-            const badgeCount = key === "inventory" ? inventoryPendingCount : 0;
+            const badgeCount =
+              key === "inventory"
+                ? inventoryPendingCount
+                : key === "system-usage"
+                ? usageAlertCount
+                : 0;
             const icon = React.createElement(Icon, { className: "text-lg" });
             return (
               <button

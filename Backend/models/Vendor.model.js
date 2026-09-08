@@ -158,6 +158,13 @@ const vendorSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+
+    /* =========================
+       SESSION USAGE TRACKING
+    ========================= */
+    lastLoginAt: { type: Date, default: null },
+    lastLogoutAt: { type: Date, default: null },
+    lastActivityAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

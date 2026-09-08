@@ -79,6 +79,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import generateEmployeeId from "../utils/generateEmployeeId.js";
 import { requestPasswordResetOtp, resetPasswordWithOtp } from "../utils/passwordReset.service.js";
+import { recordLogin } from "../utils/sessionUsage.js";
 
 const sanitizeAddress = (value = {}) => ({
   line1: String(value.line1 || "").trim(),
@@ -181,6 +182,8 @@ export const loginAdmin = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "4d" }
     );
+
+    await recordLogin("admin", admin._id);
 
     res.json({
       token,

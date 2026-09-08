@@ -9,6 +9,7 @@ import SubscriptionPlan from "../models/SubscriptionPlan.model.js";
 import Vendor from "../models/Vendor.model.js";
 import generateToken from "../utils/generateToken.js";
 import generateAdminId from "../utils/generateAdminId.js";
+import { recordLogin } from "../utils/sessionUsage.js";
 import {
   assignSubscriptionToAdmin,
   ensureDefaultSubscriptionPlans,
@@ -112,6 +113,8 @@ export const loginSuperAdmin = async (req, res) => {
       id: admin._id,
       role: "super_admin",
     });
+
+    await recordLogin("super_admin", admin._id);
 
     res.json({
       success: true,

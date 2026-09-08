@@ -4,6 +4,7 @@ import { FaChartBar, FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTachometerA
 import { Moon, Sun } from "lucide-react";
 
 import AccountantSidebar from "./AccountantSidebar";
+import { recordLogout } from "../../services/systemUsage.service";
 import SettingsPage from "./AccountantSettings";
 import AccountantProfile from "./AccountantProfile";
 import AccountantNotes from "./AccountantNotes";
@@ -34,7 +35,8 @@ function AccountantProfileButton() {
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await recordLogout();
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/login");

@@ -58,6 +58,13 @@ export const isAuthenticated = () => {
 };
 
 export const logout = async () => {
+  try {
+    if (localStorage.getItem("token")) {
+      await API.post("/session/logout");
+    }
+  } catch {
+    // logout must never fail because of usage tracking
+  }
   await endAnalyticsSession({ path: window.location.pathname || "/" });
   clearAuthSession();
   window.location.replace("/");

@@ -198,6 +198,7 @@ import {
 
 /* 🔥 LOGGER */
 import { logAction, logError } from "../utils/logger.js";
+import { recordLogin } from "../utils/sessionUsage.js";
 
 export const login = async (req, res, next) => {
   try {
@@ -329,6 +330,8 @@ export const login = async (req, res, next) => {
         restaurant: user.restaurant._id,
       },
     });
+
+    await recordLogin(user.role, user._id);
 
     /* =========================
        RESPONSE (SAFE)

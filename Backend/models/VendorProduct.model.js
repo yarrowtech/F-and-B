@@ -24,6 +24,10 @@ const vendorProductSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
+    isPriceNegotiable: {
+      type: Boolean,
+      default: false,
+    },
     discountType: {
       type: String,
       enum: ["none", "amount", "percentage"],

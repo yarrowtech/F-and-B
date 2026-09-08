@@ -330,14 +330,16 @@ const Notification = lazy(() => import("./AdminNotification"));
 const TableManagement = lazy(() => import("./AdminTableManagement"));
 const AdminVendorDirectory = lazy(() => import("./AdminVendorDirectory"));
 const AdminVendorStorefront = lazy(() => import("./AdminVendorStorefront"));
+const AdminSystemUsage = lazy(() => import("./AdminSystemUsage"));
 
-import { FaBox, FaChartBar, FaHandshake, FaHeadset, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList, FaCogs } from "react-icons/fa";
+import { FaBox, FaChartBar, FaHandshake, FaHeadset, FaHeartbeat, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList, FaCogs } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 import API from "../../services/api";
 import {
   endAnalyticsSession,
   trackAnalyticsEvent,
 } from "../../services/projectAnalytics.service";
+import { recordLogout, getAdminSystemUsage } from "../../services/systemUsage.service";
 
 /* ─── Avatar + Profile Popup ─── */
 function AdminProfileButton() {
@@ -358,7 +360,8 @@ function AdminProfileButton() {
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await recordLogout();
     endAnalyticsSession({ path: window.location.pathname || "/admin" }).finally(() => {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
@@ -444,6 +447,7 @@ const BOTTOM_NAV = [
   { key: "restaurant", label: "Restaurant", icon: FaUtensils },
   { key: "inventory",  label: "Inventory",  icon: FaBox },
   { key: "vendor",     label: "Vendor",     icon: FaHandshake },
+  { key: "system-usage", label: "Usage",    icon: FaHeartbeat },
   { key: "menu",       label: "Menu",       icon: FaClipboardList },
   { key: "table",      label: "Table",      icon: FaUtensils },
   { key: "subscription", label: "Subscription", icon: FaClipboardList },
@@ -455,7 +459,7 @@ const BOTTOM_NAV = [
   { key: "settings",   label: "Settings",   icon: FaCogs },
 ];
 
-const SUBSCRIPTION_OPEN_SECTIONS = new Set(["subscription", "account", "settings"]);
+const SUBSCRIPTION_OPEN_SECTIONS = new Set(["subscription", "account", "settings", "system-usage"]);
 
 function SubscriptionRequired({ sectionLabel, onOpenSubscription }) {
   return (
@@ -493,6 +497,7 @@ const Admin = () => {
   /* ✅ RESTAURANT STATE */
   const [selectedRestaurantId, setSelectedRestaurantId] = useState(null);
   const [inventoryPendingCount, setInventoryPendingCount] = useState(0);
+  const [usageAlertCount, setUsageAlertCount] = useState(0);
   const [selectedVendorId, setSelectedVendorId] = useState(null);
   const [subscription, setSubscription] = useState(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);
@@ -540,6 +545,29 @@ const Admin = () => {
     };
 
     fetchSubscription();
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchUsageAlertCount = async () => {
+      try {
+        const data = await getAdminSystemUsage();
+        if (!mounted) return;
+        setUsageAlertCount(Number(data.summary?.notificationCount) || 0);
+      } catch {
+        if (!mounted) return;
+        setUsageAlertCount(0);
+      }
+    };
+
+    fetchUsageAlertCount();
+    const intervalId = window.setInterval(fetchUsageAlertCount, 60000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   /* ================= HANDLERS ================= */
@@ -626,6 +654,9 @@ const Admin = () => {
           />
         );
 
+      case "system-usage":
+        return <AdminSystemUsage />;
+
       case "account":
         return <Account />;
 
@@ -698,6 +729,7 @@ const Admin = () => {
             active={active}
             setActive={handleSetActive}
             inventoryPendingCount={inventoryPendingCount}
+            usageAlertCount={usageAlertCount}
           />
         </aside>
 
@@ -748,7 +780,12 @@ const Admin = () => {
       <nav className="2xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch overflow-x-auto shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
         {BOTTOM_NAV.map(({ key, label, icon: Icon }) => {
           const isActive = active === key;
-          const badgeCount = key === "inventory" ? inventoryPendingCount : 0;
+          const badgeCount =
+            key === "inventory"
+              ? inventoryPendingCount
+              : key === "system-usage"
+              ? usageAlertCount
+              : 0;
           const icon = React.createElement(Icon, { size: 18 });
           return (
             <button

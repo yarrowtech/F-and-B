@@ -6,6 +6,7 @@ import Vendor from "../models/Vendor.model.js";
 import VendorProduct from "../models/VendorProduct.model.js";
 import VendorOrder from "../models/VendorOrder.model.js";
 import VendorSettlement from "../models/VendorSettlement.model.js";
+import VendorPriceNegotiation from "../models/VendorPriceNegotiation.model.js";
 import Inventory from "../models/Inventory.model.js";
 import InventoryLog from "../models/InventoryLog.model.js";
 import VendorInventoryLink from "../models/VendorInventoryLink.model.js";
@@ -970,14 +971,34 @@ export const createVendorOrder = async (req, res) => {
         const stockDeductionQuantity =
           (quantity * orderPackQuantity) /
           normalizeConversionFactor(product.orderUnitsPerStockUnit);
-        const pricing = getProductDiscountSummary(product, quantity);
-        const lineTotal = product.price * quantity;
+        let pricing = getProductDiscountSummary(product, quantity);
+        const negotiationId = requested.negotiationId;
+        if (negotiationId) {
+          const negotiation = await VendorPriceNegotiation.findOne({
+            _id: negotiationId,
+            vendor: vendorId,
+            admin: req.user.id,
+            restaurant: restaurantId,
+            product: product._id,
+            status: "accepted",
+          });
+          if (!negotiation) {
+            return res.status(400).json({ success: false, message: `No accepted price agreement for ${product.name}` });
+          }
+          pricing = {
+            effectivePrice: Number(negotiation.agreedPrice),
+            discountType: "none",
+            discountValue: 0,
+            totalDiscountAmount: 0,
+          };
+        }
+        const lineTotal = pricing.effectivePrice * quantity;
         const costAmount = Number(product.buyingPrice || 0) * stockDeductionQuantity;
 
         orderItems.push({
           product: product._id,
           name: product.name,
-          price: product.price,
+          price: pricing.effectivePrice,
           effectivePrice: pricing.effectivePrice,
           discountType: pricing.discountType,
           discountValue: pricing.discountValue,

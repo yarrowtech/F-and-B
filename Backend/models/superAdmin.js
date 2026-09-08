@@ -58,6 +58,11 @@ const superAdminSchema = new mongoose.Schema(
     // 🔐 Reset password fields
     resetPasswordToken: String,
     resetPasswordExpire: Date,
+
+    // 📊 Session usage tracking
+    lastLoginAt: { type: Date, default: null },
+    lastLogoutAt: { type: Date, default: null },
+    lastActivityAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

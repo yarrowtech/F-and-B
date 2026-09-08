@@ -105,10 +105,16 @@ export const transferStock = async (req, res) => {
       throw Object.assign(new Error("Direction must be ISSUE or RETURN"), { status: 400 });
     }
 
-    const [item, section] = await Promise.all([
-      Inventory.findOne({ _id: itemId, restaurant: restaurantId, isActive: true }).session(session),
-      KitchenSection.findOne({ _id: sectionId, restaurant: restaurantId }).session(session),
-    ]);
+    // MongoDB transactions require operations on a session to run sequentially.
+    const item = await Inventory.findOne({
+      _id: itemId,
+      restaurant: restaurantId,
+      isActive: true,
+    }).session(session);
+    const section = await KitchenSection.findOne({
+      _id: sectionId,
+      restaurant: restaurantId,
+    }).session(session);
     if (!item) throw Object.assign(new Error("Inventory item not found"), { status: 404 });
     if (!section) throw Object.assign(new Error("Kitchen section not found"), { status: 404 });
 
