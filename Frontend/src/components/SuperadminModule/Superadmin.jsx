@@ -188,7 +188,7 @@ const SuperAdmin = () => {
       try {
         const data = await getSystemUsage();
         if (!mounted) return;
-        setUsageAlertCount(Number(data.summary?.notificationCount) || 0);
+        setUsageAlertCount(Number(data.summary?.unseenCount) || 0);
       } catch {
         if (!mounted) return;
         setUsageAlertCount(0);

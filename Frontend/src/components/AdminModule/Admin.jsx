@@ -554,7 +554,7 @@ const Admin = () => {
       try {
         const data = await getAdminSystemUsage();
         if (!mounted) return;
-        setUsageAlertCount(Number(data.summary?.notificationCount) || 0);
+        setUsageAlertCount(Number(data.summary?.unseenCount) || 0);
       } catch {
         if (!mounted) return;
         setUsageAlertCount(0);
@@ -655,7 +655,7 @@ const Admin = () => {
         );
 
       case "system-usage":
-        return <AdminSystemUsage />;
+        return <AdminSystemUsage onAlertCountChange={setUsageAlertCount} />;
 
       case "account":
         return <Account />;

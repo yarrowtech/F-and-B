@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
   BellRing,
+  CheckCheck,
   ChevronDown,
   ChevronRight,
   CircleSlash,
@@ -12,7 +13,10 @@ import {
   Store,
   Users,
 } from "lucide-react";
-import { getSystemUsage } from "../../services/systemUsage.service";
+import {
+  getSystemUsage,
+  markSystemUsageSeen,
+} from "../../services/systemUsage.service";
 import PushAlertToggle from "../common/PushAlertToggle";
 
 const shellCard =
@@ -206,6 +210,8 @@ const SystemUsage = ({ onAlertCountChange }) => {
   const [idleDays, setIdleDays] = useState(3);
   const [tab, setTab] = useState("admins");
   const [showAllAlerts, setShowAllAlerts] = useState(false);
+  const [marking, setMarking] = useState(false);
+  const autoMarkedRef = useRef(false);
 
   const load = useCallback(
     async (opts = {}) => {
@@ -215,7 +221,7 @@ const SystemUsage = ({ onAlertCountChange }) => {
         const res = await getSystemUsage({ idleDays });
         setData(res);
         setError("");
-        onAlertCountChange?.(Number(res.summary?.notificationCount) || 0);
+        onAlertCountChange?.(Number(res.summary?.unseenCount) || 0);
       } catch (err) {
         setError(
           err?.response?.data?.message || "Failed to load system usage data"
@@ -232,6 +238,47 @@ const SystemUsage = ({ onAlertCountChange }) => {
     load();
   }, [load]);
 
+  const markAllSeen = useCallback(
+    async ({ silent } = {}) => {
+      const ids = (data?.notifications || [])
+        .filter((n) => !n.seen)
+        .map((n) => n.id);
+      if (!ids.length) return;
+      if (!silent) setMarking(true);
+      try {
+        await markSystemUsageSeen(ids);
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                notifications: prev.notifications.map((n) => ({
+                  ...n,
+                  seen: true,
+                })),
+                summary: { ...prev.summary, unseenCount: 0 },
+              }
+            : prev
+        );
+        onAlertCountChange?.(0);
+      } catch {
+        /* non-critical */
+      } finally {
+        if (!silent) setMarking(false);
+      }
+    },
+    [data, onAlertCountChange]
+  );
+
+  /* Opening the page = the alerts have been seen. Clear the
+     sidebar badge once, a moment after the first load. */
+  useEffect(() => {
+    if (autoMarkedRef.current || loading) return;
+    if (!(data?.summary?.unseenCount > 0)) return;
+    autoMarkedRef.current = true;
+    const t = window.setTimeout(() => markAllSeen({ silent: true }), 2500);
+    return () => window.clearTimeout(t);
+  }, [data, loading, markAllSeen]);
+
   useEffect(() => {
     const id = window.setInterval(() => load({ silent: true }), 60000);
     return () => window.clearInterval(id);
@@ -243,6 +290,7 @@ const SystemUsage = ({ onAlertCountChange }) => {
   const vendors = data?.vendors || [];
   const orphanEmployees = data?.orphanEmployees || [];
 
+  const unseenCount = notifications.filter((n) => !n.seen).length;
   const visibleAlerts = showAllAlerts ? notifications : notifications.slice(0, 6);
 
   return (
@@ -348,23 +396,41 @@ const SystemUsage = ({ onAlertCountChange }) => {
                 : ""
             }`}
           >
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
                 <BellRing size={16} className="text-amber-500" />
                 Inactivity notifications
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
                   {notifications.length}
                 </span>
+                {unseenCount > 0 && (
+                  <span className="rounded-full bg-rose-600 px-2 py-0.5 text-xs font-bold text-white">
+                    {unseenCount} new
+                  </span>
+                )}
               </h3>
-              {notifications.length > 6 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllAlerts((v) => !v)}
-                  className="text-xs font-semibold text-emerald-600 hover:underline dark:text-emerald-400"
-                >
-                  {showAllAlerts ? "Show less" : `Show all ${notifications.length}`}
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {unseenCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => markAllSeen()}
+                    disabled={marking}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-60 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5"
+                  >
+                    <CheckCheck size={13} />
+                    Mark all as seen
+                  </button>
+                )}
+                {notifications.length > 6 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllAlerts((v) => !v)}
+                    className="text-xs font-semibold text-emerald-600 hover:underline dark:text-emerald-400"
+                  >
+                    {showAllAlerts ? "Show less" : `Show all ${notifications.length}`}
+                  </button>
+                )}
+              </div>
             </div>
 
             {notifications.length === 0 ? (
@@ -377,9 +443,18 @@ const SystemUsage = ({ onAlertCountChange }) => {
                 {visibleAlerts.map((n) => (
                   <li
                     key={`${n.accountType}-${n.id}`}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm dark:bg-white/5"
+                    className={`flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm ${
+                      n.seen
+                        ? "bg-gray-50 opacity-60 dark:bg-white/5"
+                        : "bg-amber-50 dark:bg-amber-500/10"
+                    }`}
                   >
                     <div className="flex items-center gap-2">
+                      <span
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                          n.seen ? "bg-transparent" : "bg-rose-500"
+                        }`}
+                      />
                       {n.accountType === "vendor" ? (
                         <Store size={14} className="text-amber-500" />
                       ) : n.accountType === "admin" ? (

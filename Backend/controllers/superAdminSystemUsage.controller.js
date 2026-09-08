@@ -9,6 +9,7 @@ import {
   parseIdleDays,
   roleLabel,
 } from "../utils/accountUsageStatus.js";
+import { applySeenState, markAlertsSeen } from "../utils/usageAlertSeen.js";
 
 /* =========================================================
    SUPER ADMIN · SYSTEM USAGE
@@ -204,6 +205,12 @@ export const getSystemUsage = async (req, res) => {
       return (b.idleDays || 0) - (a.idleDays || 0);
     });
 
+    const unseenCount = await applySeenState(
+      "super_admin",
+      req.user.id,
+      notifications
+    );
+
     const trackableAccounts = [
       ...adminRows,
       ...adminRows.flatMap((a) => a.employees),
@@ -228,6 +235,7 @@ export const getSystemUsage = async (req, res) => {
           idleCount: countBy("idle"),
           neverLoggedIn: countBy("never"),
           notificationCount: notifications.length,
+          unseenCount,
         },
         admins: adminRows,
         vendors: vendorRows,
@@ -235,6 +243,18 @@ export const getSystemUsage = async (req, res) => {
         notifications,
       },
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const markSystemUsageSeen = async (req, res) => {
+  try {
+    const accountIds = Array.isArray(req.body?.accountIds)
+      ? req.body.accountIds
+      : [];
+    const marked = await markAlertsSeen("super_admin", req.user.id, accountIds);
+    res.json({ success: true, marked });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

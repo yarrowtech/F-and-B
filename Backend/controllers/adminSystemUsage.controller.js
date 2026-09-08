@@ -10,6 +10,7 @@ import {
   parseIdleDays,
   roleLabel,
 } from "../utils/accountUsageStatus.js";
+import { applySeenState, markAlertsSeen } from "../utils/usageAlertSeen.js";
 
 /* =========================================================
    ADMIN · SYSTEM USAGE
@@ -179,6 +180,8 @@ export const getAdminSystemUsage = async (req, res) => {
       return (b.idleDays || 0) - (a.idleDays || 0);
     });
 
+    const unseenCount = await applySeenState("admin", adminId, notifications);
+
     const trackable = [
       ...staffRows,
       ...vendorRows.filter((v) => v.loginAccess !== "not_required"),
@@ -201,12 +204,29 @@ export const getAdminSystemUsage = async (req, res) => {
           idleCount: countBy("idle"),
           neverLoggedIn: countBy("never"),
           notificationCount: notifications.length,
+          unseenCount,
         },
         staff: staffRows,
         vendors: vendorRows,
         notifications,
       },
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const markAdminSystemUsageSeen = async (req, res) => {
+  try {
+    const adminId = req.user?.id;
+    if (!mongoose.Types.ObjectId.isValid(adminId)) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+    const accountIds = Array.isArray(req.body?.accountIds)
+      ? req.body.accountIds
+      : [];
+    const marked = await markAlertsSeen("admin", adminId, accountIds);
+    res.json({ success: true, marked });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

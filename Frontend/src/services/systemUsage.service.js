@@ -8,10 +8,22 @@ export const getSystemUsage = async (params = {}) => {
   return res.data?.data || {};
 };
 
+export const markSystemUsageSeen = async (accountIds = []) => {
+  const res = await API.post("/super_admin/system-usage/seen", { accountIds });
+  return res.data;
+};
+
 /* Admin-scoped: only the accounts this admin created / manages. */
 export const getAdminSystemUsage = async (params = {}) => {
   const res = await API.get("/admin-dashboard/system-usage", { params });
   return res.data?.data || {};
+};
+
+export const markAdminSystemUsageSeen = async (accountIds = []) => {
+  const res = await API.post("/admin-dashboard/system-usage/seen", {
+    accountIds,
+  });
+  return res.data;
 };
 
 /* =========================================================
