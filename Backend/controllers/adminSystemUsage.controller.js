@@ -184,10 +184,38 @@ export const getAdminSystemUsage = async (req, res) => {
 
     const trackable = [
       ...staffRows,
-      ...vendorRows.filter((v) => v.loginAccess !== "not_required"),
+      ...vendorRows
+        .filter((v) => v.loginAccess !== "not_required")
+        .map((v) => ({ ...v, role: "Vendor" })),
     ];
     const countBy = (status) =>
       trackable.filter((a) => a.status === status).length;
+
+    const LOGIN_WINDOW_HOURS = 24;
+    const recentLogins = trackable
+      .filter(
+        (a) =>
+          a.lastLoginAt &&
+          now - new Date(a.lastLoginAt).getTime() <=
+            LOGIN_WINDOW_HOURS * 60 * 60 * 1000
+      )
+      .sort(
+        (x, y) =>
+          new Date(y.lastLoginAt).getTime() - new Date(x.lastLoginAt).getTime()
+      )
+      .slice(0, 25)
+      .map((a) => ({
+        accountType: a.accountType,
+        id: a.id,
+        name: a.name,
+        displayId: a.displayId,
+        role: a.role || "",
+        restaurantName: a.restaurantName || null,
+        lastLoginAt: a.lastLoginAt,
+        lastLogoutAt: a.lastLogoutAt,
+        lastActivityAt: a.lastActivityAt,
+        status: a.status,
+      }));
 
     res.json({
       success: true,
@@ -195,6 +223,7 @@ export const getAdminSystemUsage = async (req, res) => {
         idleDays,
         generatedAt: new Date().toISOString(),
         onlineWindowMinutes: 5,
+        loginWindowHours: LOGIN_WINDOW_HOURS,
         self: selfRow,
         summary: {
           totalAccounts: trackable.length,
@@ -209,6 +238,7 @@ export const getAdminSystemUsage = async (req, res) => {
         staff: staffRows,
         vendors: vendorRows,
         notifications,
+        recentLogins,
       },
     });
   } catch (error) {

@@ -6,6 +6,7 @@ import {
   CheckCheck,
   CircleSlash,
   Clock,
+  LogIn,
   RefreshCw,
   ShieldCheck,
   Store,
@@ -173,6 +174,7 @@ const AdminSystemUsage = ({ onAlertCountChange }) => {
   const self = data?.self || null;
   const staff = data?.staff || [];
   const vendors = data?.vendors || [];
+  const recentLogins = data?.recentLogins || [];
   const notifications = useMemo(() => data?.notifications || [], [data]);
   const unseenCount = notifications.filter((n) => !n.seen).length;
   const visibleAlerts = showAllAlerts ? notifications : notifications.slice(0, 6);
@@ -423,6 +425,61 @@ const AdminSystemUsage = ({ onAlertCountChange }) => {
                           : `idle ${n.idleDays}d · last seen ${fmtRelative(
                               n.lastActivityAt || n.lastLoginAt
                             )}`}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* recent sign-ins */}
+          <div className={`${card} p-5`}>
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+              <LogIn size={16} className="text-emerald-500" />
+              Recent sign-ins
+              <span className="text-xs font-normal text-gray-400">
+                (last {data?.loginWindowHours ?? 24}h)
+              </span>
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                {recentLogins.length}
+              </span>
+            </h3>
+
+            {recentLogins.length === 0 ? (
+              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                No account has signed in during the last{" "}
+                {data?.loginWindowHours ?? 24} hours.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {recentLogins.map((r) => (
+                  <li
+                    key={`login-${r.accountType}-${r.id}`}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-emerald-50/60 px-3 py-2 text-sm dark:bg-emerald-500/10"
+                  >
+                    <div className="flex items-center gap-2">
+                      {r.accountType === "vendor" ? (
+                        <Store size={14} className="text-amber-500" />
+                      ) : (
+                        <Users size={14} className="text-gray-400" />
+                      )}
+                      <span className="font-medium text-gray-800 dark:text-gray-100">
+                        {r.name}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {r.displayId}
+                        {r.role ? ` · ${r.role}` : ""}
+                        {r.restaurantName ? ` · ${r.restaurantName}` : ""}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusPill status={r.status} />
+                      <span
+                        className="text-xs text-gray-500 dark:text-gray-400"
+                        title={fmtAbsolute(r.lastLoginAt)}
+                      >
+                        signed in {fmtRelative(r.lastLoginAt)}
                       </span>
                     </div>
                   </li>
