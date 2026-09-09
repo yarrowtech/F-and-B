@@ -908,7 +908,7 @@ export default function AccountantOrderBilling() {
   }, [activeRestaurant, manualTaxDefaults.cgstRate, manualTaxDefaults.sgstRate]);
 
   useEffect(() => {
-    if (isManualOnlyRestaurant && tab !== "NEW") {
+    if (isManualOnlyRestaurant && tab === "INBOX") {
       setTab("NEW");
     }
   }, [isManualOnlyRestaurant, tab]);
