@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import Admin from "../models/Admin.model.js";
-import Restaurant from "../models/restaurant.model.js";
+import Restaurant from "../models/Restaurant.model.js";
 import SupportTicket from "../models/SupportTicket.model.js";
 import { errorResponse, successResponse } from "../utils/apiResponse.js";
 
