@@ -4,9 +4,15 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#111111",
-  "theme_color": "#111111",
+  "background_color": "#ffffff",
+  "theme_color": "#E8590C",
   "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "16x16",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/efnbmms-logo.png",
       "sizes": "2672x1168",

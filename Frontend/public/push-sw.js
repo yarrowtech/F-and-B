@@ -25,7 +25,7 @@ self.addEventListener("push", (event) => {
     body: data.body || "",
     tag: data.tag || undefined,
     renotify: Boolean(data.tag),
-    icon: "/efnbmms-logo.png",
+    icon: "/favicon.png",
     data: { url: data.url || "/" },
   };
 
