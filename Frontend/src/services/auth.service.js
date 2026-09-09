@@ -10,33 +10,32 @@ import {
 } from "./projectAnalytics.service";
 
 export const login = async (role, credentials) => {
-  try {
-    const res = await API.post(`/${role}/login`, credentials);
-    const data = res.data;
+  // On failure the raw axios error propagates so callers can
+  // inspect error.response?.status / .data.code and detect
+  // network failures (see parseAuthError).
+  const res = await API.post(`/${role}/login`, credentials);
+  const data = res.data;
 
-    if (!data || !data.token) {
-      throw new Error("Invalid login response from server");
-    }
-
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("user", JSON.stringify(data.user));
-    startSession();
-    try {
-      await trackAnalyticsEvent({
-        eventType: "LOGIN",
-        featureKey: "auth.login",
-        featureLabel: "Login",
-        path: window.location.pathname || "/superadmin-login",
-        details: { role: data.user?.role || role },
-      });
-    } catch {
-      // Analytics should not block login.
-    }
-
-    return data;
-  } catch (error) {
-    throw error.response?.data || { message: "Login failed" };
+  if (!data || !data.token) {
+    throw new Error("Invalid login response from server");
   }
+
+  localStorage.setItem("token", data.token);
+  localStorage.setItem("user", JSON.stringify(data.user));
+  startSession();
+  try {
+    await trackAnalyticsEvent({
+      eventType: "LOGIN",
+      featureKey: "auth.login",
+      featureLabel: "Login",
+      path: window.location.pathname || "/superadmin-login",
+      details: { role: data.user?.role || role },
+    });
+  } catch {
+    // Analytics should not block login.
+  }
+
+  return data;
 };
 
 export const getUser = () => {

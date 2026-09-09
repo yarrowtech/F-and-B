@@ -96,16 +96,26 @@ export const loginSuperAdmin = async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: "Email and password are required",
+        code: "MISSING_CREDENTIALS",
+        message: "Enter both your email and password",
       });
     }
 
     const admin = await SuperAdmin.findOne({ email });
 
-    if (!admin || !(await admin.matchPassword(password))) {
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        code: "ACCOUNT_NOT_FOUND",
+        message: "No super admin account found with that email",
+      });
+    }
+
+    if (!(await admin.matchPassword(password))) {
       return res.status(401).json({
         success: false,
-        message: "Invalid email or password",
+        code: "INVALID_PASSWORD",
+        message: "Incorrect password",
       });
     }
 

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { FaArrowLeft, FaEye, FaEyeSlash, FaLock, FaMoon, FaSun, FaUserShield } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { login } from "../../services/auth.service";
+import { parseAuthError } from "../../utils/authError";
 
 export default function SuperAdminLogin() {
   const navigate = useNavigate();
@@ -72,9 +73,7 @@ export default function SuperAdminLogin() {
       setTimeout(() => navigate("/superadmin"), 800);
     } catch (error) {
       setIsError(true);
-      setMessage(
-        error?.response?.data?.message || error.message || "Login failed"
-      );
+      setMessage(parseAuthError(error).message);
     } finally {
       setLoading(false);
     }

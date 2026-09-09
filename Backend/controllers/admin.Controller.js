@@ -150,7 +150,9 @@ export const loginAdmin = async (req, res) => {
 
     if ((!adminId && !email) || !password) {
       return res.status(400).json({
-        message: "Admin ID or email and password are required",
+        success: false,
+        code: "MISSING_CREDENTIALS",
+        message: "Enter both your Admin ID (or email) and password",
       });
     }
 
@@ -161,19 +163,29 @@ export const loginAdmin = async (req, res) => {
     );
 
     if (!admin) {
-      return res.status(401).json({
-        message: "Invalid admin credentials",
+      return res.status(404).json({
+        success: false,
+        code: "ACCOUNT_NOT_FOUND",
+        message: adminId
+          ? "No admin account found with that ID"
+          : "No admin account found with that email",
       });
     }
 
     if (!admin.isActive) {
-      return res.status(403).json({ message: "Account is inactive. Contact super admin." });
+      return res.status(403).json({
+        success: false,
+        code: "ACCOUNT_INACTIVE",
+        message: "This admin account is inactive. Contact the super admin.",
+      });
     }
 
     const isMatch = await admin.matchPassword(password);
     if (!isMatch) {
       return res.status(401).json({
-        message: "Invalid admin credentials",
+        success: false,
+        code: "INVALID_PASSWORD",
+        message: "Incorrect password",
       });
     }
 

@@ -216,7 +216,8 @@ export const login = async (req, res, next) => {
 
       return res.status(400).json({
         success: false,
-        message: "Employee ID and password required",
+        code: "MISSING_CREDENTIALS",
+        message: "Enter both your Staff ID and password",
       });
     }
 
@@ -227,17 +228,33 @@ export const login = async (req, res, next) => {
 
     /* =========================
        USER CHECK
+       (distinguish "no such ID" from "ID exists but disabled")
     ========================= */
     if (!user || !user.password) {
+      const inactiveExists = await Employee.exists({
+        employeeId,
+        isActive: false,
+      });
+
       await logAction({
         action: "LOGIN_FAILED",
-        message: "User not found",
+        message: inactiveExists ? "Account inactive" : "User not found",
         meta: { employeeId },
       });
 
-      return res.status(401).json({
+      if (inactiveExists) {
+        return res.status(403).json({
+          success: false,
+          code: "ACCOUNT_INACTIVE",
+          message:
+            "This staff account is inactive. Contact your manager or admin.",
+        });
+      }
+
+      return res.status(404).json({
         success: false,
-        message: "Invalid credentials",
+        code: "ACCOUNT_NOT_FOUND",
+        message: "No staff account found with that ID",
       });
     }
 
@@ -247,7 +264,8 @@ export const login = async (req, res, next) => {
     if (user.lockUntil && user.lockUntil > Date.now()) {
       return res.status(403).json({
         success: false,
-        message: "Account locked. Try again later",
+        code: "ACCOUNT_LOCKED",
+        message: "Too many failed attempts. Try again in a few minutes.",
       });
     }
 
@@ -275,7 +293,8 @@ export const login = async (req, res, next) => {
 
       return res.status(401).json({
         success: false,
-        message: "Invalid credentials",
+        code: "INVALID_PASSWORD",
+        message: "Incorrect password",
       });
     }
 
@@ -299,7 +318,8 @@ export const login = async (req, res, next) => {
 
       return res.status(400).json({
         success: false,
-        message: "Employee not assigned to any restaurant",
+        code: "NO_RESTAURANT",
+        message: "Your account isn't linked to a restaurant yet. Contact your admin.",
       });
     }
 

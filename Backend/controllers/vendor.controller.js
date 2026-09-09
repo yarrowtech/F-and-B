@@ -349,7 +349,8 @@ export const loginVendor = async (req, res) => {
     if ((!vendorId && !email) || !password) {
       return res.status(400).json({
         success: false,
-        message: "Vendor ID or email and password are required",
+        code: "MISSING_CREDENTIALS",
+        message: "Enter both your Vendor ID (or email) and password",
       });
     }
 
@@ -372,27 +373,35 @@ export const loginVendor = async (req, res) => {
       if (setupPending) {
         return res.status(403).json({
           success: false,
-          message: "Vendor account setup is pending. Please complete the invitation link first.",
+          code: "SETUP_PENDING",
+          message:
+            "Vendor account setup isn't finished. Open your invitation email and complete the link first.",
         });
       }
 
-      return res.status(401).json({
+      return res.status(404).json({
         success: false,
-        message: "Invalid vendor credentials",
+        code: "ACCOUNT_NOT_FOUND",
+        message: vendorId
+          ? "No vendor account found with that ID"
+          : "No vendor account found with that email",
       });
     }
 
     if (vendor.loginAccess === "not_required") {
       return res.status(403).json({
         success: false,
-        message: "This vendor profile is admin-managed and does not support vendor login",
+        code: "VENDOR_LOGIN_DISABLED",
+        message:
+          "This vendor profile is managed by an admin and can't sign in here.",
       });
     }
 
     if (!vendor.isActive) {
       return res.status(403).json({
         success: false,
-        message: "Vendor account is inactive",
+        code: "ACCOUNT_INACTIVE",
+        message: "This vendor account is inactive. Contact your admin.",
       });
     }
 
@@ -400,7 +409,8 @@ export const loginVendor = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: "Invalid vendor credentials",
+        code: "INVALID_PASSWORD",
+        message: "Incorrect password",
       });
     }
 

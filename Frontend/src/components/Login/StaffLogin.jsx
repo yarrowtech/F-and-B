@@ -11,6 +11,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { employeeLogin } from "../../services/employeeAuth.service";
+import { parseAuthError } from "../../utils/authError";
 import { startSession } from "../../services/session.service";
 import { trackAnalyticsEvent } from "../../services/projectAnalytics.service";
 import logoBlack from "../../assets/Images/Logo_black.png";
@@ -404,10 +405,14 @@ export default function StaffLogin() {
         navigate(route, { replace: true });
       }, 400);
     } catch (err) {
+      const { field, message: friendly } = parseAuthError(err);
+      if (field === "id") {
+        setIdError(friendly);
+      } else if (field === "password") {
+        setPassError(friendly);
+      }
       setIsError(true);
-      setMessage(
-        err?.response?.data?.message || err?.message || "Invalid ID or password"
-      );
+      setMessage(friendly);
     } finally {
       setLoading(false);
     }
@@ -470,7 +475,7 @@ export default function StaffLogin() {
       }
     } catch (err) {
       setSignupError(
-        err?.response?.data?.message || err?.message || "Failed to create account"
+        err?.response?.data?.message || parseAuthError(err).message
       );
     } finally {
       setSignupLoading(false);
@@ -516,7 +521,7 @@ export default function StaffLogin() {
       setMessage(res.data?.message || "OTP sent to your email");
     } catch (err) {
       setIsError(true);
-      setMessage(err?.response?.data?.message || err?.message || "Failed to send OTP");
+      setMessage(err?.response?.data?.message || parseAuthError(err).message);
     } finally {
       setForgotLoading(false);
     }
@@ -581,7 +586,7 @@ export default function StaffLogin() {
       resetForgotPasswordState();
     } catch (err) {
       setIsError(true);
-      setMessage(err?.response?.data?.message || err?.message || "Failed to reset password");
+      setMessage(err?.response?.data?.message || parseAuthError(err).message);
     } finally {
       setForgotLoading(false);
     }
