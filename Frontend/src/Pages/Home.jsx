@@ -99,8 +99,8 @@ const storyCards = [
 ];
 
 const contactCards = [
-  { label: "Email", value: "contact@efnbmmsgmail.com", icon: <FaEnvelope /> },
-  { label: "Phone", value: "+91 98305 90929", icon: <FaPhoneAlt /> },
+  { label: "Email", value: "yarrowtech@yarrowtech.in", icon: <FaEnvelope /> },
+  { label: "Phone", value: "+91 62937 64220", icon: <FaPhoneAlt /> },
 ];
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
@@ -833,7 +833,10 @@ const Home = () => {
             <h3 className="text-2xl font-black text-white">
               EFNBMMS
             </h3>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-white/55">
+            <p className="mt-1 text-xs font-bold uppercase tracking-[0.24em] text-[#4ade80]">
+              A Product of YarrowTech
+            </p>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
               A connected restaurant operations platform for teams, inventory, kitchen workflow, and business visibility.
             </p>
 
@@ -853,10 +856,10 @@ const Home = () => {
               >
                 Terms &amp; Conditions
               </Link>
-              <p>contact@efnbmmsgmail.com</p>
-              <p>+91 98305 90929</p>
+              <p>yarrowtech@yarrowtech.in</p>
+              <p>+91 62937 64220</p>
               <p>3A, Bertram St, Esplanade, Dharmatala, Taltala, Kolkata, West Bengal 700087</p>
-              <p>(c) 2026 EFNBMMS. All rights reserved.</p>
+              <p>© 2026 EFNBMMS, a product of YarrowTech. All rights reserved.</p>
             </div>
           </div>
 
