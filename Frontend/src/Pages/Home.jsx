@@ -847,6 +847,12 @@ const Home = () => {
               >
                 Privacy Policy
               </Link>
+              <Link
+                to="/terms-and-conditions"
+                className="inline-flex w-fit bg-transparent text-sky-300 no-underline outline-none transition visited:text-sky-300 hover:text-sky-200 focus:bg-transparent focus:text-sky-200 focus:outline-none active:bg-transparent [-webkit-tap-highlight-color:transparent]"
+              >
+                Terms &amp; Conditions
+              </Link>
               <p>contact@efnbmmsgmail.com</p>
               <p>+91 98305 90929</p>
               <p>3A, Bertram St, Esplanade, Dharmatala, Taltala, Kolkata, West Bengal 700087</p>
