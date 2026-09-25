@@ -16,12 +16,12 @@ export const getMyUserId = () => {
 
 /* Live unread-message count for the logged-in user (socket + light polling). */
 const useMessageUnread = () => {
-  const [count, setCount] = useState(0);
+  const [state, setState] = useState({ count: 0, urgent: 0 });
 
   const refresh = useCallback(async () => {
     if (!localStorage.getItem("token")) return;
     try {
-      setCount(await getUnreadMessageCount());
+      setState(await getUnreadMessageCount());
     } catch {
       // ignore - badge just stays as is
     }
@@ -45,7 +45,11 @@ const useMessageUnread = () => {
     };
   }, [refresh]);
 
-  return count;
+  return state;
 };
 
-export default useMessageUnread;
+/* Number only - for menus that just need the badge count. */
+const useMessageUnreadCount = () => useMessageUnread().count;
+
+export { useMessageUnread as useMessageUnreadDetail };
+export default useMessageUnreadCount;

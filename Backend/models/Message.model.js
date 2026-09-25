@@ -13,6 +13,7 @@ const messageSchema = new mongoose.Schema(
     text: { type: String, required: true, trim: true, maxlength: 2000 },
     readAt: { type: Date, default: null },
     // set when an admin sends one message to a whole department
+    priority: { type: String, enum: ["normal", "urgent"], default: "normal" },
     broadcastId: { type: String, default: null, index: true },
     restaurant: { type: mongoose.Schema.Types.ObjectId, default: null },
     groupRole: { type: String, default: null, lowercase: true },

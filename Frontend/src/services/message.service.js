@@ -19,7 +19,7 @@ export const getMessageContacts = async (restaurantId) => {
 
 export const getUnreadMessageCount = async () => {
   const res = await api.get("/messages/unread-count");
-  return res.data.data.count;
+  return res.data.data;
 };
 
 export const getMessageThread = async (contactId, restaurantId) => {
@@ -29,9 +29,10 @@ export const getMessageThread = async (contactId, restaurantId) => {
   return res.data.data;
 };
 
-export const sendMessage = async (contactId, text, restaurantId) => {
+export const sendMessage = async (contactId, text, restaurantId, priority = "normal") => {
   const res = await api.post(`/messages/${contactId}`, {
     text,
+    priority,
     ...(restaurantId ? { restaurantId } : {}),
   });
   return res.data.data;

@@ -100,11 +100,16 @@ const findContact = async (user, contactId) => {
   return contacts.find((c) => c.id === String(contactId)) || null;
 };
 
+/* only admins may flag a message as urgent */
+const resolvePriority = (user, body) =>
+  user.role === "admin" && body?.priority === "urgent" ? "urgent" : "normal";
+
 const emitNew = (message) => {
   try {
     getIO().emit("message:new", {
       recipientId: String(message.recipient.id),
       senderId: String(message.sender.id),
+      priority: message.priority || "normal",
     });
   } catch {
     // socket not initialized - ignore
@@ -167,7 +172,13 @@ const getContacts = async (req, res) => {
     const [unread, recent] = await Promise.all([
       Message.aggregate([
         { $match: { "recipient.id": me, readAt: null } },
-        { $group: { _id: "$sender.id", count: { $sum: 1 } } },
+        {
+          $group: {
+            _id: "$sender.id",
+            count: { $sum: 1 },
+            urgent: { $sum: { $cond: [{ $eq: ["$priority", "urgent"] }, 1, 0] } },
+          },
+        },
       ]),
       Message.find({ $or: [{ "sender.id": me }, { "recipient.id": me }] })
         .sort({ createdAt: -1 })
@@ -176,6 +187,7 @@ const getContacts = async (req, res) => {
     ]);
 
     const unreadMap = new Map(unread.map((u) => [String(u._id), u.count]));
+    const urgentMap = new Map(unread.map((u) => [String(u._id), u.urgent]));
     const lastMap = new Map();
     recent.forEach((m) => {
       const other = String(m.sender.id) === req.user.id ? m.recipient.id : m.sender.id;
@@ -186,10 +198,15 @@ const getContacts = async (req, res) => {
       .map((c) => ({
         ...c,
         unread: unreadMap.get(c.id) || 0,
+        urgentUnread: urgentMap.get(c.id) || 0,
         lastMessage: lastMap.get(c.id)?.text || "",
         lastAt: lastMap.get(c.id)?.createdAt || null,
       }))
-      .sort((a, b) => new Date(b.lastAt || 0) - new Date(a.lastAt || 0));
+      .sort(
+        (a, b) =>
+          Math.sign(b.urgentUnread) - Math.sign(a.urgentUnread) ||
+          new Date(b.lastAt || 0) - new Date(a.lastAt || 0)
+      );
 
     const groupData = groups.map((g) => ({
       ...g,
@@ -221,11 +238,12 @@ const getRestaurants = async (req, res) => {
 /* GET /api/messages/unread-count */
 const getUnreadCount = async (req, res) => {
   try {
-    const count = await Message.countDocuments({
-      "recipient.id": req.user.id,
-      readAt: null,
-    });
-    res.json({ success: true, data: { count } });
+    const filter = { "recipient.id": req.user.id, readAt: null };
+    const [count, urgent] = await Promise.all([
+      Message.countDocuments(filter),
+      Message.countDocuments({ ...filter, priority: "urgent" }),
+    ]);
+    res.json({ success: true, data: { count, urgent } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -314,6 +332,7 @@ const sendMessage = async (req, res) => {
           broadcastId,
           groupRole,
           restaurant: restaurantId,
+          priority: resolvePriority(req.user, req.body),
         }))
       );
       docs.forEach(emitNew);
@@ -340,6 +359,7 @@ const sendMessage = async (req, res) => {
       },
       recipient: { id: contact.id, role: contact.role, name: contact.name },
       text: text.slice(0, 2000),
+      priority: resolvePriority(req.user, req.body),
     });
 
     emitNew(message);

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { FaEnvelope, FaTimes } from "react-icons/fa";
+import { FaEnvelope, FaTimes, FaExclamationTriangle } from "react-icons/fa";
 import socket from "../../socket/socket";
 import { getMessageContacts } from "../../services/message.service";
 import { getMyUserId } from "../../hooks/useMessageUnread";
@@ -14,7 +14,7 @@ const MessageNotifier = () => {
   const dismiss = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
   useEffect(() => {
-    const onNew = async ({ recipientId, senderId }) => {
+    const onNew = async ({ recipientId, senderId, priority }) => {
       const myId = getMyUserId();
       if (!myId || recipientId !== myId) return;
       // chat with this sender is already open - no need to notify
@@ -27,12 +27,16 @@ const MessageNotifier = () => {
           id: `${senderId}-${Date.now()}`,
           name: from?.name || "New message",
           text: from?.lastMessage || "You have a new message",
+          urgent: priority === "urgent",
         };
         setToasts((prev) => [...prev.slice(-2), toast]);
-        setTimeout(() => dismiss(toast.id), TOAST_MS);
+        if (!toast.urgent) setTimeout(() => dismiss(toast.id), TOAST_MS);
 
         if (document.hidden && "Notification" in window && Notification.permission === "granted") {
-          new Notification(toast.name, { body: toast.text });
+          new Notification(toast.urgent ? `URGENT: ${toast.name}` : toast.name, {
+            body: toast.text,
+            requireInteraction: toast.urgent,
+          });
         }
         if (document.hidden) {
           document.title = `(New) ${originalTitle.current}`;
@@ -61,13 +65,20 @@ const MessageNotifier = () => {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-white p-3 shadow-[0_18px_40px_-20px_rgba(15,23,42,0.45)] dark:border-slate-700 dark:bg-slate-800"
+          className={`flex items-start gap-3 rounded-2xl border p-3 shadow-[0_18px_40px_-20px_rgba(15,23,42,0.45)] dark:border-slate-700 dark:bg-slate-800 ${
+            t.urgent ? "border-red-500 bg-red-50 dark:bg-red-950/60" : "border-emerald-100 bg-white"
+          }`}
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
-            <FaEnvelope className="text-sm" />
+          <div
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white ${
+              t.urgent ? "bg-red-600 animate-pulse" : "bg-emerald-600"
+            }`}
+          >
+            {t.urgent ? <FaExclamationTriangle className="text-sm" /> : <FaEnvelope className="text-sm" />}
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+              {t.urgent && <span className="mr-1 text-red-600">URGENT ·</span>}
               {t.name}
             </p>
             <p className="line-clamp-2 text-xs text-slate-500 dark:text-slate-300">{t.text}</p>

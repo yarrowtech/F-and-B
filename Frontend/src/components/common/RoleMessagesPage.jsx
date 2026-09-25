@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FaPaperPlane, FaSearch, FaRegCommentDots, FaUsers } from "react-icons/fa";
+import { FaPaperPlane, FaSearch, FaRegCommentDots, FaUsers, FaExclamationTriangle, FaCheckDouble } from "react-icons/fa";
 import socket from "../../socket/socket";
 import { getMyUserId, MESSAGES_CHANGED_EVENT } from "../../hooks/useMessageUnread";
 import {
@@ -52,6 +52,8 @@ const RoleMessagesPage = ({ title = "Messages" }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
+  const [urgent, setUrgent] = useState(false);
+  const isAdmin = localStorage.getItem("role") === "admin";
   const [restaurants, setRestaurants] = useState([]);
   const [restaurantId, setRestaurantId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -127,7 +129,8 @@ const RoleMessagesPage = ({ title = "Messages" }) => {
     if (!text || !selected) return;
     setInput("");
     try {
-      const msg = await sendMessage(selected.id, text, restaurantId);
+      const msg = await sendMessage(selected.id, text, restaurantId, urgent ? "urgent" : "normal");
+      setUrgent(false);
       setMessages((prev) => [...prev, msg]);
       loadContacts();
     } catch (err) {
@@ -155,7 +158,12 @@ const RoleMessagesPage = ({ title = "Messages" }) => {
                 <Avatar name={c.name} group={c.isGroup} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold truncate">{c.name}</p>
+                    <p className="text-sm font-semibold truncate flex items-center gap-1.5">
+                      {c.urgentUnread > 0 && (
+                        <FaExclamationTriangle className="text-red-600 text-xs shrink-0" />
+                      )}
+                      <span className="truncate">{c.name}</span>
+                    </p>
                     {c.lastAt && (
                       <span className="text-[10px] text-slate-400 shrink-0">
                         {formatTime(c.lastAt)}
@@ -167,7 +175,7 @@ const RoleMessagesPage = ({ title = "Messages" }) => {
                       {c.lastMessage || (c.isGroup ? `${c.memberCount} member${c.memberCount === 1 ? "" : "s"}` : roleLabel(c.role))}
                     </p>
                     {c.unread > 0 && (
-                      <span className="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-emerald-600 text-white text-[10px] font-semibold flex items-center justify-center">
+                      <span className={`shrink-0 min-w-5 h-5 px-1.5 rounded-full text-white text-[10px] font-semibold flex items-center justify-center ${c.urgentUnread > 0 ? "bg-red-600 animate-pulse" : "bg-emerald-600"}`}>
                         {c.unread}
                       </span>
                     )}
@@ -256,6 +264,7 @@ const RoleMessagesPage = ({ title = "Messages" }) => {
               )}
               {messages.map((msg, i) => {
                 const mine = String(msg.sender.id) === myId;
+                const isUrgent = msg.priority === "urgent";
                 const showDay =
                   i === 0 ||
                   new Date(messages[i - 1].createdAt).toDateString() !==
@@ -273,17 +282,31 @@ const RoleMessagesPage = ({ title = "Messages" }) => {
                       <div
                         className={`max-w-[85%] sm:max-w-lg px-4 py-2.5 text-sm break-words shadow-sm ${
                           mine
-                            ? "bg-emerald-600 text-white rounded-2xl rounded-br-md"
+                            ? isUrgent
+                              ? "bg-red-600 text-white rounded-2xl rounded-br-md"
+                              : "bg-emerald-600 text-white rounded-2xl rounded-br-md"
+                            : isUrgent
+                            ? "bg-red-50 dark:bg-red-950/40 text-slate-800 dark:text-slate-100 border-2 border-red-500 rounded-2xl rounded-bl-md"
                             : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-2xl rounded-bl-md"
                         }`}
                       >
+                        {isUrgent && (
+                          <p className={`mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${mine ? "text-red-100" : "text-red-600"}`}>
+                            <FaExclamationTriangle /> Urgent
+                          </p>
+                        )}
                         <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
                         <p
-                          className={`text-[10px] mt-1 text-right ${
+                          className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${
                             mine ? "text-emerald-100" : "text-slate-400"
                           }`}
                         >
                           {formatTime(msg.createdAt)}
+                          {mine && isUrgent && !selected.isGroup && msg.readAt && (
+                            <span className="flex items-center gap-0.5">
+                              <FaCheckDouble /> Seen
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -294,6 +317,24 @@ const RoleMessagesPage = ({ title = "Messages" }) => {
             </div>
 
             <div className="px-4 py-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
+              {isAdmin && (
+                <div className="mb-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setUrgent((v) => !v)}
+                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                      urgent
+                        ? "border-red-600 bg-red-600 text-white"
+                        : "border-slate-300 text-slate-500 hover:border-red-400 hover:text-red-600 dark:border-slate-600"
+                    }`}
+                  >
+                    <FaExclamationTriangle /> Urgent
+                  </button>
+                  {urgent && (
+                    <span className="text-xs text-red-600">This message will be marked urgent</span>
+                  )}
+                </div>
+              )}
               <div className="flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 pl-5 pr-1.5 py-1.5 focus-within:ring-2 focus-within:ring-emerald-500/40 focus-within:border-emerald-500">
                 <input
                   value={input}
