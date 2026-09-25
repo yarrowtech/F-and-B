@@ -100,6 +100,9 @@ const findContact = async (user, contactId) => {
   return contacts.find((c) => c.id === String(contactId)) || null;
 };
 
+/* replaces {name} with the recipient name (used by quick-message templates) */
+const personalize = (text, name) => text.replace(/\{name\}/gi, name || "").slice(0, 2000);
+
 /* only admins may flag a message as urgent */
 const resolvePriority = (user, body) =>
   user.role === "admin" && body?.priority === "urgent" ? "urgent" : "normal";
@@ -328,7 +331,7 @@ const sendMessage = async (req, res) => {
         members.map((m) => ({
           sender,
           recipient: { id: m.id, role: m.role, name: m.name },
-          text: text.slice(0, 2000),
+          text: personalize(text, m.name),
           broadcastId,
           groupRole,
           restaurant: restaurantId,
@@ -358,7 +361,7 @@ const sendMessage = async (req, res) => {
         name: req.user.name || req.user.email || "",
       },
       recipient: { id: contact.id, role: contact.role, name: contact.name },
-      text: text.slice(0, 2000),
+      text: personalize(text, contact.name),
       priority: resolvePriority(req.user, req.body),
     });
 

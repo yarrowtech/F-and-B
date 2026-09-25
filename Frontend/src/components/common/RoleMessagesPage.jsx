@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FaPaperPlane, FaSearch, FaRegCommentDots, FaUsers, FaExclamationTriangle, FaCheckDouble } from "react-icons/fa";
 import socket from "../../socket/socket";
+import QuickMessages from "./QuickMessages";
 import { getMyUserId, MESSAGES_CHANGED_EVENT } from "../../hooks/useMessageUnread";
 import {
   getMessageContacts,
@@ -317,6 +318,14 @@ const RoleMessagesPage = ({ title = "Messages" }) => {
             </div>
 
             <div className="px-4 py-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
+              {isAdmin && (
+                <QuickMessages
+                  onPick={(tpl) => {
+                    setInput(tpl.text);
+                    setUrgent(tpl.priority === "urgent");
+                  }}
+                />
+              )}
               {isAdmin && (
                 <div className="mb-2 flex items-center gap-2">
                   <button
