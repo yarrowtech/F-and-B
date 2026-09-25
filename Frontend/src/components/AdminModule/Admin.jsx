@@ -332,7 +332,7 @@ const AdminVendorDirectory = lazy(() => import("./AdminVendorDirectory"));
 const AdminVendorStorefront = lazy(() => import("./AdminVendorStorefront"));
 const AdminSystemUsage = lazy(() => import("./AdminSystemUsage"));
 
-import { FaBox, FaChartBar, FaHandshake, FaHeadset, FaHeartbeat, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList, FaCogs } from "react-icons/fa";
+import { FaBox, FaEnvelope, FaChartBar, FaHandshake, FaHeadset, FaHeartbeat, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList, FaCogs } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 import API from "../../services/api";
 import {
@@ -456,7 +456,8 @@ const BOTTOM_NAV = [
   { key: "reports",    label: "Reports",    icon: FaChartBar },
   { key: "support",    label: "Support",    icon: FaHeadset },
   { key: "notes",      label: "Notes",      icon: FaStickyNote },
-  { key: "settings",   label: "Settings",   icon: FaCogs },
+  { key: "message",    label: "Messages",   icon: FaEnvelope },
+  { key: "settings",  label: "Settings",   icon: FaCogs },
 ];
 
 const SUBSCRIPTION_OPEN_SECTIONS = new Set(["subscription", "account", "settings", "system-usage"]);

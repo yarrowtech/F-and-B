@@ -117,6 +117,7 @@ import {
 
 import Home from "./Pages/Home";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import MessageNotifier from "./components/common/MessageNotifier";
 import { setupSessionActivityTracking } from "./services/session.service";
 import ProjectAnalyticsTracker from "./components/ProjectAnalyticsTracker";
 
@@ -273,6 +274,7 @@ const App = () => {
   return (
     <Router>
       <ProjectAnalyticsTracker />
+      <MessageNotifier />
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           {/* ===== PUBLIC ===== */}

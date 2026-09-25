@@ -11,6 +11,7 @@ import AdminManagement from "./AdminManagement";
 import SubscriptionManagement from "./SubscriptionManagement";
 import Notepad from "./Notepad";
 import ContactInquiries from "./ContactInquiries";
+import Message from "./Message";
 import ProjectAnalytics from "./ProjectAnalytics";
 import SupportTickets from "./SupportTickets";
 import { endAnalyticsSession } from "../../services/projectAnalytics.service";
@@ -126,6 +127,7 @@ const BOTTOM_NAV = [
   { key: "contact-inquiries",  label: "Inquiries", icon: FaEnvelope },
   { key: "support-tickets",    label: "Support",   icon: FaTools },
   { key: "notepad",            label: "Notes",     icon: FaStickyNote },
+  { key: "message",            label: "Messages",  icon: FaEnvelope },
 ];
 
 const getInitialDarkMode = () => {
@@ -228,6 +230,7 @@ const SuperAdmin = () => {
         <SupportTickets onPendingCountChange={setSupportPendingCount} />
       );
       case "notepad":           return <Notepad />;
+      case "message":           return <Message />;
       default:                  return <div className="p-4">Page not found</div>;
     }
   };

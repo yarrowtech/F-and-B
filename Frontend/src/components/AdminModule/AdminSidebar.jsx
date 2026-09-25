@@ -16,8 +16,11 @@ import {
   FaHeartbeat,
   FaBars,
   FaTimes,
+  FaEnvelope,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+
+import useMessageUnread from "../../hooks/useMessageUnread";
 
 const Sidebar = ({
   active,
@@ -28,6 +31,7 @@ const Sidebar = ({
   inventoryPendingCount = 0,
   usageAlertCount = 0,
 }) => {
+  const unreadMessages = useMessageUnread();
   const navigate = useNavigate();
 
   /* ================= STATE ================= */
@@ -73,6 +77,7 @@ const Sidebar = ({
     { name: "Reports",             icon: FaChartBar,      key: "reports" },
     { name: "Support",             icon: FaHeadset,       key: "support" },
     { name: "Notes",               icon: FaStickyNote,    key: "notes" },
+    { name: "Messages",            icon: FaEnvelope,      key: "message" },
     { name: "Settings",            icon: FaCogs,          key: "settings" },
   ];
 
@@ -136,6 +141,8 @@ const Sidebar = ({
                 ? inventoryPendingCount
                 : key === "system-usage"
                 ? usageAlertCount
+                : key === "message"
+                ? unreadMessages
                 : 0;
             const icon = React.createElement(Icon, { className: "text-lg" });
             return (

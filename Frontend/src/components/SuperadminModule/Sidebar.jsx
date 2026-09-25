@@ -13,8 +13,10 @@ import {
   FaHeartbeat,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import useMessageUnread from "../../hooks/useMessageUnread";
 
 const Sidebar = ({ active, setActive, supportPendingCount = 0, usageAlertCount = 0 }) => {
+  const unreadMessages = useMessageUnread();
   const navigate = useNavigate();
 
   const user = JSON.parse(localStorage.getItem("user")) || {};
@@ -32,6 +34,7 @@ const Sidebar = ({ active, setActive, supportPendingCount = 0, usageAlertCount =
     { name: "Contact Inquiries",  icon: FaEnvelope,      key: "contact-inquiries" },
     { name: "Support",            icon: FaTools,         key: "support-tickets" },
     { name: "Notes",              icon: FaStickyNote,    key: "notepad" },
+    { name: "Messages",           icon: FaEnvelope,      key: "message" },
   ];
 
   return (
@@ -63,6 +66,8 @@ const Sidebar = ({ active, setActive, supportPendingCount = 0, usageAlertCount =
               ? supportPendingCount
               : key === "system-usage"
               ? usageAlertCount
+              : key === "message"
+              ? unreadMessages
               : 0;
           return (
             <button

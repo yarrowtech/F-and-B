@@ -1084,6 +1084,7 @@ import inventoryDashboardRoutes from "./routes/inventoryDashboard.routes.js";
 import contactRoutes from "./routes/contact.routes.js";
 import pushRoutes from "./routes/push.routes.js";
 import policyRoutes from "./routes/policy.routes.js";
+import messageRoutes from "./routes/message.routes.js";
 import { syncBillIndexes } from "./models/Bill.model.js";
 import { initWebPush } from "./utils/webPush.js";
 import { startInactivityAlerts } from "./jobs/inactivityAlerts.job.js";
@@ -1208,6 +1209,7 @@ app.use("/api/inventory-dashboard", inventoryDashboardRoutes);
 // 📬 CONTACT (landing page)
 app.use("/api/contact", contactRoutes);
 app.use("/api/push", pushRoutes);
+app.use("/api/messages", messageRoutes);
 
 // 📜 PRIVACY POLICY / TERMS (proxied from the EFNBMMS Policy API)
 app.use("/api/policies", policyRoutes);

@@ -1,4 +1,5 @@
 // src/SucheifModule/Sucheif.jsx
+import useMessageUnread from "../../hooks/useMessageUnread";
 import React, { useState, useEffect, useRef } from "react";
 import { FaBars, FaCogs, FaEnvelope, FaBell } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
@@ -33,7 +34,7 @@ const SuCheif = () => {
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
   const [unreadNotifications, setUnreadNotifications] = useState(5);
-  const [unreadMessages, setUnreadMessages] = useState(2);
+  const unreadMessages = useMessageUnread();
   const mainRef = useRef(null);
 
   /* ----------------- THEME HANDLING ----------------- */
@@ -54,7 +55,6 @@ const SuCheif = () => {
     setSidebarOpen(false);
 
     if (section === "notifications") setUnreadNotifications(0);
-    if (section === "messages") setUnreadMessages(0);
 
     if (mainRef.current) {
       mainRef.current.scrollTo({ top: 0, behavior: "smooth" });

@@ -1,3 +1,4 @@
+import useMessageUnread from "../../hooks/useMessageUnread";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { FaBars, FaCogs, FaEnvelope, FaBell, FaHome } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
@@ -35,7 +36,7 @@ const Cleaner = () => {
 
   // Counters
   const [unreadNotifications, setUnreadNotifications] = useState(5);
-  const [unreadMessages, setUnreadMessages] = useState(2);
+  const unreadMessages = useMessageUnread();
 
   const mainRef = useRef(null);
 
@@ -65,7 +66,6 @@ const Cleaner = () => {
     setActive(section);
     setSidebarOpen(false);
     if (section === "notifications") setUnreadNotifications(0);
-    if (section === "messages") setUnreadMessages(0);
   }, []);
 
   // Content switcher
