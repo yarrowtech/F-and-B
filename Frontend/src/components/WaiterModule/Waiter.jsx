@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaBell, FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUserTie } from "react-icons/fa";
+import { FaBell, FaEnvelope, FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUserTie } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import WaiterSidebar from "./WaiterSidebar";
@@ -113,6 +113,7 @@ const BOTTOM_NAV = [
   { key: "attendance", label: "Attendance", icon: FaClipboardCheck },
   { key: "profile",    label: "Profile",    icon: FaUserCircle },
   { key: "notes",      label: "Notes",      icon: FaStickyNote },
+  { key: "messages",   label: "Messages",   icon: FaEnvelope },
   { key: "notifications", label: "Alerts",  icon: FaBell },
 ];
 
