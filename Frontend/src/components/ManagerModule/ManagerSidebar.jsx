@@ -13,7 +13,9 @@ import {
   FaTimes,
   FaClipboardCheck,
   FaTable,
+  FaEnvelope,
 } from "react-icons/fa";
+import useMessageUnread from "../../hooks/useMessageUnread";
 import { useNavigate } from "react-router-dom";
 
 const ManagerSidebar = ({
@@ -25,6 +27,7 @@ const ManagerSidebar = ({
   restaurantType = "HYBRID",
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
+  const unreadMessages = useMessageUnread();
   const navigate = useNavigate();
 
   const isMobileControlled = typeof mobileOpen === "boolean";
@@ -60,6 +63,7 @@ const ManagerSidebar = ({
     { name: "Account",          icon: FaWallet,        key: "account" },
     { name: "Profile",          icon: FaUserCircle,    key: "profile" },
     { name: "Notes",            icon: FaStickyNote,    key: "notes" },
+    { name: "Messages",         icon: FaEnvelope,      key: "message" },
   ].filter((item) =>
     item.key === "table-management"
       ? String(restaurantType || "HYBRID").toUpperCase() !== "MANUAL_ONLY"
@@ -131,7 +135,12 @@ const ManagerSidebar = ({
                   }`}
               >
                 {React.createElement(Icon, { className: "text-lg" })}
-                <span>{name}</span>
+                <span className="flex-1 text-left">{name}</span>
+                {key === "message" && unreadMessages > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-black text-white shadow-sm">
+                    {unreadMessages > 9 ? "9+" : unreadMessages}
+                  </span>
+                )}
               </button>
             );
           })}

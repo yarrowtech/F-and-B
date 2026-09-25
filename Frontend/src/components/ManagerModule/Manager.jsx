@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  FaEnvelope,
   FaBoxes,
   FaChartBar,
   FaClipboardCheck,
@@ -134,6 +135,7 @@ const BOTTOM_NAV = [
   { key: "account",          label: "Account",    icon: FaWallet },
   { key: "profile",          label: "Profile",    icon: FaUserCircle },
   { key: "notes",            label: "Notes",      icon: FaStickyNote },
+  { key: "message",          label: "Messages",   icon: FaEnvelope },
 ];
 
 const getInitialDarkMode = () => {
