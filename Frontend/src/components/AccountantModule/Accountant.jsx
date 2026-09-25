@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaChartBar, FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUtensils } from "react-icons/fa";
+import { FaEnvelope, FaChartBar, FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUtensils } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import AccountantSidebar from "./AccountantSidebar";
@@ -115,6 +115,7 @@ const BOTTOM_NAV = [
   { key: "attendance",   label: "Attendance", icon: FaClipboardCheck },
   { key: "profile",      label: "Profile",    icon: FaUserCircle },
   { key: "notes",        label: "Notes",      icon: FaStickyNote },
+  { key: "messages",     label: "Messages",   icon: FaEnvelope },
 ];
 
 const getInitialDarkMode = () => {

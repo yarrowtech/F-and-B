@@ -9,10 +9,13 @@ import {
   FaTimes,
   FaUtensils,
   FaChartBar,
+  FaEnvelope,
 } from "react-icons/fa";
+import useMessageUnread from "../../hooks/useMessageUnread";
 import { useNavigate } from "react-router-dom";
 
 const AccountantSidebar = ({ active, setActive }) => {
+  const unreadMessages = useMessageUnread();
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -26,6 +29,7 @@ const AccountantSidebar = ({ active, setActive }) => {
     { name: "Attendance",    icon: FaClipboardCheck,key: "attendance" },
     { name: "Profile",       icon: FaUserCircle,    key: "profile" },
     { name: "Notes",         icon: FaStickyNote,    key: "notes" },
+    { name: "Messages",      icon: FaEnvelope,      key: "messages" },
   ];
 
   return (
@@ -86,7 +90,12 @@ const AccountantSidebar = ({ active, setActive }) => {
                   }`}
               >
                 {React.createElement(Icon, { className: "text-lg" })}
-                <span>{name}</span>
+                <span className="flex-1 text-left">{name}</span>
+                {key === "messages" && unreadMessages > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-black text-white shadow-sm">
+                    {unreadMessages > 9 ? "9+" : unreadMessages}
+                  </span>
+                )}
               </button>
             );
           })}
