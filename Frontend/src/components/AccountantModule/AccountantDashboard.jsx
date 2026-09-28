@@ -314,35 +314,13 @@ const AccountantDashboard = () => {
   }, [filter, fromDate, toDate]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-3 text-slate-950 dark:bg-neutral-800 dark:text-white sm:p-4 lg:p-6">
-      <div className="mx-auto max-w-7xl space-y-4 sm:space-y-5">
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-300">
-                Accountant Billing
-              </p>
-              <h1 className="mt-2 text-2xl font-black text-slate-950 dark:text-white sm:text-3xl">
-                Dashboard
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-                Track generated bills, collected revenue, and payment methods for the selected date range.
-              </p>
-            </div>
-
-            <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Current Range</p>
-              <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">{rangeLabel}</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-4">
+    <div className="min-h-screen bg-slate-50 p-3 text-slate-950 dark:bg-neutral-800 dark:text-white sm:p-4">
+      <div className="mx-auto max-w-7xl space-y-4">
+        <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Filter Billing</p>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Choose your date range</p>
-            </div>
+            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+              Billing &middot; <span className="text-slate-800 dark:text-slate-200">{rangeLabel}</span>
+            </p>
 
             <div className="grid gap-2 sm:grid-cols-3 lg:flex lg:items-center">
               <select
