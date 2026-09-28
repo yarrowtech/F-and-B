@@ -698,9 +698,11 @@ const handleDelete = async (id) => {
               </label>
               <input
                 type="tel"
+                inputMode="numeric"
+                maxLength={10}
                 placeholder="e.g. 9876543210"
                 value={bookingForm.phone}
-                onChange={(e) => setBookingForm({ ...bookingForm, phone: e.target.value })}
+                onChange={(e) => setBookingForm({ ...bookingForm, phone: e.target.value.replace(/\D/g, "") })}
                 required
                 className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
               />

@@ -1,5 +1,5 @@
 import { createElement, useCallback, useEffect, useState } from "react";
-import { FaCheckCircle, FaStore, FaTable, FaUtensils } from "react-icons/fa";
+import { FaCheckCircle, FaStore, FaTable } from "react-icons/fa";
 import { getTables } from "../../services/table.service";
 import {
   getReservations,
@@ -28,14 +28,30 @@ const getOrderTotal = (order) =>
     0
   );
 
+const emptyBookingForm = { customerName: "", phone: "", partySize: "", bookingTime: "", table: "", notes: "" };
+
+const STATUS_STYLES = {
+  upcoming: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  seated: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+  cancelled: "bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300",
+  no_show: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+};
+
 const ManagerTableManagement = () => {
   const { restaurantId, restaurantName, restaurantType } = getAssignedRestaurant();
+  const [activeTab, setActiveTab] = useState("live");
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState(null);
   const [feedback, setFeedback] = useState("");
   const tableManagementEnabled =
     String(restaurantType || "HYBRID").toUpperCase() !== "MANUAL_ONLY";
+
+  const [reservations, setReservations] = useState([]);
+  const [loadingReservations, setLoadingReservations] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [bookingForm, setBookingForm] = useState(emptyBookingForm);
+  const [bookingLoading, setBookingLoading] = useState(false);
 
   const loadTables = useCallback(async () => {
     try {
@@ -48,6 +64,19 @@ const ManagerTableManagement = () => {
       setFeedback(err?.response?.data?.message || "Failed to load tables");
     } finally {
       setLoading(false);
+    }
+  }, [restaurantId]);
+
+  const loadReservations = useCallback(async () => {
+    try {
+      setLoadingReservations(true);
+      const data = await getReservations(restaurantId);
+      setReservations(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setReservations([]);
+      setFeedback(err?.response?.data?.message || "Failed to load reservations");
+    } finally {
+      setLoadingReservations(false);
     }
   }, [restaurantId]);
 
@@ -66,6 +95,73 @@ const ManagerTableManagement = () => {
     loadTables();
   }, [restaurantId, loadTables, tableManagementEnabled]);
 
+  useEffect(() => {
+    if (!restaurantId || !tableManagementEnabled || activeTab !== "bookings") return;
+    loadReservations();
+  }, [restaurantId, tableManagementEnabled, activeTab, loadReservations]);
+
+  const openBookingModal = () => {
+    setFeedback("");
+    setBookingForm(emptyBookingForm);
+    setShowBookingModal(true);
+  };
+
+  const handleAddBooking = async (e) => {
+    e.preventDefault();
+    const partySize = Number(bookingForm.partySize);
+    if (!bookingForm.customerName.trim()) return setFeedback("Enter customer name");
+    if (!bookingForm.phone.trim()) return setFeedback("Enter phone number");
+    if (!partySize || partySize <= 0) return setFeedback("Enter valid party size");
+    if (!bookingForm.bookingTime) return setFeedback("Select booking date & time");
+
+    try {
+      setBookingLoading(true);
+      await createReservation(restaurantId, {
+        customerName: bookingForm.customerName.trim(),
+        phone: bookingForm.phone.trim(),
+        partySize,
+        bookingTime: bookingForm.bookingTime,
+        table: bookingForm.table || undefined,
+        notes: bookingForm.notes.trim(),
+      });
+      await loadReservations();
+      setShowBookingModal(false);
+      setBookingForm(emptyBookingForm);
+    } catch (err) {
+      setFeedback(err?.response?.data?.message || "Save failed");
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  const handleSeatReservation = async (reservation) => {
+    try {
+      await updateReservationStatus(restaurantId, reservation._id, "seated");
+      await loadReservations();
+      await loadTables();
+    } catch (err) {
+      setFeedback(err?.response?.data?.message || "Failed to seat reservation");
+    }
+  };
+
+  const handleCancelReservation = async (reservation) => {
+    try {
+      await updateReservationStatus(restaurantId, reservation._id, "cancelled");
+      await loadReservations();
+    } catch (err) {
+      setFeedback(err?.response?.data?.message || "Failed to cancel reservation");
+    }
+  };
+
+  const handleDeleteReservation = async (reservation) => {
+    try {
+      await deleteReservation(restaurantId, reservation._id);
+      await loadReservations();
+    } catch (err) {
+      setFeedback(err?.response?.data?.message || "Failed to delete reservation");
+    }
+  };
+
   const occupiedTables = tables.filter((table) => table.status === "occupied");
   const freeTables = tables.filter((table) => table.status === "available");
 
@@ -73,7 +169,7 @@ const ManagerTableManagement = () => {
     <div className="min-h-screen bg-slate-50 p-3 dark:bg-neutral-950 sm:p-4">
       <div className="mx-auto max-w-7xl space-y-4">
         <p className="text-sm font-medium text-slate-500 dark:text-neutral-400">
-          {restaurantName} &middot; Live table status
+          {restaurantName} &middot; Table management
         </p>
 
         {feedback ? (
@@ -82,68 +178,185 @@ const ManagerTableManagement = () => {
           </div>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard label="Total Tables" value={tables.length} icon={FaTable} />
-          <StatCard label="Free Tables" value={freeTables.length} icon={FaCheckCircle} tone="emerald" />
-          <StatCard label="Occupied Tables" value={occupiedTables.length} icon={FaStore} tone="rose" />
+        <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700 sm:flex sm:w-fit">
+          <button
+            type="button"
+            onClick={() => setActiveTab("live")}
+            className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+              activeTab === "live"
+                ? "bg-emerald-600 text-white"
+                : "text-slate-600 hover:bg-slate-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
+            }`}
+          >
+            Live Table
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("bookings")}
+            className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+              activeTab === "bookings"
+                ? "bg-emerald-600 text-white"
+                : "text-slate-600 hover:bg-slate-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
+            }`}
+          >
+            Reservation Booking
+          </button>
         </div>
 
         {!restaurantId ? (
           <EmptyState>No restaurant is assigned to this manager.</EmptyState>
         ) : !tableManagementEnabled ? (
           <EmptyState>Table management is disabled for manual-only restaurants.</EmptyState>
-        ) : loading ? (
-          <EmptyState>Loading live tables...</EmptyState>
-        ) : tables.length === 0 ? (
-          <EmptyState>No tables found for this restaurant.</EmptyState>
+        ) : activeTab === "live" ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <StatCard label="Total Tables" value={tables.length} icon={FaTable} />
+              <StatCard label="Free Tables" value={freeTables.length} icon={FaCheckCircle} tone="emerald" />
+              <StatCard label="Occupied Tables" value={occupiedTables.length} icon={FaStore} tone="rose" />
+            </div>
+
+            {loading ? (
+              <EmptyState>Loading live tables...</EmptyState>
+            ) : tables.length === 0 ? (
+              <EmptyState>No tables found for this restaurant.</EmptyState>
+            ) : (
+              <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {tables.map((table) => {
+                    const occupied = table.status === "occupied";
+                    return (
+                      <button
+                        key={table._id}
+                        type="button"
+                        onClick={() => occupied && table.activeOrder && setSelectedTable(table)}
+                        disabled={!occupied || !table.activeOrder}
+                        className={`rounded-2xl border p-4 text-left shadow-sm transition ${
+                          occupied
+                            ? "border-rose-200 bg-rose-50 hover:-translate-y-0.5 hover:shadow-md dark:border-rose-900/50 dark:bg-rose-950/30"
+                            : "border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/30"
+                        } ${!occupied || !table.activeOrder ? "cursor-default" : ""}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Table</p>
+                            <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">T{table.tableNumber}</p>
+                          </div>
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              occupied
+                                ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+                                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            }`}
+                          >
+                            {occupied ? "Occupied" : "Free"}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                          <InfoTile label="Capacity" value={table.capacity} />
+                          <InfoTile label="Order" value={table.activeOrder?.orderNo || "-"} />
+                          <InfoTile label="Waiter" value={table.activeOrder?.waiter?.name || "-"} />
+                        </div>
+
+                        {occupied && (
+                          <p className="mt-3 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                            {table.activeOrder ? "Click to view order details" : "No active order linked"}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
         ) : (
-          <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {tables.map((table) => {
-                const occupied = table.status === "occupied";
-                return (
-                  <button
-                    key={table._id}
-                    type="button"
-                    onClick={() => occupied && table.activeOrder && setSelectedTable(table)}
-                    disabled={!occupied || !table.activeOrder}
-                    className={`rounded-2xl border p-4 text-left shadow-sm transition ${
-                      occupied
-                        ? "border-rose-200 bg-rose-50 hover:-translate-y-0.5 hover:shadow-md dark:border-rose-900/50 dark:bg-rose-950/30"
-                        : "border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/30"
-                    } ${!occupied || !table.activeOrder ? "cursor-default" : ""}`}
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <StatCard label="Total Bookings" value={reservations.length} icon={FaTable} />
+              <StatCard
+                label="Upcoming"
+                value={reservations.filter((r) => r.status === "upcoming").length}
+                icon={FaCheckCircle}
+                tone="emerald"
+              />
+              <StatCard
+                label="Seated"
+                value={reservations.filter((r) => r.status === "seated").length}
+                icon={FaStore}
+                tone="rose"
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={openBookingModal}
+                className="flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
+              >
+                <span className="text-lg leading-none">+</span> New Booking
+              </button>
+            </div>
+
+            {loadingReservations ? (
+              <EmptyState>Loading bookings...</EmptyState>
+            ) : reservations.length === 0 ? (
+              <EmptyState>No reservations yet.</EmptyState>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {reservations.map((r) => (
+                  <article
+                    key={r._id}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Table</p>
-                        <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">T{table.tableNumber}</p>
+                        <p className="text-base font-bold text-slate-900 dark:text-white">{r.customerName}</p>
+                        <p className="text-xs text-slate-500 dark:text-neutral-400">{r.phone}</p>
                       </div>
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          occupied
-                            ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
-                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                        }`}
-                      >
-                        {occupied ? "Occupied" : "Free"}
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${STATUS_STYLES[r.status] || STATUS_STYLES.upcoming}`}>
+                        {r.status.replace("_", " ")}
                       </span>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                      <InfoTile label="Capacity" value={table.capacity} />
-                      <InfoTile label="Order" value={table.activeOrder?.orderNo || "-"} />
-                      <InfoTile label="Waiter" value={table.activeOrder?.waiter?.name || "-"} />
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                      <InfoTile label="Party Size" value={r.partySize} />
+                      <InfoTile label="Table" value={r.table ? `T${r.table.tableNumber}` : "Unassigned"} />
                     </div>
 
-                    {occupied && (
-                      <p className="mt-3 text-xs font-semibold text-rose-700 dark:text-rose-300">
-                        {table.activeOrder ? "Click to view order details" : "No active order linked"}
-                      </p>
+                    <p className="mt-3 text-sm text-slate-600 dark:text-neutral-300">
+                      {new Date(r.bookingTime).toLocaleString()}
+                    </p>
+
+                    {r.notes && <p className="mt-2 text-xs text-slate-400 dark:text-neutral-500">{r.notes}</p>}
+
+                    {r.status === "upcoming" ? (
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => handleSeatReservation(r)}
+                          className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"
+                        >
+                          Seat Now
+                        </button>
+                        <button
+                          onClick={() => handleCancelReservation(r)}
+                          className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-600 dark:bg-rose-900/20 dark:text-rose-400"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleDeleteReservation(r)}
+                        className="mt-4 w-full rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-500 dark:bg-neutral-800 dark:text-neutral-400"
+                      >
+                        Remove
+                      </button>
                     )}
-                  </button>
-                );
-              })}
-            </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -153,6 +366,105 @@ const ManagerTableManagement = () => {
           table={selectedTable}
           onClose={() => setSelectedTable(null)}
         />
+      )}
+
+      {showBookingModal && (
+        <Modal title="New Reservation" onClose={() => setShowBookingModal(false)}>
+          <form onSubmit={handleAddBooking} className="space-y-5">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-neutral-300 mb-1.5">Customer Name</label>
+              <input
+                type="text"
+                placeholder="e.g. Rahul Sharma"
+                value={bookingForm.customerName}
+                onChange={(e) => setBookingForm({ ...bookingForm, customerName: e.target.value })}
+                required
+                className="w-full px-4 py-2.5 text-sm border border-slate-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-neutral-300 mb-1.5">Phone</label>
+              <input
+                type="tel"
+                inputMode="numeric"
+                maxLength={10}
+                placeholder="e.g. 9876543210"
+                value={bookingForm.phone}
+                onChange={(e) => setBookingForm({ ...bookingForm, phone: e.target.value.replace(/\D/g, "") })}
+                required
+                className="w-full px-4 py-2.5 text-sm border border-slate-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-neutral-300 mb-1.5">Party Size</label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="e.g. 4"
+                  value={bookingForm.partySize}
+                  onChange={(e) => setBookingForm({ ...bookingForm, partySize: e.target.value })}
+                  required
+                  className="w-full px-4 py-2.5 text-sm border border-slate-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-neutral-300 mb-1.5">Table (optional)</label>
+                <select
+                  value={bookingForm.table}
+                  onChange={(e) => setBookingForm({ ...bookingForm, table: e.target.value })}
+                  className="w-full px-4 py-2.5 text-sm border border-slate-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="">Unassigned</option>
+                  {tables.filter((t) => t.status === "available").map((t) => (
+                    <option key={t._id} value={t._id}>T{t.tableNumber} ({t.capacity} seats)</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-neutral-300 mb-1.5">Booking Date & Time</label>
+              <input
+                type="datetime-local"
+                value={bookingForm.bookingTime}
+                onChange={(e) => setBookingForm({ ...bookingForm, bookingTime: e.target.value })}
+                required
+                className="w-full px-4 py-2.5 text-sm border border-slate-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-neutral-300 mb-1.5">Notes (optional)</label>
+              <textarea
+                rows={2}
+                placeholder="e.g. Window seat preferred"
+                value={bookingForm.notes}
+                onChange={(e) => setBookingForm({ ...bookingForm, notes: e.target.value })}
+                className="w-full px-4 py-2.5 text-sm border border-slate-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowBookingModal(false)}
+                className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={bookingLoading}
+                className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {bookingLoading ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

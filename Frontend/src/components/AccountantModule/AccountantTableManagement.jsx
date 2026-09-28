@@ -378,9 +378,11 @@ const AccountantTableManagement = () => {
               <label className="block text-sm font-semibold text-slate-700 dark:text-neutral-300 mb-1.5">Phone</label>
               <input
                 type="tel"
+                inputMode="numeric"
+                maxLength={10}
                 placeholder="e.g. 9876543210"
                 value={bookingForm.phone}
-                onChange={(e) => setBookingForm({ ...bookingForm, phone: e.target.value })}
+                onChange={(e) => setBookingForm({ ...bookingForm, phone: e.target.value.replace(/\D/g, "") })}
                 required
                 className="w-full px-4 py-2.5 text-sm border border-slate-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
