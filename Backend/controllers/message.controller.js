@@ -270,7 +270,26 @@ const getThread = async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(500)
         .lean();
-      return res.json({ success: true, data: dedupeBroadcasts(sent).reverse() });
+      const unique = dedupeBroadcasts(sent);
+      const stats = await Message.aggregate([
+        { $match: { broadcastId: { $in: unique.map((m) => m.broadcastId) } } },
+        {
+          $group: {
+            _id: "$broadcastId",
+            total: { $sum: 1 },
+            seen: { $sum: { $cond: [{ $ne: ["$readAt", null] }, 1, 0] } },
+          },
+        },
+      ]);
+      const statMap = new Map(stats.map((s) => [s._id, s]));
+      const data = unique
+        .map((m) => ({
+          ...m,
+          totalCount: statMap.get(m.broadcastId)?.total || 0,
+          seenCount: statMap.get(m.broadcastId)?.seen || 0,
+        }))
+        .reverse();
+      return res.json({ success: true, data });
     }
 
     if (!mongoose.Types.ObjectId.isValid(contactId)) {
@@ -280,10 +299,17 @@ const getThread = async (req, res) => {
       return res.status(403).json({ success: false, message: "Contact not allowed" });
     }
 
-    await Message.updateMany(
+    const marked = await Message.updateMany(
       { "sender.id": contactId, "recipient.id": req.user.id, readAt: null },
       { readAt: new Date() }
     );
+    if (marked.modifiedCount > 0) {
+      try {
+        getIO().emit("message:read", { senderId: String(contactId), readerId: req.user.id });
+      } catch {
+        // socket not initialized - ignore
+      }
+    }
 
     const messages = await Message.find({
       $or: [

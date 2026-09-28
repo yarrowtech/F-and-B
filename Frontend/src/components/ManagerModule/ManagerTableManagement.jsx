@@ -1,6 +1,12 @@
 import { createElement, useCallback, useEffect, useState } from "react";
 import { FaCheckCircle, FaStore, FaTable, FaUtensils } from "react-icons/fa";
 import { getTables } from "../../services/table.service";
+import {
+  getReservations,
+  createReservation,
+  updateReservationStatus,
+  deleteReservation,
+} from "../../services/reservation.service";
 
 const getAssignedRestaurant = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -64,19 +70,11 @@ const ManagerTableManagement = () => {
   const freeTables = tables.filter((table) => table.status === "available");
 
   return (
-    <div className="min-h-screen bg-slate-50 p-3 dark:bg-neutral-950 sm:p-6">
-      <div className="mx-auto max-w-7xl space-y-5">
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700 sm:p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-            Manager
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
-            Table Management
-          </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">
-            Live table status and active order details for {restaurantName}.
-          </p>
-        </div>
+    <div className="min-h-screen bg-slate-50 p-3 dark:bg-neutral-950 sm:p-4">
+      <div className="mx-auto max-w-7xl space-y-4">
+        <p className="text-sm font-medium text-slate-500 dark:text-neutral-400">
+          {restaurantName} &middot; Live table status
+        </p>
 
         {feedback ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">

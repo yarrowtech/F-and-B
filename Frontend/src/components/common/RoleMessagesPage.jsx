@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { FaPaperPlane, FaSearch, FaRegCommentDots, FaUsers, FaExclamationTriangle, FaCheckDouble } from "react-icons/fa";
+import { FaPaperPlane, FaSearch, FaRegCommentDots, FaUsers, FaExclamationTriangle, FaCheckDouble, FaCheck } from "react-icons/fa";
 import socket from "../../socket/socket";
 import QuickMessages from "./QuickMessages";
 import { getMyUserId, MESSAGES_CHANGED_EVENT } from "../../hooks/useMessageUnread";
@@ -117,8 +117,18 @@ const RoleMessagesPage = ({ title = "Messages" }) => {
       if (selectedRef.current?.id === senderId) loadThread(senderId);
       loadContacts();
     };
+    // the other person read our messages - refresh Sent -> Seen ticks
+    const onRead = ({ senderId, readerId }) => {
+      if (senderId !== myId) return;
+      const open = selectedRef.current;
+      if (open && (open.id === readerId || open.isGroup)) loadThread(open.id);
+    };
     socket.on("message:new", onNew);
-    return () => socket.off("message:new", onNew);
+    socket.on("message:read", onRead);
+    return () => {
+      socket.off("message:new", onNew);
+      socket.off("message:read", onRead);
+    };
   }, [myId, loadContacts, loadThread]);
 
   useEffect(() => {
@@ -303,9 +313,27 @@ const RoleMessagesPage = ({ title = "Messages" }) => {
                           }`}
                         >
                           {formatTime(msg.createdAt)}
-                          {mine && isUrgent && !selected.isGroup && msg.readAt && (
-                            <span className="flex items-center gap-0.5">
-                              <FaCheckDouble /> Seen
+                          {mine && (
+                            <span
+                              className={`flex items-center gap-0.5 ${
+                                (selected.isGroup ? msg.seenCount > 0 : msg.readAt)
+                                  ? "font-semibold text-white"
+                                  : "opacity-80"
+                              }`}
+                            >
+                              {selected.isGroup ? (
+                                <>
+                                  <FaCheckDouble /> Seen by {msg.seenCount}/{msg.totalCount}
+                                </>
+                              ) : msg.readAt ? (
+                                <>
+                                  <FaCheckDouble /> Seen
+                                </>
+                              ) : (
+                                <>
+                                  <FaCheck /> Sent
+                                </>
+                              )}
                             </span>
                           )}
                         </p>

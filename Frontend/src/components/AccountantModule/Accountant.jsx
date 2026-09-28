@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaEnvelope, FaChartBar, FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUtensils } from "react-icons/fa";
+import { FaEnvelope, FaChartBar, FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTable, FaTachometerAlt, FaUserCircle, FaUtensils } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
 import AccountantSidebar from "./AccountantSidebar";
@@ -11,6 +11,7 @@ import AccountantNotes from "./AccountantNotes";
 import AccountantAttendance from "./AccountantAttendance";
 import AccountantVendorBilling from "./AccountantVendorBilling";
 import AccountantOrderBilling from "./AccountantOrderBilling";
+import AccountantTableManagement from "./AccountantTableManagement";
 import AccountantDashboard from "./AccountantDashboard";
 import AccountantMessage from "./AccountantMessage";
 import AccountantNotification from "./AccountantNotification";
@@ -111,6 +112,7 @@ function AccountantProfileButton() {
 const BOTTOM_NAV = [
   { key: "dashboard",    label: "Dashboard",  icon: FaTachometerAlt },
   { key: "orderbilling", label: "Billing",    icon: FaUtensils },
+  { key: "tables",       label: "Tables",     icon: FaTable },
   { key: "daily-sales",  label: "Sales",      icon: FaChartBar },
   { key: "attendance",   label: "Attendance", icon: FaClipboardCheck },
   { key: "profile",      label: "Profile",    icon: FaUserCircle },
@@ -149,6 +151,7 @@ const Accountant = () => {
     switch (active) {
       case "dashboard":    return <AccountantDashboard />;
       case "orderbilling": return <AccountantOrderBilling />;
+      case "tables":       return <AccountantTableManagement />;
       case "vendorbilling":return <AccountantVendorBilling />;
       case "daily-sales":  return <AccountantDailySalesReport />;
       case "attendance":   return <AccountantAttendance />;

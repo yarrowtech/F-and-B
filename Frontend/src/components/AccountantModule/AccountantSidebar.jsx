@@ -10,6 +10,7 @@ import {
   FaUtensils,
   FaChartBar,
   FaEnvelope,
+  FaTable,
 } from "react-icons/fa";
 import useMessageUnread from "../../hooks/useMessageUnread";
 import { useNavigate } from "react-router-dom";
@@ -25,6 +26,7 @@ const AccountantSidebar = ({ active, setActive }) => {
   const menuItems = [
     { name: "Dashboard",     icon: FaTachometerAlt, key: "dashboard" },
     { name: "Order Billing", icon: FaUtensils,      key: "orderbilling" },
+    { name: "Tables",        icon: FaTable,         key: "tables" },
     { name: "Daily Sales Report", icon: FaChartBar, key: "daily-sales" },
     { name: "Attendance",    icon: FaClipboardCheck,key: "attendance" },
     { name: "Profile",       icon: FaUserCircle,    key: "profile" },

@@ -6,6 +6,12 @@ import {
   updateTable,
   deleteTable,
 } from "../../services/table.service";
+import {
+  getReservations,
+  createReservation,
+  updateReservationStatus,
+  deleteReservation,
+} from "../../services/reservation.service";
 import { getRestaurants } from "../../services/restaurant.service";
 
 const STATUS_MAP = {
@@ -14,6 +20,7 @@ const STATUS_MAP = {
 };
 
 const emptyForm = { tableNumber: "", capacity: "", status: "FREE" };
+const emptyBookingForm = { customerName: "", phone: "", partySize: "", bookingTime: "", table: "", notes: "" };
 const isTableEnabledRestaurant = (restaurant) =>
   String(restaurant?.restaurantType || "HYBRID").toUpperCase() !== "MANUAL_ONLY";
 
@@ -26,6 +33,12 @@ const AdminTableManagement = () => {
   const [loadingTables, setLoadingTables] = useState(false);
   const [activeTab, setActiveTab] = useState("manage");
   const [orderDetailsTable, setOrderDetailsTable] = useState(null);
+
+  const [reservations, setReservations] = useState([]);
+  const [loadingReservations, setLoadingReservations] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [bookingForm, setBookingForm] = useState(emptyBookingForm);
+  const [bookingLoading, setBookingLoading] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -71,6 +84,104 @@ const AdminTableManagement = () => {
       showFeedback("error", err?.response?.data?.message || "Failed to load tables");
     } finally {
       setLoadingTables(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedRestaurant || activeTab !== "bookings") return;
+    loadReservations();
+  }, [selectedRestaurant, activeTab]);
+
+  const loadReservations = async () => {
+    try {
+      setLoadingReservations(true);
+      const data = await getReservations(selectedRestaurant);
+      setReservations(data || []);
+    } catch (err) {
+      showFeedback("error", err?.response?.data?.message || "Failed to load reservations");
+    } finally {
+      setLoadingReservations(false);
+    }
+  };
+
+  const openBookingModal = () => {
+    clearFeedback();
+    setBookingForm(emptyBookingForm);
+    setShowBookingModal(true);
+  };
+
+  const handleAddBooking = async (e) => {
+    e.preventDefault();
+    if (!selectedRestaurant) {
+      showFeedback("error", "Please select a restaurant first");
+      return;
+    }
+    const partySize = Number(bookingForm.partySize);
+    if (!bookingForm.customerName.trim()) {
+      showFeedback("error", "Enter customer name");
+      return;
+    }
+    if (!bookingForm.phone.trim()) {
+      showFeedback("error", "Enter phone number");
+      return;
+    }
+    if (!partySize || partySize <= 0) {
+      showFeedback("error", "Enter valid party size");
+      return;
+    }
+    if (!bookingForm.bookingTime) {
+      showFeedback("error", "Select booking date & time");
+      return;
+    }
+    try {
+      setBookingLoading(true);
+      await createReservation(selectedRestaurant, {
+        customerName: bookingForm.customerName.trim(),
+        phone: bookingForm.phone.trim(),
+        partySize,
+        bookingTime: bookingForm.bookingTime,
+        table: bookingForm.table || undefined,
+        notes: bookingForm.notes.trim(),
+      });
+      await loadReservations();
+      setShowBookingModal(false);
+      setBookingForm(emptyBookingForm);
+      showFeedback("success", "Reservation created successfully");
+    } catch (err) {
+      showFeedback("error", err?.response?.data?.message || "Save failed");
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  const handleSeatReservation = async (reservation) => {
+    try {
+      await updateReservationStatus(selectedRestaurant, reservation._id, "seated");
+      await loadReservations();
+      await loadTables();
+      showFeedback("success", `${reservation.customerName} seated`);
+    } catch (err) {
+      showFeedback("error", err?.response?.data?.message || "Failed to seat reservation");
+    }
+  };
+
+  const handleCancelReservation = async (reservation) => {
+    try {
+      await updateReservationStatus(selectedRestaurant, reservation._id, "cancelled");
+      await loadReservations();
+      showFeedback("success", "Reservation cancelled");
+    } catch (err) {
+      showFeedback("error", err?.response?.data?.message || "Failed to cancel reservation");
+    }
+  };
+
+  const handleDeleteReservation = async (reservation) => {
+    try {
+      await deleteReservation(selectedRestaurant, reservation._id);
+      await loadReservations();
+      showFeedback("success", "Reservation deleted");
+    } catch (err) {
+      showFeedback("error", err?.response?.data?.message || "Failed to delete reservation");
     }
   };
 
@@ -149,53 +260,38 @@ const handleDelete = async (id) => {
   }
 };
 
-  const selectedRestaurantName = restaurants.find((r) => r._id === selectedRestaurant)?.name || "";
   const occupiedTables = tables.filter((table) => table.status === "occupied");
   const freeTables = tables.filter((table) => table.status === "available");
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-gray-50 p-3 dark:bg-gray-900 sm:p-4 lg:p-6">
+    <div className="min-h-screen overflow-x-hidden bg-gray-50 p-3 dark:bg-gray-900 sm:p-4">
 
       {/* ── HEADER ROW ── */}
-      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-600 dark:text-green-400">
-            Admin
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
-            Table Management
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Create and manage dining tables for each restaurant.
-          </p>
-        </div>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <select
+          value={selectedRestaurant}
+          onChange={(e) => setSelectedRestaurant(e.target.value)}
+          className="min-h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white sm:w-64"
+        >
+          <option value="">-- Select Restaurant --</option>
+          {restaurants.map((r) => (
+            <option key={r._id} value={r._id}>{r.name}</option>
+          ))}
+        </select>
 
-        <div className="grid w-full gap-3 sm:grid-cols-[1fr_auto] lg:w-auto">
-          <select
-            value={selectedRestaurant}
-            onChange={(e) => setSelectedRestaurant(e.target.value)}
-            className="min-h-11 w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white sm:w-auto"
+        {selectedRestaurant && activeTab === "manage" && (
+          <button
+            onClick={openAddModal}
+            className="flex min-h-10 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
           >
-            <option value="">-- Select Restaurant --</option>
-            {restaurants.map((r) => (
-              <option key={r._id} value={r._id}>{r.name}</option>
-            ))}
-          </select>
-
-          {selectedRestaurant && (
-            <button
-              onClick={openAddModal}
-              className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
-            >
-              <span className="text-xl leading-none">+</span> Add Table
-            </button>
-          )}
-        </div>
+            <span className="text-lg leading-none">+</span> Add Table
+          </button>
+        )}
       </div>
 
       {feedback.message && (
         <div
-          className={`mb-4 flex items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm ${
+          className={`mb-3 flex items-start justify-between gap-3 rounded-lg border px-3 py-2 text-sm shadow-sm ${
             feedback.type === "error"
               ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300"
               : "border-green-200 bg-green-50 text-green-700 dark:border-green-900/40 dark:bg-green-950/40 dark:text-green-300"
@@ -212,25 +308,17 @@ const handleDelete = async (id) => {
         </div>
       )}
 
-      {/* ── RESTAURANT LABEL ── */}
-      {selectedRestaurantName && (
-        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-          Showing tables for{" "}
-          <span className="font-semibold text-gray-700 dark:text-gray-200">{selectedRestaurantName}</span>
-        </p>
-      )}
-
       {restaurants.length === 0 && (
-        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
           No hybrid restaurants are available for table management. Manual-only restaurants do not use tables.
         </div>
       )}
 
-      <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-white p-2 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700 sm:flex sm:w-fit">
+      <div className="mb-4 grid grid-cols-3 gap-1.5 rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700 sm:flex sm:w-fit">
         <button
           type="button"
           onClick={() => setActiveTab("manage")}
-          className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+          className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
             activeTab === "manage"
               ? "bg-green-600 text-white"
               : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -241,13 +329,24 @@ const handleDelete = async (id) => {
         <button
           type="button"
           onClick={() => setActiveTab("live")}
-          className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+          className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
             activeTab === "live"
               ? "bg-green-600 text-white"
               : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
           }`}
         >
           Live Table Orders
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("bookings")}
+          className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+            activeTab === "bookings"
+              ? "bg-green-600 text-white"
+              : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+          }`}
+        >
+          Bookings
         </button>
       </div>
 
@@ -263,6 +362,15 @@ const handleDelete = async (id) => {
           freeCount={freeTables.length}
           occupiedCount={occupiedTables.length}
           onOpenOrder={setOrderDetailsTable}
+        />
+      ) : activeTab === "bookings" ? (
+        <BookingsPanel
+          reservations={reservations}
+          loading={loadingReservations}
+          onAdd={openBookingModal}
+          onSeat={handleSeatReservation}
+          onCancel={handleCancelReservation}
+          onDelete={handleDeleteReservation}
         />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -565,6 +673,116 @@ const handleDelete = async (id) => {
           onClose={() => setOrderDetailsTable(null)}
         />
       )}
+
+      {/* ══════════════ ADD BOOKING MODAL ══════════════ */}
+      {showBookingModal && (
+        <Modal title="New Reservation" onClose={() => setShowBookingModal(false)}>
+          <form onSubmit={handleAddBooking} className="space-y-5">
+            <div>
+              <label className="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                Customer Name
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Rahul Sharma"
+                value={bookingForm.customerName}
+                onChange={(e) => setBookingForm({ ...bookingForm, customerName: e.target.value })}
+                required
+                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                Phone
+              </label>
+              <input
+                type="tel"
+                placeholder="e.g. 9876543210"
+                value={bookingForm.phone}
+                onChange={(e) => setBookingForm({ ...bookingForm, phone: e.target.value })}
+                required
+                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Party Size
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="e.g. 4"
+                  value={bookingForm.partySize}
+                  onChange={(e) => setBookingForm({ ...bookingForm, partySize: e.target.value })}
+                  required
+                  className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Table (optional)
+                </label>
+                <select
+                  value={bookingForm.table}
+                  onChange={(e) => setBookingForm({ ...bookingForm, table: e.target.value })}
+                  className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="">Unassigned</option>
+                  {tables.filter((t) => t.status === "available").map((t) => (
+                    <option key={t._id} value={t._id}>T{t.tableNumber} ({t.capacity} seats)</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                Booking Date & Time
+              </label>
+              <input
+                type="datetime-local"
+                value={bookingForm.bookingTime}
+                onChange={(e) => setBookingForm({ ...bookingForm, bookingTime: e.target.value })}
+                required
+                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                Notes (optional)
+              </label>
+              <textarea
+                rows={2}
+                placeholder="e.g. Window seat preferred"
+                value={bookingForm.notes}
+                onChange={(e) => setBookingForm({ ...bookingForm, notes: e.target.value })}
+                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowBookingModal(false)}
+                className="rounded-xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={bookingLoading}
+                className="rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-60"
+              >
+                {bookingLoading ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 };
@@ -674,11 +892,121 @@ const LiveTableOrders = ({ tables, loading, freeCount, occupiedCount, onOpenOrde
   </div>
 );
 
+const STATUS_STYLES = {
+  upcoming: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  seated: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+  cancelled: "bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300",
+  no_show: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+};
+
+const BookingsPanel = ({ reservations, loading, onAdd, onSeat, onCancel, onDelete }) => {
+  const upcomingCount = reservations.filter((r) => r.status === "upcoming").length;
+  const seatedCount = reservations.filter((r) => r.status === "seated").length;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <SummaryCard label="Total Bookings" value={reservations.length} tone="slate" />
+        <SummaryCard label="Upcoming" value={upcomingCount} tone="blue" />
+        <SummaryCard label="Seated" value={seatedCount} tone="green" />
+      </div>
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={onAdd}
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
+        >
+          <span className="text-xl leading-none">+</span> New Booking
+        </button>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        {loading ? (
+          <div className="flex min-h-48 items-center justify-center text-gray-400 dark:text-gray-500">
+            Loading bookings...
+          </div>
+        ) : reservations.length === 0 ? (
+          <div className="flex min-h-48 items-center justify-center text-gray-400 dark:text-gray-500">
+            No reservations yet.
+          </div>
+        ) : (
+          <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
+            {reservations.map((r) => (
+              <article key={r._id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-base font-bold text-gray-900 dark:text-white">{r.customerName}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{r.phone}</p>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${STATUS_STYLES[r.status] || STATUS_STYLES.upcoming}`}>
+                    {r.status.replace("_", " ")}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-900/40">
+                    <p className="text-xs text-gray-400">Party Size</p>
+                    <p className="mt-1 font-semibold text-gray-800 dark:text-gray-100">{r.partySize}</p>
+                  </div>
+                  <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-900/40">
+                    <p className="text-xs text-gray-400">Table</p>
+                    <p className="mt-1 font-semibold text-gray-800 dark:text-gray-100">
+                      {r.table ? `T${r.table.tableNumber}` : "Unassigned"}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+                  {new Date(r.bookingTime).toLocaleString()}
+                </p>
+
+                {r.notes && (
+                  <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{r.notes}</p>
+                )}
+
+                {r.status === "upcoming" && (
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => onSeat(r)}
+                      className="rounded-xl bg-green-50 px-3 py-2 text-sm font-semibold text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                    >
+                      Seat Now
+                    </button>
+                    <button
+                      onClick={() => onCancel(r)}
+                      className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 dark:bg-red-900/20 dark:text-red-400"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                {r.status !== "upcoming" && (
+                  <div className="mt-4">
+                    <button
+                      onClick={() => onDelete(r)}
+                      className="w-full rounded-xl bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-500 dark:bg-gray-900/40 dark:text-gray-400"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const SummaryCard = ({ label, value, tone }) => {
   const tones = {
     slate: "bg-slate-900 text-white",
     green: "bg-green-600 text-white",
     red: "bg-red-600 text-white",
+    blue: "bg-blue-600 text-white",
   };
 
   return (
