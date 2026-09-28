@@ -15,6 +15,7 @@ import {
   FaTable,
   FaEnvelope,
   FaStar,
+  FaAddressBook,
 } from "react-icons/fa";
 import useMessageUnread from "../../hooks/useMessageUnread";
 import { useNavigate } from "react-router-dom";
@@ -62,6 +63,7 @@ const ManagerSidebar = ({
     { name: "Menu Management",  icon: FaUtensils,      key: "menu-management" },
     { name: "Table Management", icon: FaTable,         key: "table-management" },
     { name: "Feedback",         icon: FaStar,          key: "feedback" },
+    { name: "CRM",              icon: FaAddressBook,   key: "crm" },
     { name: "Account",          icon: FaWallet,        key: "account" },
     { name: "Profile",          icon: FaUserCircle,    key: "profile" },
     { name: "Notes",            icon: FaStickyNote,    key: "notes" },

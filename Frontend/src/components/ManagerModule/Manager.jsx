@@ -23,6 +23,7 @@ import ManagerInventoryManagement from "./ManagerInventoryManagement";
 import ManagerMenuManagement from "./ManagerMenuManagement";
 import ManagerTableManagement from "./ManagerTableManagement";
 import ManagerFeedback from "./ManagerFeedback";
+import ManagerCRM from "./ManagerCRM";
 import ManagerProfile from "./ManagerProfile";
 import ManagerAccount from "./ManagerAccount";
 import ManagerMessage from "./ManagerMessage";
@@ -197,6 +198,7 @@ const ManagerPanel = () => {
       case "table-management":
         return tableManagementEnabled ? <ManagerTableManagement /> : <ManagerDashboard />;
       case "feedback":         return <ManagerFeedback />;
+      case "crm":               return <ManagerCRM />;
       case "account":          return <ManagerAccount />;
       case "profile":          return <ManagerProfile />;
       case "notes":            return <ManagerNotes />;
