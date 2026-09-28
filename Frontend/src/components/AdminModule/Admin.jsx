@@ -328,6 +328,7 @@ const Settings = lazy(() => import("./AdminSettings"));
 const Message = lazy(() => import("./AdminMessage"));
 const Notification = lazy(() => import("./AdminNotification"));
 const TableManagement = lazy(() => import("./AdminTableManagement"));
+const AdminFeedback = lazy(() => import("./AdminFeedback"));
 const AdminVendorDirectory = lazy(() => import("./AdminVendorDirectory"));
 const AdminVendorStorefront = lazy(() => import("./AdminVendorStorefront"));
 const AdminSystemUsage = lazy(() => import("./AdminSystemUsage"));
@@ -633,6 +634,9 @@ const Admin = () => {
 
       case "table":
         return <TableManagement />;
+
+      case "feedback":
+        return <AdminFeedback />;
 
       case "inventory":
         return <AdminInventory onPendingApprovalCountChange={setInventoryPendingCount} />;

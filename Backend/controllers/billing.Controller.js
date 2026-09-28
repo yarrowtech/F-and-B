@@ -22,6 +22,8 @@ import {
   sendTwilioWhatsAppMessage,
   sendWhatsAppTextMessage,
 } from "../utils/whatsapp.service.js";
+import { buildPublicFeedbackUrl } from "../utils/feedbackToken.js";
+import { sendCustomerBillEmail, isMailerConfigured } from "../utils/mailer.js";
 
 const sendSuccess = (res, data, status = 200) =>
   res.status(status).json({ success: true, data });
@@ -397,19 +399,43 @@ const getOrderKotSerialMeta = async ({ order, restaurantId, printedAt }) => {
   return allocated;
 };
 
-const buildWhatsAppBillMessage = (bill) => {
+const getRequestOrigin = (req) => {
+  const origin = req?.get?.("origin");
+  if (origin) return origin;
+
+  const referer = req?.get?.("referer") || req?.get?.("referrer");
+  if (referer) {
+    try {
+      return new URL(referer).origin;
+    } catch {
+      return "";
+    }
+  }
+
+  return "";
+};
+
+const buildWhatsAppBillMessage = (bill, req) => {
   const restaurantName = bill.restaurant?.name || "Restaurant";
   const tableLabel = bill.order?.table?.tableNumber
     ? `Table ${bill.order.table.tableNumber}`
     : bill.order?.orderType || "Order";
 
-  return [
+  const feedbackUrl = buildPublicFeedbackUrl(bill._id, getRequestOrigin(req));
+
+  const lines = [
     `${restaurantName}`,
     `Bill: ${bill.billNo || bill._id}`,
     `Order: ${bill.order?.orderNo || "N/A"} (${tableLabel})`,
     `Total Amount: Rs. ${asMoney(bill.totalAmount)}`,
     "Thank you for dining with us.",
-  ].join("\n");
+  ];
+
+  if (feedbackUrl) {
+    lines.push("", `We'd love your feedback: ${feedbackUrl}`);
+  }
+
+  return lines.join("\n");
 };
 
 const getPublicBillSecret = () =>
@@ -1601,8 +1627,23 @@ const customizeBill = async (req, res) => {
     };
 
     if (sendToEmail && bill.customerEmail) {
-      delivery.email.message =
-        "Email delivery is not configured yet. Customer email was saved.";
+      if (!isMailerConfigured()) {
+        delivery.email.message =
+          "Email delivery is not configured yet. Customer email was saved.";
+      } else {
+        try {
+          await sendCustomerBillEmail({
+            to: bill.customerEmail,
+            bill,
+            feedbackUrl: buildPublicFeedbackUrl(bill._id, getRequestOrigin(req)),
+          });
+          delivery.email.sent = true;
+          delivery.email.message = "Bill sent to customer email.";
+        } catch (err) {
+          logger.error({ err }, "Failed to send customer bill email");
+          delivery.email.message = "Failed to send bill email. Please try again.";
+        }
+      }
     }
 
     if (sendToPhone) {
@@ -1612,7 +1653,7 @@ const customizeBill = async (req, res) => {
         const mediaUrl = buildPublicBillPdfUrl(bill._id);
         const twilioResult = await sendTwilioWhatsAppMessage({
           to: bill.customerPhone,
-          message: buildWhatsAppBillMessage(bill),
+          message: buildWhatsAppBillMessage(bill, req),
           mediaUrl,
         });
 
@@ -1626,7 +1667,7 @@ const customizeBill = async (req, res) => {
       } else if (!isWhatsAppConfigured()) {
         delivery.whatsapp.url = buildWhatsAppChatUrl({
           to: bill.customerPhone,
-          message: buildWhatsAppBillMessage(bill),
+          message: buildWhatsAppBillMessage(bill, req),
         });
         delivery.whatsapp.message =
           delivery.whatsapp.url
@@ -1635,7 +1676,7 @@ const customizeBill = async (req, res) => {
       } else {
         const whatsappResult = await sendWhatsAppTextMessage({
           to: bill.customerPhone,
-          message: buildWhatsAppBillMessage(bill),
+          message: buildWhatsAppBillMessage(bill, req),
         });
 
         delivery.whatsapp.sent = whatsappResult.sent;
@@ -1643,7 +1684,7 @@ const customizeBill = async (req, res) => {
           ? ""
           : buildWhatsAppChatUrl({
               to: bill.customerPhone,
-              message: buildWhatsAppBillMessage(bill),
+              message: buildWhatsAppBillMessage(bill, req),
             });
         delivery.whatsapp.message = whatsappResult.sent
           ? "Bill details sent to customer WhatsApp."
@@ -1717,7 +1758,7 @@ const markPaid = async (req, res) => {
   }
 };
 
-const streamBillPDF = async (bill, res) => {
+const streamBillPDF = async (bill, res, req) => {
   try {
     const billDate =
       bill.paymentStatus === "PAID" && bill.paidAt ? bill.paidAt : bill.updatedAt || bill.createdAt;
@@ -1737,6 +1778,7 @@ const streamBillPDF = async (bill, res) => {
       sanitizeText(bill.restaurant?.address) || "Address not available";
     const footerMessage =
       sanitizeText(template.footerMessage) || defaultBillingTemplate.footerMessage;
+    const feedbackUrl = buildPublicFeedbackUrl(bill._id, getRequestOrigin(req));
     const terms = sanitizeText(template.terms) || defaultBillingTemplate.terms;
     const showServiceCharge =
       typeof bill.showServiceCharge === "boolean"
@@ -2032,6 +2074,21 @@ const streamBillPDF = async (bill, res) => {
       footerTop + 30,
       { width: 410 }
     );
+
+    if (feedbackUrl) {
+      const feedbackTop = footerTop + 66;
+      ensurePageSpace(doc, 40);
+      doc
+        .roundedRect(40, feedbackTop, 515, 34, 8)
+        .fill("#ecfdf3");
+      doc
+        .fillColor("#166534")
+        .font("Helvetica-Bold")
+        .fontSize(10)
+        .text("We'd love your feedback:", 55, feedbackTop + 11, { continued: true })
+        .fillColor("#15803d")
+        .text(` ${feedbackUrl}`, { link: feedbackUrl, underline: true });
+    }
 
     doc.end();
   } catch (err) {

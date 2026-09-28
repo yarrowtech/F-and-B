@@ -22,6 +22,7 @@ import EmployeeManagement from "./ManagerEmployeeManagement";
 import ManagerInventoryManagement from "./ManagerInventoryManagement";
 import ManagerMenuManagement from "./ManagerMenuManagement";
 import ManagerTableManagement from "./ManagerTableManagement";
+import ManagerFeedback from "./ManagerFeedback";
 import ManagerProfile from "./ManagerProfile";
 import ManagerAccount from "./ManagerAccount";
 import ManagerMessage from "./ManagerMessage";
@@ -195,6 +196,7 @@ const ManagerPanel = () => {
       case "menu-management":  return <ManagerMenuManagement />;
       case "table-management":
         return tableManagementEnabled ? <ManagerTableManagement /> : <ManagerDashboard />;
+      case "feedback":         return <ManagerFeedback />;
       case "account":          return <ManagerAccount />;
       case "profile":          return <ManagerProfile />;
       case "notes":            return <ManagerNotes />;

@@ -575,4 +575,147 @@ export const sendVendorOrderBillEmail = async ({
   });
 };
 
+export const sendCustomerBillEmail = async ({
+  to,
+  bill,
+  feedbackUrl = "",
+}) => {
+  const email = String(to || "").trim();
+  if (!email) {
+    throw new Error("Recipient email is required");
+  }
+
+  const transport = getTransporter();
+  const restaurantName = String(bill?.restaurant?.name || "Restaurant").trim();
+  const billNo = String(bill?.billNo || bill?._id || "N/A").trim();
+  const tableLabel = bill?.order?.table?.tableNumber
+    ? `Table ${bill.order.table.tableNumber}`
+    : bill?.order?.orderType || "Order";
+  const orderNo = String(bill?.order?.orderNo || "N/A").trim();
+  const totalAmount = Number(bill?.totalAmount || 0).toFixed(2);
+  const items = Array.isArray(bill?.order?.items) ? bill.order.items : [];
+
+  const itemsText = items
+    .map((item, index) => {
+      const name = item?.menuItem?.name || item?.name || "Item";
+      const quantity = Number(item?.quantity || 0);
+      const price = Number(item?.price || item?.menuItem?.price || 0).toFixed(2);
+      return `${index + 1}. ${name} x ${quantity} @ Rs.${price}`;
+    })
+    .join("\n");
+
+  const subject = `Your bill from ${restaurantName} (${billNo})`;
+  const text = [
+    `Hello,`,
+    "",
+    `Thank you for dining with ${restaurantName}.`,
+    `Bill No: ${billNo}`,
+    `Order: ${orderNo} (${tableLabel})`,
+    "",
+    "Items:",
+    itemsText || "No items",
+    "",
+    `Total Amount: Rs.${totalAmount}`,
+    "",
+    feedbackUrl ? `We'd love your feedback: ${feedbackUrl}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const itemRows = items
+    .map((item, index) => {
+      const name = item?.menuItem?.name || item?.name || "Item";
+      const quantity = Number(item?.quantity || 0);
+      const price = Number(item?.price || item?.menuItem?.price || 0).toFixed(2);
+      const lineTotal = (quantity * Number(price)).toFixed(2);
+      return `
+        <tr>
+          <td style="padding:12px 14px; border-bottom:1px solid #e5e7eb; font-size:14px; color:#111827;">${index + 1}</td>
+          <td style="padding:12px 14px; border-bottom:1px solid #e5e7eb; font-size:14px; color:#111827;">${name}</td>
+          <td style="padding:12px 14px; border-bottom:1px solid #e5e7eb; font-size:14px; color:#111827; text-align:right;">${quantity}</td>
+          <td style="padding:12px 14px; border-bottom:1px solid #e5e7eb; font-size:14px; color:#111827; text-align:right;">Rs.${price}</td>
+          <td style="padding:12px 14px; border-bottom:1px solid #e5e7eb; font-size:14px; color:#111827; text-align:right;">Rs.${lineTotal}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  const html = `
+    <div style="margin:0; padding:36px 18px; background:#f3f7f4; font-family:Arial,Helvetica,sans-serif; color:#111827;">
+      <div style="max-width:760px; margin:0 auto; background:#ffffff; border:1px solid #dfe7e2; border-radius:24px; overflow:hidden; box-shadow:0 12px 32px rgba(15,23,42,0.08);">
+        <div style="background:linear-gradient(135deg,#f3fbf5 0%,#ffffff 52%,#ecfdf3 100%); padding:28px 32px 22px; border-bottom:1px solid #e5e7eb;">
+          <div style="display:inline-block; padding:8px 12px; border-radius:999px; background:#ecfdf3; color:#169c52; font-size:12px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase;">
+            ${restaurantName}
+          </div>
+          <h1 style="margin:18px 0 10px; font-size:34px; line-height:1.08; font-weight:800; color:#111827;">
+            Thank you for dining with us
+          </h1>
+          <p style="margin:0; max-width:620px; font-size:16px; line-height:1.7; color:#4b5563;">
+            Here's your bill summary for Order ${orderNo} (${tableLabel}).
+          </p>
+        </div>
+
+        <div style="padding:30px 32px 36px;">
+          <div style="margin:0 0 22px; display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px;">
+            <div style="padding:16px 18px; border-radius:18px; background:#f8faf9; border:1px solid #e5e7eb;">
+              <p style="margin:0 0 6px; font-size:11px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#6b7280;">Bill No</p>
+              <p style="margin:0; font-size:16px; font-weight:700; color:#111827;">${billNo}</p>
+            </div>
+            <div style="padding:16px 18px; border-radius:18px; background:#ecfdf3; border:1px solid #bbf7d0;">
+              <p style="margin:0 0 6px; font-size:11px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#15803d;">Total Amount</p>
+              <p style="margin:0; font-size:18px; font-weight:800; color:#166534;">Rs.${totalAmount}</p>
+            </div>
+          </div>
+
+          <div style="margin:0 0 24px; border:1px solid #e5e7eb; border-radius:20px; overflow:hidden;">
+            <table style="width:100%; border-collapse:collapse;">
+              <thead style="background:#f8fafc;">
+                <tr>
+                  <th style="padding:12px 14px; text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">#</th>
+                  <th style="padding:12px 14px; text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">Item</th>
+                  <th style="padding:12px 14px; text-align:right; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">Qty</th>
+                  <th style="padding:12px 14px; text-align:right; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">Price</th>
+                  <th style="padding:12px 14px; text-align:right; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#64748b;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemRows || `
+                  <tr>
+                    <td colspan="5" style="padding:18px; text-align:center; font-size:14px; color:#6b7280;">No items found</td>
+                  </tr>
+                `}
+              </tbody>
+            </table>
+          </div>
+
+          ${
+            feedbackUrl
+              ? `
+                <div style="margin:0 0 8px;">
+                  <a
+                    href="${feedbackUrl}"
+                    style="display:inline-block; background:#16a34a; color:#ffffff; text-decoration:none; padding:16px 24px; border-radius:14px; font-size:15px; font-weight:800; box-shadow:0 10px 18px rgba(22,163,74,0.22);"
+                  >
+                    Share Your Feedback
+                  </a>
+                </div>
+              `
+              : ""
+          }
+        </div>
+      </div>
+    </div>
+  `;
+
+  const { mailFrom } = getMailerConfig();
+
+  return transport.sendMail({
+    from: mailFrom,
+    to: email,
+    subject,
+    text,
+    html,
+  });
+};
+
 export { isMailerConfigured };
