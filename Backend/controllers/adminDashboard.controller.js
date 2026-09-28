@@ -1,3 +1,4 @@
+import logger from "../utils/pinoLogger.js";
 import mongoose from "mongoose";
 import Order from "../models/Order.model.js";
 import Bill from "../models/Bill.model.js";
@@ -214,7 +215,7 @@ export const getAdminSummary = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -255,7 +256,7 @@ export const getMonthlyChart = async (req, res) => {
 
     res.json({ success: true, data: formatted });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -308,7 +309,7 @@ export const getTopItems = async (req, res) => {
 
     res.json({ success: true, data });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -544,7 +545,7 @@ export const getRestaurantBreakdown = async (req, res) => {
 
     res.json({ success: true, data });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -589,7 +590,7 @@ export const getDailySales = async (req, res) => {
 
     res.json({ success: true, data: formatted });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -685,7 +686,7 @@ export const getAdminAccountHistory = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -773,7 +774,7 @@ export const exportAdminAccountHistoryExcel = async (req, res) => {
     await workbook.xlsx.write(res);
     res.end();
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

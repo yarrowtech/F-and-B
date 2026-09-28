@@ -2,6 +2,7 @@ import FloorZoneSettings from "../models/FloorZoneSettings.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import { configureCloudinary } from "../config/cloudinary.js";
 import { getIO } from "../socket.js";
+import logger from "../utils/pinoLogger.js";
 
 const emitChanged = (restaurantId) => {
   try {
@@ -41,7 +42,7 @@ const uploadFloorBackground = async ({ imageDataUrl, restaurantId }) => {
     });
     return { url: uploaded.secure_url || "", publicId: uploaded.public_id || "" };
   } catch (error) {
-    console.error("Cloudinary floor background upload failed, saving inline image instead.", {
+    logger.error("Cloudinary floor background upload failed, saving inline image instead.", {
       restaurantId,
       message: error?.message,
     });

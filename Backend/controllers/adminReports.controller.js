@@ -11,6 +11,7 @@ import Menu from "../models/Menu.model.js";
 import Order from "../models/Order.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import VendorOrder from "../models/VendorOrder.model.js";
+import logger from "../utils/pinoLogger.js";
 import VendorSettlement from "../models/VendorSettlement.model.js";
 
 const REPORTS = [
@@ -3208,7 +3209,7 @@ export const getAdminReportRestaurants = async (req, res) => {
       data: restaurants.map(({ _id, name }) => ({ _id, name })),
     });
   } catch (error) {
-    console.error("ADMIN REPORT RESTAURANTS ERROR:", error);
+    logger.error("ADMIN REPORT RESTAURANTS ERROR:", error);
     res.status(500).json({
       success: false,
       message: "Failed to load restaurants",
@@ -3232,7 +3233,7 @@ export const getManagerReportRestaurant = async (req, res) => {
         : null,
     });
   } catch (error) {
-    console.error("MANAGER REPORT RESTAURANT ERROR:", error);
+    logger.error("MANAGER REPORT RESTAURANT ERROR:", error);
     res.status(error.status || 500).json({
       success: false,
       message: error.message || "Failed to load assigned restaurant",
@@ -3538,7 +3539,7 @@ export const generateAdminReport = async (req, res) => {
     const { data } = await buildAdminReportData(req);
     res.json({ success: true, data });
   } catch (error) {
-    console.error("ADMIN REPORT ERROR:", error);
+    logger.error("ADMIN REPORT ERROR:", error);
     res.status(error.status || 500).json({
       success: false,
       message: error.message || "Failed to generate report",
@@ -3551,7 +3552,7 @@ export const generateManagerReport = async (req, res) => {
     const { data } = await buildManagerReportData(req);
     res.json({ success: true, data });
   } catch (error) {
-    console.error("MANAGER REPORT ERROR:", error);
+    logger.error("MANAGER REPORT ERROR:", error);
     res.status(error.status || 500).json({
       success: false,
       message: error.message || "Failed to generate report",
@@ -3794,7 +3795,7 @@ export const exportAdminReport = async (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="${fileBase}.csv"`);
     return res.send(`\uFEFF${csv}`);
   } catch (error) {
-    console.error("ADMIN REPORT EXPORT ERROR:", error);
+    logger.error("ADMIN REPORT EXPORT ERROR:", error);
     res.status(error.status || 500).json({
       success: false,
       message: error.message || "Failed to export report",
@@ -4041,7 +4042,7 @@ export const exportManagerReport = async (req, res) => {
     const { report, data } = await buildManagerReportData(req);
     await sendManagerExportResponse(res, report, data, format);
   } catch (error) {
-    console.error("MANAGER REPORT EXPORT ERROR:", error);
+    logger.error("MANAGER REPORT EXPORT ERROR:", error);
     res.status(error.status || 500).json({
       success: false,
       message: error.message || "Failed to export report",

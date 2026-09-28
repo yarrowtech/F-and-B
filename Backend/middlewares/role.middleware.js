@@ -1,3 +1,4 @@
+import logger from "../utils/pinoLogger.js";
 // const allowRoles = (...allowedRoles) => {
 //   return (req, res, next) => {
 //     if (!req.user?.role) {
@@ -56,7 +57,7 @@ const allowRoles = (...allowedRoles) => {
     ========================= */
     if (!allowed.includes(userRole)) {
       // Optional: debug log (helpful in dev)
-      console.warn(
+      logger.warn(
         `ACCESS DENIED: Role "${userRole}" tried to access [${allowed.join(
           ", "
         )}]`

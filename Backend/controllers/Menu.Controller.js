@@ -1,3 +1,4 @@
+import logger from "../utils/pinoLogger.js";
 
 // import Menu from "../models/Menu.model.js";
 // import Restaurant from "../models/Restaurant.model.js";
@@ -431,7 +432,7 @@ export const getMenu = async (req, res) => {
 
     res.json(items);
   } catch (err) {
-    console.error("GET MENU ERROR:", err.message);
+    logger.error("GET MENU ERROR:", err.message);
     res.status(500).json({ message: err.message });
   }
 };
@@ -469,7 +470,7 @@ export const getPublicMenu = async (req, res) => {
       items,
     });
   } catch (err) {
-    console.error("PUBLIC MENU ERROR:", err.message);
+    logger.error("PUBLIC MENU ERROR:", err.message);
     res.status(500).json({ message: err.message });
   }
 };

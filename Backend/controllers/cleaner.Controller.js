@@ -1,3 +1,4 @@
+import logger from "../utils/pinoLogger.js";
 // const Cleaner = require("../models/cleaner");
 // const jwt = require("jsonwebtoken");
 // const bcrypt = require("bcryptjs");
@@ -12,7 +13,7 @@
 // // ===============================
 // const createCleaner = async (req, res) => {
 //   try {
-//     console.log("📥 Incoming Cleaner Data:", req.body); // 👈 Debugging log
+//     logger.info("📥 Incoming Cleaner Data:", req.body); // 👈 Debugging log
 
 //     const { fullName, restaurantName, email, mobile, role, cleanerId, password } = req.body;
 
@@ -51,7 +52,7 @@
 //       cleanerId: cleaner.cleanerId,
 //     });
 //   } catch (err) {
-//     console.error("❌ Error creating cleaner:", err.message);
+//     logger.error("❌ Error creating cleaner:", err.message);
 //     res.status(500).json({ message: err.message });
 //   }
 // };

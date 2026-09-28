@@ -3,6 +3,7 @@ import Restaurant from "../models/Restaurant.model.js";
 import Vendor from "../models/Vendor.model.js";
 import VendorProduct from "../models/VendorProduct.model.js";
 import { configureCloudinary } from "../config/cloudinary.js";
+import logger from "../utils/pinoLogger.js";
 
 const toObjectId = (value) =>
   mongoose.Types.ObjectId.isValid(value) ? new mongoose.Types.ObjectId(value) : null;
@@ -119,7 +120,7 @@ const uploadProductImage = async ({ imageDataUrl, vendorId }) => {
       imagePublicId: uploaded.public_id || "",
     };
   } catch (error) {
-    console.error("Cloudinary upload failed, saving inline image instead.", {
+    logger.error("Cloudinary upload failed, saving inline image instead.", {
       vendorId,
       message: getErrorMessage(error),
       http_code: error?.http_code,

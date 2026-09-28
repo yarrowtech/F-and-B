@@ -1,3 +1,4 @@
+import logger from "../utils/pinoLogger.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import Admin from "../models/Admin.model.js";
@@ -144,7 +145,7 @@ const auth = async (req, res, next) => {
 
     next();
   } catch (err) {
-    console.error("AUTH ERROR:", err.message);
+    logger.error("AUTH ERROR:", err.message);
 
     return res.status(401).json({
       success: false,

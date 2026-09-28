@@ -1,3 +1,4 @@
+import logger from "../utils/pinoLogger.js";
 import mongoose from "mongoose";
 import Order from "../models/Order.model.js";
 import Bill from "../models/Bill.model.js";
@@ -175,7 +176,7 @@ export const getManagerDashboard = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Manager Dashboard Error:", error);
+    logger.error("Manager Dashboard Error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to load manager dashboard",
@@ -257,7 +258,7 @@ export const getManagerAccountHistory = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Manager Account History Error:", error);
+    logger.error("Manager Account History Error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to load manager account history",
@@ -353,7 +354,7 @@ export const exportManagerAccountHistoryExcel = async (req, res) => {
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
-    console.error("Manager Account History Excel Error:", error);
+    logger.error("Manager Account History Excel Error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to export manager account history",

@@ -1,3 +1,4 @@
+import logger from "../utils/pinoLogger.js";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
@@ -242,7 +243,7 @@ const sendInvitationIfPossible = async ({ vendor, req, invitationToken }) => {
       invitationEmailMessage: `Invitation email sent to ${vendor.email}`,
     };
   } catch (error) {
-    console.error("VENDOR INVITATION EMAIL ERROR:", error);
+    logger.error("VENDOR INVITATION EMAIL ERROR:", error);
     return {
       invitationLink,
       invitationEmailSent: false,

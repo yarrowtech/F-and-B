@@ -1,3 +1,4 @@
+import logger from "../utils/pinoLogger.js";
 // import Table from "../models/Table.model.js";
 
 // /* ===============================
@@ -8,7 +9,7 @@
 //     const { tableNumber, capacity, status } = req.body;
 
 //     // Debug logging
-//     console.log("CREATE TABLE REQUEST:", {
+//     logger.info("CREATE TABLE REQUEST:", {
 //       body: req.body,
 //       user: req.user,
 //     });
@@ -44,7 +45,7 @@
 //       data: table,
 //     });
 //   } catch (err) {
-//     console.error("CREATE TABLE ERROR DETAILS:", {
+//     logger.error("CREATE TABLE ERROR DETAILS:", {
 //       message: err.message,
 //       code: err.code,
 //       name: err.name,
@@ -90,7 +91,7 @@
 //       data: tables,
 //     });
 //   } catch (err) {
-//     console.error("GET TABLES ERROR:", err);
+//     logger.error("GET TABLES ERROR:", err);
 //     res.status(400).json({
 //       success: false,
 //       message: err.message,

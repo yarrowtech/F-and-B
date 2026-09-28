@@ -14,6 +14,7 @@ import PDFDocument from "pdfkit";
 import ExcelJS from "exceljs";
 import { allocateDailyKotNumber } from "../utils/kotSerial.js";
 import { invalidateCacheNamespaces } from "../utils/cacheStore.js";
+import logger from "../utils/pinoLogger.js";
 import {
   buildWhatsAppChatUrl,
   isWhatsAppConfigured,
@@ -1001,7 +1002,7 @@ const getBillPrintBundle = async (req, res) => {
       printJobs: [billPrintJob, ...kotPrintJobs],
     });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return sendError(res, err.message);
   }
 };
@@ -1117,7 +1118,7 @@ const getInbox = async (req, res) => {
 
     return sendSuccess(res, bills);
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return sendError(res, err.message);
   }
 };
@@ -1141,7 +1142,7 @@ const getBillingSettings = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return sendError(res, err.message);
   }
 };
@@ -1383,7 +1384,7 @@ const createManualBill = async (req, res) => {
       session.endSession();
     }
 
-    console.error(err);
+    logger.error(err);
     return sendError(res, err.message);
   }
 };
@@ -1403,7 +1404,7 @@ const getHistory = async (req, res) => {
 
     return sendSuccess(res, filterBillingHistoryRecords(bills, req));
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return sendError(res, err.message);
   }
 };
@@ -1484,7 +1485,7 @@ const exportBillingHistoryExcel = async (req, res) => {
     await workbook.xlsx.write(res);
     res.end();
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return sendError(res, err.message, 500);
   }
 };
@@ -1669,7 +1670,7 @@ const customizeBill = async (req, res) => {
       delivery,
     });
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return sendError(res, err.message);
   }
 };
@@ -1711,7 +1712,7 @@ const markPaid = async (req, res) => {
 
     return sendSuccess(res, bill);
   } catch (err) {
-    console.error(err);
+    logger.error(err);
     return sendError(res, err.message);
   }
 };
@@ -2034,7 +2035,7 @@ const streamBillPDF = async (bill, res) => {
 
     doc.end();
   } catch (err) {
-    console.error("PDF ERROR:", err);
+    logger.error("PDF ERROR:", err);
     return sendError(res, "Failed to generate bill PDF", 500);
   }
 };
@@ -2049,7 +2050,7 @@ const generateBillPDF = async (req, res) => {
 
     return streamBillPDF(bill, res);
   } catch (err) {
-    console.error("PDF ERROR:", err);
+    logger.error("PDF ERROR:", err);
     return sendError(res, "Failed to generate bill PDF", 500);
   }
 };
@@ -2071,7 +2072,7 @@ const generatePublicBillPDF = async (req, res) => {
 
     return streamBillPDF(bill, res);
   } catch (err) {
-    console.error("PUBLIC PDF ERROR:", err);
+    logger.error("PUBLIC PDF ERROR:", err);
     return sendError(res, "Failed to generate bill PDF", 500);
   }
 };

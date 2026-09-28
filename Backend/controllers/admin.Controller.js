@@ -1,3 +1,4 @@
+import logger from "../utils/pinoLogger.js";
 
 
 // const Admin = require("../models/admin");
@@ -472,7 +473,7 @@ export const createTable = async (req, res) => {
 
     res.status(201).json(table);
   } catch (err) {
-    console.error("CREATE TABLE ERROR:", err.message);
+    logger.error("CREATE TABLE ERROR:", err.message);
     res.status(500).json({ message: err.message });
   }
 };

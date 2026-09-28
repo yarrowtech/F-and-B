@@ -1,3 +1,4 @@
+import logger from "../utils/pinoLogger.js";
 // const Sucheif = require("../models/sucheif");
 // const jwt = require("jsonwebtoken");
 // const bcrypt = require("bcryptjs");
@@ -12,7 +13,7 @@
 // // ===============================
 // const createSucheif = async (req, res) => {
 //   try {
-//     console.log("📥 Incoming Sucheif Data:", req.body); // 👈 Debugging log
+//     logger.info("📥 Incoming Sucheif Data:", req.body); // 👈 Debugging log
 
 //     const { fullName, restaurantName, email, mobile, role, sucheifId, password } = req.body;
 
@@ -51,7 +52,7 @@
 //       sucheifId: sucheif.sucheifId,
 //     });
 //   } catch (err) {
-//     console.error("❌ Error creating sucheif:", err.message);
+//     logger.error("❌ Error creating sucheif:", err.message);
 //     res.status(500).json({ message: err.message });
 //   }
 // };

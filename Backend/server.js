@@ -1039,12 +1039,14 @@ import dotenv from "dotenv";
 import http from "http";
 import helmet from "helmet";
 // import helmet from "helmet"; // ❌ temporarily disabled
+import pinoHttp from "pino-http";
 
 import { apiLimiter } from "./middlewares/rateLimit.js";
 import { initSocket } from "./socket.js";
 
 /* 🔥 LOGGER */
 import { logAction, logError } from "./utils/logger.js";
+import logger from "./utils/pinoLogger.js";
 
 /* ================= ROUTES ================= */
 import superAdminRoutes from "./routes/superAdmin.Routes.js";
@@ -1131,7 +1133,17 @@ app.use(apiLimiter);
 /* ================= GLOBAL ================= */
 app.use(express.json({ limit: "2mb" }));
 
-/* ================= LOGGER ================= */
+/* ================= PINO REQUEST LOGGER ================= */
+app.use(
+  pinoHttp({
+    logger,
+    autoLogging: {
+      ignore: (req) => req.url === "/",
+    },
+  })
+);
+
+/* ================= AUDIT LOGGER (Mongo) ================= */
 app.use(async (req, res, next) => {
   try {
     await logAction({
@@ -1143,7 +1155,7 @@ app.use(async (req, res, next) => {
       },
     });
   } catch {
-    console.error("Request log failed");
+    logger.error("Request audit log failed");
   }
   next();
 });
@@ -1152,13 +1164,13 @@ app.use(async (req, res, next) => {
 mongoose
   .connect(process.env.MONGO_URI)
   .then(async () => {
-    console.log("? MongoDB connected");
+    logger.info("MongoDB connected");
     await syncBillIndexes();
-    console.log("? Bill indexes synced");
+    logger.info("Bill indexes synced");
     startInactivityAlerts();
   })
   .catch((err) => {
-    console.error("? MongoDB error:", err.message);
+    logger.error({ err }, "MongoDB connection error");
     process.exit(1);
   });
 
@@ -1228,6 +1240,7 @@ app.use((req, res) => {
 
 /* ================= ERROR ================= */
 app.use(async (err, req, res, next) => {
+  req.log?.error({ err }, "Unhandled request error");
   await logError(err, "GLOBAL_ERROR");
 
   res.status(err.status || 500).json({
@@ -1242,5 +1255,5 @@ const server = http.createServer(app);
 initSocket(server);
 
 server.listen(PORT, () => {
-  console.log(`🚀 API running at http://localhost:${PORT}`);
+  logger.info(`API running at http://localhost:${PORT}`);
 });

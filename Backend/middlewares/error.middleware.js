@@ -1,5 +1,6 @@
+import logger from "../utils/pinoLogger.js";
 // const errorHandler = (err, req, res, next) => {
-//   console.error(err.stack);
+//   logger.error(err.stack);
 
 //   const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
 
@@ -56,7 +57,7 @@ const errorHandler = (err, req, res, next) => {
   /* =========================
      LOG ERROR
   ========================= */
-  console.error("ERROR:", err);
+  logger.error("ERROR:", err);
 
   /* =========================
      RESPONSE

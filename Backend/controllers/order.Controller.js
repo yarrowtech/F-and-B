@@ -1,3 +1,4 @@
+import logger from "../utils/pinoLogger.js";
 
 // // import Order from "../models/Order.model.js";
 // // import Table from "../models/Table.model.js";
@@ -46,7 +47,7 @@
 
 // //     return sendSuccess(res, order, 201);
 // //   } catch (err) {
-// //     console.error("CREATE ORDER ERROR:", err);
+// //     logger.error("CREATE ORDER ERROR:", err);
 // //     return sendError(res, err.message);
 // //   }
 // // };
@@ -281,7 +282,7 @@
 // //     return sendSuccess(res, order);
 
 // //   } catch (err) {
-// //     console.error("UPDATE STATUS ERROR:", err);
+// //     logger.error("UPDATE STATUS ERROR:", err);
 // //     return sendError(res, err.message);
 // //   }
 // // };
@@ -1462,7 +1463,7 @@ const emitOrderNotification = (event, order, type) => {
   try {
     getIO().emit(event, getOrderNotificationPayload(order, type));
   } catch (err) {
-    console.error("ORDER SOCKET EMIT ERROR:", err.message);
+    logger.error("ORDER SOCKET EMIT ERROR:", err.message);
   }
 };
 

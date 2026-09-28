@@ -25,15 +25,16 @@ import {
 ========================= */
 import auth from "../middlewares/auth.middleware.js";
 import role from "../middlewares/role.middleware.js";
+import { loginLimiter } from "../middlewares/rateLimit.js";
 
 const router = express.Router();
 
 /* =====================================================
    PUBLIC ROUTES (NO AUTH)
 ===================================================== */
-router.post("/login", loginAdmin);
-router.post("/forgot-password", forgotPassword);
-router.post("/reset-password", resetForgotPassword);
+router.post("/login", loginLimiter, loginAdmin);
+router.post("/forgot-password", loginLimiter, forgotPassword);
+router.post("/reset-password", loginLimiter, resetForgotPassword);
 
 /* =====================================================
    ADMIN PROTECTED ROUTES
