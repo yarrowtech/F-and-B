@@ -1,5 +1,6 @@
 import { recordLogout } from "../utils/sessionUsage.js";
 import { logAction } from "../utils/logger.js";
+import { blacklistToken } from "../utils/tokenBlacklist.js";
 
 /* =========================================================
    SESSION · LOGOUT
@@ -12,6 +13,7 @@ export const logoutSession = async (req, res) => {
     const { id, role } = req.user || {};
 
     await recordLogout(role, id);
+    await blacklistToken(req.token, req.tokenExp);
     await logAction({
       action: "LOGOUT",
       userId: id || null,

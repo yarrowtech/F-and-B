@@ -6,6 +6,7 @@ import Employee from "../models/Employee.model.js";
 import SuperAdmin from "../models/superAdmin.js";
 import Vendor from "../models/Vendor.model.js";
 import { touchActivity } from "../utils/sessionUsage.js";
+import { isTokenBlacklisted } from "../utils/tokenBlacklist.js";
 
 const auth = async (req, res, next) => {
   try {
@@ -25,8 +26,18 @@ const auth = async (req, res, next) => {
       });
     }
 
+    if (await isTokenBlacklisted(token)) {
+      return res.status(401).json({
+        success: false,
+        message: "Token invalid or expired",
+      });
+    }
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const role = decoded.role?.toLowerCase();
+
+    req.token = token;
+    req.tokenExp = decoded.exp;
 
     if (!decoded.id || !role) {
       return res.status(401).json({

@@ -1103,9 +1103,22 @@ const allowedOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_URL || "
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+if (process.env.NODE_ENV === "production" && allowedOrigins.length === 0) {
+  logger.error(
+    "CORS_ORIGIN / FRONTEND_URL is not set in production. Refusing to start with an open CORS policy."
+  );
+  process.exit(1);
+}
+
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    // Non-production with no allowlist configured: fall back to open CORS for local dev.
+    if (allowedOrigins.length === 0) {
       callback(null, true);
       return;
     }

@@ -5,12 +5,13 @@ import vendorOrderController from "../controllers/vendorOrder.controller.js";
 import vendorPriceNegotiationController from "../controllers/vendorPriceNegotiation.controller.js";
 import auth from "../middlewares/auth.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
+import { loginLimiter } from "../middlewares/rateLimit.js";
 
 const router = express.Router();
 
-router.post("/login", vendorController.loginVendor);
-router.post("/forgot-password", vendorController.forgotVendorPassword);
-router.post("/reset-password", vendorController.resetVendorForgotPassword);
+router.post("/login", loginLimiter, vendorController.loginVendor);
+router.post("/forgot-password", loginLimiter, vendorController.forgotVendorPassword);
+router.post("/reset-password", loginLimiter, vendorController.resetVendorForgotPassword);
 router.post("/self-signup/global", vendorController.createGlobalVendorSelfSignup);
 router.get("/invitations/:token", vendorController.getVendorInvitation);
 router.post("/invitations/:token/accept", vendorController.acceptVendorInvitation);

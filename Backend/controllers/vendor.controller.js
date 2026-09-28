@@ -380,12 +380,10 @@ export const loginVendor = async (req, res) => {
         });
       }
 
-      return res.status(404).json({
+      return res.status(401).json({
         success: false,
-        code: "ACCOUNT_NOT_FOUND",
-        message: vendorId
-          ? "No vendor account found with that ID"
-          : "No vendor account found with that email",
+        code: "INVALID_CREDENTIALS",
+        message: "Incorrect ID/email or password",
       });
     }
 
@@ -410,8 +408,8 @@ export const loginVendor = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        code: "INVALID_PASSWORD",
-        message: "Incorrect password",
+        code: "INVALID_CREDENTIALS",
+        message: "Incorrect ID/email or password",
       });
     }
 

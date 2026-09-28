@@ -17,7 +17,7 @@
     "delete:super-admin": "node scripts/deleteSuperAdmin.js"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.10.0",
     "cors": "^2.8.6",
@@ -38,5 +38,8 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.0"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

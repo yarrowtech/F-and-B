@@ -164,12 +164,10 @@ export const loginAdmin = async (req, res) => {
     );
 
     if (!admin) {
-      return res.status(404).json({
+      return res.status(401).json({
         success: false,
-        code: "ACCOUNT_NOT_FOUND",
-        message: adminId
-          ? "No admin account found with that ID"
-          : "No admin account found with that email",
+        code: "INVALID_CREDENTIALS",
+        message: "Incorrect ID/email or password",
       });
     }
 
@@ -185,8 +183,8 @@ export const loginAdmin = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        code: "INVALID_PASSWORD",
-        message: "Incorrect password",
+        code: "INVALID_CREDENTIALS",
+        message: "Incorrect ID/email or password",
       });
     }
 

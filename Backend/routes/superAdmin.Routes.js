@@ -37,6 +37,7 @@ import {
 import protect from "../middlewares/auth.middleware.js";
 import serviceTokenOrProtect from "../middlewares/serviceTokenOrProtect.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
+import { loginLimiter } from "../middlewares/rateLimit.js";
 import {
   getSystemUsage,
   markSystemUsageSeen,
@@ -45,7 +46,7 @@ import {
 const router = express.Router();
 
 /* ================= AUTH ================= */
-router.post("/login", loginSuperAdmin);
+router.post("/login", loginLimiter, loginSuperAdmin);
 
 /* ================= CREATE USERS (SUPER_ADMIN ONLY) ================= */
 router.post(
@@ -154,7 +155,7 @@ router.put(
   changePassword
 );
 
-router.post("/forgot-password", forgotPassword);
-router.put("/reset-password/:token", resetPassword);
+router.post("/forgot-password", loginLimiter, forgotPassword);
+router.put("/reset-password/:token", loginLimiter, resetPassword);
 
 export default router;
