@@ -55,8 +55,8 @@ export const submitPublicFeedback = async (
 /* ===============================
    ADMIN / MANAGER (auth)
 =============================== */
-export const getRestaurantFeedback = async (restaurantId) => {
-  const res = await api.get(`/feedback/${restaurantId}`);
+export const getRestaurantFeedback = async (restaurantId, params = {}) => {
+  const res = await api.get(`/feedback/${restaurantId}`, { params });
   return res.data; // { success, data, summary }
 };
 

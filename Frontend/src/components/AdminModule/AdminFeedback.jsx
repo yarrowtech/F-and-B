@@ -47,6 +47,11 @@ const AdminFeedback = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [dateFilter, setDateFilter] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [selectedFeedback, setSelectedFeedback] = useState(null);
+
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsForm, setSettingsForm] = useState(DEFAULT_SETTINGS_FORM);
   const [settingsLoading, setSettingsLoading] = useState(false);
@@ -72,11 +77,17 @@ const AdminFeedback = () => {
       setFeedback([]);
       return;
     }
+    if (dateFilter === "custom" && (!fromDate || !toDate)) return;
+
     const loadFeedback = async () => {
       try {
         setLoading(true);
         setError("");
-        const res = await getRestaurantFeedback(selectedRestaurant);
+        const params =
+          dateFilter === "custom"
+            ? { filter: dateFilter, from: fromDate, to: toDate }
+            : { filter: dateFilter };
+        const res = await getRestaurantFeedback(selectedRestaurant, params);
         setFeedback(Array.isArray(res.data) ? res.data : []);
         setSummary(
           res.summary || {
@@ -93,7 +104,7 @@ const AdminFeedback = () => {
       }
     };
     loadFeedback();
-  }, [selectedRestaurant]);
+  }, [selectedRestaurant, dateFilter, fromDate, toDate]);
 
   const openSettingsModal = async () => {
     setShowSettingsModal(true);
@@ -158,13 +169,44 @@ const AdminFeedback = () => {
         </select>
 
         {selectedRestaurant && (
-          <button
-            type="button"
-            onClick={openSettingsModal}
-            className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-          >
-            Customize Form
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="min-h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="last7days">Last 7 Days</option>
+              <option value="lastmonth">Last 30 Days</option>
+              <option value="custom">Custom Range</option>
+            </select>
+
+            {dateFilter === "custom" && (
+              <>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="min-h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                />
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="min-h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                />
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={openSettingsModal}
+              className="flex min-h-10 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              Customize Form
+            </button>
+          </div>
         )}
       </div>
 
@@ -222,15 +264,23 @@ const AdminFeedback = () => {
               No feedback received yet.
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {feedback.map((f) => (
-                <article
-                  key={f._id}
-                  className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-base font-bold text-gray-900 dark:text-white">
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+              <div className="hidden grid-cols-[1fr_auto_auto_auto] gap-4 border-b border-gray-100 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:border-gray-700 dark:text-gray-500 sm:grid">
+                <span>Customer</span>
+                <span>Rating</span>
+                <span>Date</span>
+                <span></span>
+              </div>
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {feedback.map((f) => (
+                  <button
+                    key={f._id}
+                    type="button"
+                    onClick={() => setSelectedFeedback(f)}
+                    className="grid w-full grid-cols-2 items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:grid-cols-[1fr_auto_auto_auto] sm:gap-4"
+                  >
+                    <div className="col-span-2 sm:col-span-1">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
                         {f.customerName || "Anonymous"}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -238,56 +288,121 @@ const AdminFeedback = () => {
                       </p>
                     </div>
                     <Stars rating={f.rating} />
-                  </div>
-
-                  {(f.serviceRating || f.ambianceRating) && (
-                    <div className="mt-3 flex gap-4 text-xs text-gray-500 dark:text-gray-400">
-                      {f.serviceRating && (
-                        <span>Service: <Stars rating={f.serviceRating} /></span>
-                      )}
-                      {f.ambianceRating && (
-                        <span>Ambiance: <Stars rating={f.ambianceRating} /></span>
-                      )}
-                    </div>
-                  )}
-
-                  {f.itemRatings?.length > 0 && (
-                    <div className="mt-3 space-y-1 border-t border-gray-100 pt-3 dark:border-gray-700">
-                      {f.itemRatings.map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-xs">
-                          <span className="truncate text-gray-600 dark:text-gray-300">{item.name}</span>
-                          <Stars rating={item.rating} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {f.comment && (
-                    <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">{f.comment}</p>
-                  )}
-
-                  {f.customAnswers?.length > 0 && (
-                    <div className="mt-3 space-y-1.5 border-t border-gray-100 pt-3 dark:border-gray-700">
-                      {f.customAnswers.map((ans, idx) => (
-                        <div key={idx} className="text-xs">
-                          <p className="text-gray-500 dark:text-gray-400">{ans.question}</p>
-                          {ans.type === "rating" ? (
-                            <Stars rating={ans.answer} />
-                          ) : (
-                            <p className="text-gray-700 dark:text-gray-200">{ans.answer}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
-                    {new Date(f.createdAt).toLocaleString()} &middot; via {f.submittedVia}
-                  </p>
-                </article>
-              ))}
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {new Date(f.createdAt).toLocaleDateString()}
+                    </span>
+                    <span className="hidden text-xs font-semibold text-green-600 dark:text-green-400 sm:block">
+                      View →
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
+        </div>
+      )}
+
+      {selectedFeedback && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setSelectedFeedback(null)}
+          />
+          <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl dark:bg-gray-800 sm:mx-4 sm:max-w-lg sm:rounded-2xl sm:p-7">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 dark:text-white">
+                  {selectedFeedback.customerName || "Anonymous"}
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Bill {selectedFeedback.bill?.billNo || "-"} &middot;{" "}
+                  {new Date(selectedFeedback.createdAt).toLocaleString()} &middot; via{" "}
+                  {selectedFeedback.submittedVia}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedFeedback(null)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-2xl leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  Overall
+                </p>
+                <div className="mt-1"><Stars rating={selectedFeedback.rating} /></div>
+              </div>
+
+              {(selectedFeedback.serviceRating || selectedFeedback.ambianceRating) && (
+                <div className="flex gap-6">
+                  {selectedFeedback.serviceRating && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                        Service
+                      </p>
+                      <div className="mt-1"><Stars rating={selectedFeedback.serviceRating} /></div>
+                    </div>
+                  )}
+                  {selectedFeedback.ambianceRating && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                        Ambiance
+                      </p>
+                      <div className="mt-1"><Stars rating={selectedFeedback.ambianceRating} /></div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedFeedback.itemRatings?.length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    Dishes ordered
+                  </p>
+                  <div className="space-y-1.5">
+                    {selectedFeedback.itemRatings.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-700 dark:text-gray-200">{item.name}</span>
+                        <Stars rating={item.rating} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedFeedback.comment && (
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    Comment
+                  </p>
+                  <p className="text-sm text-gray-700 dark:text-gray-200">{selectedFeedback.comment}</p>
+                </div>
+              )}
+
+              {selectedFeedback.customAnswers?.length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    Additional questions
+                  </p>
+                  <div className="space-y-2.5">
+                    {selectedFeedback.customAnswers.map((ans, idx) => (
+                      <div key={idx}>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{ans.question}</p>
+                        {ans.type === "rating" ? (
+                          <Stars rating={ans.answer} />
+                        ) : (
+                          <p className="text-sm text-gray-700 dark:text-gray-200">{ans.answer}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

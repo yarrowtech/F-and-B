@@ -321,19 +321,62 @@ const updateFeedbackSettings = async (req, res) => {
   }
 };
 
+const getStartOfDay = (date) => {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  return value;
+};
+
+const getEndOfDay = (date) => {
+  const value = new Date(date);
+  value.setHours(23, 59, 59, 999);
+  return value;
+};
+
+const buildFeedbackDateRange = ({ filter = "all", from, to }) => {
+  const now = new Date();
+  const todayStart = getStartOfDay(now);
+
+  if (filter === "custom" && from && to) {
+    return { startDate: getStartOfDay(from), endDate: getEndOfDay(to) };
+  }
+  if (filter === "today") {
+    return { startDate: todayStart, endDate: getEndOfDay(now) };
+  }
+  if (filter === "last7days") {
+    const startDate = new Date(todayStart);
+    startDate.setDate(startDate.getDate() - 6);
+    return { startDate, endDate: getEndOfDay(now) };
+  }
+  if (filter === "lastmonth") {
+    const startDate = new Date(todayStart);
+    startDate.setDate(startDate.getDate() - 29);
+    return { startDate, endDate: getEndOfDay(now) };
+  }
+
+  return null; // "all" — no date restriction
+};
+
 /* ===============================
    ADMIN / MANAGER · GET FEEDBACK FOR A RESTAURANT
 =============================== */
 const getRestaurantFeedback = async (req, res) => {
   try {
     const { restaurantId } = req.params;
+    const { filter = "all", from, to } = req.query;
 
     const restaurant = await ensureRestaurantAccess(req, restaurantId);
     if (!restaurant) {
       return res.status(403).json({ success: false, message: "Access denied" });
     }
 
-    const feedback = await Feedback.find({ restaurant: restaurantId })
+    const query = { restaurant: restaurantId };
+    const range = buildFeedbackDateRange({ filter, from, to });
+    if (range) {
+      query.createdAt = { $gte: range.startDate, $lte: range.endDate };
+    }
+
+    const feedback = await Feedback.find(query)
       .sort({ createdAt: -1 })
       .populate("bill", "billNo totalAmount")
       .lean();
