@@ -161,6 +161,21 @@ const ManagerFeedback = () => {
                   <p className="mt-3 text-sm text-slate-600 dark:text-neutral-300">{f.comment}</p>
                 )}
 
+                {f.customAnswers?.length > 0 && (
+                  <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3 dark:border-neutral-700">
+                    {f.customAnswers.map((ans, idx) => (
+                      <div key={idx} className="text-xs">
+                        <p className="text-slate-500 dark:text-neutral-400">{ans.question}</p>
+                        {ans.type === "rating" ? (
+                          <Stars rating={ans.answer} />
+                        ) : (
+                          <p className="text-slate-700 dark:text-neutral-200">{ans.answer}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <p className="mt-3 text-xs text-slate-400 dark:text-neutral-500">
                   {new Date(f.createdAt).toLocaleString()} &middot; via {f.submittedVia}
                 </p>

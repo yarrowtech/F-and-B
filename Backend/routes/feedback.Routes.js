@@ -11,13 +11,29 @@ app.use("/api/feedback", feedbackRoutes);
 
 Final URLs:
 
-GET  /api/feedback/public/:billId       (public, token in query)
-POST /api/feedback/public/:billId       (public, token in body)
-GET  /api/feedback/:restaurantId        (admin, manager)
+GET  /api/feedback/public/:billId          (public, token in query)
+POST /api/feedback/public/:billId          (public, token in body)
+GET  /api/feedback/:restaurantId           (admin, manager)
+GET  /api/feedback/:restaurantId/settings  (admin, manager)
+PUT  /api/feedback/:restaurantId/settings  (admin only)
 */
 
 router.get("/public/:billId", feedbackController.getPublicFeedbackContext);
 router.post("/public/:billId", feedbackController.submitPublicFeedback);
+
+router.get(
+  "/:restaurantId/settings",
+  auth,
+  allowRoles("admin", "manager"),
+  feedbackController.getFeedbackSettings
+);
+
+router.put(
+  "/:restaurantId/settings",
+  auth,
+  allowRoles("admin"),
+  feedbackController.updateFeedbackSettings
+);
 
 router.get(
   "/:restaurantId",

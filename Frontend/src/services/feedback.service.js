@@ -18,7 +18,17 @@ export const getPublicFeedbackContext = async (billId, token) => {
 
 export const submitPublicFeedback = async (
   billId,
-  { token, rating, comment, customerName, via, serviceRating, ambianceRating, itemRatings }
+  {
+    token,
+    rating,
+    comment,
+    customerName,
+    via,
+    serviceRating,
+    ambianceRating,
+    itemRatings,
+    customAnswers,
+  }
 ) => {
   const response = await fetch(`${API_URL}/feedback/public/${billId}`, {
     method: "POST",
@@ -32,6 +42,7 @@ export const submitPublicFeedback = async (
       serviceRating,
       ambianceRating,
       itemRatings,
+      customAnswers,
     }),
   });
   const data = await response.json().catch(() => ({}));
@@ -47,4 +58,14 @@ export const submitPublicFeedback = async (
 export const getRestaurantFeedback = async (restaurantId) => {
   const res = await api.get(`/feedback/${restaurantId}`);
   return res.data; // { success, data, summary }
+};
+
+export const getFeedbackSettings = async (restaurantId) => {
+  const res = await api.get(`/feedback/${restaurantId}/settings`);
+  return res.data.data;
+};
+
+export const updateFeedbackSettings = async (restaurantId, settings) => {
+  const res = await api.put(`/feedback/${restaurantId}/settings`, settings);
+  return res.data.data;
 };

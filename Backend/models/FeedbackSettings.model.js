@@ -1,5 +1,26 @@
 import mongoose from "mongoose";
 
+const customQuestionSchema = new mongoose.Schema(
+  {
+    question: {
+      type: String,
+      trim: true,
+      required: true,
+      maxlength: 200,
+    },
+    type: {
+      type: String,
+      enum: ["rating", "text"],
+      default: "rating",
+    },
+    required: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  { _id: false }
+);
+
 const feedbackSettingsSchema = new mongoose.Schema(
   {
     restaurant: {
@@ -27,6 +48,15 @@ const feedbackSettingsSchema = new mongoose.Schema(
       trim: true,
       maxlength: 300,
       default: "Your feedback has been recorded.",
+    },
+
+    customQuestions: {
+      type: [customQuestionSchema],
+      default: [],
+      validate: {
+        validator: (arr) => arr.length <= 10,
+        message: "You can add up to 10 custom questions",
+      },
     },
   },
   { timestamps: true }

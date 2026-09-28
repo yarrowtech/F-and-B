@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS = {
   collectCustomerName: true,
   welcomeMessage: "How was your visit?",
   thankYouMessage: "Your feedback has been recorded.",
+  customQuestions: [],
 };
 
 const getSettingsForRestaurant = async (restaurantId) => {
@@ -103,6 +104,7 @@ const submitPublicFeedback = async (req, res) => {
       serviceRating,
       ambianceRating,
       itemRatings,
+      customAnswers,
     } = req.body;
 
     if (!verifyFeedbackToken(billId, token)) {
@@ -136,6 +138,39 @@ const submitPublicFeedback = async (req, res) => {
     const parsedAmbianceRating = parseOptionalRating(ambianceRating);
     if (settings.collectAmbiance && parsedAmbianceRating === undefined) {
       return res.status(400).json({ success: false, message: "Ambiance rating must be between 1 and 5" });
+    }
+
+    // Validate custom question answers against the restaurant's configured questions
+    // (by index, since questions have no stable id) — never trust the client's own text.
+    const cleanCustomAnswers = [];
+    const configuredQuestions = Array.isArray(settings.customQuestions) ? settings.customQuestions : [];
+    for (let i = 0; i < configuredQuestions.length; i++) {
+      const question = configuredQuestions[i];
+      const submitted = Array.isArray(customAnswers) ? customAnswers[i] : undefined;
+
+      if (question.type === "rating") {
+        const parsed = parseOptionalRating(submitted?.answer);
+        if (question.required && (parsed === undefined || parsed === null)) {
+          return res.status(400).json({
+            success: false,
+            message: `Please answer: ${question.question}`,
+          });
+        }
+        if (parsed) {
+          cleanCustomAnswers.push({ question: question.question, type: "rating", answer: parsed });
+        }
+      } else {
+        const text = String(submitted?.answer || "").trim().slice(0, 500);
+        if (question.required && !text) {
+          return res.status(400).json({
+            success: false,
+            message: `Please answer: ${question.question}`,
+          });
+        }
+        if (text) {
+          cleanCustomAnswers.push({ question: question.question, type: "text", answer: text });
+        }
+      }
     }
 
     const existing = await Feedback.findOne({ bill: billId });
@@ -184,6 +219,7 @@ const submitPublicFeedback = async (req, res) => {
       ambianceRating: settings.collectAmbiance ? parsedAmbianceRating ?? null : null,
       itemRatings: cleanItemRatings,
       comment: settings.collectComment ? String(comment || "").trim() : "",
+      customAnswers: cleanCustomAnswers,
       submittedVia: req.body.via === "email" ? "email" : req.body.via === "whatsapp" ? "whatsapp" : "direct",
     });
 
@@ -206,6 +242,83 @@ const ensureRestaurantAccess = async (req, restaurantId) => {
     return Restaurant.findById(restaurantId);
   }
   return null;
+};
+
+/* ===============================
+   ADMIN / MANAGER · GET FEEDBACK FORM SETTINGS
+=============================== */
+const getFeedbackSettings = async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+
+    const restaurant = await ensureRestaurantAccess(req, restaurantId);
+    if (!restaurant) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const settings = await getSettingsForRestaurant(restaurantId);
+    res.json({ success: true, data: settings });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/* ===============================
+   ADMIN · UPDATE FEEDBACK FORM SETTINGS
+=============================== */
+const updateFeedbackSettings = async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Only admins can customize the feedback form" });
+    }
+
+    const restaurant = await ensureRestaurantAccess(req, restaurantId);
+    if (!restaurant) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const updates = {};
+    const boolFields = [
+      "collectService",
+      "collectAmbiance",
+      "collectItemRatings",
+      "collectComment",
+      "collectCustomerName",
+    ];
+    boolFields.forEach((field) => {
+      if (typeof req.body[field] === "boolean") updates[field] = req.body[field];
+    });
+
+    if (typeof req.body.welcomeMessage === "string") {
+      updates.welcomeMessage = req.body.welcomeMessage.trim().slice(0, 200) || DEFAULT_SETTINGS.welcomeMessage;
+    }
+    if (typeof req.body.thankYouMessage === "string") {
+      updates.thankYouMessage = req.body.thankYouMessage.trim().slice(0, 300) || DEFAULT_SETTINGS.thankYouMessage;
+    }
+
+    if (Array.isArray(req.body.customQuestions)) {
+      updates.customQuestions = req.body.customQuestions
+        .filter((q) => q && String(q.question || "").trim())
+        .slice(0, 10)
+        .map((q) => ({
+          question: String(q.question).trim().slice(0, 200),
+          type: q.type === "text" ? "text" : "rating",
+          required: Boolean(q.required),
+        }));
+    }
+
+    const settings = await FeedbackSettings.findOneAndUpdate(
+      { restaurant: restaurantId },
+      { $set: updates, $setOnInsert: { restaurant: restaurantId } },
+      { new: true, upsert: true }
+    ).lean();
+
+    res.json({ success: true, message: "Feedback form updated", data: { ...DEFAULT_SETTINGS, ...settings } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 };
 
 /* ===============================
@@ -257,4 +370,14 @@ const getRestaurantFeedback = async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.mes
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export default {
+  getPublicFeedbackContext,
+  submitPublicFeedback,
+  getRestaurantFeedback,
+  getFeedbackSettings,
+  updateFeedbackSettings,
+};

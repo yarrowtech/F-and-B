@@ -49,6 +49,7 @@ export default function CustomerFeedback() {
   const [itemRatings, setItemRatings] = useState({}); // menuItemId -> rating
   const [comment, setComment] = useState("");
   const [customerName, setCustomerName] = useState("");
+  const [customAnswers, setCustomAnswers] = useState({}); // index -> value
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -69,9 +70,24 @@ export default function CustomerFeedback() {
   }, [billId, token]);
 
   const items = useMemo(() => context?.items || [], [context]);
+  const settings = context?.settings || {
+    collectService: true,
+    collectAmbiance: true,
+    collectItemRatings: true,
+    collectComment: true,
+    collectCustomerName: true,
+    welcomeMessage: "How was your visit?",
+    thankYouMessage: "Your feedback has been recorded.",
+    customQuestions: [],
+  };
+  const customQuestions = settings.customQuestions || [];
 
   const setItemRating = (menuItemId, value) => {
     setItemRatings((prev) => ({ ...prev, [menuItemId]: value }));
+  };
+
+  const setCustomAnswer = (index, value) => {
+    setCustomAnswers((prev) => ({ ...prev, [index]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -80,18 +96,31 @@ export default function CustomerFeedback() {
       setError("Please select an overall rating.");
       return;
     }
-    if (!serviceRating) {
+    if (settings.collectService && !serviceRating) {
       setError("Please rate the service.");
       return;
     }
-    if (!ambianceRating) {
+    if (settings.collectAmbiance && !ambianceRating) {
       setError("Please rate the ambiance.");
       return;
     }
 
-    const itemRatingsPayload = items
-      .filter((item) => itemRatings[item.menuItemId])
-      .map((item) => ({ menuItemId: item.menuItemId, rating: itemRatings[item.menuItemId] }));
+    for (let i = 0; i < customQuestions.length; i++) {
+      const q = customQuestions[i];
+      const value = customAnswers[i];
+      if (q.required && (value === undefined || value === "" || value === 0)) {
+        setError(`Please answer: ${q.question}`);
+        return;
+      }
+    }
+
+    const customAnswersPayload = customQuestions.map((_, i) => ({ answer: customAnswers[i] ?? "" }));
+
+    const itemRatingsPayload = settings.collectItemRatings
+      ? items
+          .filter((item) => itemRatings[item.menuItemId])
+          .map((item) => ({ menuItemId: item.menuItemId, rating: itemRatings[item.menuItemId] }))
+      : [];
 
     try {
       setSubmitting(true);
@@ -105,6 +134,7 @@ export default function CustomerFeedback() {
         comment,
         customerName,
         via,
+        customAnswers: customAnswersPayload,
       });
       setSubmitted(true);
     } catch (err) {
@@ -128,7 +158,7 @@ export default function CustomerFeedback() {
             </div>
             <h1 className="text-lg font-bold text-slate-900 dark:text-white">Thank you!</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">
-              Your feedback has been recorded.
+              {context?.settings?.thankYouMessage || "Your feedback has been recorded."}
             </p>
           </div>
         ) : (
@@ -136,7 +166,9 @@ export default function CustomerFeedback() {
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
               {context?.restaurantName}
             </p>
-            <h1 className="mt-1 text-xl font-bold text-slate-900 dark:text-white">How was your visit?</h1>
+            <h1 className="mt-1 text-xl font-bold text-slate-900 dark:text-white">
+              {settings.welcomeMessage}
+            </h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">
               Bill {context?.billNo} &middot; Rs. {context?.totalAmount}
             </p>
@@ -149,18 +181,24 @@ export default function CustomerFeedback() {
                 <StarRating value={rating} onChange={setRating} />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="mb-2 text-sm font-semibold text-slate-700 dark:text-neutral-300">Service</p>
-                  <StarRating value={serviceRating} onChange={setServiceRating} size="text-2xl" />
+              {(settings.collectService || settings.collectAmbiance) && (
+                <div className="grid grid-cols-2 gap-4">
+                  {settings.collectService && (
+                    <div>
+                      <p className="mb-2 text-sm font-semibold text-slate-700 dark:text-neutral-300">Service</p>
+                      <StarRating value={serviceRating} onChange={setServiceRating} size="text-2xl" />
+                    </div>
+                  )}
+                  {settings.collectAmbiance && (
+                    <div>
+                      <p className="mb-2 text-sm font-semibold text-slate-700 dark:text-neutral-300">Ambiance</p>
+                      <StarRating value={ambianceRating} onChange={setAmbianceRating} size="text-2xl" />
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <p className="mb-2 text-sm font-semibold text-slate-700 dark:text-neutral-300">Ambiance</p>
-                  <StarRating value={ambianceRating} onChange={setAmbianceRating} size="text-2xl" />
-                </div>
-              </div>
+              )}
 
-              {items.length > 0 && (
+              {settings.collectItemRatings && items.length > 0 && (
                 <div>
                   <p className="mb-2 text-sm font-semibold text-slate-700 dark:text-neutral-300">
                     Rate what you ordered
@@ -185,31 +223,61 @@ export default function CustomerFeedback() {
                 </div>
               )}
 
-              <div>
-                <label className="mb-1 block text-sm font-semibold text-slate-700 dark:text-neutral-300">
-                  Your name (optional)
-                </label>
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="e.g. Rahul Sharma"
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
-                />
-              </div>
+              {settings.collectCustomerName && (
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-slate-700 dark:text-neutral-300">
+                    Your name (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="e.g. Rahul Sharma"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
+                  />
+                </div>
+              )}
 
-              <div>
-                <label className="mb-1 block text-sm font-semibold text-slate-700 dark:text-neutral-300">
-                  Comments (optional)
-                </label>
-                <textarea
-                  rows={3}
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Tell us what you liked or what we can improve"
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
-                />
-              </div>
+              {settings.collectComment && (
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-slate-700 dark:text-neutral-300">
+                    Comments (optional)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="Tell us what you liked or what we can improve"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
+                  />
+                </div>
+              )}
+
+              {customQuestions.length > 0 && (
+                <div className="space-y-4">
+                  {customQuestions.map((q, index) => (
+                    <div key={index}>
+                      <p className="mb-1.5 text-sm font-semibold text-slate-700 dark:text-neutral-300">
+                        {q.question} {q.required && <span className="text-rose-500">*</span>}
+                      </p>
+                      {q.type === "text" ? (
+                        <textarea
+                          rows={2}
+                          value={customAnswers[index] || ""}
+                          onChange={(e) => setCustomAnswer(index, e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-white"
+                        />
+                      ) : (
+                        <StarRating
+                          value={customAnswers[index] || 0}
+                          onChange={(value) => setCustomAnswer(index, value)}
+                          size="text-2xl"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {error && <p className="text-sm font-medium text-rose-600">{error}</p>}
 

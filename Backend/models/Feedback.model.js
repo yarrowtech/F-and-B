@@ -22,6 +22,26 @@ const itemFeedbackSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const customAnswerSchema = new mongoose.Schema(
+  {
+    question: {
+      type: String,
+      trim: true,
+      required: true,
+    },
+    type: {
+      type: String,
+      enum: ["rating", "text"],
+      default: "rating",
+    },
+    answer: {
+      type: mongoose.Schema.Types.Mixed, // Number for rating, String for text
+      required: true,
+    },
+  },
+  { _id: false }
+);
+
 const feedbackSchema = new mongoose.Schema(
   {
     restaurant: {
@@ -94,6 +114,11 @@ const feedbackSchema = new mongoose.Schema(
       trim: true,
       maxlength: 1000,
       default: "",
+    },
+
+    customAnswers: {
+      type: [customAnswerSchema],
+      default: [],
     },
 
     submittedVia: {
