@@ -1,6 +1,15 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
+const manualRestaurantSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true, maxlength: 120 },
+  contactName: { type: String, trim: true, maxlength: 100, default: "" },
+  phone: { type: String, trim: true, maxlength: 32, default: "" },
+  address: { type: String, trim: true, maxlength: 300, default: "" },
+  gstNo: { type: String, trim: true, maxlength: 24, default: "" },
+  createdAt: { type: Date, default: Date.now },
+});
+
 const vendorSchema = new mongoose.Schema(
   {
     vendorId: {
@@ -125,6 +134,10 @@ const vendorSchema = new mongoose.Schema(
         ref: "Restaurant",
       },
     ],
+    manualRestaurants: {
+      type: [manualRestaurantSchema],
+      default: [],
+    },
     allRestaurantsAccess: {
       type: Boolean,
       default: false,

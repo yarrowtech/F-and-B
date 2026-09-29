@@ -417,6 +417,8 @@ function OrderRow({ order, onClick }) {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="font-mono text-xs font-bold text-blue-600 dark:text-blue-300">{order.orderNo}</p>
+          {order.orderSource === "vendor_manual" && <p className="mt-1 text-xs font-semibold text-green-700 dark:text-green-400">Manual restaurant order</p>}
+          {order.orderNotes && <p className="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{order.orderNotes}</p>}
           <p className="mt-1 text-sm font-bold text-gray-900 dark:text-gray-100">
             {order.restaurant?.name || "Restaurant"}
           </p>

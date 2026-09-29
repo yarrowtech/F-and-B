@@ -59,8 +59,8 @@ const getVendorRestaurantIds = (vendor) =>
   sanitizeRestaurantIds(
     vendor?.accessibleRestaurants?.length
       ? vendor.accessibleRestaurants.map((restaurant) =>
-          restaurant?._id ? restaurant._id.toString() : restaurant?.toString?.() || restaurant
-        )
+        restaurant?._id ? restaurant._id.toString() : restaurant?.toString?.() || restaurant
+      )
       : [vendor?.primaryRestaurant?._id || vendor?.primaryRestaurant].filter(Boolean)
   );
 
@@ -96,11 +96,11 @@ const buildVendorResponse = (vendor, lastOrder = null) => ({
   createdAt: vendor.createdAt,
   lastOrder: lastOrder
     ? {
-        status: lastOrder.status,
-        totalAmount: lastOrder.totalAmount,
-        createdAt: lastOrder.createdAt,
-        completedAt: lastOrder.completedAt,
-      }
+      status: lastOrder.status,
+      totalAmount: lastOrder.totalAmount,
+      createdAt: lastOrder.createdAt,
+      completedAt: lastOrder.completedAt,
+    }
     : null,
 });
 
@@ -815,15 +815,15 @@ export const createLocalVendor = async (req, res) => {
     const invitationDelivery =
       loginAccess === "required"
         ? await sendInvitationIfPossible({
-            vendor,
-            req,
-            invitationToken,
-          })
+          vendor,
+          req,
+          invitationToken,
+        })
         : {
-            invitationLink: "",
-            invitationEmailSent: false,
-            invitationEmailMessage: "Vendor created without login access",
-          };
+          invitationLink: "",
+          invitationEmailSent: false,
+          invitationEmailMessage: "Vendor created without login access",
+        };
 
     res.status(201).json({
       success: true,
@@ -930,7 +930,7 @@ export const createGlobalVendor = async (req, res) => {
 
 export const getVendors = async (req, res) => {
   try {
-      const query = await getScopedVendorQuery(req.user);
+    const query = await getScopedVendorQuery(req.user);
     if (!query) {
       return res.status(403).json({
         success: false,
@@ -987,7 +987,7 @@ export const exploreGlobalVendors = async (req, res) => {
 
 export const getVendorById = async (req, res) => {
   try {
-      const query = await getScopedVendorQuery(req.user);
+    const query = await getScopedVendorQuery(req.user);
     if (!query) {
       return res.status(403).json({ success: false, message: "Access denied" });
     }
@@ -1284,83 +1284,83 @@ export const reviewUpgradeRequest = async (req, res) => {
       });
     }
 
-      if (action !== "approve") {
-        return res.status(400).json({
-          success: false,
-          message: "Action must be approve or reject",
-        });
-    }
-
-      const allRestaurantsAccess = req.body.allRestaurantsAccess !== false;
-      const accessibleRestaurantIds = sanitizeRestaurantIds(req.body.accessibleRestaurantIds);
-      const inheritedRestaurantIds = getVendorRestaurantIds(vendor);
-      const globalAccessibleRestaurantIds = allRestaurantsAccess
-        ? inheritedRestaurantIds
-        : sanitizeRestaurantIds([...inheritedRestaurantIds, ...accessibleRestaurantIds]);
-      const globalVendorId = await generateVendorId("global");
-      const generatedPassword = generateVendorPassword();
-      const originalEmail = vendor.email;
-
-      // Release unique email from the inactive local account before creating
-      // the replacement global vendor in the same collection.
-      if (originalEmail) {
-        vendor.email = undefined;
-        await vendor.save();
-      }
-
-      const globalVendor = await Vendor.create({
-        vendorId: globalVendorId,
-        name: vendor.name,
-        email: originalEmail || undefined,
-        phone: vendor.phone,
-        address: vendor.address,
-        governmentId: vendor.governmentId,
-        governmentIdType: vendor.governmentIdType,
-        category: vendor.category,
-        password: generatedPassword,
-        vendorType: "global",
-        createdByRole: "super_admin",
-        createdByAdmin: vendor.createdByAdmin,
-        createdBySuperAdmin: req.user.id,
-        connectedAdmins: vendor.createdByAdmin ? [vendor.createdByAdmin] : [],
-        primaryRestaurant:
-          vendor.primaryRestaurant ||
-          globalAccessibleRestaurantIds[0] ||
-          null,
-        accessibleRestaurants: globalAccessibleRestaurantIds,
-        allRestaurantsAccess,
-        upgradedFromVendor: vendor._id,
-      });
-
-      vendor.upgradeRequestStatus = "approved";
-      vendor.upgradeReviewedAt = new Date();
-      vendor.upgradedToGlobalVendor = globalVendor._id;
-      // Keep the local vendor attached to the original admin so historical
-      // orders and business relationships remain visible in admin workflows.
-      vendor.isActive = false;
-      await vendor.save();
-
-      res.json({
-        success: true,
-        message: "Vendor upgraded to global successfully",
-        localVendor: buildVendorResponse(vendor),
-        globalVendor: buildVendorResponse(globalVendor),
-        credentials: {
-          vendorId: globalVendorId,
-          password: generatedPassword,
-        },
-      });
-    } catch (error) {
-      const status = error?.code === 11000 ? 409 : 500;
-      res.status(status).json({
+    if (action !== "approve") {
+      return res.status(400).json({
         success: false,
-        message:
-          error?.code === 11000
-            ? "Could not create global vendor because a vendor ID or email already exists"
-            : error.message,
+        message: "Action must be approve or reject",
       });
     }
-  };
+
+    const allRestaurantsAccess = req.body.allRestaurantsAccess !== false;
+    const accessibleRestaurantIds = sanitizeRestaurantIds(req.body.accessibleRestaurantIds);
+    const inheritedRestaurantIds = getVendorRestaurantIds(vendor);
+    const globalAccessibleRestaurantIds = allRestaurantsAccess
+      ? inheritedRestaurantIds
+      : sanitizeRestaurantIds([...inheritedRestaurantIds, ...accessibleRestaurantIds]);
+    const globalVendorId = await generateVendorId("global");
+    const generatedPassword = generateVendorPassword();
+    const originalEmail = vendor.email;
+
+    // Release unique email from the inactive local account before creating
+    // the replacement global vendor in the same collection.
+    if (originalEmail) {
+      vendor.email = undefined;
+      await vendor.save();
+    }
+
+    const globalVendor = await Vendor.create({
+      vendorId: globalVendorId,
+      name: vendor.name,
+      email: originalEmail || undefined,
+      phone: vendor.phone,
+      address: vendor.address,
+      governmentId: vendor.governmentId,
+      governmentIdType: vendor.governmentIdType,
+      category: vendor.category,
+      password: generatedPassword,
+      vendorType: "global",
+      createdByRole: "super_admin",
+      createdByAdmin: vendor.createdByAdmin,
+      createdBySuperAdmin: req.user.id,
+      connectedAdmins: vendor.createdByAdmin ? [vendor.createdByAdmin] : [],
+      primaryRestaurant:
+        vendor.primaryRestaurant ||
+        globalAccessibleRestaurantIds[0] ||
+        null,
+      accessibleRestaurants: globalAccessibleRestaurantIds,
+      allRestaurantsAccess,
+      upgradedFromVendor: vendor._id,
+    });
+
+    vendor.upgradeRequestStatus = "approved";
+    vendor.upgradeReviewedAt = new Date();
+    vendor.upgradedToGlobalVendor = globalVendor._id;
+    // Keep the local vendor attached to the original admin so historical
+    // orders and business relationships remain visible in admin workflows.
+    vendor.isActive = false;
+    await vendor.save();
+
+    res.json({
+      success: true,
+      message: "Vendor upgraded to global successfully",
+      localVendor: buildVendorResponse(vendor),
+      globalVendor: buildVendorResponse(globalVendor),
+      credentials: {
+        vendorId: globalVendorId,
+        password: generatedPassword,
+      },
+    });
+  } catch (error) {
+    const status = error?.code === 11000 ? 409 : 500;
+    res.status(status).json({
+      success: false,
+      message:
+        error?.code === 11000
+          ? "Could not create global vendor because a vendor ID or email already exists"
+          : error.message,
+    });
+  }
+};
 
 export const connectGlobalVendor = async (req, res) => {
   try {
@@ -1448,6 +1448,74 @@ export const getVendorDashboardScope = async (req, res) => {
   }
 };
 
+export const getManualRestaurants = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.user.id).select(
+      "vendorType isActive manualRestaurants"
+    );
+    if (!vendor || vendor.vendorType !== "global" || vendor.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Only active global vendors can manage manual restaurants",
+      });
+    }
+
+    const restaurants = [...vendor.manualRestaurants].sort((left, right) =>
+      left.name.localeCompare(right.name)
+    );
+    return res.json({ success: true, restaurants });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const createManualRestaurant = async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.user.id).select(
+      "vendorType isActive manualRestaurants"
+    );
+    if (!vendor || vendor.vendorType !== "global" || vendor.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Only active global vendors can manage manual restaurants",
+      });
+    }
+
+    const name = String(req.body.name || "").trim();
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: "Restaurant name is required",
+      });
+    }
+    if (name.length > 120) {
+      return res.status(400).json({
+        success: false,
+        message: "Restaurant name must be at most 120 characters",
+      });
+    }
+
+    const restaurant = {
+      name,
+      contactName: String(req.body.contactName || "").trim().slice(0, 100),
+      phone: String(req.body.phone || "").trim().slice(0, 32),
+      address: String(req.body.address || "").trim().slice(0, 300),
+      gstNo: String(req.body.gstNo || "").trim().slice(0, 24),
+    };
+
+    vendor.manualRestaurants.push(restaurant);
+    await vendor.save();
+    const createdRestaurant = vendor.manualRestaurants[vendor.manualRestaurants.length - 1];
+
+    return res.status(201).json({
+      success: true,
+      restaurant: createdRestaurant,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export default {
   loginVendor,
   forgotVendorPassword,
@@ -1469,4 +1537,6 @@ export default {
   getUpgradeRequests,
   reviewUpgradeRequest,
   getVendorDashboardScope,
+  getManualRestaurants,
+  createManualRestaurant,
 };

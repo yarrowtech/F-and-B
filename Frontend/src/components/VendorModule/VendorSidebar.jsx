@@ -1,7 +1,7 @@
 import React from "react";
 import { FaHome } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import { VENDOR_NAV_ITEMS } from "./vendorNavItems";
+import { getVendorNavItems } from "./vendorNavItems";
 
 const getVendorName = () => {
   try {
@@ -37,7 +37,7 @@ const VendorSidebar = ({ activeSection, setActiveSection, requestCount = 0 }) =>
       </div>
 
       <nav className="flex-1 overflow-y-auto p-4">
-        {VENDOR_NAV_ITEMS.map(({ id, label, icon: Icon }) => {
+        {getVendorNavItems().map(({ id, label, icon: Icon }) => {
           const isActive = activeSection === id;
           const iconNode = React.createElement(Icon, { className: "text-lg" });
           return (

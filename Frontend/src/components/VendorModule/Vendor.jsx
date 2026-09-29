@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { LogOut, Moon, Sun } from "lucide-react";
 
 import Sidebar from "./VendorSidebar";
-import { VENDOR_NAV_ITEMS } from "./vendorNavItems";
+import { getVendorNavItems } from "./vendorNavItems";
+import VendorNewOrder from "./VendorNewOrder";
 import VendorInventory from "./VendorInventory";
 import VendorStockInventory from "./VendorStockInventory";
 import VendorManagement from "./VendorManagement";
@@ -26,6 +27,7 @@ import {
 import { recordLogout } from "../../services/systemUsage.service";
 
 const PAGE_LABELS = {
+  "new-order": "New Order",
   dashboard: "Dashboard",
   subscription: "Subscription",
   "my-products": "My Products",
@@ -43,6 +45,7 @@ const PAGE_LABELS = {
 
 const SUBSCRIPTION_OPEN_SECTIONS = new Set(["dashboard", "subscription", "settings"]);
 const PLAN_REQUIREMENTS = {
+  "new-order": "BASIC_VENDOR",
   "my-products": "BASIC_VENDOR",
   inventory: "BASIC_VENDOR",
   "vendor-management": "BASIC_VENDOR",
@@ -288,6 +291,8 @@ const VendorPanel = () => {
     }
 
     switch (active) {
+      case "new-order":
+        return <VendorNewOrder vendorId={vendorId} onViewOrders={() => handleSetActive("vendor-management")} />;
       case "subscription":
         return (
           <VendorSubscriptionOverview
@@ -392,7 +397,7 @@ const VendorPanel = () => {
 
       {/* ===== Bottom Navigation (mobile & tablet only) ===== */}
       <nav className="2xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-gray-700 flex items-stretch overflow-x-auto shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
-        {VENDOR_NAV_ITEMS.map(({ id, label, icon: Icon }) => {
+        {getVendorNavItems().map(({ id, label, icon: Icon }) => {
           const isActive = active === id;
           const badgeCount = id === "vendor-management" ? requestCount : 0;
           const iconNode = React.createElement(Icon, { size: 18 });

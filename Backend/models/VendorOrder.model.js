@@ -186,6 +186,17 @@ const vendorOrderBillingSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const manualRestaurantSnapshotSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true, maxlength: 120 },
+    contactName: { type: String, trim: true, maxlength: 100, default: "" },
+    phone: { type: String, trim: true, maxlength: 32, default: "" },
+    address: { type: String, trim: true, maxlength: 300, default: "" },
+    gstNo: { type: String, trim: true, maxlength: 24, default: "" },
+  },
+  { _id: false }
+);
+
 const vendorOrderSchema = new mongoose.Schema(
   {
     orderNo: {
@@ -202,15 +213,23 @@ const vendorOrderSchema = new mongoose.Schema(
     restaurant: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Restaurant",
-      required: true,
+      default: null,
+      required: function () { return !this.manualRestaurant?.name; },
       index: true,
+    },
+    manualRestaurant: {
+      type: manualRestaurantSnapshotSchema,
+      default: null,
     },
     placedByAdmin: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",
-      required: true,
+      required: function () { return !this.placedByVendor; },
       index: true,
     },
+    placedByVendor: { type: mongoose.Schema.Types.ObjectId, ref: "Vendor", default: null },
+    orderSource: { type: String, enum: ["restaurant", "vendor_manual"], default: "restaurant" },
+    orderNotes: { type: String, trim: true, maxlength: 1000, default: "" },
     items: {
       type: [vendorOrderItemSchema],
       required: true,

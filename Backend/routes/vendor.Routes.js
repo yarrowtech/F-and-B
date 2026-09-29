@@ -24,6 +24,16 @@ router.use(auth);
 
 router.get("/me", allowRoles("vendor"), vendorController.getMyVendorProfile);
 router.get("/dashboard-scope", allowRoles("vendor"), vendorController.getVendorDashboardScope);
+router.get(
+  "/manual-restaurants",
+  allowRoles("vendor"),
+  vendorController.getManualRestaurants
+);
+router.post(
+  "/manual-restaurants",
+  allowRoles("vendor"),
+  vendorController.createManualRestaurant
+);
 
 router.post("/local", allowRoles("admin"), vendorController.createLocalVendor);
 router.get(
@@ -137,6 +147,7 @@ router.post(
   vendorPriceNegotiationController.replyToNegotiation
 );
 router.post("/:id/orders", allowRoles("admin"), vendorOrderController.createVendorOrder);
+router.post("/:id/manual-orders", allowRoles("vendor"), vendorOrderController.createVendorOrder);
 router.put(
   "/:id/orders/:orderId/status",
   allowRoles("admin", "super_admin", "vendor"),

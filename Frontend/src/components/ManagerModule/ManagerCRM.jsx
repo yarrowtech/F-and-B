@@ -554,7 +554,6 @@ const ManagerCRM = () => {
                             {coupon.customerName || "Guest"} &middot; {coupon.customerPhone || coupon.customerEmail}
                           </p>
                         {coupon.reasonNote && <p className="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">Reason: {coupon.reasonNote}</p>}
-                        
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
