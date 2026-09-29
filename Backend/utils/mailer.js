@@ -785,17 +785,18 @@ export const sendCouponEmail = async ({ to, restaurantName, customerName, code, 
     .filter(Boolean)
     .join("\n");
 
+  const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
   const html = `
     <div style="margin:0; padding:36px 18px; background:#f3f7f4; font-family:Arial,Helvetica,sans-serif; color:#111827;">
       <div style="max-width:680px; margin:0 auto; background:#ffffff; border:1px solid #dfe7e2; border-radius:24px; overflow:hidden; box-shadow:0 12px 32px rgba(15,23,42,0.08);">
         <div style="background:linear-gradient(135deg,#f3fbf5 0%,#ffffff 52%,#ecfdf3 100%); padding:28px 32px 22px; border-bottom:1px solid #e5e7eb;">
           <div style="display:inline-block; padding:8px 12px; border-radius:999px; background:#ecfdf3; color:#169c52; font-size:12px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase;">
-            ${restaurantName || "Restaurant"}
+            ${escapeHtml(restaurantName || "Restaurant")}
           </div>
           <h1 style="margin:18px 0 0; font-size:30px; font-weight:800; color:#111827;">A gift for you</h1>
         </div>
         <div style="padding:30px 32px 36px;">
-          <p style="margin:0 0 18px; font-size:16px; color:#1f2937;">Hi ${greetingName},</p>
+          <p style="margin:0 0 18px; font-size:16px; color:#1f2937;">Hi ${escapeHtml(greetingName)},</p>
           <p style="margin:0 0 22px; font-size:16px; line-height:1.7; color:#1f2937;">
             You've earned a special discount! Show this code on your next visit.
           </p>

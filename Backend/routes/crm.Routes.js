@@ -100,6 +100,13 @@ router.get(
 );
 
 router.post(
+  "/:restaurantId/coupons",
+  auth,
+  allowRoles("admin", "manager"),
+  crmController.issueCoupon
+);
+
+router.post(
   "/:restaurantId/customers/:phone/coupon",
   auth,
   allowRoles("admin", "manager"),

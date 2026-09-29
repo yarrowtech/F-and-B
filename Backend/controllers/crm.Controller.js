@@ -633,6 +633,11 @@ const issueCoupon = async (req, res) => {
   try {
     const { restaurantId, phone: key } = req.params;
     const { discountPercent, validityDays, channel } = req.body;
+    const manual = !key;
+    const phone = String(req.body.customerPhone || "").trim();
+    const email = String(req.body.customerEmail || "").trim().toLowerCase();
+    const customerName = String(req.body.customerName || "").trim();
+    const reasonNote = String(req.body.reasonNote || "").trim();
 
     const restaurant = await ensureRestaurantAccess(req, restaurantId);
     if (!restaurant) {
@@ -644,16 +649,34 @@ const issueCoupon = async (req, res) => {
       couponValidityDays: 30,
     };
 
-    const finalDiscount = Number(discountPercent) || loyaltySettings.discountPercent;
-    if (finalDiscount < 1 || finalDiscount > 100) {
+    const finalDiscount = discountPercent === undefined ? loyaltySettings.discountPercent : Number(discountPercent);
+    if (!Number.isFinite(finalDiscount) || finalDiscount < 1 || finalDiscount > 100) {
       return res.status(400).json({ success: false, message: "Discount percent must be between 1 and 100" });
     }
-    const finalValidityDays = Number(validityDays) || loyaltySettings.couponValidityDays;
+    const finalValidityDays = validityDays === undefined ? loyaltySettings.couponValidityDays : Number(validityDays);
+    if (!Number.isInteger(finalValidityDays) || finalValidityDays < 1 || finalValidityDays > 365) {
+      return res.status(400).json({ success: false, message: "Coupon validity must be between 1 and 365 whole days" });
+    }
+    if (manual && !["whatsapp", "email", "both"].includes(channel)) {
+      return res.status(400).json({ success: false, message: "Choose a delivery channel" });
+    }
     const finalChannel = ["whatsapp", "email", "both"].includes(channel) ? channel : "whatsapp";
     const wantsWhatsApp = finalChannel === "whatsapp" || finalChannel === "both";
     const wantsEmail = finalChannel === "email" || finalChannel === "both";
 
-    const latestBill = await Bill.findOne({ restaurant: restaurantId, ...matchByCustomerKey(key) })
+    if (manual) {
+      if (!reasonNote || reasonNote.length > 500 || customerName.length > 100) {
+        return res.status(400).json({ success: false, message: "Enter a reason (up to 500 characters) and a name of at most 100 characters" });
+      }
+      if ((wantsWhatsApp && !phone) || (phone && !/^\+?[1-9]\d{7,14}$/.test(phone))) {
+        return res.status(400).json({ success: false, message: "Enter a valid WhatsApp number with country code, e.g. +919876543210" });
+      }
+      if ((wantsEmail && !email) || (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))) {
+        return res.status(400).json({ success: false, message: "Enter a valid email address" });
+      }
+    }
+
+    const latestBill = manual ? { customerPhone: phone, customerEmail: email, customerName } : await Bill.findOne({ restaurant: restaurantId, ...matchByCustomerKey(key) })
       .sort({ createdAt: -1 })
       .select("customerName customerEmail customerPhone")
       .lean();
@@ -663,10 +686,12 @@ const issueCoupon = async (req, res) => {
     const coupon = await Coupon.create({
       restaurant: restaurantId,
       code: generateCouponCode(),
-      customerPhone: key,
+      customerPhone: manual ? phone : key,
+      customerEmail: latestBill?.customerEmail || "",
+      reasonNote: manual ? reasonNote : "",
       discountPercent: finalDiscount,
       customerName: latestBill?.customerName || "",
-      reason: "loyalty",
+      reason: manual ? "manual" : "loyalty",
       expiresAt,
       createdBy: req.user.id,
       createdByModel: req.user.role === "admin" ? "Admin" : "Employee",
@@ -685,7 +710,11 @@ const issueCoupon = async (req, res) => {
           `Use code ${coupon.code} for ${finalDiscount}% off your next visit.`,
           `Valid until ${expiresAt.toLocaleDateString()}.`,
         ].join("\n");
-        whatsappResult = await sendWhatsAppMessageWithFallback({ to: customerPhone, message });
+        try {
+          whatsappResult = await sendWhatsAppMessageWithFallback({ to: customerPhone, message });
+        } catch {
+          whatsappResult = { sent: false, reason: "WhatsApp delivery failed. The coupon was still created." };
+        }
       }
     }
 

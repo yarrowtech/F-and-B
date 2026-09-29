@@ -1,3 +1,4 @@
+import CustomCouponForm from "../common/CustomCouponForm";
 import CampaignImageUpload from "../common/CampaignImageUpload";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -529,6 +530,13 @@ const ManagerCRM = () => {
               )}
             </div>
 
+            {!loyaltyLoading && <CustomCouponForm
+              key={restaurantId}
+              restaurantId={restaurantId}
+              settings={loyaltySettings}
+              onIssued={(coupon) => setCoupons((prev) => [coupon, ...prev])}
+            />}
+
             <div>
               <h3 className="mb-2 text-sm font-bold text-slate-800 dark:text-white">Issued Coupons</h3>
               {coupons.length === 0 ? (
@@ -539,12 +547,14 @@ const ManagerCRM = () => {
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
                   <div className="divide-y divide-slate-100 dark:divide-neutral-700">
                     {coupons.map((coupon) => (
-                      <div key={coupon._id} className="flex items-center justify-between px-4 py-3">
+                      <div key={coupon._id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                         <div>
                           <p className="text-sm font-bold text-slate-900 dark:text-white">{coupon.code}</p>
                           <p className="text-xs text-slate-500 dark:text-neutral-400">
-                            {coupon.customerName || "Guest"} &middot; {coupon.customerPhone}
+                            {coupon.customerName || "Guest"} &middot; {coupon.customerPhone || coupon.customerEmail}
                           </p>
+                        {coupon.reasonNote && <p className="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">Reason: {coupon.reasonNote}</p>}
+                        
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">

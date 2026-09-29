@@ -1,3 +1,4 @@
+import CustomCouponForm from "../common/CustomCouponForm";
 import CampaignImageUpload from "../common/CampaignImageUpload";
 import { useEffect, useState } from "react";
 import { getRestaurants } from "../../services/restaurant.service";
@@ -540,7 +541,14 @@ const AdminCRM = () => {
             )}
           </div>
 
-          <div>
+          {!loyaltyLoading && <CustomCouponForm
+              key={selectedRestaurant}
+              restaurantId={selectedRestaurant}
+              settings={loyaltySettings}
+              onIssued={(coupon) => setCoupons((prev) => [coupon, ...prev])}
+            />}
+
+            <div>
             <h3 className="mb-2 text-sm font-bold text-gray-800 dark:text-white">Issued Coupons</h3>
             {coupons.length === 0 ? (
               <div className="flex min-h-32 items-center justify-center text-gray-400 dark:text-gray-500 text-sm">
@@ -550,12 +558,14 @@ const AdminCRM = () => {
               <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
                   {coupons.map((coupon) => (
-                    <div key={coupon._id} className="flex items-center justify-between px-4 py-3">
+                    <div key={coupon._id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                       <div>
                         <p className="text-sm font-bold text-gray-900 dark:text-white">{coupon.code}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {coupon.customerName || "Guest"} &middot; {coupon.customerPhone}
+                          {coupon.customerName || "Guest"} &middot; {coupon.customerPhone || coupon.customerEmail}
                         </p>
+                        {coupon.reasonNote && <p className="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">Reason: {coupon.reasonNote}</p>}
+                        
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-semibold text-green-600 dark:text-green-400">

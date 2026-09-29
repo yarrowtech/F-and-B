@@ -67,3 +67,8 @@ export const issueCoupon = async (restaurantId, phone, payload) => {
   const res = await api.post(`/crm/${restaurantId}/customers/${encodeURIComponent(phone)}/coupon`, payload);
   return res.data;
 };
+
+export const issueCustomCoupon = async (restaurantId, payload) => {
+  const res = await api.post(`/crm/${restaurantId}/coupons`, payload);
+  return res.data;
+};

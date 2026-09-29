@@ -35,6 +35,9 @@ const couponSchema = new mongoose.Schema(
       default: "",
     },
 
+    customerEmail: { type: String, trim: true, default: "" },
+    reasonNote: { type: String, trim: true, maxlength: 500, default: "" },
+
     reason: {
       type: String,
       enum: ["loyalty", "manual"],
