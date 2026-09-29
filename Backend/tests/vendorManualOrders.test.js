@@ -96,6 +96,7 @@ test("global vendors can record restaurant orders with safe stock deductions", a
       name: "Independent Cafe",
       contactName: "Manager",
       phone: "+919876543210",
+      email: "orders@independentcafe.example",
       address: "Main Road",
       gstNo: "GST-123",
     };
@@ -118,6 +119,7 @@ test("global vendors can record restaurant orders with safe stock deductions", a
     assert.equal(response.code, 201);
     assert.equal(response.data.order.restaurant.name, "Independent Cafe");
     assert.equal(response.data.order.manualRestaurant.phone, "+919876543210");
+    assert.equal(response.data.order.manualRestaurant.email, "orders@independentcafe.example");
     assert.equal(response.data.order.totalAmount, 200);
     assert.equal(product.stock, 6);
   });
@@ -144,6 +146,7 @@ test("global vendors can save independent manual restaurant contacts", async (t)
       name: "Independent Cafe",
       contactName: "Manager",
       phone: "+919876543210",
+      email: "orders@independentcafe.example",
       address: "Main Road",
       gstNo: "GST-123",
     },
@@ -151,6 +154,7 @@ test("global vendors can save independent manual restaurant contacts", async (t)
 
   assert.equal(createResponse.code, 201);
   assert.equal(createResponse.data.restaurant.name, "Independent Cafe");
+  assert.equal(createResponse.data.restaurant.email, "orders@independentcafe.example");
   assert.ok(createResponse.data.restaurant._id);
 
   const listResponse = {

@@ -1482,6 +1482,7 @@ export const createManualRestaurant = async (req, res) => {
     }
 
     const name = String(req.body.name || "").trim();
+    const email = String(req.body.email || "").trim().toLowerCase();
     if (!name) {
       return res.status(400).json({
         success: false,
@@ -1494,11 +1495,18 @@ export const createManualRestaurant = async (req, res) => {
         message: "Restaurant name must be at most 120 characters",
       });
     }
+    if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+      return res.status(400).json({
+        success: false,
+        message: "Enter a valid restaurant email address",
+      });
+    }
 
     const restaurant = {
       name,
       contactName: String(req.body.contactName || "").trim().slice(0, 100),
       phone: String(req.body.phone || "").trim().slice(0, 32),
+      email,
       address: String(req.body.address || "").trim().slice(0, 300),
       gstNo: String(req.body.gstNo || "").trim().slice(0, 24),
     };

@@ -5,6 +5,7 @@ const manualRestaurantSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 120 },
   contactName: { type: String, trim: true, maxlength: 100, default: "" },
   phone: { type: String, trim: true, maxlength: 32, default: "" },
+  email: { type: String, trim: true, lowercase: true, maxlength: 254, default: "" },
   address: { type: String, trim: true, maxlength: 300, default: "" },
   gstNo: { type: String, trim: true, maxlength: 24, default: "" },
   createdAt: { type: Date, default: Date.now },

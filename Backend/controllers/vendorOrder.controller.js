@@ -861,6 +861,7 @@ export const createVendorOrder = async (req, res) => {
         name: selectedManualRestaurant.name,
         contactName: selectedManualRestaurant.contactName,
         phone: selectedManualRestaurant.phone,
+        email: selectedManualRestaurant.email,
         address: selectedManualRestaurant.address,
         gstNo: selectedManualRestaurant.gstNo,
       };

@@ -32,6 +32,7 @@ export default function VendorNewOrder({ vendorId, onViewOrders }) {
         name: "",
         contactName: "",
         phone: "",
+        email: "",
         address: "",
         gstNo: "",
     });
@@ -193,7 +194,7 @@ export default function VendorNewOrder({ vendorId, onViewOrders }) {
             const newRestaurant = response.data.restaurant;
             setManualRestaurants((current) => [newRestaurant, ...current]);
             setRestaurantSelection(`manual:${newRestaurant._id}`);
-            setRestaurantDraft({ name: "", contactName: "", phone: "", address: "", gstNo: "" });
+            setRestaurantDraft({ name: "", contactName: "", phone: "", email: "", address: "", gstNo: "" });
             setRestaurantDialogOpen(false);
         } catch (createError) {
             setError(createError?.response?.data?.message || "Could not add restaurant. Try again.");
@@ -603,6 +604,18 @@ export default function VendorNewOrder({ vendorId, onViewOrders }) {
                                             />
                                         </label>
                                     </div>
+                                    <label htmlFor="manual-restaurant-email" className="block text-sm font-semibold">
+                                        Email <span className="font-normal text-gray-500">(optional)</span>
+                                        <input
+                                            id="manual-restaurant-email"
+                                            type="email"
+                                            maxLength={254}
+                                            value={restaurantDraft.email}
+                                            onChange={(event) => setRestaurantDraft((current) => ({ ...current, email: event.target.value }))}
+                                            className={inputClass}
+                                            placeholder="orders@example.com"
+                                        />
+                                    </label>
                                     <label htmlFor="manual-restaurant-address" className="block text-sm font-semibold">
                                         Address
                                         <textarea
