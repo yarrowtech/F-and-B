@@ -1,3 +1,4 @@
+import CampaignImageUpload from "../common/CampaignImageUpload";
 import { useEffect, useState } from "react";
 import { getRestaurants } from "../../services/restaurant.service";
 import {
@@ -5,6 +6,13 @@ import {
   getCustomerDetail,
   addCustomerNote,
   deleteCustomerNote,
+  getCampaigns,
+  createCampaign,
+  deleteCampaign,
+  getLoyaltySettings,
+  updateLoyaltySettings,
+  getCoupons,
+  issueCoupon,
 } from "../../services/crm.service";
 
 const formatCurrency = (value) =>
@@ -19,7 +27,11 @@ const Stars = ({ rating }) => (
   </span>
 );
 
+const emptyCampaignForm = { segment: "all", minVisits: 2, inactiveDays: 30, message: "", channel: "whatsapp", imageDataUrl: "" };
+const emptyLoyaltyForm = { enabled: false, minVisits: 3, discountPercent: 10, couponValidityDays: 30 };
+
 const AdminCRM = () => {
+  const [activeTab, setActiveTab] = useState("customers");
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState("");
   const [customers, setCustomers] = useState([]);
@@ -32,6 +44,21 @@ const AdminCRM = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
+  const [couponIssuing, setCouponIssuing] = useState(false);
+  const [couponFeedback, setCouponFeedback] = useState("");
+  const [couponChannel, setCouponChannel] = useState("whatsapp");
+
+  const [campaigns, setCampaigns] = useState([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [campaignForm, setCampaignForm] = useState(emptyCampaignForm);
+  const [campaignSending, setCampaignSending] = useState(false);
+  const [campaignFeedback, setCampaignFeedback] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const [loyaltySettings, setLoyaltySettings] = useState(emptyLoyaltyForm);
+  const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+  const [loyaltySaving, setLoyaltySaving] = useState(false);
+  const [coupons, setCoupons] = useState([]);
 
   useEffect(() => {
     const loadRestaurants = async () => {
@@ -68,10 +95,110 @@ const AdminCRM = () => {
     return () => clearTimeout(debounce);
   }, [selectedRestaurant, search]);
 
+  useEffect(() => {
+    if (!selectedRestaurant || activeTab !== "campaigns") return;
+    const loadCampaigns = async () => {
+      try {
+        setCampaignsLoading(true);
+        const data = await getCampaigns(selectedRestaurant);
+        setCampaigns(data || []);
+      } catch (err) {
+        setError(err?.response?.data?.message || "Failed to load campaigns");
+      } finally {
+        setCampaignsLoading(false);
+      }
+    };
+    loadCampaigns();
+  }, [selectedRestaurant, activeTab]);
+
+  useEffect(() => {
+    if (!selectedRestaurant || activeTab !== "loyalty") return;
+    const loadLoyalty = async () => {
+      try {
+        setLoyaltyLoading(true);
+        const [settings, couponList] = await Promise.all([
+          getLoyaltySettings(selectedRestaurant),
+          getCoupons(selectedRestaurant),
+        ]);
+        setLoyaltySettings({ ...emptyLoyaltyForm, ...settings });
+        setCoupons(couponList || []);
+      } catch (err) {
+        setError(err?.response?.data?.message || "Failed to load loyalty settings");
+      } finally {
+        setLoyaltyLoading(false);
+      }
+    };
+    loadLoyalty();
+  }, [selectedRestaurant, activeTab]);
+
+  const handleSendCampaign = async (e) => {
+    e.preventDefault();
+    if (!campaignForm.message.trim()) {
+      setCampaignFeedback("Enter a campaign message");
+      return;
+    }
+    try {
+      setCampaignSending(true);
+      setCampaignFeedback("");
+      const res = await createCampaign(selectedRestaurant, campaignForm);
+      setCampaigns((prev) => [res.data, ...prev]);
+      setCampaignFeedback(res.message);
+      setCampaignForm(emptyCampaignForm);
+    } catch (err) {
+      setCampaignFeedback(err?.response?.data?.message || "Failed to send campaign");
+    } finally {
+      setCampaignSending(false);
+    }
+  };
+
+  const handleDeleteCampaign = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteCampaign(selectedRestaurant, deleteTarget._id);
+      setCampaigns((prev) => prev.filter((c) => c._id !== deleteTarget._id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to delete campaign");
+      setDeleteTarget(null);
+    }
+  };
+
+  const handleSaveLoyalty = async (e) => {
+    e.preventDefault();
+    try {
+      setLoyaltySaving(true);
+      const updated = await updateLoyaltySettings(selectedRestaurant, loyaltySettings);
+      setLoyaltySettings({ ...emptyLoyaltyForm, ...updated });
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to save loyalty settings");
+    } finally {
+      setLoyaltySaving(false);
+    }
+  };
+
+  const handleIssueCoupon = async () => {
+    if (!selectedPhone) return;
+    try {
+      setCouponIssuing(true);
+      setCouponFeedback("");
+      const res = await issueCoupon(selectedRestaurant, selectedPhone, { channel: couponChannel });
+      setCouponFeedback(
+        `Coupon ${res.data.code} issued (${res.data.discountPercent}% off, valid until ${new Date(
+          res.data.expiresAt
+        ).toLocaleDateString()}).`
+      );
+    } catch (err) {
+      setCouponFeedback(err?.response?.data?.message || "Failed to issue coupon");
+    } finally {
+      setCouponIssuing(false);
+    }
+  };
+
   const openCustomer = async (phone) => {
     setSelectedPhone(phone);
     setDetail(null);
     setNewNote("");
+    setCouponFeedback("");
     try {
       setDetailLoading(true);
       const data = await getCustomerDetail(selectedRestaurant, phone);
@@ -121,7 +248,7 @@ const AdminCRM = () => {
           ))}
         </select>
 
-        {selectedRestaurant && (
+        {selectedRestaurant && activeTab === "customers" && (
           <input
             type="text"
             value={search}
@@ -132,6 +259,44 @@ const AdminCRM = () => {
         )}
       </div>
 
+      {selectedRestaurant && (
+        <div className="mb-4 grid grid-cols-3 gap-1.5 rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700 sm:flex sm:w-fit">
+          <button
+            type="button"
+            onClick={() => setActiveTab("customers")}
+            className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+              activeTab === "customers"
+                ? "bg-green-600 text-white"
+                : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+            }`}
+          >
+            Customers
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("campaigns")}
+            className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+              activeTab === "campaigns"
+                ? "bg-green-600 text-white"
+                : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+            }`}
+          >
+            Campaigns
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("loyalty")}
+            className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+              activeTab === "loyalty"
+                ? "bg-green-600 text-white"
+                : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+            }`}
+          >
+            Loyalty & Coupons
+          </button>
+        </div>
+      )}
+
       {error && (
         <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300">
           {error}
@@ -141,6 +306,273 @@ const AdminCRM = () => {
       {!selectedRestaurant ? (
         <div className="flex min-h-48 items-center justify-center text-gray-400 dark:text-gray-500 text-sm">
           Select a restaurant to view its customers
+        </div>
+      ) : activeTab === "campaigns" ? (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <h3 className="mb-3 text-sm font-bold text-gray-800 dark:text-white">New Campaign</h3>
+            <form onSubmit={handleSendCampaign} className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-300">
+                    Audience
+                  </label>
+                  <select
+                    value={campaignForm.segment}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, segment: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="all">All Customers</option>
+                    <option value="repeat">Repeat Customers</option>
+                    <option value="inactive">Inactive Customers</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-300">
+                    Send via
+                  </label>
+                  <select
+                    value={campaignForm.channel}
+                    onChange={(e) => setCampaignForm({ ...campaignForm, channel: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="email">Email</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+
+                {campaignForm.segment === "repeat" && (
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-300">
+                      Minimum visits
+                    </label>
+                    <input
+                      type="number"
+                      min="2"
+                      value={campaignForm.minVisits}
+                      onChange={(e) => setCampaignForm({ ...campaignForm, minVisits: e.target.value })}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    />
+                  </div>
+                )}
+
+                {campaignForm.segment === "inactive" && (
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-300">
+                      Inactive for (days)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={campaignForm.inactiveDays}
+                      onChange={(e) => setCampaignForm({ ...campaignForm, inactiveDays: e.target.value })}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-300">
+                  Message
+                </label>
+                <textarea
+                  rows={3}
+                  value={campaignForm.message}
+                  onChange={(e) => setCampaignForm({ ...campaignForm, message: e.target.value })}
+                  placeholder="e.g. We miss you! Come back this week for 15% off."
+                  maxLength={1000}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+
+              <CampaignImageUpload
+                value={campaignForm.imageDataUrl}
+                onChange={(imageDataUrl) => setCampaignForm((prev) => ({ ...prev, imageDataUrl }))}
+                disabled={campaignSending}
+              />
+
+              {campaignFeedback && (
+                <p role="status" className="text-sm font-medium text-gray-600 dark:text-gray-300">{campaignFeedback}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={campaignSending}
+                className="rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+              >
+                {campaignSending ? "Sending…" : "Send Campaign"}
+              </button>
+            </form>
+          </div>
+
+          <div>
+            <h3 className="mb-2 text-sm font-bold text-gray-800 dark:text-white">Campaign History</h3>
+            {campaignsLoading ? (
+              <div className="flex min-h-32 items-center justify-center text-gray-400 dark:text-gray-500 text-sm">
+                Loading campaigns...
+              </div>
+            ) : campaigns.length === 0 ? (
+              <div className="flex min-h-32 items-center justify-center text-gray-400 dark:text-gray-500 text-sm">
+                No campaigns sent yet.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {campaigns.map((c) => (
+                  <div
+                    key={c._id}
+                    className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                  >
+                    {c.deliveryWarnings?.length > 0 && (
+                      <p className="mb-2 break-words text-xs text-amber-700 dark:text-amber-300">
+                        Delivery issues: {c.deliveryWarnings.join("; ")}
+                      </p>
+                    )}
+                    {c.imageUrl && <img src={c.imageUrl} alt="Campaign image" className="mb-3 max-h-48 max-w-full rounded-lg object-contain" />}
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-sm text-gray-700 dark:text-gray-200">{c.message}</p>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold capitalize text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                          {c.segment}
+                        </span>
+                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold capitalize text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
+                          {c.channel}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(c)}
+                          title="Delete campaign"
+                          className="rounded-lg px-2 py-1 text-xs font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                      {c.sentCount}/{c.recipientCount} sent &middot; {new Date(c.createdAt).toLocaleString()}
+                      {!c.deliverable && " · channel not configured"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : activeTab === "loyalty" ? (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <h3 className="mb-3 text-sm font-bold text-gray-800 dark:text-white">Repeat Customer Discount</h3>
+            {loyaltyLoading ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+            ) : (
+              <form onSubmit={handleSaveLoyalty} className="space-y-3">
+                <label className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    Enable repeat-customer loyalty program
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(loyaltySettings.enabled)}
+                    onChange={(e) => setLoyaltySettings({ ...loyaltySettings, enabled: e.target.checked })}
+                    className="h-5 w-5 accent-green-600"
+                  />
+                </label>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-300">
+                      Min visits to qualify
+                    </label>
+                    <input
+                      type="number"
+                      min="2"
+                      value={loyaltySettings.minVisits}
+                      onChange={(e) => setLoyaltySettings({ ...loyaltySettings, minVisits: e.target.value })}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-300">
+                      Discount %
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={loyaltySettings.discountPercent}
+                      onChange={(e) =>
+                        setLoyaltySettings({ ...loyaltySettings, discountPercent: e.target.value })
+                      }
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-300">
+                      Coupon validity (days)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={loyaltySettings.couponValidityDays}
+                      onChange={(e) =>
+                        setLoyaltySettings({ ...loyaltySettings, couponValidityDays: e.target.value })
+                      }
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-400 dark:text-gray-500">
+                  Customers who reach the minimum visit count are eligible for a coupon. Issue coupons manually
+                  from a customer's detail view — staff apply the discount at billing using the code.
+                </p>
+
+                <button
+                  type="submit"
+                  disabled={loyaltySaving}
+                  className="rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+                >
+                  {loyaltySaving ? "Saving…" : "Save Settings"}
+                </button>
+              </form>
+            )}
+          </div>
+
+          <div>
+            <h3 className="mb-2 text-sm font-bold text-gray-800 dark:text-white">Issued Coupons</h3>
+            {coupons.length === 0 ? (
+              <div className="flex min-h-32 items-center justify-center text-gray-400 dark:text-gray-500 text-sm">
+                No coupons issued yet.
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {coupons.map((coupon) => (
+                    <div key={coupon._id} className="flex items-center justify-between px-4 py-3">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">{coupon.code}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {coupon.customerName || "Guest"} &middot; {coupon.customerPhone}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-green-600 dark:text-green-400">
+                          {coupon.discountPercent}% off
+                        </p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">
+                          {coupon.isRedeemed
+                            ? "Redeemed"
+                            : `Expires ${new Date(coupon.expiresAt).toLocaleDateString()}`}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -181,14 +613,14 @@ const AdminCRM = () => {
               <div className="divide-y divide-gray-100 dark:divide-gray-700">
                 {customers.map((c) => (
                   <button
-                    key={c.phone}
+                    key={c.id}
                     type="button"
-                    onClick={() => openCustomer(c.phone)}
+                    onClick={() => openCustomer(c.id)}
                     className="grid w-full grid-cols-2 items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:gap-4"
                   >
                     <div className="col-span-2 sm:col-span-1">
                       <p className="text-sm font-semibold text-gray-900 dark:text-white">{c.name}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{c.phone}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{c.phone || c.email}</p>
                     </div>
                     <span className="text-sm text-gray-700 dark:text-gray-200">{c.totalVisits}</span>
                     <span className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -218,7 +650,9 @@ const AdminCRM = () => {
                 <h2 className="text-lg font-bold text-gray-800 dark:text-white">
                   {detail?.name || "Customer"}
                 </h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{selectedPhone}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {detail?.phone || detail?.email || ""}
+                </p>
               </div>
               <button
                 onClick={() => setSelectedPhone(null)}
@@ -297,6 +731,43 @@ const AdminCRM = () => {
                   </div>
                 )}
 
+                <div className="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-900/40 dark:bg-green-950/20">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-green-800 dark:text-green-300">
+                        Reward this customer
+                      </p>
+                      <p className="text-xs text-green-700/80 dark:text-green-400/80">
+                        Issue a discount coupon using your loyalty settings.
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <select
+                        value={couponChannel}
+                        onChange={(e) => setCouponChannel(e.target.value)}
+                        className="rounded-lg border border-green-300 bg-white px-2 py-2 text-xs font-medium text-green-800 outline-none dark:border-green-800 dark:bg-gray-800 dark:text-green-300"
+                      >
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="email">Email</option>
+                        <option value="both">Both</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleIssueCoupon}
+                        disabled={couponIssuing}
+                        className="rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+                      >
+                        {couponIssuing ? "Issuing…" : "Issue Coupon"}
+                      </button>
+                    </div>
+                  </div>
+                  {couponFeedback && (
+                    <p className="mt-2 text-xs font-medium text-green-800 dark:text-green-300">
+                      {couponFeedback}
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
                     Notes
@@ -345,6 +816,37 @@ const AdminCRM = () => {
                 </div>
               </div>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setDeleteTarget(null)}
+          />
+          <div className="relative z-10 w-full rounded-t-2xl bg-white p-6 shadow-2xl dark:bg-gray-800 sm:mx-4 sm:max-w-sm sm:rounded-2xl">
+            <h2 className="text-lg font-bold text-gray-800 dark:text-white">Delete campaign?</h2>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              "{deleteTarget.message}" will be permanently removed from campaign history. This can't be undone.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteCampaign}
+                className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

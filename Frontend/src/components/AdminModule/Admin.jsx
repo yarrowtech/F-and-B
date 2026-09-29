@@ -334,7 +334,7 @@ const AdminVendorDirectory = lazy(() => import("./AdminVendorDirectory"));
 const AdminVendorStorefront = lazy(() => import("./AdminVendorStorefront"));
 const AdminSystemUsage = lazy(() => import("./AdminSystemUsage"));
 
-import { FaBox, FaEnvelope, FaChartBar, FaHandshake, FaHeadset, FaHeartbeat, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList, FaCogs } from "react-icons/fa";
+import { FaAddressBook, FaStar, FaBox, FaEnvelope, FaChartBar, FaHandshake, FaHeadset, FaHeartbeat, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList, FaCogs } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 import API from "../../services/api";
 import {
@@ -452,6 +452,8 @@ const BOTTOM_NAV = [
   { key: "system-usage", label: "Usage",    icon: FaHeartbeat },
   { key: "menu",       label: "Menu",       icon: FaClipboardList },
   { key: "table",      label: "Table",      icon: FaUtensils },
+  { key: "feedback",   label: "Feedback",   icon: FaStar },
+  { key: "crm",        label: "CRM",        icon: FaAddressBook },
   { key: "subscription", label: "Subscription", icon: FaClipboardList },
   { key: "account",    label: "Account",    icon: FaUserCircle },
   { key: "analytical", label: "Analytical", icon: FaChartBar },

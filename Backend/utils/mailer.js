@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { parseCampaignImage } from "./campaignImage.js";
 
 let transporter;
 
@@ -700,6 +701,114 @@ export const sendCustomerBillEmail = async ({
                   </a>
                 </div>
               `
+              : ""
+          }
+        </div>
+      </div>
+    </div>
+  `;
+
+  const { mailFrom } = getMailerConfig();
+
+  return transport.sendMail({
+    from: mailFrom,
+    to: email,
+    subject,
+    text,
+    html,
+  });
+};
+
+export const sendCampaignEmail = async ({ to, restaurantName, message, imageUrl = "" }) => {
+  const email = String(to || "").trim();
+  if (!email) {
+    throw new Error("Recipient email is required");
+  }
+
+  const transport = getTransporter();
+  const subject = `A message from ${restaurantName || "us"}`;
+  const text = String(message || "");
+  const inlineImage = parseCampaignImage(imageUrl);
+  const imageSource = inlineImage ? "cid:campaign-image" : imageUrl;
+  const attachments = inlineImage ? [{
+    filename: `campaign.${inlineImage.extension}`,
+    content: inlineImage.buffer,
+    contentType: inlineImage.contentType,
+    cid: "campaign-image",
+  }] : [];
+
+  const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+  const html = `
+    <div style="margin:0; padding:36px 18px; background:#f3f7f4; font-family:Arial,Helvetica,sans-serif; color:#111827;">
+      <div style="max-width:680px; margin:0 auto; background:#ffffff; border:1px solid #dfe7e2; border-radius:24px; overflow:hidden; box-shadow:0 12px 32px rgba(15,23,42,0.08);">
+        <div style="background:linear-gradient(135deg,#f3fbf5 0%,#ffffff 52%,#ecfdf3 100%); padding:28px 32px 22px; border-bottom:1px solid #e5e7eb;">
+          <div style="display:inline-block; padding:8px 12px; border-radius:999px; background:#ecfdf3; color:#169c52; font-size:12px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase;">
+            ${escapeHtml(restaurantName || "Restaurant")}
+          </div>
+        </div>
+        <div style="padding:30px 32px 36px;">
+          ${imageSource ? `<img src="${escapeHtml(imageSource)}" alt="Campaign image" style="display:block;max-width:100%;height:auto;margin-bottom:20px;border-radius:12px;" />` : ""}
+          <p style="margin:0; font-size:16px; line-height:1.8; color:#1f2937; white-space:pre-line;">${escapeHtml(text)}</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const { mailFrom } = getMailerConfig();
+
+  return transport.sendMail({
+    from: mailFrom,
+    to: email,
+    subject,
+    text,
+    html,
+    attachments,
+  });
+};
+
+export const sendCouponEmail = async ({ to, restaurantName, customerName, code, discountPercent, expiresAt }) => {
+  const email = String(to || "").trim();
+  if (!email) {
+    throw new Error("Recipient email is required");
+  }
+
+  const transport = getTransporter();
+  const greetingName = customerName || "there";
+  const expiryText = expiresAt ? new Date(expiresAt).toLocaleDateString("en-IN") : "";
+  const subject = `A special discount for you from ${restaurantName || "us"}`;
+  const text = [
+    `Hi ${greetingName},`,
+    "",
+    `You've earned a special discount! Use code ${code} for ${discountPercent}% off your next visit.`,
+    expiryText ? `Valid until ${expiryText}.` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const html = `
+    <div style="margin:0; padding:36px 18px; background:#f3f7f4; font-family:Arial,Helvetica,sans-serif; color:#111827;">
+      <div style="max-width:680px; margin:0 auto; background:#ffffff; border:1px solid #dfe7e2; border-radius:24px; overflow:hidden; box-shadow:0 12px 32px rgba(15,23,42,0.08);">
+        <div style="background:linear-gradient(135deg,#f3fbf5 0%,#ffffff 52%,#ecfdf3 100%); padding:28px 32px 22px; border-bottom:1px solid #e5e7eb;">
+          <div style="display:inline-block; padding:8px 12px; border-radius:999px; background:#ecfdf3; color:#169c52; font-size:12px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase;">
+            ${restaurantName || "Restaurant"}
+          </div>
+          <h1 style="margin:18px 0 0; font-size:30px; font-weight:800; color:#111827;">A gift for you</h1>
+        </div>
+        <div style="padding:30px 32px 36px;">
+          <p style="margin:0 0 18px; font-size:16px; color:#1f2937;">Hi ${greetingName},</p>
+          <p style="margin:0 0 22px; font-size:16px; line-height:1.7; color:#1f2937;">
+            You've earned a special discount! Show this code on your next visit.
+          </p>
+          <div style="margin:0 0 22px; padding:22px; border-radius:20px; background:#f8faf9; border:1px solid #e5e7eb; text-align:center;">
+            <p style="margin:0 0 8px; font-size:12px; font-weight:800; letter-spacing:0.16em; text-transform:uppercase; color:#6b7280;">
+              Coupon Code
+            </p>
+            <p style="margin:0; font-size:30px; font-weight:900; letter-spacing:0.12em; color:#111827;">${code}</p>
+            <p style="margin:10px 0 0; font-size:18px; font-weight:700; color:#169c52;">${discountPercent}% OFF</p>
+          </div>
+          ${
+            expiryText
+              ? `<p style="margin:0; font-size:14px; color:#6b7280;">Valid until <strong>${expiryText}</strong>.</p>`
               : ""
           }
         </div>

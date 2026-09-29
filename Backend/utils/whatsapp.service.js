@@ -99,7 +99,7 @@ export const sendTwilioWhatsAppMessage = async ({ to, message, mediaUrl = "" }) 
   };
 };
 
-export const sendWhatsAppTextMessage = async ({ to, message }) => {
+export const sendWhatsAppTextMessage = async ({ to, message, mediaUrl = "" }) => {
   if (!isWhatsAppConfigured()) {
     return {
       sent: false,
@@ -128,11 +128,9 @@ export const sendWhatsAppTextMessage = async ({ to, message }) => {
       messaging_product: "whatsapp",
       recipient_type: "individual",
       to: normalizedPhone,
-      type: "text",
-      text: {
-        preview_url: false,
-        body: message,
-      },
+      ...(mediaUrl
+        ? { type: "image", image: { link: mediaUrl, caption: message } }
+        : { type: "text", text: { preview_url: false, body: message } }),
     }),
   });
 

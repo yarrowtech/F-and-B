@@ -13,6 +13,8 @@ import {
   FaUsers,
   FaUtensils,
   FaWallet,
+  FaStar,
+  FaAddressBook,
 } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 
@@ -134,6 +136,8 @@ const BOTTOM_NAV = [
   { key: "reports",          label: "Reports",    icon: FaChartBar },
   { key: "menu-management",  label: "Menu",       icon: FaUtensils },
   { key: "table-management", label: "Tables",     icon: FaTable },
+  { key: "feedback",         label: "Feedback",   icon: FaStar },
+  { key: "crm",              label: "CRM",        icon: FaAddressBook },
   { key: "account",          label: "Account",    icon: FaWallet },
   { key: "profile",          label: "Profile",    icon: FaUserCircle },
   { key: "notes",            label: "Notes",      icon: FaStickyNote },
