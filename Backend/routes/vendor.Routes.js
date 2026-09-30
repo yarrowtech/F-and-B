@@ -127,6 +127,17 @@ router.delete(
 );
 
 router.get(
+  "/:id/wastage/summary",
+  allowRoles("vendor"),
+  vendorProductController.getVendorWastageSummary
+);
+router.get(
+  "/:id/wastage/logs",
+  allowRoles("vendor"),
+  vendorProductController.getVendorWastageLogs
+);
+
+router.get(
   "/:id/orders",
   allowRoles("admin", "super_admin", "vendor"),
   vendorOrderController.getVendorOrders

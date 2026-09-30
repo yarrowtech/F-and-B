@@ -11,6 +11,7 @@ import {
     X,
 } from "lucide-react";
 import API from "../../services/api";
+import VendorOrderProductPicker from "./VendorOrderProductPicker";
 
 const money = (value) =>
     new Intl.NumberFormat("en-IN", {
@@ -19,7 +20,6 @@ const money = (value) =>
         maximumFractionDigits: 2,
     }).format(Number(value) || 0);
 
-const emptyRow = () => ({ id: crypto.randomUUID(), productId: "", quantity: 1 });
 
 export default function VendorNewOrder({ vendorId, onViewOrders }) {
     const [restaurants, setRestaurants] = useState([]);
@@ -36,7 +36,8 @@ export default function VendorNewOrder({ vendorId, onViewOrders }) {
         address: "",
         gstNo: "",
     });
-    const [rows, setRows] = useState(() => [emptyRow()]);
+    const [rows, setRows] = useState([]);
+    const [productPickerOpen, setProductPickerOpen] = useState(false);
     const [notes, setNotes] = useState("");
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -173,7 +174,7 @@ export default function VendorNewOrder({ vendorId, onViewOrders }) {
                 orderNotes: notes.trim(),
             });
             setCreated(response.data.order);
-            setRows([emptyRow()]);
+            setRows([]);
             setNotes("");
             setReload((value) => value + 1);
         } catch (submitError) {
@@ -377,10 +378,10 @@ export default function VendorNewOrder({ vendorId, onViewOrders }) {
                                     </div>
                                     <button
                                         type="button"
-                                        disabled={rows.length >= Math.min(availableProducts.length, 100)}
+                                        disabled={rows.length >= 100}
                                         onClick={() => {
                                             setError("");
-                                            setRows((currentRows) => [...currentRows, emptyRow()]);
+                                            setProductPickerOpen(true);
                                         }}
                                         className="inline-flex items-center gap-1.5 rounded-lg border border-green-700 px-3 py-2 text-xs font-semibold text-green-800 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-green-500 dark:text-green-300 dark:hover:bg-green-950/40"
                                     >
@@ -389,41 +390,25 @@ export default function VendorNewOrder({ vendorId, onViewOrders }) {
                                 </div>
 
                                 <div className="mt-3 divide-y divide-gray-100 dark:divide-neutral-800">
+                                    {!rows.length && (
+                                        <p className="rounded-lg border border-dashed border-gray-300 px-4 py-8 text-center text-sm text-gray-500 dark:border-neutral-700 dark:text-gray-400">
+                                            No items added yet. Click Add item to browse available products.
+                                        </p>
+                                    )}
                                     {orderLines.map((line, index) => (
                                         <div
                                             key={line.id}
                                             className="grid gap-x-3 gap-y-2 py-4 first:pt-1 sm:grid-cols-[minmax(0,1fr)_6.5rem_7rem_2.5rem] sm:items-end"
                                         >
-                                            <label className="min-w-0 text-xs font-semibold text-gray-600 dark:text-gray-300">
-                                                Product {index + 1}
-                                                <select
-                                                    required
-                                                    value={line.productId}
-                                                    onChange={(event) => updateRow(line.id, "productId", event.target.value)}
-                                                    className={inputClass}
-                                                >
-                                                    <option value="">Select a product</option>
-                                                    {availableProducts.map((product) => {
-                                                        const alreadySelected = rows.some(
-                                                            (row) => row.id !== line.id && row.productId === product._id
-                                                        );
-                                                        return (
-                                                            <option
-                                                                key={product._id}
-                                                                value={product._id}
-                                                                disabled={alreadySelected}
-                                                            >
-                                                                {product.name} - {money(product.effectivePrice ?? product.price)} / {product.displayUnit || product.unit || "unit"}
-                                                            </option>
-                                                        );
-                                                    })}
-                                                </select>
-                                                {line.product && (
-                                                    <span className="mt-1 block font-normal text-gray-500 dark:text-gray-400">
-                                                        {line.product.availableOrderQuantity} order units available · {line.product.displayUnit || line.product.unit || "unit"} per order unit
-                                                    </span>
-                                                )}
-                                            </label>
+                                            <div className="min-w-0">
+                                                <p className="break-words text-sm font-semibold">{line.product?.name || "Unavailable product"}</p>
+                                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    {money(line.unitPrice)} / {line.product?.displayUnit || line.product?.unit || "unit"}
+                                                </p>
+                                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    Available: {line.product?.availableOrderQuantity || 0} order units
+                                                </p>
+                                            </div>
                                             <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
                                                 Quantity
                                                 <input
@@ -443,7 +428,6 @@ export default function VendorNewOrder({ vendorId, onViewOrders }) {
                                             </div>
                                             <button
                                                 type="button"
-                                                disabled={rows.length === 1}
                                                 onClick={() => {
                                                     setError("");
                                                     setRows((currentRows) => currentRows.filter((row) => row.id !== line.id));
@@ -536,6 +520,22 @@ export default function VendorNewOrder({ vendorId, onViewOrders }) {
                         </aside>
                     </fieldset>
                 </form>
+            )}
+
+            {productPickerOpen && (
+                <VendorOrderProductPicker
+                    products={availableProducts}
+                    selectedIds={rows.map((row) => row.productId)}
+                    onClose={() => setProductPickerOpen(false)}
+                    onAdd={(productId, quantity) => {
+                        if (saving || refreshing || rows.length >= 100) return;
+                        const product = availableProducts.find((item) => item._id === productId);
+                        if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > Number(product.availableOrderQuantity)) return;
+                        setRows((current) => current.some((row) => row.productId === productId) ? current : [...current, { id: crypto.randomUUID(), productId, quantity }]);
+                        setError("");
+                        setProductPickerOpen(false);
+                    }}
+                />
             )}
 
             <Dialog

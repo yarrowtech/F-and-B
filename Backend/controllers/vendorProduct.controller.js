@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Restaurant from "../models/Restaurant.model.js";
 import Vendor from "../models/Vendor.model.js";
 import VendorProduct from "../models/VendorProduct.model.js";
+import VendorStockLog from "../models/VendorStockLog.model.js";
 import { configureCloudinary } from "../config/cloudinary.js";
 import logger from "../utils/pinoLogger.js";
 
@@ -514,14 +515,20 @@ export const updateVendorProduct = async (req, res) => {
 
     const stockChangeMode = String(req.body.stockChangeMode || "").trim().toLowerCase();
     const isAddStockMode = stockChangeMode === "add";
+    const isWasteStockMode = stockChangeMode === "waste";
     const originalStock = normalizePositiveNumber(product.stock);
     const originalBuyingPrice = normalizePositiveNumber(product.buyingPrice);
 
+    let addedStockQuantity = 0;
+    let addedStockBuyingPrice = 0;
+    let wastedQuantity = 0;
+    let wasteReason = "";
+
     if (isAddStockMode) {
-      const addedStockQuantity = Number(
+      addedStockQuantity = Number(
         req.body.addedStockQuantity ?? normalizePositiveNumber(req.body.stock) - originalStock
       );
-      const addedStockBuyingPrice = Number(req.body.addedStockBuyingPrice ?? req.body.buyingPrice);
+      addedStockBuyingPrice = Number(req.body.addedStockBuyingPrice ?? req.body.buyingPrice);
 
       if (Number.isNaN(addedStockQuantity) || addedStockQuantity <= 0) {
         return res.status(400).json({
@@ -546,10 +553,31 @@ export const updateVendorProduct = async (req, res) => {
       });
     }
 
+    if (isWasteStockMode) {
+      wastedQuantity = Number(req.body.wastedQuantity);
+      wasteReason = String(req.body.wasteReason || "").trim();
+
+      if (Number.isNaN(wastedQuantity) || wastedQuantity <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Wasted quantity must be greater than 0",
+        });
+      }
+
+      if (wastedQuantity > originalStock) {
+        return res.status(400).json({
+          success: false,
+          message: "Wasted quantity cannot exceed current stock",
+        });
+      }
+
+      product.stock = Number((originalStock - wastedQuantity).toFixed(6));
+    }
+
     for (const field of allowedFields) {
       if (req.body[field] === undefined) continue;
 
-      if (isAddStockMode && (field === "stock" || field === "buyingPrice")) {
+      if ((isAddStockMode || isWasteStockMode) && (field === "stock" || field === "buyingPrice")) {
         continue;
       }
 
@@ -648,6 +676,37 @@ export const updateVendorProduct = async (req, res) => {
 
     await product.save();
 
+    if (isAddStockMode) {
+      await VendorStockLog.create({
+        vendor: vendorId,
+        product: product._id,
+        productName: product.name,
+        type: "add",
+        quantity: addedStockQuantity,
+        unit: product.stockUnit || product.unit || "",
+        unitCost: addedStockBuyingPrice,
+        valueImpact: Number((addedStockQuantity * addedStockBuyingPrice).toFixed(2)),
+        previousStock: originalStock,
+        newStock: product.stock,
+      });
+    }
+
+    if (isWasteStockMode) {
+      await VendorStockLog.create({
+        vendor: vendorId,
+        product: product._id,
+        productName: product.name,
+        type: "waste",
+        quantity: wastedQuantity,
+        unit: product.stockUnit || product.unit || "",
+        unitCost: originalBuyingPrice,
+        valueImpact: Number((wastedQuantity * originalBuyingPrice).toFixed(2)),
+        reason: wasteReason,
+        previousStock: originalStock,
+        newStock: product.stock,
+      });
+    }
+
     res.json({
       success: true,
       message: "Product updated successfully",
@@ -688,10 +747,133 @@ export const deleteVendorProduct = async (req, res) => {
   }
 };
 
+/* ===============================
+   WASTAGE · SUMMARY
+   wastagePercent = totalWastedQty / totalAddedQty in the period.
+   (Without daily stock snapshots, "stock received in the period"
+   is the only reliable denominator — using absolute current stock
+   would understate wastage once older stock has already sold through.)
+=============================== */
+export const getVendorWastageSummary = async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+
+    if (req.user.role !== "vendor" || String(req.user.id) !== String(vendorId)) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const vendorObjectId = toObjectId(vendorId);
+    if (!vendorObjectId) {
+      return res.status(400).json({ success: false, message: "Invalid vendor id" });
+    }
+
+    const { from, to } = req.query;
+    const dateMatch = {};
+    if (from) dateMatch.$gte = new Date(from);
+    if (to) {
+      const end = new Date(to);
+      end.setHours(23, 59, 59, 999);
+      dateMatch.$lte = end;
+    }
+
+    const match = { vendor: vendorObjectId };
+    if (from || to) match.createdAt = dateMatch;
+
+    const byProduct = await VendorStockLog.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { product: "$product", type: "$type" },
+          productName: { $first: "$productName" },
+          quantity: { $sum: "$quantity" },
+          valueImpact: { $sum: "$valueImpact" },
+        },
+      },
+      {
+        $group: {
+          _id: "$_id.product",
+          productName: { $first: "$productName" },
+          added: {
+            $sum: { $cond: [{ $eq: ["$_id.type", "add"] }, "$quantity", 0] },
+          },
+          wasted: {
+            $sum: { $cond: [{ $eq: ["$_id.type", "waste"] }, "$quantity", 0] },
+          },
+          wastedValue: {
+            $sum: { $cond: [{ $eq: ["$_id.type", "waste"] }, "$valueImpact", 0] },
+          },
+        },
+      },
+      { $match: { wasted: { $gt: 0 } } },
+      { $sort: { wastedValue: -1 } },
+    ]);
+
+    const products = byProduct.map((row) => ({
+      productId: row._id,
+      productName: row.productName || "Product",
+      addedQuantity: row.added,
+      wastedQuantity: row.wasted,
+      wastedValue: Number(row.wastedValue.toFixed(2)),
+      wastagePercent: row.added > 0 ? Number(((row.wasted / row.added) * 100).toFixed(2)) : null,
+    }));
+
+    const totals = products.reduce(
+      (acc, p) => {
+        acc.totalAdded += p.addedQuantity;
+        acc.totalWasted += p.wastedQuantity;
+        acc.totalWastedValue += p.wastedValue;
+        return acc;
+      },
+      { totalAdded: 0, totalWasted: 0, totalWastedValue: 0 }
+    );
+
+    res.json({
+      success: true,
+      data: {
+        products,
+        summary: {
+          totalWastedQuantity: totals.totalWasted,
+          totalWastedValue: Number(totals.totalWastedValue.toFixed(2)),
+          overallWastagePercent:
+            totals.totalAdded > 0
+              ? Number(((totals.totalWasted / totals.totalAdded) * 100).toFixed(2))
+              : null,
+        },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: getErrorMessage(error) });
+  }
+};
+
+/* ===============================
+   WASTAGE · LOG LIST
+=============================== */
+export const getVendorWastageLogs = async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+
+    if (req.user.role !== "vendor" || String(req.user.id) !== String(vendorId)) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const logs = await VendorStockLog.find({ vendor: vendorId, type: "waste" })
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+
+    res.json({ success: true, data: logs });
+  } catch (error) {
+    res.status(500).json({ success: false, message: getErrorMessage(error) });
+  }
+};
+
 export default {
   getVendorProducts,
   getExploreGlobalVendorProducts,
   createVendorProduct,
   updateVendorProduct,
   deleteVendorProduct,
+  getVendorWastageSummary,
+  getVendorWastageLogs,
 };

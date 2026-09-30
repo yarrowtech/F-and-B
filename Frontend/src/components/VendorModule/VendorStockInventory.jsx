@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Search,
   Trash2,
+  TrendingDown,
   X,
 } from "lucide-react";
 import API from "../../services/api";
@@ -29,6 +30,10 @@ const initialForm = {
 const initialStockForm = {
   quantity: "1",
   buyingPrice: "",
+};
+const initialWasteForm = {
+  quantity: "",
+  reason: "",
 };
 
 const fieldClass =
@@ -354,6 +359,95 @@ function AddStockModal({ product, form, saving, onChange, onClose, onSubmit }) {
   );
 }
 
+function WasteStockModal({ product, form, saving, onChange, onClose, onSubmit }) {
+  const wastedValue = Number(form.quantity || 0) * Number(product?.buyingPrice || 0);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl dark:bg-neutral-800">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-5 dark:border-neutral-700">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-600 dark:text-red-400">
+              Report Wastage
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-gray-900 dark:text-gray-100">
+              {product?.name || "Inventory Item"}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Current stock: {formatNumber(product?.stock)} {product?.stockUnit || product?.unit}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-gray-200 text-gray-500 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit();
+          }}
+          className="space-y-5 px-5 py-5"
+        >
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Wasted Quantity ({product?.stockUnit || product?.unit})
+            </label>
+            <input
+              type="number"
+              min="0.000001"
+              max={product?.stock || undefined}
+              step="0.000001"
+              value={form.quantity}
+              onChange={(e) => onChange("quantity", e.target.value.replace(/-/g, ""))}
+              className={fieldClass}
+              autoFocus
+            />
+            {form.quantity ? (
+              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                Value lost: Rs. {formatNumber(wastedValue)} (at current buying price)
+              </p>
+            ) : null}
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Reason
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Spoiled, damaged in transit, expired"
+              value={form.reason}
+              onChange={(e) => onChange("reason", e.target.value)}
+              className={fieldClass}
+            />
+          </div>
+
+          <div className="flex flex-col-reverse gap-3 border-t border-gray-100 pt-4 dark:border-neutral-700 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-neutral-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving ? <RefreshCw size={16} className="animate-spin" /> : <TrendingDown size={16} />}
+              {saving ? "Saving..." : "Report Wastage"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function DeleteConfirmModal({ product, deleting, onClose, onSubmit }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
@@ -401,8 +495,10 @@ export default function VendorStockInventory() {
   const [editingId, setEditingId] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showStockModal, setShowStockModal] = useState(false);
+  const [showWasteModal, setShowWasteModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [stockForm, setStockForm] = useState(initialStockForm);
+  const [wasteForm, setWasteForm] = useState(initialWasteForm);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
@@ -410,6 +506,7 @@ export default function VendorStockInventory() {
   const [isError, setIsError] = useState(false);
   const [updatingId, setUpdatingId] = useState("");
   const [deletingId, setDeletingId] = useState("");
+  const [wastageSummary, setWastageSummary] = useState(null);
 
   const notify = (text, error = false) => {
     setIsError(error);
@@ -436,8 +533,19 @@ export default function VendorStockInventory() {
     }
   };
 
+  const loadWastageSummary = async () => {
+    if (!vendorId) return;
+    try {
+      const res = await API.get(`/vendor/${vendorId}/wastage/summary`);
+      setWastageSummary(res.data?.data || null);
+    } catch {
+      // Non-critical widget; fail silently and just hide it.
+    }
+  };
+
   useEffect(() => {
     loadProducts();
+    loadWastageSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -588,6 +696,53 @@ export default function VendorStockInventory() {
     }
   };
 
+  const openWasteModal = (product) => {
+    setSelectedProduct(product);
+    setWasteForm(initialWasteForm);
+    setShowWasteModal(true);
+  };
+
+  const closeWasteModal = () => {
+    setShowWasteModal(false);
+    setWasteForm(initialWasteForm);
+    setSelectedProduct(null);
+  };
+
+  const handleWasteFormChange = (field, value) => {
+    setWasteForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleReportWaste = async () => {
+    const quantity = Number(wasteForm.quantity);
+    if (!selectedProduct) return;
+    if (Number.isNaN(quantity) || quantity <= 0) {
+      notify("Enter a valid wasted quantity.", true);
+      return;
+    }
+    if (quantity > Number(selectedProduct.stock || 0)) {
+      notify("Wasted quantity cannot exceed current stock.", true);
+      return;
+    }
+    try {
+      setUpdatingId(selectedProduct.id);
+      await API.put(`/vendor/${vendorId}/products/${selectedProduct.id}`, {
+        stockChangeMode: "waste",
+        wastedQuantity: quantity,
+        wasteReason: wasteForm.reason.trim(),
+      });
+      notify(
+        `Reported ${formatNumber(quantity)} ${selectedProduct.stockUnit || selectedProduct.unit} of ${selectedProduct.name} as wastage`
+      );
+      closeWasteModal();
+      await loadProducts();
+      await loadWastageSummary();
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to report wastage", true);
+    } finally {
+      setUpdatingId("");
+    }
+  };
+
   const handleDelete = async () => {
     if (!selectedProduct) return;
 
@@ -723,7 +878,7 @@ export default function VendorStockInventory() {
         Inventory is your master stock. Add stock here, then use My Products to choose which items are ready for selling and visible to admin.
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
           <div className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
             <Package size={14} className="text-green-600 dark:text-green-400" />
@@ -745,7 +900,45 @@ export default function VendorStockInventory() {
           </div>
           <div className="mt-1 text-lg font-bold text-gray-900 dark:text-gray-100">{metrics.lowStock}</div>
         </div>
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 shadow-sm dark:border-red-900/40 dark:bg-red-950/20">
+          <div className="flex items-center gap-2 text-xs font-medium text-red-600 dark:text-red-300">
+            <TrendingDown size={14} />
+            Wastage Value
+          </div>
+          <div className="mt-1 text-lg font-bold text-red-700 dark:text-red-200">
+            Rs. {formatNumber(wastageSummary?.summary?.totalWastedValue || 0)}
+          </div>
+          {wastageSummary?.summary?.overallWastagePercent !== null &&
+          wastageSummary?.summary?.overallWastagePercent !== undefined ? (
+            <div className="mt-0.5 text-xs text-red-600/80 dark:text-red-300/80">
+              {wastageSummary.summary.overallWastagePercent}% of stock received
+            </div>
+          ) : null}
+        </div>
       </div>
+
+      {wastageSummary?.products?.length > 0 && (
+        <div className="rounded-2xl border border-red-200 bg-white p-4 shadow-sm dark:border-red-900/40 dark:bg-neutral-800">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-300">
+            <TrendingDown size={15} />
+            Wastage by Product
+          </div>
+          <div className="space-y-2">
+            {wastageSummary.products.map((row) => (
+              <div
+                key={row.productId}
+                className="flex items-center justify-between gap-3 rounded-xl bg-red-50/60 px-3 py-2 text-sm dark:bg-red-950/20"
+              >
+                <span className="font-medium text-gray-800 dark:text-gray-100">{row.productName}</span>
+                <span className="text-right text-xs text-gray-600 dark:text-gray-300">
+                  {formatNumber(row.wastedQuantity)} wasted &middot; Rs. {formatNumber(row.wastedValue)}
+                  {row.wastagePercent !== null ? ` · ${row.wastagePercent}%` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
         {loading ? (
@@ -854,6 +1047,15 @@ export default function VendorStockInventory() {
                           </button>
                           <button
                             type="button"
+                            onClick={() => openWasteModal(product)}
+                            disabled={disabled || Number(product.stock || 0) <= 0}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
+                          >
+                            <TrendingDown size={13} />
+                            Waste
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => openDeleteModal(product)}
                             disabled={deleting}
                             className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
@@ -893,6 +1095,17 @@ export default function VendorStockInventory() {
           onChange={handleStockFormChange}
           onClose={closeStockModal}
           onSubmit={handleAddStock}
+        />
+      )}
+
+      {showWasteModal && (
+        <WasteStockModal
+          product={selectedProduct}
+          form={wasteForm}
+          saving={updatingId === selectedProduct?.id}
+          onChange={handleWasteFormChange}
+          onClose={closeWasteModal}
+          onSubmit={handleReportWaste}
         />
       )}
 
