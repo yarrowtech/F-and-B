@@ -526,12 +526,31 @@ export default function VendorNewOrder({ vendorId, onViewOrders }) {
                 <VendorOrderProductPicker
                     products={availableProducts}
                     selectedIds={rows.map((row) => row.productId)}
+                    maxNewItems={100 - rows.length}
                     onClose={() => setProductPickerOpen(false)}
-                    onAdd={(productId, quantity) => {
-                        if (saving || refreshing || rows.length >= 100) return;
-                        const product = availableProducts.find((item) => item._id === productId);
-                        if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > Number(product.availableOrderQuantity)) return;
-                        setRows((current) => current.some((row) => row.productId === productId) ? current : [...current, { id: crypto.randomUUID(), productId, quantity }]);
+                    onAddMany={(items) => {
+                        if (saving || refreshing || !items.length) return;
+                        const validItems = items.filter(({ productId, quantity }) => {
+                            const product = availableProducts.find((item) => item._id === productId);
+                            return product && Number.isInteger(quantity) && quantity >= 1 && quantity <= Number(product.availableOrderQuantity);
+                        });
+                        if (!validItems.length) return;
+                        setRows((current) => {
+                            let next = [...current];
+                            validItems.forEach(({ productId, quantity }) => {
+                                const product = availableProducts.find((item) => item._id === productId);
+                                const existingIndex = next.findIndex((row) => row.productId === productId);
+                                if (existingIndex >= 0) {
+                                    next[existingIndex] = {
+                                        ...next[existingIndex],
+                                        quantity: Math.min(next[existingIndex].quantity + quantity, Number(product.availableOrderQuantity)),
+                                    };
+                                } else if (next.length < 100) {
+                                    next.push({ id: crypto.randomUUID(), productId, quantity });
+                                }
+                            });
+                            return next;
+                        });
                         setError("");
                         setProductPickerOpen(false);
                     }}
