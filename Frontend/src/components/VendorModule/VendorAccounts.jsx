@@ -3,10 +3,13 @@ import {
   AlertCircle,
   Boxes,
   CheckCircle2,
+  Download,
+  FileSpreadsheet,
   IndianRupee,
   Package,
   Receipt,
   Search,
+  Settings2,
   ShoppingCart,
   Wallet,
 } from "lucide-react";
@@ -30,6 +33,11 @@ const formatNumber = (value) =>
     minimumFractionDigits: 0,
     maximumFractionDigits: 3,
   });
+
+const dateInputValue = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+const csvEscape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
 
 const getVendorId = () => {
   try {
@@ -136,13 +144,12 @@ function OrderCard({ order, metrics }) {
           </h3>
         </div>
         <div
-          className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
-            order.status === "completed"
+          className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${order.status === "completed"
               ? "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300"
               : order.status === "cancelled"
-              ? "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300"
-              : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
-          }`}
+                ? "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300"
+                : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+            }`}
         >
           {getOperationalStatusLabel(order.status)}
         </div>
@@ -209,6 +216,16 @@ const VendorAccounts = () => {
   const [orders, setOrders] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState("ledger");
+  const [gstNo, setGstNo] = useState("");
+  const [gstDraft, setGstDraft] = useState("");
+  const [gstSaving, setGstSaving] = useState(false);
+  const [gstFeedback, setGstFeedback] = useState("");
+  const [gstFeedbackIsError, setGstFeedbackIsError] = useState(false);
+  const [reportFrom, setReportFrom] = useState(() =>
+    dateInputValue(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
+  );
+  const [reportTo, setReportTo] = useState(() => dateInputValue(new Date()));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -225,13 +242,17 @@ const VendorAccounts = () => {
       setError("");
 
       try {
-        const [productsRes, ordersRes] = await Promise.all([
+        const [productsRes, ordersRes, profileRes] = await Promise.all([
           API.get(`/vendor/${vendorId}/products`),
           API.get(`/vendor/${vendorId}/orders`),
+          API.get("/vendor/me"),
         ]);
 
         setProducts(Array.isArray(productsRes?.data?.products) ? productsRes.data.products : []);
         setOrders(Array.isArray(ordersRes?.data?.orders) ? ordersRes.data.orders : []);
+        const currentGstNo = profileRes?.data?.vendor?.gstNo || "";
+        setGstNo(currentGstNo);
+        setGstDraft(currentGstNo);
       } catch (loadError) {
         setError(loadError?.response?.data?.message || "Failed to load vendor account details");
       } finally {
@@ -336,6 +357,90 @@ const VendorAccounts = () => {
     });
   }, [orderRows, search, statusFilter]);
 
+  const gstReportRows = useMemo(() => {
+    const from = reportFrom ? new Date(`${reportFrom}T00:00:00`) : null;
+    const to = reportTo ? new Date(`${reportTo}T23:59:59.999`) : null;
+
+    return orderRows
+      .filter((order) => {
+        if (order.status === "cancelled" || !order.billGeneratedAt) return false;
+        const billDate = new Date(order.billGeneratedAt);
+        return (!from || billDate >= from) && (!to || billDate <= to);
+      })
+      .map((order) => {
+        const bill = order.billSummary || {};
+        return {
+          order,
+          bill,
+          billDate: order.billGeneratedAt,
+          customerGstNo: order.manualRestaurant?.gstNo || order.restaurant?.gstNo || "",
+        };
+      });
+  }, [orderRows, reportFrom, reportTo]);
+
+  const gstTotals = useMemo(
+    () => gstReportRows.reduce((totals, row) => ({
+      taxableAmount: totals.taxableAmount + Number(row.bill.taxableAmount || 0),
+      cgst: totals.cgst + Number(row.bill.cgst || 0),
+      sgst: totals.sgst + Number(row.bill.sgst || 0),
+      totalTax: totals.totalTax + Number(row.bill.totalTax || 0),
+      totalAmount: totals.totalAmount + Number(row.bill.totalAmount || 0),
+    }), { taxableAmount: 0, cgst: 0, sgst: 0, totalTax: 0, totalAmount: 0 }),
+    [gstReportRows]
+  );
+
+  const saveGstSettings = async (event) => {
+    event.preventDefault();
+    const normalizedGstNo = gstDraft.trim().toUpperCase();
+    setGstSaving(true);
+    setGstFeedback("");
+    try {
+      await API.put(`/vendor/${vendorId}`, { gstNo: normalizedGstNo });
+      setGstNo(normalizedGstNo);
+      setGstDraft(normalizedGstNo);
+      setGstFeedback("GST settings saved.");
+      setGstFeedbackIsError(false);
+    } catch (saveError) {
+      setGstFeedback(saveError?.response?.data?.message || "Could not save GST settings.");
+      setGstFeedbackIsError(true);
+    } finally {
+      setGstSaving(false);
+    }
+  };
+
+  const downloadGstReport = () => {
+    const header = [
+      "Vendor GSTIN", "Invoice Date", "Invoice Number", "Customer", "Customer GSTIN",
+      "Taxable Amount", "CGST Rate", "CGST", "SGST Rate", "SGST", "Total GST", "Invoice Total",
+    ];
+    const rows = gstReportRows.map(({ order, bill, billDate, customerGstNo }) => [
+      gstNo,
+      new Date(billDate).toLocaleDateString("en-IN"),
+      order.orderNo || order.id || order._id,
+      order.restaurant?.name || order.manualRestaurant?.name || "",
+      customerGstNo,
+      bill.taxableAmount,
+      bill.cgstRate,
+      bill.cgst,
+      bill.sgstRate,
+      bill.sgst,
+      bill.totalTax,
+      bill.totalAmount,
+    ]);
+    rows.push([
+      gstNo, "", "TOTAL", "", "", gstTotals.taxableAmount, "", gstTotals.cgst,
+      "", gstTotals.sgst, gstTotals.totalTax, gstTotals.totalAmount,
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(csvEscape).join(",")).join("\r\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `gst-report-${reportFrom}-to-${reportTo}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -407,7 +512,26 @@ const VendorAccounts = () => {
         />
       </div>
 
-      <div className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-800 sm:p-5">
+      <div role="tablist" aria-label="Account sections" className="flex gap-2 overflow-x-auto border-b border-gray-200 dark:border-neutral-700">
+        {[
+          { id: "ledger", label: "Ledger", icon: <Receipt size={16} /> },
+          { id: "gst-report", label: "GST Report", icon: <FileSpreadsheet size={16} /> },
+          { id: "gst-settings", label: "GST Settings", icon: <Settings2 size={16} /> },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition ${activeTab === tab.id ? "border-green-700 text-green-800 dark:text-green-300" : "border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100"}`}
+          >
+            {tab.icon}{tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "ledger" && <div className="rounded-3xl border border-gray-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-800 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -486,8 +610,8 @@ const VendorAccounts = () => {
                       order.metrics.margin > 0
                         ? "text-green-600 dark:text-green-400"
                         : order.metrics.margin < 0
-                        ? "text-red-500 dark:text-red-400"
-                        : "text-gray-500 dark:text-gray-400";
+                          ? "text-red-500 dark:text-red-400"
+                          : "text-gray-500 dark:text-gray-400";
 
                     return (
                       <tr key={order.id || order._id} className="align-top">
@@ -530,13 +654,12 @@ const VendorAccounts = () => {
                         </td>
                         <td className="px-3 py-4">
                           <span
-                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ${
-                              order.status === "completed"
+                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ${order.status === "completed"
                                 ? "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300"
                                 : order.status === "cancelled"
-                                ? "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300"
-                                : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
-                            }`}
+                                  ? "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300"
+                                  : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+                              }`}
                           >
                             {getOperationalStatusLabel(order.status)}
                           </span>
@@ -558,7 +681,101 @@ const VendorAccounts = () => {
             </div>
           </>
         )}
-      </div>
+      </div>}
+
+      {activeTab === "gst-report" && (
+        <section className="space-y-4">
+          <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-800 sm:flex-row sm:items-end sm:justify-between">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                From
+                <input type="date" value={reportFrom} max={reportTo || undefined} onChange={(event) => setReportFrom(event.target.value)} className={`${fieldClass} mt-1`} />
+              </label>
+              <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                To
+                <input type="date" value={reportTo} min={reportFrom || undefined} onChange={(event) => setReportTo(event.target.value)} className={`${fieldClass} mt-1`} />
+              </label>
+            </div>
+            <button
+              type="button"
+              disabled={!gstReportRows.length}
+              onClick={downloadGstReport}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download size={16} /> Download GST report
+            </button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <SummaryCard icon={<Receipt size={20} />} label="Invoices" value={formatNumber(gstReportRows.length)} tone="slate" />
+            <SummaryCard icon={<IndianRupee size={20} />} label="Taxable Amount" value={formatCurrency(gstTotals.taxableAmount)} tone="blue" />
+            <SummaryCard icon={<IndianRupee size={20} />} label="CGST + SGST" value={formatCurrency(gstTotals.totalTax)} tone="amber" />
+            <SummaryCard icon={<Wallet size={20} />} label="Invoice Total" value={formatCurrency(gstTotals.totalAmount)} tone="green" />
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-neutral-700 dark:bg-neutral-800">
+            <table className="min-w-[900px] w-full text-left text-sm">
+              <thead className="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500 dark:border-neutral-700 dark:text-gray-400">
+                <tr>
+                  <th className="px-4 py-3">Invoice</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Customer</th>
+                  <th className="px-4 py-3">Taxable</th><th className="px-4 py-3">CGST</th><th className="px-4 py-3">SGST</th><th className="px-4 py-3">Total GST</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
+                {gstReportRows.map(({ order, bill, billDate }) => (
+                  <tr key={order.id || order._id}>
+                    <td className="px-4 py-3 font-semibold">{order.orderNo || "-"}</td>
+                    <td className="px-4 py-3">{new Date(billDate).toLocaleDateString("en-IN")}</td>
+                    <td className="px-4 py-3">{order.restaurant?.name || order.manualRestaurant?.name || "-"}</td>
+                    <td className="px-4 py-3">{formatCurrency(bill.taxableAmount)}</td>
+                    <td className="px-4 py-3">{formatCurrency(bill.cgst)} <span className="text-xs text-gray-500">({formatNumber(bill.cgstRate)}%)</span></td>
+                    <td className="px-4 py-3">{formatCurrency(bill.sgst)} <span className="text-xs text-gray-500">({formatNumber(bill.sgstRate)}%)</span></td>
+                    <td className="px-4 py-3 font-semibold">{formatCurrency(bill.totalTax)}</td>
+                  </tr>
+                ))}
+                {!gstReportRows.length && (
+                  <tr><td colSpan="7" className="px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400">No billed orders found for this date range.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {activeTab === "gst-settings" && (
+        <section className="max-w-2xl rounded-xl border border-gray-200 bg-white p-5 dark:border-neutral-700 dark:bg-neutral-800">
+          <div className="flex items-center gap-3">
+            <span className="rounded-lg bg-green-50 p-2 text-green-700 dark:bg-green-950/40 dark:text-green-300"><Settings2 size={19} /></span>
+            <div>
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">GST Settings</h2>
+              <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">Set the GSTIN to appear on your GST report.</p>
+            </div>
+          </div>
+          <form onSubmit={saveGstSettings} className="mt-5 space-y-4">
+            <label htmlFor="vendor-gstin" className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+              GSTIN
+              <input
+                id="vendor-gstin"
+                type="text"
+                maxLength={15}
+                pattern="[0-9]{2}[A-Za-z]{5}[0-9]{4}[A-Za-z][1-9A-Za-z]Z[0-9A-Za-z]"
+                title="Enter a valid 15-character GSTIN or leave blank."
+                value={gstDraft}
+                onChange={(event) => setGstDraft(event.target.value.toUpperCase())}
+                placeholder="e.g. 22AAAAA0000A1Z5"
+                className={`${fieldClass} mt-1`}
+              />
+            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="submit" disabled={gstSaving} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50">
+                <Settings2 size={16} /> {gstSaving ? "Saving..." : "Save GST settings"}
+              </button>
+              {gstFeedback && <p role={gstFeedbackIsError ? "alert" : "status"} className={`text-sm ${gstFeedbackIsError ? "text-red-600" : "text-green-700 dark:text-green-400"}`}>{gstFeedback}</p>}
+              {!gstFeedback && gstNo && <p className="text-sm text-gray-500 dark:text-gray-400">Current GSTIN: {gstNo}</p>}
+            </div>
+          </form>
+        </section>
+      )}
     </div>
   );
 };

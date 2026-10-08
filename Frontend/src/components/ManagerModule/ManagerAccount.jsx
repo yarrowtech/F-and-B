@@ -193,6 +193,8 @@ const EmptyState = ({ children }) => (
   </div>
 );
 
+const isVoidBill = (bill) => bill?.paymentStatus === "VOID";
+
 const BillMobileCard = ({ bill }) => (
   <article className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700">
     <div className="flex items-start justify-between gap-3">
@@ -204,11 +206,29 @@ const BillMobileCard = ({ bill }) => (
           {bill.billNo || "-"}
         </p>
       </div>
-      <div className="rounded-xl bg-emerald-50 px-3 py-2 text-right dark:bg-emerald-950/40">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-          Amount
+      <div
+        className={`rounded-xl px-3 py-2 text-right ${
+          isVoidBill(bill)
+            ? "bg-rose-50 dark:bg-rose-950/40"
+            : "bg-emerald-50 dark:bg-emerald-950/40"
+        }`}
+      >
+        <p
+          className={`text-[11px] font-semibold uppercase tracking-wide ${
+            isVoidBill(bill)
+              ? "text-rose-700 dark:text-rose-300"
+              : "text-emerald-700 dark:text-emerald-300"
+          }`}
+        >
+          {isVoidBill(bill) ? "Void" : "Amount"}
         </p>
-        <p className="font-bold text-emerald-700 dark:text-emerald-300">
+        <p
+          className={`font-bold ${
+            isVoidBill(bill)
+              ? "text-rose-700 line-through dark:text-rose-300"
+              : "text-emerald-700 dark:text-emerald-300"
+          }`}
+        >
           {formatCurrency(bill.totalAmount)}
         </p>
       </div>
@@ -218,12 +238,24 @@ const BillMobileCard = ({ bill }) => (
       <InfoPill icon={<FaReceipt />} label="Order" value={bill.order?.orderNo || "-"} />
       <InfoPill icon={<FaTable />} label="Table" value={`Table ${bill.order?.table?.tableNumber || "-"}`} />
       <InfoPill icon={<FaUserTie />} label="Waiter" value={bill.order?.waiter?.name || "-"} />
-      <InfoPill icon={<FaCreditCard />} label="Payment" value={bill.paymentMethod || "Paid"} />
+      <InfoPill
+        icon={<FaCreditCard />}
+        label="Payment"
+        value={isVoidBill(bill) ? "VOID" : bill.paymentMethod || "Paid"}
+      />
     </div>
 
     <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-neutral-800 dark:text-neutral-300">
-      <span className="font-semibold text-slate-800 dark:text-white">Paid At: </span>
-      {formatDate(bill.paidAt)}
+      <span className="font-semibold text-slate-800 dark:text-white">
+        {isVoidBill(bill) ? "Voided At: " : "Paid At: "}
+      </span>
+      {formatDate(isVoidBill(bill) ? bill.voidedAt : bill.paidAt)}
+      {isVoidBill(bill) && (
+        <p className="mt-1 text-rose-700 dark:text-rose-300">
+          Reason: {bill.voidReason || "-"}
+          {bill.voidedBy?.name ? ` (by ${bill.voidedBy.name})` : ""}
+        </p>
+      )}
     </div>
 
     <div className="mt-4 rounded-xl bg-slate-50 p-3 dark:bg-neutral-800">
@@ -306,9 +338,18 @@ export default function ManagerAccount() {
 
   const filteredBills = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return data.bills;
-    return data.bills.filter((bill) => getBillSearchText(bill).includes(term));
-  }, [data.bills, search]);
+    const allBills = [...data.bills, ...(data.voidedBills || [])].sort(
+      (a, b) =>
+        new Date(isVoidBill(b) ? b.voidedAt : b.paidAt || 0) -
+        new Date(isVoidBill(a) ? a.voidedAt : a.paidAt || 0)
+    );
+    if (!term) return allBills;
+    return allBills.filter((bill) =>
+      `${getBillSearchText(bill)} ${bill.voidReason || ""}`
+        .toLowerCase()
+        .includes(term)
+    );
+  }, [data.bills, data.voidedBills, search]);
 
   const handlePresetChange = async (nextPreset) => {
     setPreset(nextPreset);
@@ -469,7 +510,8 @@ export default function ManagerAccount() {
                   Order Payment History
                 </h2>
                 <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">
-                  {filteredBills.length} of {data.bills.length} paid bills visible.
+                  {filteredBills.length} of {data.bills.length + (data.voidedBills?.length || 0)} bills visible
+                  {data.voidedBills?.length ? ` (${data.voidedBills.length} voided, not counted in totals)` : ""}.
                 </p>
               </div>
               <div className="grid w-full gap-2 lg:max-w-2xl lg:grid-cols-[1fr_auto]">
@@ -503,7 +545,7 @@ export default function ManagerAccount() {
           ) : filteredBills.length === 0 ? (
             <div className="p-4">
               <EmptyState>
-                {data.bills.length === 0
+                {data.bills.length === 0 && !data.voidedBills?.length
                   ? "No payment history found for the selected filter."
                   : "No bills match your search."}
               </EmptyState>
@@ -542,7 +584,7 @@ export default function ManagerAccount() {
                 {!loading && filteredBills.length === 0 && (
                   <tr>
                     <td colSpan="8" className="px-5 py-10 text-center text-slate-500 dark:text-neutral-400">
-                      {data.bills.length === 0
+                      {data.bills.length === 0 && !data.voidedBills?.length
                         ? "No payment history found for the selected filter."
                         : "No bills match your search."}
                     </td>
@@ -568,14 +610,31 @@ export default function ManagerAccount() {
                         <ComplimentaryDetails bill={bill} />
                       </td>
                       <td className="px-5 py-4">
-                        <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                          {bill.paymentMethod || "Paid"}
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                            isVoidBill(bill)
+                              ? "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                              : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          }`}
+                        >
+                          {isVoidBill(bill) ? "VOID" : bill.paymentMethod || "Paid"}
                         </span>
+                        {isVoidBill(bill) && (
+                          <div className="mt-1 max-w-[180px] text-xs text-rose-700 dark:text-rose-300">
+                            {bill.voidReason || "-"}
+                          </div>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-slate-600 dark:text-neutral-400">
-                        {formatDate(bill.paidAt)}
+                        {formatDate(isVoidBill(bill) ? bill.voidedAt : bill.paidAt)}
                       </td>
-                      <td className="px-5 py-4 font-bold text-emerald-700 dark:text-emerald-300">
+                      <td
+                        className={`px-5 py-4 font-bold ${
+                          isVoidBill(bill)
+                            ? "text-rose-700 line-through dark:text-rose-300"
+                            : "text-emerald-700 dark:text-emerald-300"
+                        }`}
+                      >
                         {formatCurrency(bill.totalAmount)}
                       </td>
                     </tr>

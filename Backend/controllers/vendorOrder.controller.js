@@ -194,21 +194,36 @@ const calculateVendorBillSummary = ({
 };
 
 const getVendorBillSummary = (order) => {
-  if (order?.billing?.totalAmount !== undefined) {
+  const billing = order?.billing || {};
+  const hasStoredBillingSnapshot =
+    Number(billing.itemsTotal || 0) > 0 ||
+    Number(billing.taxableAmount || 0) > 0 ||
+    Number(billing.totalTax || 0) > 0;
+
+  if (hasStoredBillingSnapshot) {
     return calculateVendorBillSummary({
-      itemsTotal: order.billing.itemsTotal ?? order.totalAmount,
-      restaurantTemplate: order?.restaurant?.billingTemplate || {},
-      discountAmount: order.billing.discountAmount,
-      discountType: order.billing.discountType,
-      discountValue: order.billing.discountValue,
-      discountSource: order.billing.discountSource,
+      itemsTotal: billing.itemsTotal,
+      restaurantTemplate: {
+        ...(order?.restaurant?.billingTemplate || {}),
+        cgstRate: billing.cgstRate,
+        sgstRate: billing.sgstRate,
+        showTaxBreakup: billing.showTaxBreakup,
+      },
+      discountAmount: billing.discountAmount,
+      discountType: billing.discountType,
+      discountValue: billing.discountValue,
+      discountSource: billing.discountSource,
     });
   }
 
   const restaurantTemplate = order?.restaurant?.billingTemplate || {};
   return calculateVendorBillSummary({
-    itemsTotal: Number(order?.totalAmount || 0),
+    itemsTotal: Number(billing.itemsTotal || order?.totalAmount || 0),
     restaurantTemplate,
+    discountAmount: billing.discountAmount,
+    discountType: billing.discountType,
+    discountValue: billing.discountValue,
+    discountSource: billing.discountSource,
   });
 };
 

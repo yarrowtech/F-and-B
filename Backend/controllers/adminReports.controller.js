@@ -33,6 +33,7 @@ const REPORTS = [
   ["discount-report", "Discount Report", "billing", "discount"],
   ["continues-bills", "Continues Bills", "billing", "continuousBills"],
   ["canceled-item-report", "Canceled Item Report", "billing", "cancelledItems"],
+  ["voided-bill-report", "Voided Bill Report", "billing", "voidedBills"],
   ["detail-tax-report", "Detail Tax Report", "billing", "taxDetail"],
   ["summary-tax-report", "Summary Tax Report", "billing", "taxRateSummary"],
   ["summarised-tax-report", "Summarised Tax Report", "billing", "taxSummary"],
@@ -1335,6 +1336,7 @@ const runReportDetails = async (context, report, reportData) => {
     "discount",
     "continuousBills",
     "cancelledItems",
+    "voidedBills",
     "taxDetail",
     "billItemTax",
     "bankReport",
@@ -2091,6 +2093,53 @@ const runSpecialReport = async (context, report) => {
         { $project: { _id: 0, date: { $dateToString: { date: "$reportDate", format: "%Y-%m-%d" } }, restaurant: "$restaurantDoc.name", billNo: 1, type: "$complimentaryType", note: "$complimentaryNote", amount: { $round: ["$complimentaryAmount", 2] }, total: { $round: ["$totalAmount", 2] } } },
       ]);
       return reportResponse(report, ["date", "restaurant", "billNo", "type", "note", "amount", "total"], rows);
+    }
+    case "voidedBills": {
+      const rows = await Bill.aggregate([
+        {
+          $match: {
+            restaurant: { $in: context.restaurantIds },
+            paymentStatus: "VOID",
+            $or: [
+              { voidedAt: { $gte: context.start, $lte: context.end } },
+              { voidedAt: null, updatedAt: { $gte: context.start, $lte: context.end } },
+            ],
+          },
+        },
+        { $addFields: { reportDate: { $ifNull: ["$voidedAt", "$updatedAt"] } } },
+        { $lookup: { from: "restaurants", localField: "restaurant", foreignField: "_id", as: "restaurantDoc" } },
+        { $unwind: { path: "$restaurantDoc", preserveNullAndEmptyArrays: true } },
+        { $lookup: { from: "orders", localField: "order", foreignField: "_id", as: "orderDoc" } },
+        { $unwind: { path: "$orderDoc", preserveNullAndEmptyArrays: true } },
+        { $lookup: { from: "employees", localField: "voidedBy", foreignField: "_id", as: "voidedByDoc" } },
+        { $unwind: { path: "$voidedByDoc", preserveNullAndEmptyArrays: true } },
+        { $lookup: { from: "bills", localField: "reissuedAs", foreignField: "_id", as: "reissuedDoc" } },
+        { $unwind: { path: "$reissuedDoc", preserveNullAndEmptyArrays: true } },
+        { $sort: { reportDate: -1 } },
+        { $limit: context.limit },
+        {
+          $project: {
+            _id: 0,
+            date: { $dateToString: { date: "$reportDate", format: "%Y-%m-%d %H:%M", timezone: BUSINESS_TIMEZONE } },
+            restaurant: { $ifNull: ["$restaurantDoc.name", "-"] },
+            billNo: 1,
+            orderNo: { $ifNull: ["$orderDoc.orderNo", "-"] },
+            paymentMethod: { $ifNull: ["$paymentMethod", "-"] },
+            amount: { $round: ["$totalAmount", 2] },
+            voidedBy: { $ifNull: ["$voidedByDoc.name", "-"] },
+            reason: { $ifNull: ["$voidReason", "-"] },
+            reissuedBillNo: { $ifNull: ["$reissuedDoc.billNo", "-"] },
+            reissuedStatus: { $ifNull: ["$reissuedDoc.paymentStatus", "-"] },
+          },
+        },
+      ]);
+      const totalAmount = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      return reportResponse(
+        report,
+        ["date", "restaurant", "billNo", "orderNo", "paymentMethod", "amount", "voidedBy", "reason", "reissuedBillNo", "reissuedStatus"],
+        rows,
+        { voidedBills: rows.length, voidedAmount: money(totalAmount) }
+      );
     }
     case "cancelledOrders": {
       const rows = await Order.find({ restaurant: { $in: context.restaurantIds }, status: "CANCELLED", updatedAt: { $gte: context.start, $lte: context.end } })

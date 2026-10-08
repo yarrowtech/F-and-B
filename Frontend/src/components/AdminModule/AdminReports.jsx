@@ -53,6 +53,7 @@ const REPORT_GROUPS = [
       "Discount Report",
       "Continues Bills",
       "Canceled Item Report",
+      "Voided Bill Report",
       "Detail Tax Report",
       "Summary Tax Report",
       "Summarised Tax Report",

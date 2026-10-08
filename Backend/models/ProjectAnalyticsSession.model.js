@@ -14,6 +14,11 @@ const projectAnalyticsSessionSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    visitorId: {
+      type: String,
+      default: "",
+      index: true,
+    },
     role: {
       type: String,
       default: "guest",

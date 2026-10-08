@@ -1419,6 +1419,8 @@ const getHistory = async (req, res) => {
   try {
     const { query } = await buildBillingHistoryQuery(req);
     delete query._requestedOrderType;
+    // On-screen history also lists voided bills (marked VOID); Excel stays PAID-only.
+    query.paymentStatus = { $in: ["PAID", "VOID"] };
 
     const bills = await Bill.find(query)
       .populate("restaurant")
@@ -1731,6 +1733,10 @@ const markPaid = async (req, res) => {
 
     if (!bill) return sendError(res, "Bill not found", 404);
 
+    if (bill.paymentStatus !== "PENDING") {
+      return sendError(res, `Bill is already ${bill.paymentStatus.toLowerCase()}`, 409);
+    }
+
     bill.paymentStatus = "PAID";
     bill.paymentMethod = await resolvePaymentMethod(bill.restaurant, paymentMethod);
     bill.accountant = req.user.id;
@@ -1752,6 +1758,92 @@ const markPaid = async (req, res) => {
     }
 
     return sendSuccess(res, bill);
+  } catch (err) {
+    logger.error(err);
+    return sendError(res, err.message);
+  }
+};
+
+/**
+ * Void a PAID bill (wrong count / wrong amount) and reissue a fresh PENDING
+ * copy so the accountant can correct it from the inbox and collect again.
+ */
+const voidBill = async (req, res) => {
+  try {
+    const reason = sanitizeText(req.body.reason);
+    if (reason.length < 5) {
+      return sendError(res, "Enter a reason (at least 5 characters)");
+    }
+
+    const restaurantIds = await getAuthorizedRestaurantIds(req);
+    const bill = await Bill.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        restaurant: { $in: restaurantIds },
+        paymentStatus: "PAID",
+      },
+      {
+        paymentStatus: "VOID",
+        voidedAt: new Date(),
+        voidedBy: req.user.id,
+        voidReason: reason.slice(0, 300),
+      },
+      { new: true }
+    );
+
+    if (!bill) return sendError(res, "Paid bill not found or already voided", 404);
+
+    const reissue = req.body.reissue !== false;
+    let newBill = null;
+
+    if (reissue) {
+      newBill = await Bill.create({
+        restaurant: bill.restaurant,
+        billNo: await allocateBillNumber(bill.restaurant),
+        order: bill.order,
+        itemsTotal: bill.itemsTotal,
+        cgst: bill.cgst,
+        cgstRate: bill.cgstRate,
+        sgst: bill.sgst,
+        sgstRate: bill.sgstRate,
+        serviceCharge: bill.serviceCharge,
+        showServiceCharge: bill.showServiceCharge,
+        packagingCharge: bill.packagingCharge,
+        showPackagingCharge: bill.showPackagingCharge,
+        extraCharge: bill.extraCharge,
+        extraChargeReason: bill.extraChargeReason,
+        discount: bill.discount,
+        discountType: bill.discountType,
+        discountValue: bill.discountValue,
+        complimentaryType: bill.complimentaryType,
+        complimentaryItems: bill.complimentaryItems,
+        complimentaryAmount: bill.complimentaryAmount,
+        complimentaryNote: bill.complimentaryNote,
+        customerEmail: bill.customerEmail,
+        customerPhone: bill.customerPhone,
+        totalAmount: bill.totalAmount,
+        paymentStatus: "PENDING",
+        replacesBill: bill._id,
+      });
+      bill.reissuedAs = newBill._id;
+      await bill.save();
+    }
+
+    if (bill.order) {
+      await Order.findByIdAndUpdate(bill.order, {
+        status: "SERVED",
+        paidAt: null,
+      });
+    }
+
+    invalidateCacheNamespaces(["dashboard", `menu-analytics:${bill.restaurant}`]);
+
+    logger.info(
+      { billId: bill._id, by: req.user.id, reason },
+      "Bill voided"
+    );
+
+    return sendSuccess(res, { voided: bill, reissued: newBill });
   } catch (err) {
     logger.error(err);
     return sendError(res, err.message);
@@ -2135,6 +2227,7 @@ const generatePublicBillPDF = async (req, res) => {
 };
 
 export default {
+  voidBill,
   getBillingSettings,
   getInbox,
   getHistory,

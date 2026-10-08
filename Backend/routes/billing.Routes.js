@@ -114,6 +114,13 @@ router.post(
   billingController.markPaid
 );
 
+router.post(
+  "/:id/void",
+  auth,
+  allowRoles("accountant", "admin"),
+  billingController.voidBill
+);
+
 router.get(
   "/:id/pdf",
   auth,

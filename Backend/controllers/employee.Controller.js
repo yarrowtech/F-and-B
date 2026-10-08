@@ -1254,6 +1254,7 @@ const getStaffWorkReport = async (req, res) => {
     const billMatch = {
       restaurant: new mongoose.Types.ObjectId(restaurantId),
       accountant: { $ne: null },
+      paymentStatus: { $ne: "VOID" },
       ...(Object.keys(dateFilter).length ? { createdAt: dateFilter } : {}),
     };
 

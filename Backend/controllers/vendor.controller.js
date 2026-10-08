@@ -74,6 +74,7 @@ const buildVendorResponse = (vendor, lastOrder = null) => ({
   address: vendor.address,
   governmentId: vendor.governmentId,
   governmentIdType: vendor.governmentIdType,
+  gstNo: vendor.gstNo || "",
   category: vendor.category,
   role: "vendor",
   vendorType: vendor.vendorType,
@@ -1059,6 +1060,10 @@ export const updateVendor = async (req, res) => {
       "category",
     ];
 
+    if (req.user.role === "vendor") {
+      allowedFields.push("gstNo");
+    }
+
     if (req.user.role === "admin") {
       allowedFields.push("isActive");
     }
@@ -1079,6 +1084,12 @@ export const updateVendor = async (req, res) => {
           vendor[field] = normalizeGovernmentIdType(req.body[field]);
         } else if (field === "category") {
           vendor[field] = String(req.body[field] || "").trim();
+        } else if (field === "gstNo") {
+          const gstNo = String(req.body[field] || "").trim().toUpperCase();
+          if (gstNo && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstNo)) {
+            return res.status(400).json({ success: false, message: "Enter a valid 15-character GSTIN" });
+          }
+          vendor.gstNo = gstNo;
         } else {
           vendor[field] = req.body[field];
         }

@@ -57,6 +57,7 @@ export const getAccountantDashboard = async (req, res) => {
     const [ownedBills, paidBills] = await Promise.all([
       Bill.find({
         restaurant,
+        paymentStatus: { $ne: "VOID" },
         $or: [{ generatedBy: id }, { accountant: id }],
       })
         .populate({

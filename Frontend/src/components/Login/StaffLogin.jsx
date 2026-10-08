@@ -473,6 +473,18 @@ export default function StaffLogin() {
           `Global vendor account created. Login ID: ${vendorId}. Credentials were also sent to email if SMTP is configured.`
         );
       }
+
+      try {
+        await trackAnalyticsEvent({
+          eventType: "SIGNUP",
+          featureKey: "auth.signup",
+          featureLabel: "Sign Up",
+          path: window.location.pathname || "/login",
+          details: { signupType },
+        });
+      } catch {
+        // Analytics should not block signup.
+      }
     } catch (err) {
       setSignupError(
         err?.response?.data?.message || parseAuthError(err).message

@@ -24,6 +24,7 @@ import {
   getBillingInbox,
   getBillingSettings,
   markBillPaid,
+  voidBill,
 } from "../../services/billing.service";
 import { printJobsOnThisDevice } from "../../services/localPrint.service";
 import { getMenu } from "../../services/menu.service";
@@ -565,6 +566,7 @@ function BillCard({
   openBillModal,
   payBill,
   printBill,
+  onVoidBill,
   cashInputProps,
 }) {
   const billPaymentMethods = getRestaurantPaymentMethods(bill.restaurant);
@@ -586,13 +588,24 @@ function BillCard({
         </div>
 
         <span className={`inline-flex min-h-8 shrink-0 items-center rounded-full px-3 text-xs font-bold ${
-          tab === "INBOX"
-            ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
-            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
+          bill.paymentStatus === "VOID"
+            ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200"
+            : tab === "INBOX"
+              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
+              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
         }`}>
-          {tab === "INBOX" ? "Pending" : bill.paymentMethod || "Paid"}
+          {bill.paymentStatus === "VOID"
+            ? "VOID"
+            : tab === "INBOX"
+              ? "Pending"
+              : bill.paymentMethod || "Paid"}
         </span>
       </div>
+      {bill.paymentStatus === "VOID" && (
+        <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-200">
+          Voided: {bill.voidReason || "No reason"}
+        </p>
+      )}
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
@@ -693,7 +706,7 @@ function BillCard({
             </button>
           </div>
         )}
-        {tab === "HISTORY" && (
+        {tab === "HISTORY" && bill.paymentStatus !== "VOID" && (
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -702,6 +715,13 @@ function BillCard({
             >
               <FaFilePdf />
               PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => onVoidBill(bill)}
+              className="col-span-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-sm font-bold text-amber-800 transition hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+            >
+              Void &amp; Reissue
             </button>
             <button
               type="button"
@@ -779,6 +799,10 @@ export default function AccountantOrderBilling() {
   const [menuItems, setMenuItems] = useState([]);
   const [showMenuPicker, setShowMenuPicker] = useState(false);
   const [successBill, setSuccessBill] = useState(null);
+  const [voidTarget, setVoidTarget] = useState(null);
+  const [voidReason, setVoidReason] = useState("");
+  const [voidError, setVoidError] = useState("");
+  const [voiding, setVoiding] = useState(false);
   const [manualSearch, setManualSearch] = useState("");
   const [manualCodeInput, setManualCodeInput] = useState("");
   const [quickNameSearch, setQuickNameSearch] = useState("");
@@ -1322,6 +1346,42 @@ export default function AccountantOrderBilling() {
     }
   };
 
+  const handleVoidBill = (bill) => {
+    setVoidTarget(bill);
+    setVoidReason("");
+    setVoidError("");
+  };
+
+  const closeVoidModal = () => {
+    if (voiding) return;
+    setVoidTarget(null);
+    setVoidReason("");
+    setVoidError("");
+  };
+
+  const confirmVoidBill = async () => {
+    const reason = voidReason.trim();
+    if (reason.length < 5) {
+      setVoidError("Please enter a reason (at least 5 characters).");
+      return;
+    }
+
+    try {
+      setVoiding(true);
+      setVoidError("");
+      await voidBill(voidTarget._id, reason);
+      setVoidTarget(null);
+      setVoidReason("");
+      await fetchBills();
+      setTab("INBOX");
+    } catch (err) {
+      console.error("VOID BILL ERROR:", err);
+      setVoidError(err?.response?.data?.message || "Failed to void bill");
+    } finally {
+      setVoiding(false);
+    }
+  };
+
   const updateManualBill = (field, value) => {
     setManualBill((prev) => ({ ...prev, [field]: value }));
   };
@@ -1539,7 +1599,8 @@ export default function AccountantOrderBilling() {
       })
     : [];
   const filteredBillsTotalAmount = filteredBills.reduce(
-    (sum, bill) => sum + Number(bill.totalAmount || 0),
+    (sum, bill) =>
+      bill.paymentStatus === "VOID" ? sum : sum + Number(bill.totalAmount || 0),
     0
   );
 
@@ -2622,6 +2683,7 @@ export default function AccountantOrderBilling() {
                   openBillModal={openBillModal}
                   payBill={payBill}
                   printBill={printBill}
+                  onVoidBill={handleVoidBill}
                   cashInputProps={getTouchInputProps("number")}
                 />
               ))}
@@ -2772,7 +2834,15 @@ export default function AccountantOrderBilling() {
                               </button>
                             </>
                           )}
-                          {tab === "HISTORY" && (
+                          {tab === "HISTORY" && bill.paymentStatus === "VOID" && (
+                            <span
+                              title={bill.voidReason || ""}
+                              className="inline-flex min-h-11 items-center rounded-xl bg-rose-100 px-3 py-2 text-xs font-bold text-rose-700 dark:bg-rose-900/40 dark:text-rose-200"
+                            >
+                              VOID{bill.voidReason ? ` – ${bill.voidReason}` : ""}
+                            </span>
+                          )}
+                          {tab === "HISTORY" && bill.paymentStatus !== "VOID" && (
                             <>
                               <button
                                 type="button"
@@ -2781,6 +2851,14 @@ export default function AccountantOrderBilling() {
                               >
                                 <FaFilePdf />
                                 PDF
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleVoidBill(bill)}
+                                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+                              >
+                                Void &amp; Reissue
                               </button>
 
                               <button
@@ -3686,6 +3764,98 @@ export default function AccountantOrderBilling() {
                   <span>Close</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {voidTarget && (
+        <div
+          className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          onClick={closeVoidModal}
+        >
+          <div
+            className="w-full max-w-md rounded-t-2xl bg-white p-5 shadow-2xl dark:bg-slate-900 sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-lg text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+                <FaTimes />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                  Void Bill #{voidTarget.billNo}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Amount Rs. {Number(voidTarget.totalAmount || 0).toFixed(2)}. This bill will be
+                  marked VOID and a corrected copy will move to Pending Bills.
+                </p>
+              </div>
+            </div>
+
+            <label className="mt-4 block text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              Reason <span className="text-rose-600">*</span>
+            </label>
+
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[
+                "Wrong item count",
+                "Wrong amount",
+                "Wrong payment method",
+                "Customer changed order",
+              ].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => {
+                    setVoidReason(preset);
+                    setVoidError("");
+                  }}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    voidReason === preset
+                      ? "border-amber-400 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                  }`}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              rows={3}
+              maxLength={300}
+              autoFocus
+              value={voidReason}
+              onChange={(e) => {
+                setVoidReason(e.target.value);
+                setVoidError("");
+              }}
+              placeholder="Why is this bill being voided?"
+              className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+            />
+
+            {voidError && (
+              <p className="mt-2 text-xs font-semibold text-rose-600">{voidError}</p>
+            )}
+
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={closeVoidModal}
+                disabled={voiding}
+                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmVoidBill}
+                disabled={voiding}
+                className="inline-flex min-h-12 items-center justify-center rounded-xl bg-amber-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {voiding ? "Voiding..." : "Void & Reissue"}
+              </button>
             </div>
           </div>
         </div>

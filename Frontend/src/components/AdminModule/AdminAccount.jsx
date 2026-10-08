@@ -204,7 +204,10 @@ const complimentaryFilters = [
   { key: "ITEMS", label: "Complimentary Dish" },
   { key: "FULL_ORDER", label: "Complimentary Order" },
   { key: "NONE", label: "Regular Bills" },
+  { key: "VOID", label: "Voided Bills" },
 ];
+
+const isVoidBill = (bill) => bill?.paymentStatus === "VOID";
 
 export default function AdminAccount() {
   const [restaurants, setRestaurants] = useState([]);
@@ -319,15 +322,28 @@ export default function AdminAccount() {
 
   const filteredBills = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return data.bills.filter((bill) => {
-      const type = getComplimentaryFilterType(bill);
+    const allBills = [...data.bills, ...(data.voidedBills || [])].sort(
+      (a, b) =>
+        new Date(isVoidBill(b) ? b.voidedAt : b.paidAt || 0) -
+        new Date(isVoidBill(a) ? a.voidedAt : a.paidAt || 0)
+    );
+
+    return allBills.filter((bill) => {
+      const voided = isVoidBill(bill);
       const matchesComplimentary =
-        complimentaryFilter === "ALL" || type === complimentaryFilter;
-      const matchesSearch = !term || getBillSearchText(bill).includes(term);
+        complimentaryFilter === "ALL" ||
+        (complimentaryFilter === "VOID"
+          ? voided
+          : !voided && getComplimentaryFilterType(bill) === complimentaryFilter);
+      const matchesSearch =
+        !term ||
+        `${getBillSearchText(bill)} ${bill.voidReason || ""}`
+          .toLowerCase()
+          .includes(term);
 
       return matchesComplimentary && matchesSearch;
     });
-  }, [complimentaryFilter, data.bills, search]);
+  }, [complimentaryFilter, data.bills, data.voidedBills, search]);
 
   const handlePresetChange = async (nextPreset) => {
     setPreset(nextPreset);
@@ -490,7 +506,8 @@ export default function AdminAccount() {
                   Payment History
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  {filteredBills.length} of {data.bills.length} paid bills visible.
+                  {filteredBills.length} of {data.bills.length + (data.voidedBills?.length || 0)} bills visible
+                  {data.voidedBills?.length ? ` (${data.voidedBills.length} voided, not counted in totals)` : ""}.
                 </p>
               </div>
               <div className="grid w-full min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] xl:max-w-4xl xl:grid-cols-[220px_auto_minmax(320px,1fr)]">
@@ -537,7 +554,7 @@ export default function AdminAccount() {
 
             {!loading && filteredBills.length === 0 && (
               <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
-                {data.bills.length === 0
+                {data.bills.length === 0 && !data.voidedBills?.length
                   ? "No payment history found for the selected restaurant and filter."
                   : "No bills match your search."}
               </div>
@@ -558,7 +575,13 @@ export default function AdminAccount() {
                         {bill.billNo || "-"}
                       </h3>
                     </div>
-                    <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-700">
+                    <span
+                      className={`shrink-0 rounded-full px-3 py-1 text-sm font-bold ${
+                        isVoidBill(bill)
+                          ? "bg-rose-50 text-rose-700 line-through"
+                          : "bg-emerald-50 text-emerald-700"
+                      }`}
+                    >
                       {formatCurrency(bill.totalAmount)}
                     </span>
                   </div>
@@ -581,9 +604,18 @@ export default function AdminAccount() {
                       {bill.order?.waiter?.name || "-"}
                     </p>
                     <p>
-                      <span className="font-medium text-slate-400">Paid:</span>{" "}
-                      {formatDate(bill.paidAt)}
+                      <span className="font-medium text-slate-400">
+                        {isVoidBill(bill) ? "Voided:" : "Paid:"}
+                      </span>{" "}
+                      {formatDate(isVoidBill(bill) ? bill.voidedAt : bill.paidAt)}
                     </p>
+                    {isVoidBill(bill) && (
+                      <p className="text-rose-700">
+                        <span className="font-medium text-slate-400">Reason:</span>{" "}
+                        {bill.voidReason || "-"}
+                        {bill.voidedBy?.name ? ` (by ${bill.voidedBy.name})` : ""}
+                      </p>
+                    )}
                   </div>
 
                   <div className="mt-4 rounded-xl bg-slate-50 p-3">
@@ -593,8 +625,14 @@ export default function AdminAccount() {
                     <ComplimentaryDetails bill={bill} />
                   </div>
 
-                  <span className="mt-4 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                    {bill.paymentMethod || "Paid"}
+                  <span
+                    className={`mt-4 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                      isVoidBill(bill)
+                        ? "bg-rose-100 text-rose-700"
+                        : "bg-emerald-50 text-emerald-700"
+                    }`}
+                  >
+                    {isVoidBill(bill) ? "VOID" : bill.paymentMethod || "Paid"}
                   </span>
                 </article>
               ))}
@@ -627,7 +665,7 @@ export default function AdminAccount() {
                 {!loading && filteredBills.length === 0 && (
                   <tr>
                     <td colSpan="9" className="px-5 py-10 text-center text-slate-500">
-                      {data.bills.length === 0
+                      {data.bills.length === 0 && !data.voidedBills?.length
                         ? "No payment history found for the selected restaurant and filter."
                         : "No bills match your search."}
                     </td>
@@ -656,14 +694,31 @@ export default function AdminAccount() {
                         <ComplimentaryDetails bill={bill} />
                       </td>
                       <td className="px-5 py-4">
-                        <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                          {bill.paymentMethod || "Paid"}
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                            isVoidBill(bill)
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-emerald-50 text-emerald-700"
+                          }`}
+                        >
+                          {isVoidBill(bill) ? "VOID" : bill.paymentMethod || "Paid"}
                         </span>
+                        {isVoidBill(bill) && (
+                          <div className="mt-1 max-w-[180px] text-xs text-rose-700">
+                            {bill.voidReason || "-"}
+                          </div>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-slate-600">
-                        {formatDate(bill.paidAt)}
+                        {formatDate(isVoidBill(bill) ? bill.voidedAt : bill.paidAt)}
                       </td>
-                      <td className="px-5 py-4 font-bold text-emerald-700">
+                      <td
+                        className={`px-5 py-4 font-bold ${
+                          isVoidBill(bill)
+                            ? "text-rose-700 line-through"
+                            : "text-emerald-700"
+                        }`}
+                      >
                         {formatCurrency(bill.totalAmount)}
                       </td>
                     </tr>

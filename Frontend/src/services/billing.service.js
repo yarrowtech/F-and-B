@@ -158,6 +158,15 @@ export const markBillPaid = async (
 };
 
 /**
+ * ❌ Void a paid bill and reissue a pending copy
+ * POST /api/billing/:id/void
+ */
+export const voidBill = async (billId, reason) => {
+  const res = await API.post(`/billing/${billId}/void`, { reason });
+  return res.data.data;
+};
+
+/**
  * 🧾 Download Bill PDF (Secure – Sends Token)
  * GET /api/billing/:id/pdf
  */

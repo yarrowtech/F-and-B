@@ -251,7 +251,7 @@ const billSchema = new mongoose.Schema(
 
     paymentStatus: {
       type: String,
-      enum: ["PENDING", "PAID"],
+      enum: ["PENDING", "PAID", "VOID"],
       default: "PENDING",
     },
 
@@ -259,6 +259,12 @@ const billSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+
+    voidedAt: { type: Date, default: null },
+    voidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee", default: null },
+    voidReason: { type: String, default: "", trim: true, maxlength: 300 },
+    reissuedAs: { type: mongoose.Schema.Types.ObjectId, ref: "Bill", default: null },
+    replacesBill: { type: mongoose.Schema.Types.ObjectId, ref: "Bill", default: null },
   },
   { timestamps: true }
 );

@@ -218,13 +218,30 @@ export const getManagerAccountHistory = async (req, res) => {
           { path: "waiter", select: "name" },
           {
             path: "items.menuItem",
-            select: "name price cuisine courseType",
-            populate: { path: "cuisine", select: "name" },
+            select: "name price courseType",
           },
         ],
       })
       .populate("accountant", "name employeeId")
       .sort({ paidAt: -1, createdAt: -1 })
+      .lean();
+
+    // Voided bills are listed for visibility only; they never enter the totals.
+    const voidedMatch = { restaurant: restaurantId, paymentStatus: "VOID" };
+    if (match.paidAt) voidedMatch.voidedAt = match.paidAt;
+
+    const voidedBills = await Bill.find(voidedMatch)
+      .populate({
+        path: "order",
+        select: "orderNo table waiter createdAt paidAt orderType items",
+        populate: [
+          { path: "table", select: "tableNumber" },
+          { path: "waiter", select: "name" },
+          { path: "items.menuItem", select: "name price" },
+        ],
+      })
+      .populate("voidedBy", "name")
+      .sort({ voidedAt: -1 })
       .lean();
 
     const totalRevenue = bills.reduce(
@@ -255,6 +272,7 @@ export const getManagerAccountHistory = async (req, res) => {
           endDate: req.query.endDate || "",
         },
         bills,
+        voidedBills,
       },
     });
   } catch (error) {

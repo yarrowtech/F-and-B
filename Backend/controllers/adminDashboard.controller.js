@@ -623,8 +623,7 @@ export const getAdminAccountHistory = async (req, res) => {
           { path: "waiter", select: "name" },
           {
             path: "items.menuItem",
-            select: "name price cuisine courseType",
-            populate: { path: "cuisine", select: "name" },
+            select: "name price courseType",
           },
         ],
       })
@@ -636,6 +635,28 @@ export const getAdminAccountHistory = async (req, res) => {
       ...bill,
       complimentaryMeta: getBillComplimentaryMeta(bill),
     }));
+
+    // Voided bills are listed for visibility only; they never enter the totals below.
+    const voidedAtFilter = buildPaidAtFilter({ startDate, endDate });
+    const voidedBills = await Bill.find({
+      restaurant: { $in: restaurantIds },
+      paymentStatus: "VOID",
+      ...(voidedAtFilter.paidAt ? { voidedAt: voidedAtFilter.paidAt } : {}),
+    })
+      .populate("restaurant", "name restaurantCode")
+      .populate({
+        path: "order",
+        select: "orderNo table waiter createdAt paidAt orderType items",
+        populate: [
+          { path: "table", select: "tableNumber" },
+          { path: "waiter", select: "name" },
+          { path: "items.menuItem", select: "name price" },
+        ],
+      })
+      .populate("accountant", "name employeeId")
+      .populate("voidedBy", "name")
+      .sort({ voidedAt: -1 })
+      .lean();
 
     const totalRevenue = billsWithComplimentaryMeta.reduce(
       (sum, bill) => sum + Number(bill.totalAmount || 0),
@@ -683,6 +704,7 @@ export const getAdminAccountHistory = async (req, res) => {
         },
         filters: { restaurantId: restaurantId || "", startDate: startDate || "", endDate: endDate || "" },
         bills: billsWithComplimentaryMeta,
+        voidedBills,
       },
     });
   } catch (err) {

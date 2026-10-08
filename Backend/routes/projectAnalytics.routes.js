@@ -5,6 +5,7 @@ import allowRoles from "../middlewares/role.middleware.js";
 import {
   endProjectAnalyticsSession,
   exportProjectAnalytics,
+  getProjectAnalyticsRealtime,
   getProjectAnalyticsSummary,
   pingProjectAnalyticsSession,
   startProjectAnalyticsSession,
@@ -21,6 +22,7 @@ router.post("/session/ping", optionalAuth, pingProjectAnalyticsSession);
 router.post("/session/end", optionalAuth, endProjectAnalyticsSession);
 
 router.get("/summary", protect, allowRoles("super_admin"), getProjectAnalyticsSummary);
+router.get("/realtime", protect, allowRoles("super_admin"), getProjectAnalyticsRealtime);
 router.get("/export", protect, allowRoles("super_admin"), exportProjectAnalytics);
 
 export default router;

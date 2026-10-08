@@ -68,6 +68,7 @@ const normalizeRole = (role = "guest") => String(role || "guest").trim().toLower
 const getUserType = (role = "guest") => {
   const normalizedRole = normalizeRole(role);
   if (normalizedRole === "admin") return "admin";
+  if (normalizedRole === "super_admin") return "super_admin";
   if (normalizedRole === "vendor") return "vendor";
   if (EMPLOYEE_ROLES.has(normalizedRole)) return "employee";
   if (normalizedRole === "guest") return "guest";
@@ -143,7 +144,16 @@ const buildSessionMeta = (req, body = {}) => {
     timezone: String(body.timezone || "").trim(),
     referrer: String(body.referrer || "").trim(),
     ipAddress: getClientIp(req),
+    visitorId: String(body.visitorId || "").trim(),
   };
+};
+
+// Stable identity used to count unique visitors across sessions.
+// Falls back to the authenticated user, then to IP + device for legacy data.
+const getVisitorKey = (record = {}) => {
+  if (record.visitorId) return `v:${record.visitorId}`;
+  if (record.userId) return `u:${record.userId}`;
+  return `ip:${record.ipAddress || "unknown"}|${record.deviceType || "unknown"}`;
 };
 
 const isDuplicateKeyError = (error) => Number(error?.code) === 11000;
@@ -442,6 +452,16 @@ const enrichRecordIdentity = (record, directory) => {
     return base;
   }
 
+  if (userType === "super_admin") {
+    return {
+      ...base,
+      displayId: "SUPER_ADMIN",
+      displayName: "Super Admin",
+      adminId: "",
+      adminName: "Super Admin",
+    };
+  }
+
   if (userType === "admin") {
     const admin = directory.adminMap.get(String(record.userId));
     const restaurants = directory.restaurantsByAdmin.get(String(record.userId)) || [];
@@ -689,6 +709,14 @@ const buildExcelWorkbookXml = (dataset) => {
     ["Average Session Duration (sec)", dataset.totals.avgDurationSeconds],
     ["Total Logins", dataset.totals.totalLogins],
     ["Total Logouts", dataset.totals.totalLogouts],
+    ["Unique Visitors", dataset.totals.uniqueVisitors],
+    ["Authenticated Visitors", dataset.totals.uniqueAuthenticatedVisitors],
+    ["Guest Visitors", dataset.totals.uniqueGuestVisitors],
+    ["Exit Sessions Without Signup", dataset.totals.exitSessionsWithoutSignup],
+    ["Most Visited Page", dataset.mostVisited?.page?.path || ""],
+    ["Most Visited Page Views", dataset.mostVisited?.page?.views || 0],
+    ["Most Visited Option", dataset.mostVisited?.option?.featureLabel || ""],
+    ["Most Visited Option Uses", dataset.mostVisited?.option?.count || 0],
     ["Users Logged In Now", dataset.liveStatus.totalLoggedInNow],
     ["Users Logged Out", dataset.liveStatus.totalLoggedOut],
     ["Admin Users Logged In", dataset.liveStatus.adminLoggedInNow],
@@ -882,6 +910,21 @@ const buildExcelWorkbookXml = (dataset) => {
     ...dataset.recentTrend.map((item) => [item.date, item.pageViews, item.sessions]),
   ];
 
+  const exitPagesRows = [
+    ["Exit Path", "Sessions", "Unique Visitors", "Share %"],
+    ...dataset.exitPages.map((page) => [
+      page.path,
+      page.sessions,
+      page.visitors,
+      page.share,
+    ]),
+  ];
+
+  const insightsRows = [
+    ["Insight", "Value", "Detail"],
+    ...dataset.insights.map((item) => [item.label, item.value, item.hint]),
+  ];
+
   const adminRestaurantRows = [
     ["Admin ID", "Admin Name", "Restaurant ID", "Restaurant Name", "Employee ID", "Employee Name", "Employee Role", "Employee Active"],
     ...dataset.adminRestaurantEmployees.flatMap((admin) =>
@@ -922,6 +965,8 @@ const buildExcelWorkbookXml = (dataset) => {
     buildWorksheet("Page Views", pageViewsRows),
     buildWorksheet("Activity Events", activityRows),
     buildWorksheet("Top Pages", topPagesRows),
+    buildWorksheet("Exit Pages", exitPagesRows),
+    buildWorksheet("Insights", insightsRows),
     buildWorksheet("Top Features", topFeaturesRows),
     buildWorksheet("Traffic Trend", trendRows),
     buildWorksheet("Admin Restaurants", adminRestaurantRows),
@@ -944,11 +989,17 @@ const getAnalyticsDataset = async ({ days, startDate, endDate }) => {
     $gte: range.since,
     $lte: range.until,
   };
+  const previousRangeMs = Math.max(1, range.until.getTime() - range.since.getTime());
+  const previousDateFilter = {
+    $gte: new Date(range.since.getTime() - previousRangeMs),
+    $lte: new Date(range.since.getTime() - 1),
+  };
 
   const [
     sessionsRaw,
     pageViewsRaw,
     totalPageViews,
+    previousPageViews,
     deviceBreakdown,
     browserBreakdown,
     topPagesRaw,
@@ -958,7 +1009,7 @@ const getAnalyticsDataset = async ({ days, startDate, endDate }) => {
   ] = await Promise.all([
     ProjectAnalyticsSession.find({ startedAt: dateFilter })
       .select(
-        "sessionId userId role isAuthenticated deviceType browser os entryPath lastPath pageViewCount screenWidth screenHeight timezone referrer ipAddress startedAt loginAt lastSeenAt logoutAt endedAt isActive"
+        "sessionId userId visitorId role isAuthenticated deviceType browser os entryPath lastPath pageViewCount screenWidth screenHeight timezone referrer ipAddress startedAt loginAt lastSeenAt logoutAt endedAt isActive"
       )
       .sort({ startedAt: -1 })
       .lean(),
@@ -969,6 +1020,7 @@ const getAnalyticsDataset = async ({ days, startDate, endDate }) => {
       .sort({ viewedAt: -1 })
       .lean(),
     ProjectPageView.countDocuments({ viewedAt: dateFilter }),
+    ProjectPageView.countDocuments({ viewedAt: previousDateFilter }),
     ProjectAnalyticsSession.aggregate([
       { $match: { startedAt: dateFilter } },
       { $group: { _id: "$deviceType", count: { $sum: 1 } } },
@@ -1085,6 +1137,193 @@ const getAnalyticsDataset = async ({ days, startDate, endDate }) => {
   const adminRestaurantEmployees = buildAdminRestaurantEmployees(userSummaries, directory);
   const liveStatus = buildLiveStatus(userSummaries);
 
+  // --- Unique visitors -------------------------------------------------
+  const visitorKeySet = new Set();
+  const visitorKeysByUser = new Map();
+
+  for (const session of sessions) {
+    const visitorKey = getVisitorKey(session);
+    visitorKeySet.add(visitorKey);
+    if (session.userId) {
+      const owned = visitorKeysByUser.get(String(session.userId)) || new Set();
+      owned.add(visitorKey);
+      visitorKeysByUser.set(String(session.userId), owned);
+    }
+  }
+
+  const uniqueVisitors = visitorKeySet.size;
+  const uniqueAuthenticatedVisitors = new Set(
+    sessions.filter((session) => session.isAuthenticated).map(getVisitorKey)
+  ).size;
+  const uniqueGuestVisitors = new Set(
+    sessions.filter((session) => !session.isAuthenticated).map(getVisitorKey)
+  ).size;
+
+  // --- Exit pages (sessions that never signed up) ----------------------
+  const convertedVisitorKeys = new Set();
+
+  for (const session of sessions) {
+    if (session.isAuthenticated) convertedVisitorKeys.add(getVisitorKey(session));
+  }
+
+  for (const event of activityEvents) {
+    if (!["LOGIN", "SIGNUP"].includes(event.eventType)) continue;
+    const owned = event.userId ? visitorKeysByUser.get(String(event.userId)) : null;
+    if (owned) {
+      for (const visitorKey of owned) convertedVisitorKeys.add(visitorKey);
+    }
+  }
+
+  const exitMap = new Map();
+  let exitSessionTotal = 0;
+
+  for (const session of sessions) {
+    const visitorKey = getVisitorKey(session);
+    if (session.isAuthenticated || convertedVisitorKeys.has(visitorKey)) continue;
+    if (!session.pageViewCount) continue;
+
+    const path = session.lastPath || "/";
+    const current = exitMap.get(path) || { path, sessions: 0, visitors: new Set() };
+    current.sessions += 1;
+    current.visitors.add(visitorKey);
+    exitMap.set(path, current);
+    exitSessionTotal += 1;
+  }
+
+  const exitPages = Array.from(exitMap.values())
+    .map((item) => ({
+      path: item.path,
+      sessions: item.sessions,
+      visitors: item.visitors.size,
+      share: exitSessionTotal
+        ? Math.round((item.sessions / exitSessionTotal) * 1000) / 10
+        : 0,
+    }))
+    .sort((a, b) => b.sessions - a.sessions || a.path.localeCompare(b.path))
+    .slice(0, 10);
+
+  // --- Most visited page / option -------------------------------------
+  const topFeatures = topFeaturesRaw.map((item) => ({
+    featureKey: item._id.featureKey,
+    featureLabel: item._id.featureLabel || item._id.featureKey,
+    count: item.count,
+    roles: item.roles.map((role) => getRoleLabel(role)),
+  }));
+
+  const mostVisited = {
+    page: topPages[0]
+      ? {
+          path: topPages[0].path,
+          views: topPages[0].views,
+          uniqueSessions: topPages[0].uniqueSessions,
+        }
+      : null,
+    option: topFeatures[0]
+      ? {
+          featureKey: topFeatures[0].featureKey,
+          featureLabel: topFeatures[0].featureLabel,
+          count: topFeatures[0].count,
+        }
+      : null,
+  };
+
+  // --- Entry paths -----------------------------------------------------
+  const entryCounts = new Map();
+  for (const session of sessions) {
+    const path = session.entryPath || "/";
+    entryCounts.set(path, (entryCounts.get(path) || 0) + 1);
+  }
+  const topEntry = Array.from(entryCounts.entries())
+    .map(([path, count]) => ({ path, count }))
+    .sort((a, b) => b.count - a.count || a.path.localeCompare(b.path))[0] || null;
+
+  // --- Insights ---------------------------------------------------------
+  const bounceSessions = sessions.filter(
+    (session) => (session.pageViewCount || 0) <= 1
+  ).length;
+  const bounceRate = totalSessions
+    ? Math.round((bounceSessions / totalSessions) * 100)
+    : 0;
+  const avgPagesPerSession = totalSessions
+    ? Math.round((totalPageViews / totalSessions) * 10) / 10
+    : 0;
+  const signupConversionRate = totalSessions
+    ? Math.round((authenticatedSessions / totalSessions) * 100)
+    : 0;
+  const pageViewsTrendPct = previousPageViews
+    ? Math.round(((totalPageViews - previousPageViews) / previousPageViews) * 100)
+    : null;
+  const peakDay = recentTrend.reduce(
+    (best, item) => (item.pageViews > (best?.pageViews || 0) ? item : best),
+    null
+  );
+  const topDevice = deviceBreakdown[0] || null;
+  const signupEvents = activityEvents.filter(
+    (event) => event.eventType === "SIGNUP"
+  ).length;
+
+  const insights = [
+    {
+      key: "bounce_rate",
+      label: "Bounce rate",
+      value: `${bounceRate}%`,
+      hint: "Sessions that left after a single page view",
+    },
+    {
+      key: "pages_per_session",
+      label: "Pages per session",
+      value: String(avgPagesPerSession),
+      hint: "Average pages opened in one visit",
+    },
+    {
+      key: "signup_conversion",
+      label: "Signup conversion",
+      value: `${signupConversionRate}%`,
+      hint: `Visits that authenticated (${authenticatedSessions} of ${totalSessions})`,
+    },
+    {
+      key: "signups",
+      label: "Signups",
+      value: String(signupEvents),
+      hint: "Accounts created from this project",
+    },
+    {
+      key: "traffic_trend",
+      label: "Traffic trend",
+      value:
+        pageViewsTrendPct === null
+          ? "New"
+          : `${pageViewsTrendPct > 0 ? "+" : ""}${pageViewsTrendPct}%`,
+      hint: "Page views vs the previous period",
+    },
+    {
+      key: "peak_day",
+      label: "Peak day",
+      value: peakDay?.date || "N/A",
+      hint: peakDay ? `${peakDay.pageViews} page views` : "No traffic recorded yet",
+    },
+    {
+      key: "top_device",
+      label: "Top device",
+      value: topDevice ? toTitleCase(topDevice._id || "unknown") : "N/A",
+      hint: topDevice ? `${topDevice.count} sessions` : "No device data yet",
+    },
+    {
+      key: "top_entry",
+      label: "Top entry page",
+      value: topEntry?.path || "N/A",
+      hint: topEntry ? `${topEntry.count} sessions started here` : "No session data yet",
+    },
+    {
+      key: "top_exit",
+      label: "Top exit page",
+      value: exitPages[0]?.path || "N/A",
+      hint: exitPages[0]
+        ? `${exitPages[0].sessions} visits ended here without signing up`
+        : "No exit data yet",
+    },
+  ];
+
   return {
     range: {
       days: range.days,
@@ -1103,6 +1342,10 @@ const getAnalyticsDataset = async ({ days, startDate, endDate }) => {
       avgDurationSeconds,
       totalLogins: loginEvents.length,
       totalLogouts: logoutEvents.length,
+      uniqueVisitors,
+      uniqueAuthenticatedVisitors,
+      uniqueGuestVisitors,
+      exitSessionsWithoutSignup: exitSessionTotal,
     },
     roleTotals: {
       admin: {
@@ -1131,12 +1374,10 @@ const getAnalyticsDataset = async ({ days, startDate, endDate }) => {
       roles: buildRoleBreakdown(sessions),
     },
     topPages,
-    topFeatures: topFeaturesRaw.map((item) => ({
-      featureKey: item._id.featureKey,
-      featureLabel: item._id.featureLabel || item._id.featureKey,
-      count: item.count,
-      roles: item.roles.map((role) => getRoleLabel(role)),
-    })),
+    mostVisited,
+    exitPages,
+    insights,
+    topFeatures,
     recentTrend,
     userSummaries,
     adminUsers: userSummaries.filter((user) => user.userType === "admin"),
@@ -1236,6 +1477,7 @@ export const trackProjectPageView = async (req, res) => {
         endedAt: null,
         isActive: true,
         ...identity,
+        ...(meta.visitorId ? { visitorId: meta.visitorId } : {}),
       },
       inc: {
         pageViewCount: 1,
@@ -1346,6 +1588,11 @@ export const trackProjectActivityEvent = async (req, res) => {
       isActive: true,
     };
 
+    const visitorId = String(body.visitorId || "").trim();
+    if (visitorId) {
+      updates.visitorId = visitorId;
+    }
+
     if (eventType === "LOGIN") {
       updates.loginAt = new Date();
     }
@@ -1357,11 +1604,117 @@ export const trackProjectActivityEvent = async (req, res) => {
         startedAt: new Date(),
         entryPath: path,
         ...identity,
+        ...(visitorId ? { visitorId } : {}),
       },
       set: updates,
     });
 
     res.status(201).json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const REALTIME_ACTIVE_WINDOW_MS = 2 * 60 * 1000;
+const REALTIME_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+export const getProjectAnalyticsRealtime = async (req, res) => {
+  try {
+    const now = Date.now();
+    const activeSince = new Date(now - REALTIME_ACTIVE_WINDOW_MS);
+    const loginSince = new Date(now - REALTIME_LOGIN_WINDOW_MS);
+    const hourSince = new Date(now - 60 * 60 * 1000);
+    const daySince = new Date(now - 24 * 60 * 60 * 1000);
+    const pageViewSince = new Date(now - 5 * 60 * 1000);
+    const activeFilter = { isActive: true, lastSeenAt: { $gte: activeSince } };
+
+    const [
+      activeNow,
+      activeSessionsRaw,
+      recentLoginsRaw,
+      loginsLast15Min,
+      loginsLastHour,
+      signupsLast24h,
+      pageViewsLast5Min,
+    ] = await Promise.all([
+      ProjectAnalyticsSession.countDocuments(activeFilter),
+      ProjectAnalyticsSession.find(activeFilter)
+        .select(
+          "sessionId userId visitorId role isAuthenticated deviceType browser os entryPath lastPath pageViewCount ipAddress startedAt loginAt lastSeenAt"
+        )
+        .sort({ lastSeenAt: -1 })
+        .limit(200)
+        .lean(),
+      ProjectActivityEvent.find({ eventType: "LOGIN", occurredAt: { $gte: loginSince } })
+        .select("sessionId userId role path details occurredAt")
+        .sort({ occurredAt: -1 })
+        .limit(20)
+        .lean(),
+      ProjectActivityEvent.countDocuments({
+        eventType: "LOGIN",
+        occurredAt: { $gte: loginSince },
+      }),
+      ProjectActivityEvent.countDocuments({
+        eventType: "LOGIN",
+        occurredAt: { $gte: hourSince },
+      }),
+      ProjectActivityEvent.countDocuments({
+        eventType: "SIGNUP",
+        occurredAt: { $gte: daySince },
+      }),
+      ProjectPageView.countDocuments({ viewedAt: { $gte: pageViewSince } }),
+    ]);
+
+    const directory = await buildUserDirectory([
+      ...activeSessionsRaw,
+      ...recentLoginsRaw,
+    ]);
+
+    const activeByRoleSeed = {
+      super_admin: 0,
+      admin: 0,
+      vendor: 0,
+      employee: 0,
+      guest: 0,
+      other: 0,
+    };
+    const activeByRole = activeSessionsRaw.reduce((acc, session) => {
+      const userType = getUserType(session.role);
+      acc[userType] = (acc[userType] || 0) + 1;
+      return acc;
+    }, activeByRoleSeed);
+
+    const onlineUsers = activeSessionsRaw.map((session) => ({
+      ...enrichRecordIdentity(session, directory),
+      currentPath: session.lastPath || "/",
+      durationSeconds: Math.max(
+        0,
+        Math.round((now - new Date(session.startedAt).getTime()) / 1000)
+      ),
+      idleSeconds: Math.max(
+        0,
+        Math.round((now - new Date(session.lastSeenAt || now).getTime()) / 1000)
+      ),
+    }));
+
+    const recentLogins = recentLoginsRaw.map((event) =>
+      enrichRecordIdentity(event, directory)
+    );
+
+    res.json({
+      success: true,
+      data: {
+        generatedAt: new Date(),
+        activeNow,
+        activeByRole,
+        loginsLast15Min,
+        loginsLastHour,
+        signupsLast24h,
+        pageViewsLast5Min,
+        onlineUsers,
+        recentLogins,
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -1384,6 +1737,9 @@ export const getProjectAnalyticsSummary = async (req, res) => {
         liveStatus: dataset.liveStatus,
         breakdowns: dataset.breakdowns,
         topPages: dataset.topPages,
+        mostVisited: dataset.mostVisited,
+        exitPages: dataset.exitPages,
+        insights: dataset.insights,
         topFeatures: dataset.topFeatures,
         recentTrend: dataset.recentTrend,
         adminUsers: dataset.adminUsers,

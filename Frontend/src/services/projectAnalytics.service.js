@@ -1,5 +1,6 @@
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
 const STORAGE_KEY = "projectAnalyticsSessionId";
+const VISITOR_KEY = "projectAnalyticsVisitorId";
 const LAST_PAGE_VIEW_KEY = "projectAnalyticsLastPageView";
 
 const getCurrentUser = () => {
@@ -51,6 +52,16 @@ const getSessionId = () => {
   return sessionId;
 };
 
+// Persists across sessions so unique visitors can be counted accurately.
+const getVisitorId = () => {
+  let visitorId = localStorage.getItem(VISITOR_KEY);
+  if (!visitorId) {
+    visitorId = crypto.randomUUID();
+    localStorage.setItem(VISITOR_KEY, visitorId);
+  }
+  return visitorId;
+};
+
 export const resetAnalyticsSession = () => {
   sessionStorage.removeItem(STORAGE_KEY);
   sessionStorage.removeItem(LAST_PAGE_VIEW_KEY);
@@ -60,6 +71,7 @@ const getPayloadBase = () => {
   const user = getCurrentUser();
   return {
     sessionId: getSessionId(),
+    visitorId: getVisitorId(),
     deviceType: getDeviceType(),
     browser: getBrowser(),
     os: getOs(),
@@ -152,6 +164,7 @@ export const trackAnalyticsEvent = async ({
 }) => {
   await postAnalytics("/project-analytics/event", {
     sessionId: getSessionId(),
+    visitorId: getVisitorId(),
     path,
     eventType,
     featureKey,
