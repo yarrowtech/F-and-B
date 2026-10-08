@@ -5,6 +5,7 @@ import {
   getTopItems,
   getDailySales,
   getRestaurantBreakdown,
+  getAdminInsights,
   getAdminAccountHistory,
   exportAdminAccountHistoryExcel,
 } from "../controllers/adminDashboard.controller.js";
@@ -80,6 +81,15 @@ router.get(
     namespace: "dashboard",
   }),
   getDailySales
+);
+
+router.get(
+  "/insights",
+  cacheResponse({
+    ttlSeconds: 30,
+    namespace: "dashboard",
+  }),
+  getAdminInsights
 );
 
 router.get(

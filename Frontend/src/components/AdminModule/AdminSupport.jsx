@@ -2,9 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FaHeadset,
   FaPaperPlane,
+  FaPlus,
   FaSearch,
   FaSyncAlt,
   FaTicketAlt,
+  FaTimes,
 } from "react-icons/fa";
 import API from "../../services/api";
 import {
@@ -82,6 +84,8 @@ const AdminSupport = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [formError, setFormError] = useState("");
   const [form, setForm] = useState({
     restaurantId: "",
     subject: "",
@@ -169,14 +173,39 @@ const AdminSupport = () => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
+  const openForm = () => {
+    setFormError("");
+    setSuccess("");
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    if (submitting) return;
+    setShowForm(false);
+    setFormError("");
+  };
+
+  useEffect(() => {
+    if (!showForm) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape" && !submitting) {
+        setShowForm(false);
+        setFormError("");
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showForm, submitting]);
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setSubmitting(true);
-    setError("");
+    setFormError("");
     setSuccess("");
 
     try {
       await createSupportTicket(form);
+      setShowForm(false);
       setSuccess("Support ticket submitted successfully.");
       setForm((current) => ({
         ...current,
@@ -187,7 +216,7 @@ const AdminSupport = () => {
       }));
       await fetchTickets({ silent: true });
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to submit support ticket");
+      setFormError(err.response?.data?.message || "Failed to submit support ticket");
     } finally {
       setSubmitting(false);
     }
@@ -200,112 +229,31 @@ const AdminSupport = () => {
 
   return (
     <div className="min-h-full p-4 text-gray-800 dark:text-gray-200 sm:p-6">
-      <div className="mb-6 rounded-3xl border border-green-100 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.16),transparent_30%),linear-gradient(180deg,#ffffff_0%,#f0fdf4_100%)] p-6 shadow-sm dark:border-green-900/50 dark:bg-gray-800">
-        <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-green-600 text-white shadow-lg">
-            <FaHeadset size={20} />
+      <div className="mb-5 rounded-2xl border border-green-100 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.16),transparent_30%),linear-gradient(180deg,#ffffff_0%,#f0fdf4_100%)] p-4 shadow-sm dark:border-green-900/50 dark:bg-gray-800 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-600 text-white shadow-lg">
+              <FaHeadset size={18} />
+            </div>
+            <div>
+              <h1 className="text-xl font-black tracking-tight text-gray-900 dark:text-white">
+                Support
+              </h1>
+              <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                Raise a ticket for a bug, issue or workflow help and track the reply status here.
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">
-              Support
-            </h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Create a ticket for bug, issue, or workflow help and track reply status here.
-            </p>
-          </div>
-        </div>
 
-        <form className="mt-6 grid gap-4 lg:grid-cols-2" onSubmit={handleSubmit}>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-              Restaurant
-            </span>
-            <select
-              value={form.restaurantId}
-              onChange={(event) => handleChange("restaurantId", event.target.value)}
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-green-500 dark:border-gray-700 dark:bg-gray-900"
-              required
-            >
-              <option value="">Select restaurant</option>
-              {restaurants.map((restaurant) => (
-                <option key={restaurant._id} value={restaurant._id}>
-                  {restaurant.name}
-                  {restaurant.restaurantCode ? ` (${restaurant.restaurantCode})` : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-              Subject
-            </span>
-            <input
-              type="text"
-              value={form.subject}
-              onChange={(event) => handleChange("subject", event.target.value)}
-              placeholder="Example: Billing page not opening"
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-green-500 dark:border-gray-700 dark:bg-gray-900"
-              required
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-              Category
-            </span>
-            <select
-              value={form.category}
-              onChange={(event) => handleChange("category", event.target.value)}
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-green-500 dark:border-gray-700 dark:bg-gray-900"
-            >
-              {CATEGORY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-              Priority
-            </span>
-            <select
-              value={form.priority}
-              onChange={(event) => handleChange("priority", event.target.value)}
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-green-500 dark:border-gray-700 dark:bg-gray-900"
-            >
-              {PRIORITY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block lg:col-span-2">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-              Issue Details
-            </span>
-            <textarea
-              value={form.description}
-              onChange={(event) => handleChange("description", event.target.value)}
-              rows={5}
-              placeholder="Write the full issue, steps, device, and what you expected to happen."
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-green-500 dark:border-gray-700 dark:bg-gray-900"
-              required
-            />
-          </label>
-
-          <div className="flex flex-wrap items-center gap-3 lg:col-span-2">
+          <div className="flex shrink-0 flex-col items-start gap-1 sm:items-end">
             <button
-              type="submit"
-              disabled={submitting || !restaurants.length}
-              className="inline-flex items-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              onClick={openForm}
+              disabled={!restaurants.length}
+              className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <FaPaperPlane size={12} />
-              {submitting ? "Submitting..." : "Submit Ticket"}
+              <FaPlus size={12} />
+              New Ticket
             </button>
             {!restaurants.length && (
               <span className="text-xs text-amber-600 dark:text-amber-300">
@@ -313,7 +261,7 @@ const AdminSupport = () => {
               </span>
             )}
           </div>
-        </form>
+        </div>
       </div>
 
       {error && (
@@ -462,6 +410,158 @@ const AdminSupport = () => {
           </div>
         </div>
       </div>
+
+      {showForm && (
+        <div
+          className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          onClick={closeForm}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="support-ticket-title"
+        >
+          <div
+            className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-800 sm:rounded-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-600 text-white">
+                  <FaTicketAlt size={14} />
+                </div>
+                <div>
+                  <h2 id="support-ticket-title" className="text-base font-bold text-gray-900 dark:text-white">
+                    New support ticket
+                  </h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Tell us what went wrong and we will get back to you.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeForm}
+                disabled={submitting}
+                aria-label="Close"
+                className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+              <div className="grid flex-1 gap-4 overflow-y-auto px-5 py-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                    Restaurant
+                  </span>
+                  <select
+                    value={form.restaurantId}
+                    onChange={(event) => handleChange("restaurantId", event.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-green-500 dark:border-gray-700 dark:bg-gray-900"
+                    required
+                  >
+                    <option value="">Select restaurant</option>
+                    {restaurants.map((restaurant) => (
+                      <option key={restaurant._id} value={restaurant._id}>
+                        {restaurant.name}
+                        {restaurant.restaurantCode ? ` (${restaurant.restaurantCode})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                    Subject
+                  </span>
+                  <input
+                    type="text"
+                    value={form.subject}
+                    onChange={(event) => handleChange("subject", event.target.value)}
+                    placeholder="Example: Billing page not opening"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-green-500 dark:border-gray-700 dark:bg-gray-900"
+                    required
+                    autoFocus
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                    Category
+                  </span>
+                  <select
+                    value={form.category}
+                    onChange={(event) => handleChange("category", event.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-green-500 dark:border-gray-700 dark:bg-gray-900"
+                  >
+                    {CATEGORY_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                    Priority
+                  </span>
+                  <select
+                    value={form.priority}
+                    onChange={(event) => handleChange("priority", event.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-green-500 dark:border-gray-700 dark:bg-gray-900"
+                  >
+                    {PRIORITY_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block sm:col-span-2">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                    Issue Details
+                  </span>
+                  <textarea
+                    value={form.description}
+                    onChange={(event) => handleChange("description", event.target.value)}
+                    rows={5}
+                    placeholder="Write the full issue, steps, device, and what you expected to happen."
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-green-500 dark:border-gray-700 dark:bg-gray-900"
+                    required
+                  />
+                </label>
+
+                {formError && (
+                  <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300 sm:col-span-2">
+                    {formError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-5 py-3 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={closeForm}
+                  disabled={submitting}
+                  className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || !restaurants.length}
+                  className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <FaPaperPlane size={12} />
+                  {submitting ? "Submitting..." : "Submit Ticket"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

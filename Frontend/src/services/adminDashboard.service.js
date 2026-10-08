@@ -29,6 +29,11 @@ export const getRestaurantBreakdown = (params = {}) => {
   return API.get("/admin-dashboard/restaurant-breakdown", { params });
 };
 
+/* ================= INSIGHTS ================= */
+export const getAdminInsights = (params = {}) => {
+  return API.get("/admin-dashboard/insights", { params });
+};
+
 /* ================= ACCOUNT HISTORY ================= */
 export const getAdminAccountHistory = (params = {}) => {
   return API.get("/admin-dashboard/account-history", { params });

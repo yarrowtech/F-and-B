@@ -223,6 +223,7 @@ export const getManagerAccountHistory = async (req, res) => {
         ],
       })
       .populate("accountant", "name employeeId")
+      .populate("replacesBill", "billNo")
       .sort({ paidAt: -1, createdAt: -1 })
       .lean();
 
@@ -241,6 +242,7 @@ export const getManagerAccountHistory = async (req, res) => {
         ],
       })
       .populate("voidedBy", "name")
+      .populate("reissuedAs", "billNo paymentStatus")
       .sort({ voidedAt: -1 })
       .lean();
 

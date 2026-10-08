@@ -165,8 +165,14 @@ const buildUpdateDocument = ({
 }) => {
   const update = {};
 
-  if (Object.keys(setOnInsert).length > 0) {
-    update.$setOnInsert = setOnInsert;
+  // MongoDB rejects a path that appears in both $setOnInsert and $set (error 40).
+  // $set already applies on insert too, so drop the duplicates from $setOnInsert.
+  const insertOnly = Object.fromEntries(
+    Object.entries(setOnInsert).filter(([key]) => !(key in set))
+  );
+
+  if (Object.keys(insertOnly).length > 0) {
+    update.$setOnInsert = insertOnly;
   }
 
   if (Object.keys(set).length > 0) {

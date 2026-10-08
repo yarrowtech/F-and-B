@@ -550,6 +550,147 @@ export const getRestaurantBreakdown = async (req, res) => {
   }
 };
 
+/* ================= INSIGHTS (payment mix, peak hours, order types, waiters, billing health) ================= */
+export const getAdminInsights = async (req, res) => {
+  try {
+    const { restaurantId, startDate, endDate } = req.query;
+
+    const restaurantIds = await getAdminRestaurantIds(req.user.id, restaurantId);
+    if (restaurantIds === null) {
+      return res.status(403).json({ success: false, message: "Access denied to this restaurant" });
+    }
+
+    const paidAtFilter = buildPaidAtFilter({ startDate, endDate });
+    const voidedAtFilter = paidAtFilter.paidAt ? { voidedAt: paidAtFilter.paidAt } : {};
+
+    const [facetResult, voidedAgg] = await Promise.all([
+      Bill.aggregate([
+        {
+          $match: {
+            restaurant: { $in: restaurantIds },
+            paymentStatus: "PAID",
+            ...paidAtFilter,
+          },
+        },
+        { $lookup: { from: "orders", localField: "order", foreignField: "_id", as: "orderDoc" } },
+        { $unwind: { path: "$orderDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  bills: { $sum: 1 },
+                  revenue: { $sum: "$totalAmount" },
+                  discount: { $sum: "$discount" },
+                  complimentary: { $sum: "$complimentaryAmount" },
+                  complimentaryBills: {
+                    $sum: { $cond: [{ $gt: ["$complimentaryAmount", 0] }, 1, 0] },
+                  },
+                  tax: { $sum: { $add: [{ $ifNull: ["$cgst", 0] }, { $ifNull: ["$sgst", 0] }] } },
+                },
+              },
+            ],
+            payment: [
+              {
+                $group: {
+                  _id: { $ifNull: ["$paymentMethod", "UNKNOWN"] },
+                  amount: { $sum: "$totalAmount" },
+                  count: { $sum: 1 },
+                },
+              },
+              { $sort: { amount: -1 } },
+            ],
+            hourly: [
+              {
+                $group: {
+                  _id: { $hour: { date: "$paidAt", timezone: "Asia/Kolkata" } },
+                  orders: { $sum: 1 },
+                  revenue: { $sum: "$totalAmount" },
+                },
+              },
+              { $sort: { _id: 1 } },
+            ],
+            orderTypes: [
+              {
+                $group: {
+                  _id: { $ifNull: ["$orderDoc.orderType", "OTHER"] },
+                  orders: { $sum: 1 },
+                  revenue: { $sum: "$totalAmount" },
+                },
+              },
+              { $sort: { revenue: -1 } },
+            ],
+            waiters: [
+              { $match: { "orderDoc.waiter": { $ne: null } } },
+              {
+                $group: {
+                  _id: "$orderDoc.waiter",
+                  orders: { $sum: 1 },
+                  revenue: { $sum: "$totalAmount" },
+                },
+              },
+              { $sort: { revenue: -1 } },
+              { $limit: 5 },
+              { $lookup: { from: "employees", localField: "_id", foreignField: "_id", as: "emp" } },
+              {
+                $project: {
+                  name: { $ifNull: [{ $arrayElemAt: ["$emp.name", 0] }, "Unknown"] },
+                  orders: 1,
+                  revenue: 1,
+                },
+              },
+            ],
+          },
+        },
+      ]),
+      Bill.aggregate([
+        {
+          $match: {
+            restaurant: { $in: restaurantIds },
+            paymentStatus: "VOID",
+            ...voidedAtFilter,
+          },
+        },
+        { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: "$totalAmount" } } },
+      ]),
+    ]);
+
+    const facet = facetResult[0] || {};
+    const totals = facet.totals?.[0] || {};
+
+    res.json({
+      success: true,
+      data: {
+        paidBills: totals.bills || 0,
+        revenue: totals.revenue || 0,
+        discount: totals.discount || 0,
+        complimentary: totals.complimentary || 0,
+        complimentaryBills: totals.complimentaryBills || 0,
+        tax: totals.tax || 0,
+        voided: { count: voidedAgg[0]?.count || 0, amount: voidedAgg[0]?.amount || 0 },
+        paymentMix: (facet.payment || []).map((row) => ({
+          method: row._id,
+          amount: row.amount,
+          count: row.count,
+        })),
+        hourly: (facet.hourly || [])
+          .filter((row) => row._id !== null)
+          .map((row) => ({ hour: row._id, orders: row.orders, revenue: row.revenue })),
+        orderTypes: (facet.orderTypes || []).map((row) => ({
+          type: row._id,
+          orders: row.orders,
+          revenue: row.revenue,
+        })),
+        topWaiters: facet.waiters || [],
+      },
+    });
+  } catch (err) {
+    logger.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 /* ================= DAILY SALES ================= */
 export const getDailySales = async (req, res) => {
   try {
@@ -628,6 +769,7 @@ export const getAdminAccountHistory = async (req, res) => {
         ],
       })
       .populate("accountant", "name employeeId")
+      .populate("replacesBill", "billNo")
       .sort({ paidAt: -1, createdAt: -1 })
       .lean();
 
@@ -655,6 +797,7 @@ export const getAdminAccountHistory = async (req, res) => {
       })
       .populate("accountant", "name employeeId")
       .populate("voidedBy", "name")
+      .populate("reissuedAs", "billNo paymentStatus")
       .sort({ voidedAt: -1 })
       .lean();
 
