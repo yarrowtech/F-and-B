@@ -2,6 +2,7 @@ import logger from "../utils/pinoLogger.js";
 
 // // import Order from "../models/Order.model.js";
 // // import Table from "../models/Table.model.js";
+import { getOrderTableLabel } from "../utils/tableLabel.js";
 // // import Bill from "../models/Bill.model.js";
 // // import SalesAnalytics from "../models/SalesAnalytics.model.js";
 // // import { getIO } from "../socket.js";
@@ -1427,6 +1428,7 @@ const getIngredientMultiplier = (ingredientName, customizations = []) => {
 const populateOrderDetails = (query) =>
   query
     .populate("table", "tableNumber")
+    .populate("joinedTables", "tableNumber")
     .populate("waiter", "name")
     .populate("chef", "name")
     .populate({
@@ -1527,7 +1529,7 @@ const kotItemRows = (quantity, name) => {
 };
 
 const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt, dailyKotNumber }) => {
-  const tableNo = order.table?.tableNumber || "N/A";
+  const tableNo = getOrderTableLabel(order, "N/A");
   const waiterName = order.waiter?.name || "N/A";
   const outletName = order.restaurant?.name || "KITCHEN";
   const bodyLines = [
@@ -1601,7 +1603,7 @@ const createKotPrintJobs = async ({ order, session }) => {
       kotDateKey: dateKey,
       orderId: order._id,
       orderNo: order.orderNo,
-      tableNumber: order.table?.tableNumber || "",
+      tableNumber: getOrderTableLabel(order),
       waiterName: order.waiter?.name || "",
       cuisine: sectionName,
       copyCount: kotCopyCount,
@@ -1757,6 +1759,38 @@ const deductInventoryForOrder = async (order, session, user = {}) => {
   }
 };
 
+/* ================= JOINED TABLES ================= */
+
+const uniqueIds = (ids = []) => [
+  ...new Set(ids.map((id) => String(id?._id || id || "")).filter(Boolean)),
+];
+
+// An order that already uses any of these tables, as main or joined table.
+const findOrderUsingTables = (restaurantId, tableIds, excludeOrderId = null) =>
+  Order.findOne({
+    ...(excludeOrderId ? { _id: { $ne: excludeOrderId } } : {}),
+    restaurant: restaurantId,
+    status: { $in: ACTIVE_ORDER_STATUSES },
+    $or: [{ table: { $in: tableIds } }, { joinedTables: { $in: tableIds } }],
+  });
+
+// Throws a user-facing error when a table is missing, foreign, or already in use.
+const validateJoinTables = async (restaurantId, tableIds, excludeOrderId = null) => {
+  if (tableIds.length === 0) return [];
+
+  const tables = await Table.find({ _id: { $in: tableIds }, restaurant: restaurantId });
+  if (tables.length !== tableIds.length) {
+    throw new Error("One or more tables to join were not found");
+  }
+
+  const busy = await findOrderUsingTables(restaurantId, tableIds, excludeOrderId);
+  if (busy) {
+    throw new Error("One or more tables to join already have an active order");
+  }
+
+  return tables;
+};
+
 /* ================= CREATE ORDER ================= */
 
 export const createOrder = async (req, res) => {
@@ -1767,15 +1801,16 @@ export const createOrder = async (req, res) => {
       return sendError(res, "Table does not belong to this restaurant", 403);
     }
 
-    const existingTableOrder = await Order.findOne({
-      restaurant: req.user.restaurant,
-      table: table._id,
-      status: { $in: ACTIVE_ORDER_STATUSES },
-    });
+    const existingTableOrder = await findOrderUsingTables(req.user.restaurant, [table._id]);
 
     if (existingTableOrder) {
       return sendError(res, "This table already has an active order");
     }
+
+    const joinedTableIds = uniqueIds(req.body.joinedTables).filter(
+      (id) => id !== String(table._id)
+    );
+    await validateJoinTables(req.user.restaurant, joinedTableIds);
 
     const itemsWithPrice = [];
 
@@ -1795,14 +1830,16 @@ export const createOrder = async (req, res) => {
     const order = await Order.create({
       restaurant: table.restaurant,
       table: table._id,
+      joinedTables: joinedTableIds,
       waiter: req.user.id,
       items: itemsWithPrice,
       status: "PENDING",
     });
 
-    await Table.findByIdAndUpdate(table._id, {
-      status: "occupied",
-    });
+    await Table.updateMany(
+      { _id: { $in: [table._id, ...joinedTableIds] } },
+      { status: "occupied" }
+    );
 
     /* ✅ LOG */
     await logAction({
@@ -2074,18 +2111,21 @@ export const changeOrderTable = async (req, res) => {
       return sendSuccess(res, populatedOrder);
     }
 
-    const existingTargetOrder = await Order.findOne({
-      _id: { $ne: order._id },
-      restaurant: req.user.restaurant,
-      table: targetTable._id,
-      status: { $in: ACTIVE_ORDER_STATUSES },
-    });
+    const existingTargetOrder = await findOrderUsingTables(
+      req.user.restaurant,
+      [targetTable._id],
+      order._id
+    );
 
     if (existingTargetOrder) {
       return sendError(res, "Selected table already has an active order");
     }
 
     order.table = targetTable._id;
+    // Moving onto one of the joined tables just makes it the main table.
+    order.joinedTables = (order.joinedTables || []).filter(
+      (id) => String(id) !== String(targetTable._id)
+    );
     order.orderType = "DINE_IN";
     order.tableChangeHistory.push({
       fromTable: oldTableId || null,
@@ -2118,6 +2158,58 @@ export const changeOrderTable = async (req, res) => {
     return sendSuccess(res, populatedOrder);
   } catch (err) {
     await logError(err, "CHANGE_ORDER_TABLE");
+    return sendError(res, err.message);
+  }
+};
+
+/* ================= JOIN / UNJOIN TABLES ================= */
+
+export const setJoinedTables = async (req, res) => {
+  try {
+    const orderFilter = {
+      _id: req.params.id,
+      restaurant: req.user.restaurant,
+      status: { $in: ACTIVE_ORDER_STATUSES },
+    };
+
+    if (req.user.role === "waiter") {
+      orderFilter.waiter = req.user.id;
+    }
+
+    const order = await Order.findOne(orderFilter);
+    if (!order) return sendError(res, "Active order not found", 404);
+    if (!order.table) return sendError(res, "Order has no main table");
+
+    const requested = uniqueIds(req.body.tableIds).filter(
+      (id) => id !== String(order.table)
+    );
+    const previous = uniqueIds(order.joinedTables);
+    const added = requested.filter((id) => !previous.includes(id));
+    const removed = previous.filter((id) => !requested.includes(id));
+
+    await validateJoinTables(req.user.restaurant, added, order._id);
+
+    order.joinedTables = requested;
+    await order.save();
+
+    if (added.length > 0) {
+      await Table.updateMany({ _id: { $in: added } }, { status: "occupied" });
+    }
+    if (removed.length > 0) {
+      await Table.updateMany({ _id: { $in: removed } }, { status: "available" });
+    }
+
+    await logAction({
+      action: "ORDER_TABLES_JOINED",
+      userId: req.user.id,
+      role: req.user.role?.toUpperCase(),
+      meta: { orderId: order._id, joinedTables: requested },
+    });
+
+    const populatedOrder = await populateOrderDetails(Order.findById(order._id));
+    return sendSuccess(res, populatedOrder);
+  } catch (err) {
+    await logError(err, "SET_JOINED_TABLES");
     return sendError(res, err.message);
   }
 };
@@ -2352,6 +2444,7 @@ export const cancelOrderItem = async (req, res) => {
 
     const order = await Order.findOne(orderFilter)
       .populate("table", "tableNumber")
+    .populate("joinedTables", "tableNumber")
       .populate("waiter", "name")
       .populate("chef", "name")
       .populate({
@@ -2390,7 +2483,10 @@ export const cancelOrderItem = async (req, res) => {
     await order.save();
 
     if (order.status === "CANCELLED" && order.table) {
-      await Table.findByIdAndUpdate(order.table, { status: "available" });
+      await Table.updateMany(
+        { _id: { $in: [order.table, ...(order.joinedTables || [])] } },
+        { status: "available" }
+      );
     }
 
     await Bill.deleteMany({
@@ -2443,6 +2539,7 @@ export const printKOT = async (req, res) => {
       status: { $in: ACTIVE_ORDER_STATUSES },
     })
       .populate("table", "tableNumber")
+    .populate("joinedTables", "tableNumber")
       .populate("waiter", "name")
       .populate("restaurant", "name restaurantCode")
       .populate({
@@ -2627,9 +2724,10 @@ export const markPaid = async (req, res) => {
     order.paidAt = new Date();
     await order.save();
 
-    await Table.findByIdAndUpdate(order.table, {
-      status: "available",
-    });
+    await Table.updateMany(
+      { _id: { $in: [order.table, ...(order.joinedTables || [])] } },
+      { status: "available" }
+    );
 
     await logAction({
       action: "ORDER_PAID",

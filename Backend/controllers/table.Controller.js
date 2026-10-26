@@ -350,6 +350,14 @@ const getTables = async (req, res) => {
       if (tableId && !activeOrderByTable.has(tableId)) {
         activeOrderByTable.set(tableId, order);
       }
+
+      // Joined tables point at the same group order as the main table.
+      (order.joinedTables || []).forEach((joinedId) => {
+        const key = joinedId?.toString();
+        if (key && !activeOrderByTable.has(key)) {
+          activeOrderByTable.set(key, order);
+        }
+      });
     });
 
     const data = tables.map((table) => ({

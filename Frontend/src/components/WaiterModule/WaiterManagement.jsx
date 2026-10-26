@@ -10,6 +10,7 @@ import {
   markOrderServed,
   printOrderKOT,
   sendOrderToBilling,
+  setJoinedTables,
 } from "../../services/order.service";
 import { getMenu } from "../../services/menu.service";
 import { getTables } from "../../services/table.service";
@@ -33,7 +34,7 @@ const CANCEL_REASON_PRESETS = [
 ];
 
 const MenuModal = ({ children, onClose }) => (
-  <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+  <div className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-4">
     <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" onClick={onClose} />
     <div className="relative z-10 flex h-[100dvh] w-full max-w-6xl flex-col overflow-hidden bg-white shadow-2xl ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:h-auto sm:max-h-[92vh] sm:rounded-3xl">
       <div className="z-20 flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-2.5 dark:border-slate-700 dark:bg-slate-900 sm:px-5 sm:py-3">
@@ -46,6 +47,8 @@ const MenuModal = ({ children, onClose }) => (
     </div>
   </div>
 );
+
+const idOf = (value) => String(value?._id || value || "");
 
 const formatCourseType = (value) =>
   (value || "-")
@@ -79,6 +82,9 @@ export default function WaiterManagement() {
   const [tableViewFilter, setTableViewFilter] = useState("all");
   const [tableMoveId, setTableMoveId] = useState("");
   const [movingTable, setMovingTable] = useState(false);
+  const [joinSelection, setJoinSelection] = useState([]);
+  const [joiningTables, setJoiningTables] = useState(false);
+  const [tableTool, setTableTool] = useState("");
   const [liveNotifications, setLiveNotifications] = useState([]);
   const [kotPrintingId, setKotPrintingId] = useState("");
   const [billingId, setBillingId] = useState("");
@@ -360,9 +366,18 @@ export default function WaiterManagement() {
       return;
     }
 
-    setSelectedTable(table);
+    // Tapping a joined table opens the group order on its main table.
+    const mainTableId = existingOrder ? idOf(existingOrder.table) : "";
+    const mainTable =
+      mainTableId && mainTableId !== table._id
+        ? tables.find((item) => item._id === mainTableId) || table
+        : table;
+
+    setSelectedTable(mainTable);
     setSelectedOrder(existingOrder || null);
-    setTableMoveId(table._id);
+    setTableMoveId(mainTable._id);
+    setJoinSelection((existingOrder?.joinedTables || []).map(idOf));
+    setTableTool("");
     setCartItems([]);
     setActiveMobilePanel("menu");
     setMenuSearch("");
@@ -446,10 +461,39 @@ export default function WaiterManagement() {
     setSelectedTable(null);
     setSelectedOrder(null);
     setTableMoveId("");
+    setTableTool("");
+    setJoinSelection([]);
     setCartItems([]);
     setActiveMobilePanel("menu");
     setMenuSearch("");
     setActiveMenuFilter("all");
+  };
+
+  const toggleJoinTable = (tableId) => {
+    setJoinSelection((prev) =>
+      prev.includes(tableId) ? prev.filter((id) => id !== tableId) : [...prev, tableId]
+    );
+  };
+
+  const savedJoinIds = (selectedOrder?.joinedTables || []).map(idOf);
+  const joinChanged =
+    joinSelection.length !== savedJoinIds.length ||
+    joinSelection.some((id) => !savedJoinIds.includes(id));
+
+  const handleApplyJoin = async () => {
+    if (!selectedOrder?._id) return;
+
+    try {
+      setJoiningTables(true);
+      const updatedOrder = await setJoinedTables(selectedOrder._id, joinSelection);
+      setSelectedOrder(updatedOrder);
+      setJoinSelection((updatedOrder?.joinedTables || []).map(idOf));
+      await load();
+    } catch (err) {
+      alert(err.response?.data?.message || "Joining tables failed");
+    } finally {
+      setJoiningTables(false);
+    }
   };
 
   const handleMoveOrderTable = async () => {
@@ -491,6 +535,7 @@ export default function WaiterManagement() {
       } else {
         await createOrder({
           table: selectedTable._id,
+          joinedTables: joinSelection,
           ...payload,
         });
       }
@@ -564,6 +609,15 @@ export default function WaiterManagement() {
       setCancellingItem(false);
     }
   };
+
+  // Free tables (plus the ones already joined to this order) that can be pushed together.
+  const joinableTables = selectedTable
+    ? tables.filter(
+        (table) =>
+          table._id !== selectedTable._id &&
+          (!tableOrders[table._id] || savedJoinIds.includes(table._id))
+      )
+    : [];
 
   const movableTables = selectedOrder
     ? tables.filter((table) => !tableOrders[table._id] || table._id === selectedTable?._id)
@@ -675,6 +729,17 @@ export default function WaiterManagement() {
               const isLocked = Boolean(order && !isOwnOrder(order));
               const isBilled = isBillingSent(order);
               const itemCount = (order?.items || []).filter((item) => item.status !== "CANCELLED").length;
+              const mainTableId = order ? idOf(order.table) : "";
+              const isJoinedChild = Boolean(order && mainTableId && mainTableId !== table._id);
+              const mainTableNumber = isJoinedChild
+                ? tables.find((item) => item._id === mainTableId)?.tableNumber ||
+                  order.table?.tableNumber
+                : null;
+              const joinedNumbers = !isJoinedChild
+                ? (order?.joinedTables || [])
+                    .map((joined) => tables.find((item) => item._id === idOf(joined))?.tableNumber)
+                    .filter(Boolean)
+                : [];
               const btn = "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold";
               return (
                 <div
@@ -700,10 +765,15 @@ export default function WaiterManagement() {
                   </div>
 
                   <p className="mt-1.5 truncate text-xs font-semibold" title={getStatusLabel(order)}>
-                    {getStatusLabel(order)}
+                    {isJoinedChild ? `Joined with T${mainTableNumber}` : getStatusLabel(order)}
                   </p>
+                  {joinedNumbers.length > 0 && (
+                    <p className="truncate text-[11px] font-medium opacity-80">
+                      + {joinedNumbers.map((number) => `T${number}`).join(", ")}
+                    </p>
+                  )}
 
-                  {order && !isLocked && (
+                  {order && !isLocked && !isJoinedChild && (
                     <div className="mt-2 flex gap-1.5">
                       {!isBilled && !isKotDirectBilling(order) && (
                         <button
@@ -771,55 +841,120 @@ export default function WaiterManagement() {
 
         {isMenuOpen && selectedTable && (
           <MenuModal onClose={closeMenuModal}>
-            <div className="flex min-h-full flex-col gap-3 pb-20 sm:gap-4 lg:block lg:space-y-4 lg:pb-0">
-              <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-800 lg:p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white lg:text-xl">Table #{selectedTable.tableNumber}</h3>
-                    <p className="mt-1 hidden text-[11px] text-slate-500 dark:text-slate-400 lg:block">
-                      {selectedOrder ? "Add items and place the updated order again so the chef can continue the flow from acceptance." : "Select menu items and place the order for chef acceptance."}
-                    </p>
-                  </div>
-                  <span className="inline-flex min-h-9 shrink-0 items-center rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700">
+            <div className="flex min-h-full flex-col gap-2 pb-20 lg:block lg:space-y-3 lg:pb-0">
+              <div className="rounded-xl bg-slate-50 p-2.5 dark:bg-slate-800">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Table #{selectedTable.tableNumber}
+                    {joinSelection
+                      .map((id) => tables.find((table) => table._id === id)?.tableNumber)
+                      .filter(Boolean)
+                      .map((number) => ` + T${number}`)
+                      .join("")}
+                  </h3>
+                  <span className="inline-flex h-6 items-center rounded-md bg-white px-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700">
                     {selectedOrder ? getStatusLabel(selectedOrder) : "New Order"}
                   </span>
-                </div>
-                {selectedOrder && (
-                  <div className="mt-3 grid gap-2 rounded-2xl bg-white p-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700 sm:grid-cols-[1fr_auto]">
-                    <div>
-                      <label className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                        Change Table
-                      </label>
-                      <select
-                        value={tableMoveId}
-                        onChange={(e) => setTableMoveId(e.target.value)}
-                        className="min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  <div className="ml-auto flex gap-1.5">
+                    {selectedOrder && (
+                      <button
+                        type="button"
+                        onClick={() => setTableTool((tool) => (tool === "move" ? "" : "move"))}
+                        className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold ring-1 transition ${
+                          tableTool === "move"
+                            ? "bg-slate-900 text-white ring-slate-900 dark:bg-white dark:text-slate-900"
+                            : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700"
+                        }`}
                       >
-                        {movableTables.map((table) => (
-                          <option key={table._id} value={table._id}>
-                            Table #{table.tableNumber}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                        <FaExchangeAlt className="text-[10px]" />
+                        Change table
+                      </button>
+                    )}
+                    {joinableTables.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setTableTool((tool) => (tool === "join" ? "" : "join"))}
+                        className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold ring-1 transition ${
+                          tableTool === "join" || joinSelection.length > 0
+                            ? "bg-emerald-600 text-white ring-emerald-600"
+                            : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700"
+                        }`}
+                      >
+                        <FaTable className="text-[10px]" />
+                        Join tables{joinSelection.length > 0 ? ` (${joinSelection.length})` : ""}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {tableTool === "move" && selectedOrder && (
+                  <div className="mt-2 flex items-center gap-2 rounded-lg bg-white p-2 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Move order to</span>
+                    <select
+                      value={tableMoveId}
+                      onChange={(e) => setTableMoveId(e.target.value)}
+                      className="h-8 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    >
+                      {movableTables.map((table) => (
+                        <option key={table._id} value={table._id}>
+                          Table #{table.tableNumber}
+                        </option>
+                      ))}
+                    </select>
                     <button
                       type="button"
                       onClick={handleMoveOrderTable}
                       disabled={movingTable || !tableMoveId || tableMoveId === selectedTable?._id}
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:self-end"
+                      className="inline-flex h-8 items-center rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <FaExchangeAlt />
                       {movingTable ? "Moving..." : "Move"}
                     </button>
                   </div>
                 )}
+
+                {tableTool === "join" && joinableTables.length > 0 && (
+                  <div className="mt-2 rounded-lg bg-white p-2 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+                    <p className="mb-1.5 text-xs text-slate-500 dark:text-slate-400">
+                      Tap the free tables this group is sitting at. They share one order and one bill.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {joinableTables.map((table) => {
+                        const on = joinSelection.includes(table._id);
+                        return (
+                          <button
+                            key={table._id}
+                            type="button"
+                            onClick={() => toggleJoinTable(table._id)}
+                            className={`h-8 rounded-lg px-3 text-xs font-bold transition ${
+                              on
+                                ? "bg-emerald-600 text-white"
+                                : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200"
+                            }`}
+                          >
+                            T{table.tableNumber}
+                          </button>
+                        );
+                      })}
+                      {selectedOrder && joinChanged && (
+                        <button
+                          type="button"
+                          onClick={handleApplyJoin}
+                          disabled={joiningTables}
+                          className="ml-auto inline-flex h-8 items-center rounded-lg bg-slate-900 px-3 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-60 dark:bg-white dark:text-slate-900"
+                        >
+                          {joiningTables ? "Saving..." : "Apply"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 lg:hidden">
+              <div className="grid grid-cols-2 gap-1 rounded-xl bg-white p-1 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 lg:hidden">
                 <button
                   type="button"
                   onClick={() => setActiveMobilePanel("menu")}
-                  className={`min-h-10 rounded-xl text-sm font-bold transition ${
+                  className={`h-9 rounded-lg text-sm font-bold transition ${
                     activeMobilePanel === "menu"
                       ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
                       : "text-slate-600 dark:text-slate-300"
@@ -830,7 +965,7 @@ export default function WaiterManagement() {
                 <button
                   type="button"
                   onClick={() => setActiveMobilePanel("order")}
-                  className={`flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-bold transition ${
+                  className={`flex h-9 items-center justify-center gap-2 rounded-lg text-sm font-bold transition ${
                     activeMobilePanel === "order"
                       ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
                       : "text-slate-600 dark:text-slate-300"
@@ -843,27 +978,25 @@ export default function WaiterManagement() {
 
               <div className="min-h-0 flex-1 lg:grid lg:gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.9fr)] xl:grid-cols-[1.7fr_0.9fr]">
                 <div className={`${activeMobilePanel === "menu" ? "block" : "hidden"} min-h-0 space-y-3 lg:block lg:space-y-4`}>
-                  <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 lg:p-4">
-                    <div className="flex min-h-10 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-600 dark:bg-slate-900">
-                      <FaSearch className="text-slate-400" />
+                  <div className="space-y-2 rounded-xl bg-white p-2.5 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+                    <div className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 dark:border-slate-600 dark:bg-slate-900">
+                      <FaSearch className="text-xs text-slate-400" />
                       <input
                         value={menuSearch}
                         onChange={(e) => setMenuSearch(e.target.value)}
-                        placeholder="Search dish, cuisine, or course type..."
+                        placeholder="Search dish, cuisine or course..."
                         className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-slate-500"
                       />
                     </div>
-                  </div>
 
-                  {availableMenuItems.length > 0 && (
-                    <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
-                      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:flex-wrap lg:overflow-visible">
-                        <button onClick={() => setActiveMenuFilter("all")} className={`min-h-9 shrink-0 rounded-full px-3 py-2 text-xs font-semibold ${activeMenuFilter === "all" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200"}`}>All ({availableMenuItems.length})</button>
-                        {cuisines.map((cuisine) => <button key={cuisine._id} onClick={() => setActiveMenuFilter(`cuisine:${cuisine._id}`)} className={`min-h-9 shrink-0 rounded-full px-3 py-2 text-xs font-semibold ${activeMenuFilter === `cuisine:${cuisine._id}` ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"}`}>{cuisine.name}</button>)}
-                        {courseTypes.map((courseType) => <button key={courseType} onClick={() => setActiveMenuFilter(`course:${courseType}`)} className={`min-h-9 shrink-0 rounded-full px-3 py-2 text-xs font-semibold ${activeMenuFilter === `course:${courseType}` ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200"}`}>{formatCourseType(courseType)}</button>)}
+                    {availableMenuItems.length > 0 && (
+                      <div className="-mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-wrap lg:overflow-visible">
+                        <button onClick={() => setActiveMenuFilter("all")} className={`h-7 shrink-0 rounded-full px-3 text-xs font-semibold ${activeMenuFilter === "all" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200"}`}>All ({availableMenuItems.length})</button>
+                        {cuisines.map((cuisine) => <button key={cuisine._id} onClick={() => setActiveMenuFilter(`cuisine:${cuisine._id}`)} className={`h-7 shrink-0 rounded-full px-3 text-xs font-semibold ${activeMenuFilter === `cuisine:${cuisine._id}` ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"}`}>{cuisine.name}</button>)}
+                        {courseTypes.map((courseType) => <button key={courseType} onClick={() => setActiveMenuFilter(`course:${courseType}`)} className={`h-7 shrink-0 rounded-full px-3 text-xs font-semibold ${activeMenuFilter === `course:${courseType}` ? "bg-sky-600 text-white" : "bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200"}`}>{formatCourseType(courseType)}</button>)}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {filteredMenuItems.length === 0 ? (
                     <div className="flex min-h-[240px] items-center justify-center rounded-2xl bg-white px-4 text-center text-sm text-slate-400 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
@@ -872,49 +1005,72 @@ export default function WaiterManagement() {
                   ) : (
                     <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
                       <div className="divide-y divide-slate-100 dark:divide-slate-700 lg:hidden">
-                        {filteredMenuItems.map((item) => (
-                          <article key={item._id} className="p-3 active:bg-slate-50 dark:active:bg-slate-700/40">
-                            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                              <div className="min-w-0 pr-1">
-                                <p className="text-base font-bold text-slate-900 dark:text-white">{item.name}</p>
-                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                  {[item.cuisine?.name, formatCourseType(item.courseType)].filter(Boolean).join(" - ")}
+                        {filteredMenuItems.map((item) => {
+                          const inCart = cartItems.find((entry) => entry.menuItem === item._id);
+                          return (
+                            <article key={item._id} className="flex items-center gap-2 px-3 py-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{item.name}</p>
+                                <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                                  {[item.cuisine?.name, formatCourseType(item.courseType)].filter(Boolean).join(" · ")}
                                 </p>
-                                <p className="mt-2 text-base font-bold text-emerald-700 dark:text-emerald-300">Rs. {item.price}</p>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => addToCart(item)}
-                                className="inline-flex min-h-12 min-w-24 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"
-                              >
-                                <FaPlus className="text-xs" />
-                                Add
-                              </button>
-                            </div>
-                          </article>
-                        ))}
+                              <p className="shrink-0 text-sm font-bold text-emerald-700 dark:text-emerald-300">Rs. {item.price}</p>
+                              {inCart ? (
+                                <div className="flex shrink-0 items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateQty(item._id, "dec")}
+                                    aria-label={`Remove one ${item.name}`}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-200"
+                                  >
+                                    <FaMinus className="text-xs" />
+                                  </button>
+                                  <span className="w-6 text-center text-sm font-bold text-slate-900 dark:text-white">{inCart.qty}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => addToCart(item)}
+                                    aria-label={`Add one more ${item.name}`}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white"
+                                  >
+                                    <FaPlus className="text-xs" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => addToCart(item)}
+                                  className="inline-flex h-9 w-16 shrink-0 items-center justify-center gap-1 rounded-lg bg-emerald-600 text-sm font-bold text-white hover:bg-emerald-700"
+                                >
+                                  <FaPlus className="text-[10px]" />
+                                  Add
+                                </button>
+                              )}
+                            </article>
+                          );
+                        })}
                       </div>
 
                       <div className="hidden overflow-x-auto lg:block">
                         <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
                           <thead className="bg-slate-100 dark:bg-slate-900/60">
                             <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-300">
-                              <th className="px-5 py-4">Dish</th>
-                              <th className="px-5 py-4">Cuisine</th>
-                              <th className="px-5 py-4">Course</th>
-                              <th className="px-5 py-4">Price</th>
-                              <th className="px-5 py-4 text-right">Action</th>
+                              <th className="px-4 py-2">Dish</th>
+                              <th className="px-4 py-2">Cuisine</th>
+                              <th className="px-4 py-2">Course</th>
+                              <th className="px-4 py-2">Price</th>
+                              <th className="px-4 py-2 text-right">Action</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 bg-white dark:divide-slate-700 dark:bg-slate-800">
                             {filteredMenuItems.map((item) => (
                               <tr key={item._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/40">
-                                <td className="px-5 py-4 font-semibold text-slate-900 dark:text-white">{item.name}</td>
-                                <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-300">{item.cuisine?.name || "-"}</td>
-                                <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-300">{formatCourseType(item.courseType)}</td>
-                                <td className="px-5 py-4 text-sm font-semibold text-emerald-700 dark:text-emerald-300">Rs. {item.price}</td>
-                                <td className="px-5 py-4 text-right">
-                                  <button type="button" onClick={() => addToCart(item)} className="inline-flex min-h-10 items-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+                                <td className="px-4 py-2 font-semibold text-slate-900 dark:text-white">{item.name}</td>
+                                <td className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300">{item.cuisine?.name || "-"}</td>
+                                <td className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300">{formatCourseType(item.courseType)}</td>
+                                <td className="px-4 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">Rs. {item.price}</td>
+                                <td className="px-4 py-2 text-right">
+                                  <button type="button" onClick={() => addToCart(item)} className="inline-flex h-8 items-center rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700">
                                     Add
                                   </button>
                                 </td>
@@ -939,9 +1095,9 @@ export default function WaiterManagement() {
                   </div>
 
                   {cartItems.length === 0 ? (
-                    <div className="mx-3 mb-3 flex min-h-[190px] flex-1 flex-col items-center justify-center gap-3 rounded-2xl bg-slate-50 px-4 text-center text-sm text-slate-400 dark:bg-slate-800 dark:text-slate-500 lg:mx-4 lg:mb-4">
+                    <div className="mx-3 mb-3 flex min-h-[120px] flex-1 flex-col items-center justify-center gap-3 rounded-2xl bg-slate-50 px-4 text-center text-sm text-slate-400 dark:bg-slate-800 dark:text-slate-500 lg:mx-4 lg:mb-4">
                       <FaShoppingCart className="text-3xl text-slate-300 dark:text-slate-600" />
-                      <span>Add menu items from the list to prepare this order.</span>
+                      <span>Tap Add on a dish to start the order.</span>
                       <button
                         type="button"
                         onClick={() => setActiveMobilePanel("menu")}
@@ -959,21 +1115,21 @@ export default function WaiterManagement() {
                               <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{item.name}</p>
                               <p className="mt-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">Rs. {item.price * item.qty}</p>
                             </div>
-                            <div className="grid grid-cols-[40px_28px_40px] items-center gap-1">
-                              <button type="button" onClick={() => updateQty(item.menuItem, "dec")} className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-200 dark:hover:bg-rose-900/50">
+                            <div className="grid grid-cols-[32px_24px_32px] items-center gap-1">
+                              <button type="button" onClick={() => updateQty(item.menuItem, "dec")} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 text-rose-600 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-200 dark:hover:bg-rose-900/50">
                                 <FaMinus className="text-xs" />
                               </button>
                               <div className="text-center text-sm font-bold text-slate-800 dark:text-slate-100">{item.qty}</div>
-                              <button type="button" onClick={() => updateQty(item.menuItem, "inc")} className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/50">
+                              <button type="button" onClick={() => updateQty(item.menuItem, "inc")} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/50">
                                 <FaPlus className="text-xs" />
                               </button>
                             </div>
                           </div>
 
-                          <div className="space-y-2">
-                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                              Custom Order
-                            </p>
+                          <details className="space-y-2" open={(item.customization || []).length > 0}>
+                            <summary className="cursor-pointer text-xs font-semibold text-slate-500 dark:text-slate-400">
+                              Customize
+                            </summary>
                             <div className="flex flex-wrap gap-2">
                               {CUSTOMIZATION_PRESETS.map((preset) => (
                                 <button
@@ -995,9 +1151,9 @@ export default function WaiterManagement() {
                               value={getCustomNote(item)}
                               onChange={(e) => updateCustomNote(item.menuItem, e.target.value)}
                               placeholder="Other note: no tomato, extra chili..."
-                              className="min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                              className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                             />
-                          </div>
+                          </details>
                         </div>
                       ))}
                     </div>
@@ -1022,7 +1178,7 @@ export default function WaiterManagement() {
               </div>
 
               {activeMobilePanel === "menu" && cartItems.length > 0 && (
-                <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.18)] dark:border-slate-700 dark:bg-slate-900 lg:hidden">
+                <div className="fixed inset-x-0 bottom-0 z-[110] border-t border-slate-200 bg-white p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.18)] dark:border-slate-700 dark:bg-slate-900 lg:hidden">
                   <button
                     type="button"
                     onClick={() => setActiveMobilePanel("order")}
@@ -1088,7 +1244,7 @@ export default function WaiterManagement() {
         {cancelDialog.open && (
           <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/55 p-4 backdrop-blur-sm sm:items-center">
             <div className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
-              <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-700 sm:px-6">
+              <div className="border-b border-slate-200 px-4 py-2 dark:border-slate-700 sm:px-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-rose-500 dark:text-rose-300">
@@ -1152,7 +1308,7 @@ export default function WaiterManagement() {
                 </div>
               </div>
 
-              <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-950 sm:flex-row sm:justify-end sm:px-6">
+              <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-4 py-2 dark:border-slate-700 dark:bg-slate-950 sm:flex-row sm:justify-end sm:px-6">
                 <button
                   type="button"
                   onClick={closeCancelDialog}

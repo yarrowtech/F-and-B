@@ -154,6 +154,7 @@ import {
   getWaiterOrders,
   getOrderById,
   changeOrderTable,
+  setJoinedTables,
   acceptOrder,
   markPreparing,
   markReady,
@@ -177,6 +178,8 @@ router.get("/waiter", auth, allowRoles("waiter"), getWaiterOrders);
 router.put("/:id/served", auth, allowRoles("waiter"), markServed);
 
 router.put("/:id/table", auth, allowRoles("waiter", "accountant"), changeOrderTable);
+
+router.put("/:id/join-tables", auth, allowRoles("waiter", "accountant"), setJoinedTables);
 
 router.post("/:id/kot", auth, allowRoles("waiter"), printKOT);
 

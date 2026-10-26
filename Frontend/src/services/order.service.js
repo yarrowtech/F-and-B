@@ -123,6 +123,12 @@ export const changeOrderTable = async (id, tableId) => {
   return res.data?.data || null;
 };
 
+/* Join extra tables to one group order (pass [] to unjoin all) */
+export const setJoinedTables = async (id, tableIds) => {
+  const res = await api.put(`/order/${id}/join-tables`, { tableIds });
+  return res.data?.data || null;
+};
+
 /* Serve Order */
 export const markOrderServed = async (id) => {
   const res = await api.put(`/order/${id}/served`);

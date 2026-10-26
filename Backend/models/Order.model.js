@@ -272,6 +272,13 @@ const orderSchema = new mongoose.Schema(
       index: true,
     },
 
+    // Extra tables pushed together for one large group. `table` stays the main table.
+    joinedTables: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Table" }],
+      default: [],
+      index: true,
+    },
+
     waiter: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",

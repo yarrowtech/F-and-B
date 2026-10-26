@@ -8,6 +8,7 @@ import Order from "../models/Order.model.js";
 import PrintAgent from "../models/PrintAgent.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import Table from "../models/Table.model.js";
+import { getOrderTableLabel } from "../utils/tableLabel.js";
 import crypto from "crypto";
 import mongoose from "mongoose";
 import PDFDocument from "pdfkit";
@@ -418,7 +419,7 @@ const getRequestOrigin = (req) => {
 const buildWhatsAppBillMessage = (bill, req) => {
   const restaurantName = bill.restaurant?.name || "Restaurant";
   const tableLabel = bill.order?.table?.tableNumber
-    ? `Table ${bill.order.table.tableNumber}`
+    ? `Table ${getOrderTableLabel(bill.order)}`
     : bill.order?.orderType || "Order";
 
   const feedbackUrl = buildPublicFeedbackUrl(bill._id, getRequestOrigin(req));
@@ -728,6 +729,7 @@ const findBillWithOrder = (query) =>
       path: "order",
       populate: [
         { path: "table", select: "tableNumber status" },
+        { path: "joinedTables", select: "tableNumber" },
         { path: "waiter", select: "name" },
         { path: "items.menuItem", select: "name price" },
         { path: "tableChangeHistory.fromTable", select: "tableNumber" },
@@ -1137,6 +1139,7 @@ const getInbox = async (req, res) => {
         path: "order",
         populate: [
           { path: "table", select: "tableNumber status" },
+        { path: "joinedTables", select: "tableNumber" },
           { path: "items.menuItem", select: "name price" },
         ],
       })
@@ -1426,7 +1429,10 @@ const getHistory = async (req, res) => {
       .populate("restaurant")
       .populate({
         path: "order",
-        populate: { path: "table", select: "tableNumber status" },
+        populate: [
+          { path: "table", select: "tableNumber status" },
+          { path: "joinedTables", select: "tableNumber" },
+        ],
       })
       .sort({ updatedAt: -1 });
 
@@ -1445,7 +1451,10 @@ const exportBillingHistoryExcel = async (req, res) => {
     const bills = await Bill.find(query)
       .populate({
         path: "order",
-        populate: { path: "table", select: "tableNumber status" },
+        populate: [
+          { path: "table", select: "tableNumber status" },
+          { path: "joinedTables", select: "tableNumber" },
+        ],
       })
       .sort({ updatedAt: -1 });
 
@@ -1728,7 +1737,7 @@ const markPaid = async (req, res) => {
       restaurant: req.user.restaurant,
     }).populate({
       path: "order",
-      populate: { path: "table" },
+      populate: [{ path: "table" }, { path: "joinedTables", select: "tableNumber" }],
     });
 
     if (!bill) return sendError(res, "Bill not found", 404);
@@ -1752,9 +1761,10 @@ const markPaid = async (req, res) => {
     }
 
     if (bill.order?.table) {
-      await Table.findByIdAndUpdate(bill.order.table._id, {
-        status: "available",
-      });
+      const orderTableIds = [bill.order.table, ...(bill.order.joinedTables || [])].map(
+        (table) => table?._id || table
+      );
+      await Table.updateMany({ _id: { $in: orderTableIds } }, { status: "available" });
     }
 
     return sendSuccess(res, bill);
@@ -1971,7 +1981,7 @@ const streamBillPDF = async (bill, res, req) => {
     doc.font("Helvetica-Bold").fontSize(11).text("Order Info", 320, detailsTextTop);
     doc.font("Helvetica").fontSize(10);
     doc.text(
-      `Table: ${bill.order?.table?.tableNumber || bill.order?.orderType || "N/A"}`,
+      `Table: ${getOrderTableLabel(bill.order) || bill.order?.orderType || "N/A"}`,
       320,
       detailsTextTop + 20
     );
