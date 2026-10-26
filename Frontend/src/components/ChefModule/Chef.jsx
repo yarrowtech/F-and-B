@@ -208,9 +208,6 @@ const Chef = () => {
       const jobs = await getMyKotPrintJobs();
       setKotPrintJobs(jobs);
       setKotError("");
-      if (jobs.length > 0) {
-        setPrintNotice(`Pending KOT print job${jobs.length === 1 ? "" : "s"}: ${jobs.length}`);
-      }
     } catch (err) {
       setKotError(err.response?.data?.message || err.message || "Failed to load KOT queue");
       console.error("Failed to load KOT print jobs", err);
@@ -281,73 +278,76 @@ const Chef = () => {
     if (active !== "management") return null;
 
     return (
-      <section className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/30">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-sm font-black uppercase text-amber-900 dark:text-amber-100">
-              KOT Queue
-            </p>
-            <p className="text-xs font-semibold text-amber-700 dark:text-amber-200">
-              Cuisine matched tickets waiting for chef print
-            </p>
-          </div>
+      <section className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-2.5 dark:border-amber-900/60 dark:bg-amber-950/30">
+        <div className="flex items-center justify-between gap-2">
+          <p className="flex items-center gap-2 text-sm font-bold text-amber-900 dark:text-amber-100">
+            KOT Queue
+            <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-bold text-amber-900 dark:bg-amber-800 dark:text-amber-100">
+              {kotPrintJobs.length}
+            </span>
+          </p>
           <button
             type="button"
             onClick={() => loadKotPrintJobs({ showLoading: true })}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-amber-300 bg-white px-3 text-xs font-bold text-amber-900 transition hover:bg-amber-100 disabled:opacity-60 dark:border-amber-800 dark:bg-neutral-900 dark:text-amber-100 dark:hover:bg-amber-950"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-2.5 text-xs font-bold text-amber-900 transition hover:bg-amber-100 disabled:opacity-60 dark:border-amber-800 dark:bg-neutral-900 dark:text-amber-100"
             disabled={kotLoading}
             title="Refresh KOT queue"
           >
-            <RefreshCw size={15} className={kotLoading ? "animate-spin" : ""} />
+            <RefreshCw size={13} className={kotLoading ? "animate-spin" : ""} />
             Refresh
           </button>
         </div>
 
         {kotError && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+          <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
             {kotError}
           </div>
         )}
 
         {!kotError && kotPrintJobs.length === 0 && (
-          <div className="rounded-md border border-amber-200 bg-white px-3 py-3 text-sm font-semibold text-amber-800 dark:border-amber-900/50 dark:bg-neutral-900 dark:text-amber-100">
+          <p className="mt-1 text-xs font-medium text-amber-800 dark:text-amber-200">
             No pending KOT for your assigned cuisine.
-          </div>
+          </p>
         )}
 
         {kotPrintJobs.length > 0 && (
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {kotPrintJobs.map((job) => (
-            <article
-              key={job._id}
-              className="rounded-lg border border-amber-200 bg-white p-3 shadow-sm dark:border-amber-900/50 dark:bg-neutral-900"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-gray-900 dark:text-white">
-                    {job.payload?.kotNo || "Kitchen KOT"}
-                  </p>
-                  <p className="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
-                    {job.payload?.cuisine || "Kitchen"} - Table {job.payload?.tableNumber || "N/A"}
-                  </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {kotPrintJobs.map((job) => (
+              <article
+                key={job._id}
+                className="rounded-lg border border-amber-200 bg-white p-2 dark:border-amber-900/50 dark:bg-neutral-900"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-gray-900 dark:text-white">
+                      KOT {job.payload?.kotNo || ""} &middot; Table {job.payload?.tableNumber || "N/A"}
+                    </p>
+                    <p className="truncate text-xs font-medium text-gray-500 dark:text-gray-400">
+                      {job.payload?.cuisine || "Kitchen"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handlePrintKotJob(job)}
+                    disabled={kotPrintingId === job._id}
+                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-green-700 px-3 text-xs font-bold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    title="Print KOT from this machine"
+                  >
+                    <Printer size={14} />
+                    {kotPrintingId === job._id ? "Printing" : "Print"}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handlePrintKotJob(job)}
-                  disabled={kotPrintingId === job._id}
-                  className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md bg-green-700 px-3 text-xs font-bold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  title="Print KOT from this billing machine"
-                >
-                  <Printer size={15} />
-                  {kotPrintingId === job._id ? "Printing" : "Print"}
-                </button>
-              </div>
-              <pre className="mt-3 max-h-36 overflow-auto whitespace-pre-wrap rounded-md bg-gray-50 p-2 font-mono text-[11px] leading-4 text-gray-700 dark:bg-neutral-800 dark:text-gray-200">
-                {job.receiptText}
-              </pre>
-            </article>
-          ))}
-        </div>
+                <details className="mt-1.5">
+                  <summary className="cursor-pointer text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+                    Preview
+                  </summary>
+                  <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded-md bg-gray-50 p-2 font-mono text-[11px] leading-4 text-gray-700 dark:bg-neutral-800 dark:text-gray-200">
+                    {job.receiptText}
+                  </pre>
+                </details>
+              </article>
+            ))}
+          </div>
         )}
       </section>
     );
@@ -406,8 +406,11 @@ const Chef = () => {
             className="flex-1 overflow-y-auto bg-white p-3 pb-24 dark:bg-neutral-800 sm:p-4 2xl:p-6 2xl:pb-6"
           >
             {printNotice && (
-              <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
-                {printNotice}
+              <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
+                <span>{printNotice}</span>
+                <button type="button" onClick={() => setPrintNotice("")} className="text-base leading-none opacity-60 hover:opacity-100" aria-label="Dismiss">
+                  &times;
+                </button>
               </div>
             )}
             {renderKotPrintQueue()}

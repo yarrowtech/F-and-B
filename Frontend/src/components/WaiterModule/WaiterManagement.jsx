@@ -607,7 +607,7 @@ export default function WaiterManagement() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-3 dark:bg-slate-900 sm:p-4 lg:p-6">
+    <div className="min-h-screen bg-slate-50 p-3 dark:bg-slate-900 sm:p-4">
       {liveNotifications.length > 0 && (
         <div className="fixed right-4 top-4 z-[80] grid w-[calc(100%-2rem)] max-w-sm gap-3">
           {liveNotifications.map((notification) => (
@@ -635,37 +635,33 @@ export default function WaiterManagement() {
           ))}
         </div>
       )}
-      <div className="mx-auto max-w-7xl space-y-4 sm:space-y-6">
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 sm:p-5">
-          <div className="mb-4 space-y-3">
-            <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
-              <FaSearch className="text-slate-400" />
+      <div className="mx-auto max-w-7xl space-y-3">
+        <div className="rounded-xl bg-white p-3 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="flex h-9 w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 dark:border-slate-700 dark:bg-slate-900 sm:w-56">
+              <FaSearch className="text-xs text-slate-400" />
               <input
                 value={tableSearch}
                 onChange={(e) => setTableSearch(e.target.value)}
-                placeholder="Search table number..."
-                className="w-full bg-transparent text-sm font-medium text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
+                placeholder="Search table..."
+                className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
               />
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="flex gap-1.5 overflow-x-auto">
               {filterPills.map((filter) => (
                 <button
                   key={filter.id}
                   type="button"
                   onClick={() => setTableViewFilter(filter.id)}
-                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition ${
                     tableViewFilter === filter.id
                       ? "bg-emerald-600 text-white"
                       : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700"
                   }`}
                 >
-                  <span>{filter.label}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${
-                    tableViewFilter === filter.id
-                      ? "bg-white/20 text-white"
-                      : "bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                  }`}>
+                  {filter.label}
+                  <span className={`text-xs ${tableViewFilter === filter.id ? "text-white/80" : "text-slate-500 dark:text-slate-400"}`}>
                     {filter.count}
                   </span>
                 </button>
@@ -673,11 +669,13 @@ export default function WaiterManagement() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
             {filteredTables.map((table) => {
               const order = tableOrders[table._id];
               const isLocked = Boolean(order && !isOwnOrder(order));
               const isBilled = isBillingSent(order);
+              const itemCount = (order?.items || []).filter((item) => item.status !== "CANCELLED").length;
+              const btn = "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold";
               return (
                 <div
                   key={table._id}
@@ -690,42 +688,30 @@ export default function WaiterManagement() {
                       handleTableClick(table);
                     }
                   }}
-                  className={`rounded-2xl border p-3 text-left shadow-sm transition focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:p-4 ${isLocked ? "cursor-not-allowed opacity-85" : "cursor-pointer active:scale-[0.99] hover:-translate-y-0.5 hover:shadow-md"} ${getTableCardStyle(order)}`}
+                  className={`flex flex-col rounded-xl border p-2.5 text-left transition focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isLocked ? "cursor-not-allowed opacity-85" : "cursor-pointer hover:shadow-md active:scale-[0.99]"} ${getTableCardStyle(order)}`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.24em] opacity-70">Table</p>
-                      <h2 className="mt-1 text-3xl font-black leading-none sm:text-4xl">#{table.tableNumber}</h2>
-                    </div>
-                    <div className="rounded-2xl bg-white/70 p-2.5 dark:bg-slate-900/40">
-                      <FaTable />
-                    </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-xl font-black leading-none">T{table.tableNumber}</h2>
+                    {order ? (
+                      <span className="rounded-md bg-white/70 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide dark:bg-slate-900/40">
+                        {itemCount} item{itemCount === 1 ? "" : "s"}
+                      </span>
+                    ) : null}
                   </div>
 
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide dark:bg-slate-900/40">
-                      {order ? order.status : "OPEN"}
-                    </span>
-                    <span className="text-sm font-semibold">{getStatusLabel(order)}</span>
-                  </div>
-
-                  {order && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-medium opacity-80">
-                      <span>{(order.items || []).filter((item) => item.status !== "CANCELLED").length} items</span>
-                      {hasReadyItems(order) ? <span>Ready to serve</span> : null}
-                      {isBilled ? <span>Billing sent</span> : null}
-                    </div>
-                  )}
+                  <p className="mt-1.5 truncate text-xs font-semibold" title={getStatusLabel(order)}>
+                    {getStatusLabel(order)}
+                  </p>
 
                   {order && !isLocked && (
-                    <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="mt-2 flex gap-1.5">
                       {!isBilled && !isKotDirectBilling(order) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleTableClick(table);
                           }}
-                          className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-white dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-900"
+                          className={`${btn} border border-slate-200 bg-white/80 text-slate-700 hover:bg-white dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200`}
                         >
                           Edit
                         </button>
@@ -738,10 +724,10 @@ export default function WaiterManagement() {
                             handlePrintKOT(order._id);
                           }}
                           disabled={kotPrintingId === order._id}
-                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                          className={`${btn} bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60 dark:bg-white dark:text-slate-900`}
                         >
                           <FaPrint />
-                          {kotPrintingId === order._id ? "Printing..." : "KOT"}
+                          {kotPrintingId === order._id ? "..." : "KOT"}
                         </button>
                       )}
 
@@ -751,7 +737,7 @@ export default function WaiterManagement() {
                             e.stopPropagation();
                             handleServe(order._id);
                           }}
-                          className="inline-flex min-h-10 items-center justify-center rounded-xl bg-sky-600 px-3 py-2 text-xs font-bold text-white hover:bg-sky-700"
+                          className={`${btn} bg-sky-600 text-white hover:bg-sky-700`}
                         >
                           Serve
                         </button>
@@ -764,17 +750,9 @@ export default function WaiterManagement() {
                             handleBill(order);
                           }}
                           disabled={billingId === order._id || isBilled}
-                          className={`inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-2 text-xs font-bold text-white disabled:opacity-70 ${
-                            isBilled
-                              ? "bg-red-600"
-                              : "bg-violet-600 hover:bg-violet-700"
-                          }`}
+                          className={`${btn} text-white disabled:opacity-70 ${isBilled ? "bg-slate-500" : "bg-violet-600 hover:bg-violet-700"}`}
                         >
-                          {isBilled
-                            ? "Sent to Billing"
-                            : billingId === order._id
-                              ? "Sending..."
-                              : "Bill"}
+                          {isBilled ? "Billed" : billingId === order._id ? "Sending..." : "Bill"}
                         </button>
                       )}
                     </div>
@@ -784,7 +762,7 @@ export default function WaiterManagement() {
             })}
 
             {filteredTables.length === 0 && (
-              <div className="col-span-full rounded-2xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              <div className="col-span-full rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
                 No tables match this filter.
               </div>
             )}

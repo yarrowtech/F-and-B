@@ -60,39 +60,26 @@ const buildDateRange = (filter, fromDate, toDate) => {
   };
 };
 
-function SummaryCard({ title, value, hint, tone = "slate", onClick }) {
-  const toneMap = {
-    slate: {
-      wrap: "border-slate-200 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100",
-      badge: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200",
-      value: "text-slate-900 dark:text-white",
-    },
-    emerald: {
-      wrap: "border-emerald-200 bg-emerald-50/60 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-100",
-      badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200",
-      value: "text-emerald-900 dark:text-emerald-100",
-    },
-  };
-
-  const palette = toneMap[tone] || toneMap.slate;
+function SummaryCard({ title, value, icon, tone = "slate", onClick }) {
+  const iconTone =
+    tone === "emerald"
+      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+      : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200";
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`min-h-40 rounded-2xl border p-5 text-left shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${palette.wrap}`}
+      className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-emerald-400 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${palette.badge}`}>
-            Chef Work
-          </span>
-          <p className="mt-3 text-sm font-semibold">{title}</p>
-        </div>
-        <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900/50 dark:text-slate-300 dark:ring-slate-700">View</span>
-      </div>
-      <p className={`mt-6 text-4xl font-bold ${palette.value}`}>{value}</p>
-      <p className="mt-2 text-sm opacity-75">{hint}</p>
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconTone}`}>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-medium text-slate-500 dark:text-slate-400">{title}</span>
+        <span className="block text-2xl font-bold leading-tight text-slate-900 dark:text-white">{value}</span>
+      </span>
+      <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">View</span>
     </button>
   );
 }
@@ -263,156 +250,99 @@ const ChefDashboard = () => {
   }, [filter, fromDate, toDate]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-3 dark:bg-slate-900 sm:p-4 lg:p-6">
-      <div className="mx-auto max-w-7xl space-y-5">
-        <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-emerald-900 to-lime-800 p-4 text-white shadow-xl sm:p-6">
-          <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-start">
-            <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-100">
-                <ChefHat size={14} /> Chef Work
-              </div>
-              <h1 className="mt-3 text-2xl sm:text-3xl font-bold">Chef Dashboard</h1>
-              <p className="mt-2 text-sm text-slate-200">
-                Track the orders accepted by you and the items cooked by you only, with quick filters and detail views.
-              </p>
-            </div>
-
-            <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100">Current Range</p>
-              <p className="mt-2 text-lg font-bold text-white">{rangeLabel}</p>
-            </div>
+    <div className="min-h-screen bg-slate-50 p-3 dark:bg-slate-900 sm:p-4">
+      <div className="mx-auto max-w-6xl space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Your kitchen work &middot; {rangeLabel}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <CalendarDays size={16} className="text-slate-400" />
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              aria-label="Date range"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+            >
+              <option value="today">Today</option>
+              <option value="last7days">Last 7 Days</option>
+              <option value="lastmonth">Last 30 Days</option>
+              <option value="custom">Custom</option>
+            </select>
+            {filter === "custom" ? (
+              <>
+                <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} aria-label="From date" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white" />
+                <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} aria-label="To date" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white" />
+              </>
+            ) : null}
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 sm:p-5">
-          <div className="grid gap-4 lg:grid-cols-[180px_1fr] lg:items-center">
-            <div>
-              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-300">
-                <CalendarDays size={14} /> Filter Work
-              </p>
-              <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">Choose your date range</p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="min-h-12 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-              >
-                <option value="today">Today</option>
-                <option value="last7days">Last 7 Days</option>
-                <option value="lastmonth">Last Month</option>
-                <option value="custom">Custom Day</option>
-              </select>
-
-              {filter === "custom" ? (
-                <>
-                  <input
-                    type="date"
-                    value={fromDate}
-                    onChange={(e) => setFromDate(e.target.value)}
-                    className="min-h-12 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                  />
-                  <input
-                    type="date"
-                    value={toDate}
-                    onChange={(e) => setToDate(e.target.value)}
-                    className="min-h-12 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
-                  />
-                </>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           <SummaryCard
-            title="Orders Accepted By You"
+            title="Orders accepted"
             value={loading ? "..." : totalAcceptedOrders}
-            hint="Click to view accepted order list"
+            icon={<ClipboardList size={18} />}
             tone="slate"
             onClick={() => setModalType("orders")}
           />
           <SummaryCard
-            title="Cooked Items By You"
+            title="Items cooked"
             value={loading ? "..." : totalCookedItems}
-            hint="Click to view cooked item list"
+            icon={<ChefHat size={18} />}
             tone="emerald"
             onClick={() => setModalType("items")}
           />
         </div>
 
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
-          <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-4 dark:border-slate-700 dark:bg-slate-900/40 sm:px-6 sm:py-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
-                  <ClipboardList size={20} /> Accepted Orders
-                </h2>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Orders accepted by you in the selected range.</p>
-              </div>
-              <div className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">
-                {loading ? "Loading..." : `${acceptedOrders.length} order${acceptedOrders.length !== 1 ? "s" : ""}`}
-              </div>
-            </div>
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5 dark:border-slate-700">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Accepted Orders</h2>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              {loading ? "Loading..." : `${acceptedOrders.length} order${acceptedOrders.length !== 1 ? "s" : ""}`}
+            </span>
           </div>
 
-          <div className="p-3 sm:p-6">
-            <div className="grid gap-3 md:hidden">
-              {loading ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
-                  Loading orders...
-                </div>
-              ) : acceptedOrders.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-                  No accepted orders found for this filter.
-                </div>
-              ) : (
-                acceptedOrders.map((order) => <OrderCard key={order._id} order={order} />)
-              )}
-            </div>
+          <div className="grid gap-2 p-3 md:hidden">
+            {loading ? (
+              <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">Loading orders...</p>
+            ) : acceptedOrders.length === 0 ? (
+              <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">No accepted orders for this range.</p>
+            ) : (
+              acceptedOrders.map((order) => <OrderCard key={order._id} order={order} />)
+            )}
+          </div>
 
-            <div className="hidden overflow-x-auto md:block">
-              <table className="min-w-[560px] w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500 dark:bg-slate-900/60 dark:text-slate-300">
-                  <tr>
-                    {["Order No", "Table", "Items", "Status", "Accepted At"].map((head) => (
-                      <th key={head} className="px-4 py-3 text-left font-semibold">
-                        {head}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-10 text-center text-slate-500 dark:text-slate-400">
-                        Loading orders...
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900/60 dark:text-slate-300">
+                <tr>
+                  {["Order", "Table", "Items", "Status", "Accepted"].map((head) => (
+                    <th key={head} className="px-4 py-2 text-left font-semibold">{head}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                {loading ? (
+                  <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-500 dark:text-slate-400">Loading orders...</td></tr>
+                ) : acceptedOrders.length === 0 ? (
+                  <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-500 dark:text-slate-400">No accepted orders for this range.</td></tr>
+                ) : (
+                  acceptedOrders.map((order) => (
+                    <tr key={order._id} className="transition hover:bg-slate-50 dark:hover:bg-slate-700/40">
+                      <td className="px-4 py-2 font-semibold text-slate-800 dark:text-slate-100">#{order.orderNo || order._id?.slice(-6)}</td>
+                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{order.table?.tableNumber || "N/A"}</td>
+                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">
+                        {(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)}
                       </td>
+                      <td className="px-4 py-2"><StatusBadge>{order.status || "ACCEPTED"}</StatusBadge></td>
+                      <td className="px-4 py-2 text-slate-600 dark:text-slate-300">{formatDate(getOrderItemDate(order, "acceptedAt") || order.acceptedAt)}</td>
                     </tr>
-                  ) : acceptedOrders.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-10 text-center text-slate-500 dark:text-slate-400">
-                        No accepted orders found for this filter.
-                      </td>
-                    </tr>
-                  ) : (
-                    acceptedOrders.map((order) => (
-                      <tr key={order._id} className="transition hover:bg-slate-50/70 dark:hover:bg-slate-700/40">
-                        <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-100">{order.orderNo || order._id?.slice(-6)}</td>
-                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">Table {order.table?.tableNumber || "N/A"}</td>
-                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                          {(order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <StatusBadge>{order.status || "ACCEPTED"}</StatusBadge>
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatDate(getOrderItemDate(order, "acceptedAt") || order.acceptedAt)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
