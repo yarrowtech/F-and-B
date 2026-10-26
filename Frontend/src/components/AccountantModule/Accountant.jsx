@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import useRouteSection from "../../hooks/useRouteSection";
 import { useNavigate } from "react-router-dom";
 import { FaEnvelope, FaChartBar, FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTable, FaTachometerAlt, FaUserCircle, FaUtensils } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
@@ -131,7 +132,7 @@ const getInitialDarkMode = () => {
 };
 
 const Accountant = () => {
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useRouteSection("dashboard");
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const mainRef = useRef(null);
 
@@ -145,7 +146,7 @@ const Accountant = () => {
     if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
   }, [active]);
 
-  const handleSetActive = useCallback((section) => setActive(section), []);
+  const handleSetActive = useCallback((section) => setActive(section), [setActive]);
 
   const renderContent = () => {
     switch (active) {

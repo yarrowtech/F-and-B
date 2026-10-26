@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import useRouteSection from "../../hooks/useRouteSection";
 import { useNavigate } from "react-router-dom";
 import { FaSignOutAlt, FaTachometerAlt, FaUserTie, FaClipboardCheck, FaUserCircle, FaStickyNote } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
@@ -112,7 +113,7 @@ const BOTTOM_NAV = [
 
 /* ─── Main Layout ─── */
 const InventoryManager = () => {
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useRouteSection("dashboard");
   const [darkMode, setDarkMode] = useState(() => {
     const savedIsDark = localStorage.getItem("isDark");
     if (savedIsDark !== null) return savedIsDark === "true";
@@ -130,7 +131,7 @@ const InventoryManager = () => {
     if (mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
   }, [active]);
 
-  const handleSetActive = useCallback((section) => setActive(section), []);
+  const handleSetActive = useCallback((section) => setActive(section), [setActive]);
 
   const renderContent = () => {
     switch (active) {

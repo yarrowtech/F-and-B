@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import useRouteSection from "../../hooks/useRouteSection";
 import { useNavigate } from "react-router-dom";
 import {
   FaEnvelope,
@@ -162,7 +163,8 @@ const getManagerRestaurantType = () => {
 };
 
 const ManagerPanel = () => {
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useRouteSection("dashboard");
+  const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const mainRef = useRef(null);
   const restaurantType = getManagerRestaurantType();
@@ -184,13 +186,13 @@ const ManagerPanel = () => {
 
   useEffect(() => {
     if (!tableManagementEnabled && active === "table-management") {
-      setActive("dashboard");
+      navigate("/manager/dashboard", { replace: true });
     }
-  }, [active, tableManagementEnabled]);
+  }, [active, tableManagementEnabled, navigate]);
 
   const handleSetActive = useCallback((section) => {
     setActive(section);
-  }, []);
+  }, [setActive]);
 
   const renderContent = () => {
     switch (active) {

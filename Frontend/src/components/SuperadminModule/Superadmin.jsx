@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import useRouteSection from "../../hooks/useRouteSection";
 import { useNavigate } from "react-router-dom";
 import { FaShieldAlt, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUsers, FaEnvelope, FaGlobe, FaChartLine, FaTools, FaHeartbeat } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
@@ -141,7 +142,7 @@ const getInitialDarkMode = () => {
 };
 
 const SuperAdmin = () => {
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useRouteSection("dashboard");
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const [supportPendingCount, setSupportPendingCount] = useState(0);
   const [usageAlertCount, setUsageAlertCount] = useState(0);
@@ -212,7 +213,7 @@ const SuperAdmin = () => {
 
   const handleSetActive = useCallback((section) => {
     setActive(section);
-  }, []);
+  }, [setActive]);
 
   const renderContent = () => {
     switch (active) {

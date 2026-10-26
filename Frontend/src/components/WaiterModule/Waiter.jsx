@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import useRouteSection from "../../hooks/useRouteSection";
 import { useNavigate } from "react-router-dom";
 import { FaBell, FaEnvelope, FaClipboardCheck, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUserTie } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
@@ -128,7 +129,7 @@ const getInitialDarkMode = () => {
 };
 
 const Waiter = () => {
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useRouteSection("dashboard");
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const [notificationOrderIds, setNotificationOrderIds] = useState([]);
   const mainRef = useRef(null);
@@ -191,7 +192,7 @@ const Waiter = () => {
     if (section === "notifications") {
       setNotificationOrderIds([]);
     }
-  }, []);
+  }, [setActive]);
 
   const renderContent = () => {
     switch (active) {

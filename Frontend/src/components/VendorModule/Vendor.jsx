@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import useRouteSection from "../../hooks/useRouteSection";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Moon, Sun } from "lucide-react";
 
@@ -170,7 +171,7 @@ function VendorProfileButton() {
 }
 
 const VendorPanel = () => {
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useRouteSection("dashboard");
   const [requestCount, setRequestCount] = useState(0);
   const [subscription, setSubscription] = useState(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);

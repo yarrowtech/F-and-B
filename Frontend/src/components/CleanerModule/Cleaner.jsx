@@ -1,4 +1,5 @@
 import useMessageUnread from "../../hooks/useMessageUnread";
+import useRouteSection from "../../hooks/useRouteSection";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { FaBars, FaCogs, FaEnvelope, FaBell, FaHome } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
@@ -30,7 +31,7 @@ const Cleaner = () => {
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   };
 
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useRouteSection("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(initialDark);
 
@@ -66,7 +67,7 @@ const Cleaner = () => {
     setActive(section);
     setSidebarOpen(false);
     if (section === "notifications") setUnreadNotifications(0);
-  }, []);
+  }, [setActive]);
 
   // Content switcher
   const renderContent = () => {

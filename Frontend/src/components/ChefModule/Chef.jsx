@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import useRouteSection from "../../hooks/useRouteSection";
 import { useNavigate } from "react-router-dom";
 import {
   FaSignOutAlt,
@@ -137,7 +138,7 @@ const getInitialDarkMode = () => {
 };
 
 const Chef = () => {
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useRouteSection("dashboard");
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const [notificationOrderIds, setNotificationOrderIds] = useState([]);
   const [printNotice, setPrintNotice] = useState("");
@@ -247,7 +248,7 @@ const Chef = () => {
     if (section === "notification") {
       setNotificationOrderIds([]);
     }
-  }, []);
+  }, [setActive]);
 
   const renderContent = () => {
     switch (active) {

@@ -307,6 +307,7 @@
 // export default Admin;
 
 
+import useRouteSection from "../../hooks/useRouteSection";
 import React, { useState, useEffect, useRef, lazy, Suspense, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./AdminSidebar";
@@ -492,7 +493,7 @@ function SubscriptionRequired({ sectionLabel, onOpenSubscription }) {
 }
 
 const Admin = () => {
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive, sectionParam] = useRouteSection("dashboard");
   const [darkMode, setDarkMode] = useState(() => {
     const savedIsDark = localStorage.getItem("isDark");
     if (savedIsDark !== null) return savedIsDark === "true";
@@ -583,7 +584,7 @@ const Admin = () => {
 
   const handleSetActive = useCallback((section) => {
     setActive(section);
-  }, []);
+  }, [setActive]);
 
   const hasActiveSubscription =
     ["active", "trial"].includes(String(subscription?.status || "").toLowerCase());
@@ -618,7 +619,7 @@ const Admin = () => {
           <RestaurantManagement
             onManageEmployees={(restaurantId) => {
               setSelectedRestaurantId(restaurantId);
-              setActive("restaurantEmployees");
+              setActive("restaurantEmployees", restaurantId);
             }}
           />
         );
@@ -627,7 +628,7 @@ const Admin = () => {
       case "restaurantEmployees":
         return (
           <RestaurantEmployees
-            restaurantId={selectedRestaurantId}
+            restaurantId={sectionParam || selectedRestaurantId}
             onBack={() => setActive("restaurant")}
           />
         );
@@ -652,7 +653,7 @@ const Admin = () => {
           <AdminVendorDirectory
             onViewVendor={(vendorId) => {
               setSelectedVendorId(vendorId);
-              setActive("vendorDetail");
+              setActive("vendorDetail", vendorId);
             }}
           />
         );
@@ -660,7 +661,7 @@ const Admin = () => {
       case "vendorDetail":
         return (
           <AdminVendorStorefront
-            vendorId={selectedVendorId}
+            vendorId={sectionParam || selectedVendorId}
             onBack={() => setActive("vendor")}
           />
         );

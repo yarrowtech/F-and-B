@@ -1,4 +1,5 @@
 // src/SucheifModule/Sucheif.jsx
+import useRouteSection from "../../hooks/useRouteSection";
 import useMessageUnread from "../../hooks/useMessageUnread";
 import React, { useState, useEffect, useRef } from "react";
 import { FaBars, FaCogs, FaEnvelope, FaBell } from "react-icons/fa";
@@ -22,7 +23,7 @@ const Placeholder = ({ title }) => (
 );
 
 const SuCheif = () => {
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useRouteSection("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     const savedIsDark = localStorage.getItem("isDark");
