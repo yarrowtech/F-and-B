@@ -1,3 +1,4 @@
+import TableJoinPicker from "../common/TableJoinPicker";
 import { createElement, useCallback, useEffect, useState } from "react";
 import { FaCheckCircle, FaStore, FaTable } from "react-icons/fa";
 import { getTables } from "../../services/table.service";
@@ -28,7 +29,7 @@ const getOrderTotal = (order) =>
     0
   );
 
-const emptyBookingForm = { customerName: "", phone: "", partySize: "", bookingTime: "", table: "", notes: "" };
+const emptyBookingForm = { customerName: "", phone: "", partySize: "", bookingTime: "", table: "", joinedTables: [], notes: "" };
 
 const STATUS_STYLES = {
   upcoming: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
@@ -122,6 +123,7 @@ const ManagerTableManagement = () => {
         partySize,
         bookingTime: bookingForm.bookingTime,
         table: bookingForm.table || undefined,
+        joinedTables: bookingForm.table ? bookingForm.joinedTables : [],
         notes: bookingForm.notes.trim(),
       });
       await loadReservations();
@@ -321,7 +323,7 @@ const ManagerTableManagement = () => {
 
                     <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                       <InfoTile label="Party Size" value={r.partySize} />
-                      <InfoTile label="Table" value={r.table ? `T${r.table.tableNumber}` : "Unassigned"} />
+                      <InfoTile label="Table" value={r.table ? `T${r.table.tableNumber}${(r.joinedTables || []).map((t) => ` + T${t.tableNumber}`).join("")}` : "Unassigned"} />
                     </div>
 
                     <p className="mt-3 text-sm text-slate-600 dark:text-neutral-300">
@@ -414,7 +416,13 @@ const ManagerTableManagement = () => {
                 <label className="block text-sm font-semibold text-slate-700 dark:text-neutral-300 mb-1.5">Table (optional)</label>
                 <select
                   value={bookingForm.table}
-                  onChange={(e) => setBookingForm({ ...bookingForm, table: e.target.value })}
+                  onChange={(e) =>
+                    setBookingForm({
+                      ...bookingForm,
+                      table: e.target.value,
+                      joinedTables: bookingForm.joinedTables.filter((id) => id !== e.target.value),
+                    })
+                  }
                   className="w-full px-4 py-2.5 text-sm border border-slate-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
                   <option value="">Unassigned</option>
@@ -424,6 +432,14 @@ const ManagerTableManagement = () => {
                 </select>
               </div>
             </div>
+
+            <TableJoinPicker
+              tables={tables}
+              mainTableId={bookingForm.table}
+              value={bookingForm.joinedTables}
+              partySize={bookingForm.partySize}
+              onChange={(joinedTables) => setBookingForm({ ...bookingForm, joinedTables })}
+            />
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-neutral-300 mb-1.5">Booking Date & Time</label>

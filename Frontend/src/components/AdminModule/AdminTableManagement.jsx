@@ -1,4 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
+import TableJoinPicker from "../common/TableJoinPicker";
 import { useEffect, useState } from "react";
 import {
   getTables,
@@ -20,7 +21,7 @@ const STATUS_MAP = {
 };
 
 const emptyForm = { tableNumber: "", capacity: "", status: "FREE" };
-const emptyBookingForm = { customerName: "", phone: "", partySize: "", bookingTime: "", table: "", notes: "" };
+const emptyBookingForm = { customerName: "", phone: "", partySize: "", bookingTime: "", table: "", joinedTables: [], notes: "" };
 const isTableEnabledRestaurant = (restaurant) =>
   String(restaurant?.restaurantType || "HYBRID").toUpperCase() !== "MANUAL_ONLY";
 
@@ -141,6 +142,7 @@ const AdminTableManagement = () => {
         partySize,
         bookingTime: bookingForm.bookingTime,
         table: bookingForm.table || undefined,
+        joinedTables: bookingForm.table ? bookingForm.joinedTables : [],
         notes: bookingForm.notes.trim(),
       });
       await loadReservations();
@@ -729,7 +731,13 @@ const handleDelete = async (id) => {
                 </label>
                 <select
                   value={bookingForm.table}
-                  onChange={(e) => setBookingForm({ ...bookingForm, table: e.target.value })}
+                  onChange={(e) =>
+                    setBookingForm({
+                      ...bookingForm,
+                      table: e.target.value,
+                      joinedTables: bookingForm.joinedTables.filter((id) => id !== e.target.value),
+                    })
+                  }
                   className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="">Unassigned</option>
@@ -739,6 +747,14 @@ const handleDelete = async (id) => {
                 </select>
               </div>
             </div>
+
+            <TableJoinPicker
+              tables={tables}
+              mainTableId={bookingForm.table}
+              value={bookingForm.joinedTables}
+              partySize={bookingForm.partySize}
+              onChange={(joinedTables) => setBookingForm({ ...bookingForm, joinedTables })}
+            />
 
             <div>
               <label className="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
@@ -954,7 +970,7 @@ const BookingsPanel = ({ reservations, loading, onAdd, onSeat, onCancel, onDelet
                   <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-900/40">
                     <p className="text-xs text-gray-400">Table</p>
                     <p className="mt-1 font-semibold text-gray-800 dark:text-gray-100">
-                      {r.table ? `T${r.table.tableNumber}` : "Unassigned"}
+                      {r.table ? `T${r.table.tableNumber}${(r.joinedTables || []).map((t) => ` + T${t.tableNumber}`).join("")}` : "Unassigned"}
                     </p>
                   </div>
                 </div>

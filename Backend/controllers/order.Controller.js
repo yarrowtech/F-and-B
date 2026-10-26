@@ -3,6 +3,7 @@ import logger from "../utils/pinoLogger.js";
 // // import Order from "../models/Order.model.js";
 // // import Table from "../models/Table.model.js";
 import { getOrderTableLabel } from "../utils/tableLabel.js";
+import Reservation from "../models/Reservation.model.js";
 // // import Bill from "../models/Bill.model.js";
 // // import SalesAnalytics from "../models/SalesAnalytics.model.js";
 // // import { getIO } from "../socket.js";
@@ -1807,9 +1808,20 @@ export const createOrder = async (req, res) => {
       return sendError(res, "This table already has an active order");
     }
 
-    const joinedTableIds = uniqueIds(req.body.joinedTables).filter(
-      (id) => id !== String(table._id)
-    );
+    // A group seated from a reservation keeps the tables that were booked for it.
+    const seatedReservation = await Reservation.findOne({
+      restaurant: req.user.restaurant,
+      table: table._id,
+      status: "seated",
+      order: null,
+    }).sort({ updatedAt: -1 });
+
+    const requestedJoinIds = uniqueIds(req.body.joinedTables);
+    const joinedTableIds = (
+      requestedJoinIds.length > 0 || !seatedReservation
+        ? requestedJoinIds
+        : uniqueIds(seatedReservation.joinedTables)
+    ).filter((id) => id !== String(table._id));
     await validateJoinTables(req.user.restaurant, joinedTableIds);
 
     const itemsWithPrice = [];
@@ -1840,6 +1852,11 @@ export const createOrder = async (req, res) => {
       { _id: { $in: [table._id, ...joinedTableIds] } },
       { status: "occupied" }
     );
+
+    if (seatedReservation) {
+      seatedReservation.order = order._id;
+      await seatedReservation.save();
+    }
 
     /* ✅ LOG */
     await logAction({

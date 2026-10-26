@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   FaCheck,
+  FaExclamationTriangle,
   FaFileExcel,
   FaFilePdf,
   FaFilter,
@@ -852,6 +853,17 @@ export default function AccountantOrderBilling() {
     sendToPhone: false,
   });
   const [savingBill, setSavingBill] = useState(false);
+  const [notice, setNotice] = useState(null);
+
+  const showNotice = (message, type = "success", title = "") => {
+    setNotice({ id: Date.now(), message, type, title });
+  };
+
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = setTimeout(() => setNotice(null), 6000);
+    return () => clearTimeout(timer);
+  }, [notice]);
   const [billTables, setBillTables] = useState([]);
   const [billTableId, setBillTableId] = useState("");
   const manualCodeInputRef = useRef(null);
@@ -1173,10 +1185,14 @@ export default function AccountantOrderBilling() {
       );
 
       setSelectedBill(finalBill);
-      if (response?.printJob) {
-        await printJobsOnThisDevice([response.printJob]);
-      }
+      // Printing and PDF generation are independent; run them together.
+      const printPromise = response?.printJob
+        ? printJobsOnThisDevice([response.printJob]).catch((err) => {
+            console.error("BILL PRINT ERROR:", err);
+          })
+        : Promise.resolve();
       await downloadBillPdf(finalBill._id, pdfWindow);
+      await printPromise;
 
       const whatsappUrl = response?.delivery?.whatsapp?.url;
       if (whatsappUrl && whatsappWindow && !whatsappWindow.closed) {
@@ -1194,7 +1210,14 @@ export default function AccountantOrderBilling() {
         response.deliveryMessage === whatsappMessage;
 
       if (response?.deliveryMessage && !onlyManualWhatsApp) {
-        alert(response.deliveryMessage);
+        const isProblem = /fail|required|not configured|invalid|could not/i.test(
+          response.deliveryMessage
+        );
+        showNotice(
+          response.deliveryMessage,
+          isProblem ? "warning" : "success",
+          isProblem ? "Bill saved, but..." : "Bill ready"
+        );
       }
     } catch (err) {
       console.error("GENERATE BILL ERROR:", err);
@@ -1204,7 +1227,7 @@ export default function AccountantOrderBilling() {
       if (whatsappWindow && !whatsappWindow.closed) {
         whatsappWindow.close();
       }
-      alert("Failed to generate bill");
+      showNotice("Please try again. If it keeps happening, check your connection.", "error", "Could not generate bill");
     } finally {
       setSavingBill(false);
     }
@@ -1706,6 +1729,46 @@ export default function AccountantOrderBilling() {
 
   return (
     <div className="min-h-screen bg-[#f3f7fc] p-3 dark:bg-neutral-800 sm:p-4 lg:p-6">
+      {notice && (
+        <div className="fixed inset-x-3 top-3 z-[120] sm:inset-x-auto sm:right-4 sm:top-4 sm:w-96" role="status" aria-live="polite">
+          <div
+            key={notice.id}
+            className={`flex items-start gap-3 rounded-xl border-l-4 bg-white p-3 shadow-2xl ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 ${
+              notice.type === "success"
+                ? "border-emerald-500"
+                : notice.type === "warning"
+                  ? "border-amber-500"
+                  : "border-rose-500"
+            }`}
+          >
+            <span
+              className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm ${
+                notice.type === "success"
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
+                  : notice.type === "warning"
+                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
+                    : "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200"
+              }`}
+            >
+              {notice.type === "success" ? <FaCheck /> : <FaExclamationTriangle />}
+            </span>
+            <div className="min-w-0 flex-1">
+              {notice.title && (
+                <p className="text-sm font-bold text-slate-900 dark:text-white">{notice.title}</p>
+              )}
+              <p className="text-sm text-slate-600 dark:text-slate-300">{notice.message}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              aria-label="Dismiss"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+            >
+              <FaTimes />
+            </button>
+          </div>
+        </div>
+      )}
       <div className="mx-auto max-w-7xl space-y-3 sm:space-y-4">
         <div className="rounded-[28px] bg-[#eef4fb] px-3 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

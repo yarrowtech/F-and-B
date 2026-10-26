@@ -244,10 +244,30 @@ const normalizePdfColor = (value, fallback) =>
     ? String(value).trim()
     : fallback;
 
+// Remote logos were re-downloaded for every PDF; keep them for a while instead.
+const LOGO_CACHE_TTL_MS = 10 * 60 * 1000;
+const logoCache = new Map();
+
 const loadLogoBuffer = async (logoUrl) => {
   const source = sanitizeText(logoUrl);
   if (!source) return null;
 
+  // Embedded images decode instantly; only remote URLs are worth caching.
+  if (!/^https?:\/\//i.test(source)) return fetchLogoBuffer(source);
+
+  const cached = logoCache.get(source);
+  if (cached && cached.expiresAt > Date.now()) return cached.buffer;
+
+  const buffer = await fetchLogoBuffer(source);
+  logoCache.set(source, {
+    buffer,
+    // Retry a failed download sooner than a successful one.
+    expiresAt: Date.now() + (buffer ? LOGO_CACHE_TTL_MS : 60 * 1000),
+  });
+  return buffer;
+};
+
+const fetchLogoBuffer = async (source) => {
   try {
     const dataUrlMatch = source.match(/^data:image\/(png|jpe?g);base64,(.+)$/i);
     if (dataUrlMatch) return Buffer.from(dataUrlMatch[2], "base64");
@@ -1642,18 +1662,16 @@ const customizeBill = async (req, res) => {
         delivery.email.message =
           "Email delivery is not configured yet. Customer email was saved.";
       } else {
-        try {
-          await sendCustomerBillEmail({
-            to: bill.customerEmail,
-            bill,
-            feedbackUrl: buildPublicFeedbackUrl(bill._id, getRequestOrigin(req)),
-          });
-          delivery.email.sent = true;
-          delivery.email.message = "Bill sent to customer email.";
-        } catch (err) {
+        // SMTP can take seconds; do not make the cashier wait for it.
+        sendCustomerBillEmail({
+          to: bill.customerEmail,
+          bill,
+          feedbackUrl: buildPublicFeedbackUrl(bill._id, getRequestOrigin(req)),
+        }).catch((err) => {
           logger.error({ err }, "Failed to send customer bill email");
-          delivery.email.message = "Failed to send bill email. Please try again.";
-        }
+        });
+        delivery.email.sent = true;
+        delivery.email.message = "Bill is being emailed to the customer.";
       }
     }
 

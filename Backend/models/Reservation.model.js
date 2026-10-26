@@ -15,6 +15,19 @@ const reservationSchema = new mongoose.Schema(
       default: null,
     },
 
+    // Extra tables pushed together for a large group (main table stays in `table`).
+    joinedTables: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Table" }],
+      default: [],
+    },
+
+    // The dine-in order created for this booking once the group was seated.
+    order: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      default: null,
+    },
+
     customerName: {
       type: String,
       required: true,
