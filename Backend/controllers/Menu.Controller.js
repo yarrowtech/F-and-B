@@ -461,9 +461,25 @@ export const getPublicMenu = async (req, res) => {
       isAvailable: true,
     })
       .select("name cuisine courseType price")
-      .populate("cuisine", "name")
       .sort({ courseType: 1, name: 1 })
       .lean();
+
+    // Populate manually: legacy rows may hold a non-ObjectId cuisine (e.g. "brevarage"),
+    // which makes .populate() throw a CastError for the whole menu.
+    const sectionIds = [
+      ...new Set(
+        items
+          .map((item) => String(item.cuisine || ""))
+          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      ),
+    ];
+    const sections = sectionIds.length
+      ? await KitchenSection.find({ _id: { $in: sectionIds } }).select("name").lean()
+      : [];
+    const sectionById = new Map(sections.map((s) => [String(s._id), s]));
+    items.forEach((item) => {
+      item.cuisine = sectionById.get(String(item.cuisine)) || null;
+    });
 
     res.json({
       restaurant,
