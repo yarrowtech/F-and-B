@@ -6,13 +6,14 @@ import vendorPriceNegotiationController from "../controllers/vendorPriceNegotiat
 import auth from "../middlewares/auth.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
 import { loginLimiter } from "../middlewares/rateLimit.js";
+import { guardPublicSignup } from "../middlewares/yarrowtechServer.middleware.js";
 
 const router = express.Router();
 
 router.post("/login", loginLimiter, vendorController.loginVendor);
 router.post("/forgot-password", loginLimiter, vendorController.forgotVendorPassword);
 router.post("/reset-password", loginLimiter, vendorController.resetVendorForgotPassword);
-router.post("/self-signup/global", vendorController.createGlobalVendorSelfSignup);
+router.post("/self-signup/global", guardPublicSignup, vendorController.createGlobalVendorSelfSignup);
 router.get("/invitations/:token", vendorController.getVendorInvitation);
 router.post("/invitations/:token/accept", vendorController.acceptVendorInvitation);
 router.get(

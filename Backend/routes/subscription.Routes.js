@@ -15,13 +15,14 @@ import {
 } from "../controllers/subscription.controller.js";
 import protect from "../middlewares/auth.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
+import { guardPublicSignup } from "../middlewares/yarrowtechServer.middleware.js";
 
 const router = express.Router();
 
 router.get("/plans", getPublicPlans);
-router.post("/admin-signup/create", createAdminSelfSignup);
-router.post("/admin-signup/order", createAdminSignupOrder);
-router.post("/admin-signup/verify", verifyAdminSignupPayment);
+router.post("/admin-signup/create", guardPublicSignup, createAdminSelfSignup);
+router.post("/admin-signup/order", guardPublicSignup, createAdminSignupOrder);
+router.post("/admin-signup/verify", guardPublicSignup, verifyAdminSignupPayment);
 
 router.get("/me", protect, allowRoles("admin"), getMySubscription);
 router.post("/me/upgrade/order", protect, allowRoles("admin"), createAdminUpgradeOrder);
