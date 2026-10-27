@@ -44,6 +44,8 @@ export default function TableOrder() {
 
   const [search, setSearch] = useState("");
   const [course, setCourse] = useState("all");
+  const [cuisine, setCuisine] = useState("all");
+  const [sortBy, setSortBy] = useState("course");
   const [cart, setCart] = useState({}); // menuItemId -> { qty, note }
   const [cartOpen, setCartOpen] = useState(false);
   const [customerName, setCustomerName] = useState("");
@@ -110,24 +112,43 @@ export default function TableOrder() {
     [items]
   );
 
+  const cuisines = useMemo(
+    () => [...new Map(items.filter((item) => item.cuisine?._id).map((item) => [item.cuisine._id, item.cuisine])).values()],
+    [items]
+  );
+
   const visibleItems = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return items.filter(
+    const filtered = items.filter(
       (item) =>
         (course === "all" || item.courseType === course) &&
+        (cuisine === "all" || item.cuisine?._id === cuisine) &&
         `${item.name} ${item.cuisine?.name || ""} ${item.courseType || ""}`.toLowerCase().includes(term)
     );
-  }, [items, search, course]);
 
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "priceLow") return Number(a.price || 0) - Number(b.price || 0);
+      if (sortBy === "priceHigh") return Number(b.price || 0) - Number(a.price || 0);
+      if (sortBy === "name") return String(a.name || "").localeCompare(String(b.name || ""));
+      return (
+        String(a.courseType || "").localeCompare(String(b.courseType || "")) ||
+        String(a.name || "").localeCompare(String(b.name || ""))
+      );
+    });
+  }, [items, search, course, cuisine, sortBy]);
+
+  // Grouped by course only when sorting by course; other sorts read as one list.
   const grouped = useMemo(
     () =>
       visibleItems.reduce((groups, item) => {
-        const key = item.courseType || "Menu";
+        const key = sortBy === "course" ? item.courseType || "Menu" : "All dishes";
         (groups[key] = groups[key] || []).push(item);
         return groups;
       }, {}),
-    [visibleItems]
+    [visibleItems, sortBy]
   );
+
+  const filtersActive = course !== "all" || cuisine !== "all" || search.trim() !== "";
 
   const canOrder = !otherOrder && (!order || order.status === "PENDING_ACCEPT");
 
@@ -347,6 +368,30 @@ export default function TableOrder() {
                   className="w-full bg-transparent text-sm font-medium outline-none"
                 />
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={cuisine}
+                  onChange={(e) => setCuisine(e.target.value)}
+                  className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 outline-none focus:border-emerald-500"
+                >
+                  <option value="all">All cuisines</option>
+                  {cuisines.map((item) => (
+                    <option key={item._id} value={item._id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 outline-none focus:border-emerald-500"
+                >
+                  <option value="course">Sort by course</option>
+                  <option value="name">Sort by name</option>
+                  <option value="priceLow">Price: low to high</option>
+                  <option value="priceHigh">Price: high to low</option>
+                </select>
+              </div>
               <div className="flex gap-1.5 overflow-x-auto pb-0.5">
                 {["all", ...courses].map((name) => (
                   <button
@@ -364,9 +409,22 @@ export default function TableOrder() {
             </div>
 
             {visibleItems.length === 0 && (
-              <p className="rounded-2xl bg-white p-6 text-center text-sm font-semibold text-slate-500 ring-1 ring-slate-200">
-                No dishes found.
-              </p>
+              <div className="rounded-2xl bg-white p-6 text-center ring-1 ring-slate-200">
+                <p className="text-sm font-semibold text-slate-500">No dishes found.</p>
+                {filtersActive && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setCourse("all");
+                      setCuisine("all");
+                    }}
+                    className="mt-2 text-sm font-bold text-emerald-700"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
             )}
 
             {Object.entries(grouped).map(([name, list]) => (

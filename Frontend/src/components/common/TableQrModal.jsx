@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FaPrint, FaQrcode, FaSyncAlt, FaTimes } from "react-icons/fa";
+import { FaDownload, FaPrint, FaQrcode, FaSyncAlt, FaTimes } from "react-icons/fa";
 import { getTableQrCodes, regenerateTableQr } from "../../services/qrOrder.service";
 
 const getPublicOrigin = () =>
@@ -38,6 +38,7 @@ export default function TableQrModal({ restaurantId, onClose }) {
   const [error, setError] = useState("");
   const [resetId, setResetId] = useState(""); // table waiting for "are you sure"
   const [busyId, setBusyId] = useState("");
+  const [downloadingId, setDownloadingId] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -49,6 +50,26 @@ export default function TableQrModal({ restaurantId, onClose }) {
       alive = false;
     };
   }, [restaurantId]);
+
+  const downloadQr = async (table) => {
+    const url = getQrImage(getOrderUrl(table.qrToken), 600);
+    try {
+      setDownloadingId(table._id);
+      const blob = await (await fetch(url)).blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `table-${table.tableNumber}-qr.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } finally {
+      setDownloadingId("");
+    }
+  };
 
   const resetQr = async (table) => {
     try {
@@ -148,14 +169,25 @@ export default function TableQrModal({ restaurantId, onClose }) {
                           </button>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => setResetId(table._id)}
-                          title="Replace this QR code. The printed one stops working."
-                          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                          <FaSyncAlt className="text-[10px]" /> New QR
-                        </button>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => downloadQr(table)}
+                            disabled={downloadingId === table._id}
+                            className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+                          >
+                            <FaDownload className="text-[10px]" />
+                            {downloadingId === table._id ? "..." : "Download"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setResetId(table._id)}
+                            title="Replace this QR code. The printed one stops working."
+                            className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-2 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+                          >
+                            <FaSyncAlt className="text-[10px]" /> New QR
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
