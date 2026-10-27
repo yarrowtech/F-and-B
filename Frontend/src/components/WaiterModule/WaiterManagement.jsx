@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FaBell, FaCheckCircle, FaExchangeAlt, FaMinus, FaPlus, FaPrint, FaSearch, FaShoppingCart, FaTable, FaTimes, FaUtensils } from "react-icons/fa";
 import {
   addItemsToOrder,
@@ -14,6 +14,7 @@ import {
 } from "../../services/order.service";
 import { getMenu } from "../../services/menu.service";
 import { getTables } from "../../services/table.service";
+import { getMyTableAssignments } from "../../services/waiterTable.service";
 import socket from "../../socket/socket";
 
 const REFRESH_INTERVAL = 5000;
@@ -78,6 +79,9 @@ export default function WaiterManagement() {
   const [billMessage, setBillMessage] = useState("");
   const [tableLockMessage, setTableLockMessage] = useState("");
   const [activeMobilePanel, setActiveMobilePanel] = useState("menu");
+  const [myAssignments, setMyAssignments] = useState([]);
+  const [otherTablePending, setOtherTablePending] = useState(null);
+  const defaultedToMine = useRef(false);
   const [tableSearch, setTableSearch] = useState("");
   const [tableViewFilter, setTableViewFilter] = useState("all");
   const [tableMoveId, setTableMoveId] = useState("");
@@ -104,15 +108,17 @@ export default function WaiterManagement() {
     }
 
     try {
-      const [tablesRes, menuRes, ordersRes] = await Promise.all([
+      const [tablesRes, menuRes, ordersRes, assignmentsRes] = await Promise.all([
         getTables(restaurantId),
         getMenu(restaurantId),
         getWaiterOrders(),
+        getMyTableAssignments().catch(() => []),
       ]);
 
       setTables(Array.isArray(tablesRes) ? tablesRes : []);
       setMenuItems(Array.isArray(menuRes) ? menuRes : []);
       setOrders(Array.isArray(ordersRes) ? ordersRes : []);
+      setMyAssignments(assignmentsRes);
     } catch (err) {
       console.error("WAITER LOAD ERROR:", err);
     } finally {
@@ -295,6 +301,21 @@ export default function WaiterManagement() {
     return "active";
   };
 
+  // Tables the admin/manager gave to this waiter. Empty = no restriction at all.
+  const assignmentByTable = useMemo(
+    () => new Map(myAssignments.map((item) => [idOf(item.table), item.type])),
+    [myAssignments]
+  );
+  const hasAssignments = assignmentByTable.size > 0;
+
+  // Start on "My tables" the first time we learn the waiter has assigned tables.
+  useEffect(() => {
+    if (hasAssignments && !defaultedToMine.current) {
+      defaultedToMine.current = true;
+      setTableViewFilter("mine");
+    }
+  }, [hasAssignments]);
+
   const filteredTables = useMemo(() => {
     const search = tableSearch.trim().toLowerCase();
 
@@ -302,7 +323,11 @@ export default function WaiterManagement() {
       const order = tableOrders[table._id];
       const statusKey = getTableFilterLabel(order);
       const matchesFilter =
-        tableViewFilter === "all" ? true : statusKey === tableViewFilter;
+        tableViewFilter === "all"
+          ? true
+          : tableViewFilter === "mine"
+            ? assignmentByTable.has(table._id)
+            : statusKey === tableViewFilter;
 
       const matchesSearch = search
         ? String(table.tableNumber || "").toLowerCase().includes(search)
@@ -310,7 +335,7 @@ export default function WaiterManagement() {
 
       return matchesFilter && matchesSearch;
     });
-  }, [tables, tableOrders, tableSearch, tableViewFilter]);
+  }, [tables, tableOrders, tableSearch, tableViewFilter, assignmentByTable]);
 
   if (!restaurantId) {
     return <div className="p-10 text-xl text-red-600">No restaurant assigned to this waiter.</div>;
@@ -355,7 +380,7 @@ export default function WaiterManagement() {
   const closeBillMessage = () => setBillMessage("");
   const closeTableLockMessage = () => setTableLockMessage("");
 
-  const handleTableClick = (table) => {
+  const handleTableClick = (table, confirmedOtherTable = false) => {
     const existingOrder = tableOrders[table._id];
     if (existingOrder && !isOwnOrder(existingOrder)) {
       setTableLockMessage(
@@ -363,6 +388,11 @@ export default function WaiterManagement() {
           ? `This table is already occupied by ${existingOrder.waiter.name}.`
           : "This table is already occupied by another waiter."
       );
+      return;
+    }
+
+    if (!confirmedOtherTable && !existingOrder && hasAssignments && !assignmentByTable.has(table._id)) {
+      setOtherTablePending(table);
       return;
     }
 
@@ -624,6 +654,15 @@ export default function WaiterManagement() {
     : [];
 
   const filterPills = [
+    ...(hasAssignments
+      ? [
+          {
+            id: "mine",
+            label: "My tables",
+            count: tables.filter((table) => assignmentByTable.has(table._id)).length,
+          },
+        ]
+      : []),
     { id: "all", label: "All", count: tables.length },
     {
       id: "available",
@@ -756,7 +795,20 @@ export default function WaiterManagement() {
                   className={`flex flex-col rounded-xl border p-2.5 text-left transition focus:outline-none focus:ring-2 focus:ring-emerald-500 ${isLocked ? "cursor-not-allowed opacity-85" : "cursor-pointer hover:shadow-md active:scale-[0.99]"} ${getTableCardStyle(order)}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <h2 className="text-xl font-black leading-none">T{table.tableNumber}</h2>
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="text-xl font-black leading-none">T{table.tableNumber}</h2>
+                      {assignmentByTable.get(table._id) && (
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                            assignmentByTable.get(table._id) === "EXTRA"
+                              ? "bg-amber-200 text-amber-900"
+                              : "bg-emerald-200 text-emerald-900"
+                          }`}
+                        >
+                          {assignmentByTable.get(table._id) === "EXTRA" ? "Extra" : "Yours"}
+                        </span>
+                      )}
+                    </div>
                     {order ? (
                       <span className="rounded-md bg-white/70 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide dark:bg-slate-900/40">
                         {itemCount} item{itemCount === 1 ? "" : "s"}
@@ -767,6 +819,11 @@ export default function WaiterManagement() {
                   <p className="mt-1.5 truncate text-xs font-semibold" title={getStatusLabel(order)}>
                     {isJoinedChild ? `Joined with T${mainTableNumber}` : getStatusLabel(order)}
                   </p>
+                  {order && !isJoinedChild && order.tableAssignment === "OTHER" && (
+                    <p className="mt-0.5 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-800">
+                      Other table
+                    </p>
+                  )}
                   {joinedNumbers.length > 0 && (
                     <p className="truncate text-[11px] font-medium opacity-80">
                       + {joinedNumbers.map((number) => `T${number}`).join(", ")}
@@ -1194,6 +1251,42 @@ export default function WaiterManagement() {
               )}
             </div>
           </MenuModal>
+        )}
+
+        {otherTablePending && (
+          <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 p-4 sm:items-center">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-2xl ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-xl text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+                <FaTable />
+              </div>
+              <h2 className="mt-4 text-lg font-black text-slate-900 dark:text-white">
+                Table {otherTablePending.tableNumber} is not yours
+              </h2>
+              <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                You can still take this order, but it will be marked <b>Other table</b> for the manager.
+              </p>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOtherTablePending(null)}
+                  className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const table = otherTablePending;
+                    setOtherTablePending(null);
+                    handleTableClick(table, true);
+                  }}
+                  className="min-h-11 rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white hover:bg-amber-600"
+                >
+                  Take order anyway
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {tableLockMessage && (

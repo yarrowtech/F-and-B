@@ -272,6 +272,14 @@ const orderSchema = new mongoose.Schema(
       index: true,
     },
 
+    // How the table relates to the waiter's assigned tables when the order was taken.
+    // "" = waiter has no assignments; OTHER = a table that is not assigned to them.
+    tableAssignment: {
+      type: String,
+      enum: ["", "ASSIGNED", "EXTRA", "OTHER"],
+      default: "",
+    },
+
     // Extra tables pushed together for one large group. `table` stays the main table.
     joinedTables: {
       type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Table" }],

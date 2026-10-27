@@ -4,6 +4,7 @@ import logger from "../utils/pinoLogger.js";
 // // import Table from "../models/Table.model.js";
 import { getOrderTableLabel } from "../utils/tableLabel.js";
 import Reservation from "../models/Reservation.model.js";
+import { getTableAssignmentMark } from "./waiterTable.Controller.js";
 // // import Bill from "../models/Bill.model.js";
 // // import SalesAnalytics from "../models/SalesAnalytics.model.js";
 // // import { getIO } from "../socket.js";
@@ -1843,6 +1844,10 @@ export const createOrder = async (req, res) => {
       restaurant: table.restaurant,
       table: table._id,
       joinedTables: joinedTableIds,
+      tableAssignment:
+        req.user.role === "waiter"
+          ? await getTableAssignmentMark(req.user.restaurant, req.user.id, table._id)
+          : "",
       waiter: req.user.id,
       items: itemsWithPrice,
       status: "PENDING",
@@ -2139,6 +2144,13 @@ export const changeOrderTable = async (req, res) => {
     }
 
     order.table = targetTable._id;
+    if (req.user.role === "waiter") {
+      order.tableAssignment = await getTableAssignmentMark(
+        req.user.restaurant,
+        req.user.id,
+        targetTable._id
+      );
+    }
     // Moving onto one of the joined tables just makes it the main table.
     order.joinedTables = (order.joinedTables || []).filter(
       (id) => String(id) !== String(targetTable._id)

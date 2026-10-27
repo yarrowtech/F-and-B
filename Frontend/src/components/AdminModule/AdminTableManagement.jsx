@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import TableJoinPicker from "../common/TableJoinPicker";
+import WaiterTableAssignment from "../common/WaiterTableAssignment";
 import { useEffect, useState } from "react";
 import {
   getTables,
@@ -45,6 +46,7 @@ const AdminTableManagement = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
 
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
@@ -230,22 +232,53 @@ const AdminTableManagement = () => {
     setShowEditModal(true);
   };
 
-  const handleEdit = async (e) => {
+  const editingTable = tables.find((table) => table._id === editId) || null;
+  const editStatusLabel = (status) => (status === "available" || status === "FREE" ? "Free" : "Occupied");
+  const editChanges = editingTable
+    ? [
+        Number(form.capacity) !== Number(editingTable.capacity) && {
+          label: "Capacity",
+          from: String(editingTable.capacity),
+          to: String(Number(form.capacity)),
+        },
+        editStatusLabel(form.status) !== editStatusLabel(editingTable.status) && {
+          label: "Status",
+          from: editStatusLabel(editingTable.status),
+          to: editStatusLabel(form.status),
+        },
+      ].filter(Boolean)
+    : [];
+
+  const handleEdit = (e) => {
     e.preventDefault();
     const capacity = Number(form.capacity);
     if (!capacity || capacity <= 0) {
       showFeedback("error", "Enter valid capacity");
       return;
     }
+    if (editChanges.length === 0) {
+      setShowEditModal(false);
+      setEditId(null);
+      setForm(emptyForm);
+      showFeedback("success", `No changes made to Table T${form.tableNumber}`);
+      return;
+    }
+    setShowUpdateConfirm(true);
+  };
+
+  const confirmEdit = async () => {
+    const capacity = Number(form.capacity);
     try {
       setLoading(true);
       await updateTable(selectedRestaurant, editId, { capacity, status: STATUS_MAP[form.status] });
       await loadTables();
+      setShowUpdateConfirm(false);
       setShowEditModal(false);
       setEditId(null);
       setForm(emptyForm);
       showFeedback("success", `Table T${form.tableNumber} updated successfully`);
     } catch (err) {
+      setShowUpdateConfirm(false);
       showFeedback("error", err?.response?.data?.message || "Update failed");
     } finally {
       setLoading(false);
@@ -316,7 +349,7 @@ const handleDelete = async (id) => {
         </div>
       )}
 
-      <div className="mb-4 grid grid-cols-3 gap-1.5 rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700 sm:flex sm:w-fit">
+      <div className="mb-4 grid grid-cols-2 gap-1.5 rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700 sm:flex sm:w-fit">
         <button
           type="button"
           onClick={() => setActiveTab("manage")}
@@ -350,6 +383,17 @@ const handleDelete = async (id) => {
         >
           Bookings
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("waiters")}
+          className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+            activeTab === "waiters"
+              ? "bg-green-600 text-white"
+              : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+          }`}
+        >
+          Waiter Tables
+        </button>
       </div>
 
       {/* ── TABLE LIST ── */}
@@ -357,6 +401,8 @@ const handleDelete = async (id) => {
         <div className="flex items-center justify-center h-48 text-gray-400 dark:text-gray-500 text-base">
           Select a restaurant to view its tables
         </div>
+      ) : activeTab === "waiters" ? (
+        <WaiterTableAssignment restaurantId={selectedRestaurant} tables={tables} />
       ) : activeTab === "live" ? (
         <LiveTableOrders
           tables={tables}
@@ -542,7 +588,7 @@ const handleDelete = async (id) => {
 
       {/* ══════════════ EDIT TABLE MODAL ══════════════ */}
       {showEditModal && (
-        <Modal title="Edit Table" onClose={() => { setShowEditModal(false); setEditId(null); }}>
+        <Modal title="Edit Table" onClose={() => { setShowEditModal(false); setShowUpdateConfirm(false); setEditId(null); }}>
           <form onSubmit={handleEdit} className="space-y-5">
             <div>
               <label className="block text-base font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
@@ -613,12 +659,56 @@ const handleDelete = async (id) => {
                 disabled={loading}
                 className="rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-60"
               >
-                {loading ? "Saving…" : "Update"}
+                Update
               </button>
             </div>
           </form>
         </Modal>
       )}
+      {/* ══════════════ CONFIRM UPDATE MODAL ══════════════ */}
+      {showUpdateConfirm && (
+        <Modal title="Confirm Update" onClose={() => !loading && setShowUpdateConfirm(false)}>
+          <div className="space-y-4 text-center">
+            <p className="text-base text-gray-600 dark:text-gray-300">
+              Save these changes to Table{" "}
+              <span className="font-semibold text-green-700 dark:text-green-400">T{form.tableNumber}</span>?
+            </p>
+
+            <div className="space-y-2 rounded-lg bg-gray-50 p-3 text-left text-sm text-gray-600 dark:bg-gray-700/50 dark:text-gray-300">
+              {editChanges.map((change) => (
+                <p key={change.label} className="flex items-center justify-between gap-3">
+                  <b>{change.label}</b>
+                  <span>
+                    <span className="text-gray-400 line-through">{change.from}</span>
+                    <span className="mx-2 text-gray-400">&rarr;</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{change.to}</span>
+                  </span>
+                </p>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowUpdateConfirm(false)}
+                disabled={loading}
+                className="rounded-xl border border-gray-300 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                Go back
+              </button>
+              <button
+                type="button"
+                onClick={confirmEdit}
+                disabled={loading}
+                className="rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-60"
+              >
+                {loading ? "Saving…" : "Yes, update"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* ══════════════ DELETE TABLE MODAL ══════════════ */}
 {deleteTarget && (
   <Modal title="Confirm Delete" onClose={() => setDeleteTarget(null)}>

@@ -1,3 +1,4 @@
+import WaiterTableAssignment from "../common/WaiterTableAssignment";
 import TableJoinPicker from "../common/TableJoinPicker";
 import { createElement, useCallback, useEffect, useState } from "react";
 import { FaCheckCircle, FaStore, FaTable } from "react-icons/fa";
@@ -180,7 +181,7 @@ const ManagerTableManagement = () => {
           </div>
         ) : null}
 
-        <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700 sm:flex sm:w-fit">
+        <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700 sm:flex sm:w-fit">
           <button
             type="button"
             onClick={() => setActiveTab("live")}
@@ -203,12 +204,25 @@ const ManagerTableManagement = () => {
           >
             Reservation Booking
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("waiters")}
+            className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+              activeTab === "waiters"
+                ? "bg-emerald-600 text-white"
+                : "text-slate-600 hover:bg-slate-100 dark:text-neutral-300 dark:hover:bg-neutral-700"
+            }`}
+          >
+            Waiter Tables
+          </button>
         </div>
 
         {!restaurantId ? (
           <EmptyState>No restaurant is assigned to this manager.</EmptyState>
         ) : !tableManagementEnabled ? (
           <EmptyState>Table management is disabled for manual-only restaurants.</EmptyState>
+        ) : activeTab === "waiters" ? (
+          <WaiterTableAssignment restaurantId={restaurantId} tables={tables} />
         ) : activeTab === "live" ? (
           <>
             <div className="grid gap-3 sm:grid-cols-3">
