@@ -30,6 +30,8 @@ import {
 =============================== */
 
 const ESCALATE_MS = Math.max(Number(process.env.QR_ESCALATE_SECONDS) || 60, 5) * 1000;
+// A QR order nobody accepts is cancelled after this long so it cannot hold the table.
+const EXPIRE_MS = Math.max(Number(process.env.QR_EXPIRE_MINUTES) || 30, 1) * 60 * 1000;
 const MAX_ORDER_LINES = 40;
 const MAX_LINE_QUANTITY = 20;
 
@@ -39,6 +41,14 @@ const fail = (res, message, status = 400, extra = {}) =>
 const ok = (res, data, status = 200) => send(res, status, { success: true, data });
 
 const newToken = () => crypto.randomBytes(9).toString("base64url");
+const newAccessKey = () => crypto.randomBytes(16).toString("hex");
+const newTableCode = () => String(crypto.randomInt(0, 10000)).padStart(4, "0");
+
+const sameSecret = (expected, given) => {
+  const a = Buffer.from(String(expected || ""));
+  const b = Buffer.from(String(given || ""));
+  return a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
+};
 
 const cleanNotes = (value) =>
   (Array.isArray(value) ? value : [])
@@ -130,14 +140,15 @@ export const getTableByToken = async (req, res) => {
       return fail(res, "Ordering from the table is not available here.", 404);
     }
 
-    const active = await populateOrderDetails(
-      findOrderUsingTables(table.restaurant, [table._id])
-    );
+    // Whoever scans the QR only learns that the table is busy, never what was ordered.
+    const active = await findOrderUsingTables(table.restaurant, [table._id])
+      .select("source")
+      .lean();
 
     return ok(res, {
       restaurant: { _id: restaurant._id, name: restaurant.name, phone: restaurant.phone },
       table: { tableNumber: table.tableNumber },
-      activeOrder: active ? summarizeOrderForCustomer(active) : null,
+      activeOrder: active ? { inUse: true, canJoin: active.source === "QR" } : null,
     });
   } catch (err) {
     logger.error("QR TABLE LOOKUP ERROR:", err.message);
@@ -203,15 +214,19 @@ export const placeQrOrder = async (req, res) => {
       price: menuById.get(line.menuItem).price,
     }));
 
-    const existing = await findOrderUsingTables(table.restaurant, [table._id]);
+    const existing = await findOrderUsingTables(table.restaurant, [table._id]).select(
+      "+qrAccessKey"
+    );
 
     if (existing) {
-      // Only a QR order that no waiter has taken yet can still grow; after that the
-      // waiter owns it and adds items from their screen.
-      if (existing.source !== "QR" || existing.status !== "PENDING_ACCEPT") {
+      // Only the phone that started a QR order can add to it, and only until a waiter
+      // takes it; after that the waiter owns it and adds items from their screen.
+      const ownsOrder =
+        existing.source === "QR" && sameSecret(existing.qrAccessKey, req.body?.orderKey);
+      if (!ownsOrder || existing.status !== "PENDING_ACCEPT") {
         return fail(
           res,
-          "Your table already has an order. Please ask your waiter to add more items.",
+          "This table already has an order. Please ask your waiter to add more items.",
           409
         );
       }
@@ -271,13 +286,25 @@ export const placeQrOrder = async (req, res) => {
       orderType: "DINE_IN",
       customerName: String(req.body?.customerName || "").trim().slice(0, 40),
       qrRequestedAt: new Date(),
+      qrAccessKey: newAccessKey(),
+      qrTableCode: newTableCode(),
       items: orderItems,
       status: "PENDING_ACCEPT",
     });
 
     await emitNewQrOrder(order, "NEW_QR_ORDER");
 
-    return ok(res, { orderId: String(order._id), orderNo: order.orderNo, merged: false }, 201);
+    return ok(
+      res,
+      {
+        orderId: String(order._id),
+        orderNo: order.orderNo,
+        orderKey: order.qrAccessKey,
+        tableCode: order.qrTableCode,
+        merged: false,
+      },
+      201
+    );
   } catch (err) {
     logger.error("QR PLACE ORDER ERROR:", err.message);
     return fail(res, err.message || "Could not place your order. Please try again.");
@@ -285,8 +312,33 @@ export const placeQrOrder = async (req, res) => {
 };
 
 /* ===============================
+   PUBLIC: JOIN THE TABLE'S QR ORDER WITH ITS 4-DIGIT CODE
+   POST /api/qr-order/table/:token/join   body: { code }
+=============================== */
+export const joinQrOrder = async (req, res) => {
+  try {
+    const table = await Table.findOne({ qrToken: req.params.token }).select("restaurant").lean();
+    if (!table) return fail(res, "This QR code is not valid. Please ask the staff.", 404);
+
+    const order = await findOrderUsingTables(table.restaurant, [table._id])
+      .select("source +qrAccessKey +qrTableCode")
+      .lean();
+
+    if (!order || order.source !== "QR" || !sameSecret(order.qrTableCode, req.body?.code)) {
+      return fail(res, "That table code is not correct.", 403);
+    }
+
+    return ok(res, { orderId: String(order._id), orderKey: order.qrAccessKey });
+  } catch (err) {
+    logger.error("QR JOIN ORDER ERROR:", err.message);
+    return fail(res, "Could not join the order.", 500);
+  }
+};
+
+/* ===============================
    PUBLIC: TRACK A QR ORDER
-   GET /api/qr-order/orders/:orderId
+   GET /api/qr-order/orders/:orderId?key=<orderKey>
+   Only the phone that holds the order's key can see it.
 =============================== */
 export const getQrOrderStatus = async (req, res) => {
   try {
@@ -295,11 +347,17 @@ export const getQrOrderStatus = async (req, res) => {
     }
 
     const order = await populateOrderDetails(
-      Order.findOne({ _id: req.params.orderId, source: "QR" })
+      Order.findOne({ _id: req.params.orderId, source: "QR" }).select(
+        "+qrAccessKey +qrTableCode"
+      )
     );
-    if (!order) return fail(res, "Order not found", 404);
+    if (!order || !sameSecret(order.qrAccessKey, req.query.key)) {
+      return fail(res, "Order not found", 404);
+    }
 
-    return ok(res, summarizeOrderForCustomer(order));
+    const summary = summarizeOrderForCustomer(order);
+    const finished = ["PAID", "CANCELLED"].includes(order.status);
+    return ok(res, { ...summary, tableCode: finished ? "" : order.qrTableCode });
   } catch (err) {
     logger.error("QR ORDER STATUS ERROR:", err.message);
     return fail(res, "Could not load your order.", 500);
@@ -557,4 +615,41 @@ export const regenerateTableQr = async (req, res) => {
     logger.error("REGENERATE TABLE QR ERROR:", err.message);
     return fail(res, err.message, 500);
   }
+};
+
+/* ===============================
+   HOUSEKEEPING: CANCEL QR ORDERS NO WAITER ACCEPTED
+   Runs every minute (see startQrOrderExpiry) so a prank, a wrong-table scan or an
+   unstaffed hour cannot keep a table blocked.
+=============================== */
+export const expireStaleQrOrders = async () => {
+  const stale = await Order.find({
+    source: "QR",
+    status: "PENDING_ACCEPT",
+    waiter: null,
+    qrRequestedAt: { $lt: new Date(Date.now() - EXPIRE_MS) },
+  })
+    .select("_id restaurant")
+    .lean();
+  if (stale.length === 0) return;
+
+  await Order.updateMany(
+    { _id: { $in: stale.map((order) => order._id) }, status: "PENDING_ACCEPT", waiter: null },
+    { $set: { status: "CANCELLED" } }
+  );
+
+  stale.forEach((order) =>
+    emitSafe("waiter:qr-order-taken", {
+      orderId: String(order._id),
+      restaurant: String(order.restaurant),
+      action: "EXPIRED",
+    })
+  );
+};
+
+export const startQrOrderExpiry = () => {
+  const timer = setInterval(() => {
+    expireStaleQrOrders().catch((err) => logger.error("QR ORDER EXPIRY ERROR:", err.message));
+  }, 60 * 1000);
+  timer.unref?.();
 };

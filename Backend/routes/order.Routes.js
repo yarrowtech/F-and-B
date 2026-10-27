@@ -160,6 +160,7 @@ import {
   markReady,
   printKOT,
   sendOrderToBilling,
+  closeOrder,
   markServed,
   markPaid,
   cancelOrderItem,
@@ -184,6 +185,8 @@ router.put("/:id/join-tables", auth, allowRoles("waiter", "accountant"), setJoin
 router.post("/:id/kot", auth, allowRoles("waiter"), printKOT);
 
 router.post("/:id/bill", auth, allowRoles("waiter"), sendOrderToBilling);
+
+router.post("/:id/close", auth, allowRoles("waiter", "manager"), closeOrder);
 
 router.put(
   "/:id/items/:itemId/cancel",

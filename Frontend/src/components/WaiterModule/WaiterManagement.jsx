@@ -5,6 +5,7 @@ import {
   addItemsToOrder,
   cancelOrderItem,
   changeOrderTable,
+  closeAbandonedOrder,
   createOrder,
   getWaiterOrders,
   markOrderServed,
@@ -92,6 +93,7 @@ export default function WaiterManagement() {
   const [liveNotifications, setLiveNotifications] = useState([]);
   const [kotPrintingId, setKotPrintingId] = useState("");
   const [billingId, setBillingId] = useState("");
+  const [closeConfirmId, setCloseConfirmId] = useState("");
   const [cancelDialog, setCancelDialog] = useState({
     open: false,
     orderId: "",
@@ -374,6 +376,20 @@ export default function WaiterManagement() {
       alert(err.response?.data?.message || err.message || "Send to billing failed");
     } finally {
       setBillingId("");
+    }
+  };
+
+  // Guests left without paying: cancel the order and free the table.
+  const handleCloseTable = async (order) => {
+    try {
+      setBillingId(order._id);
+      await closeAbandonedOrder(order._id, "Guests left");
+      await load();
+    } catch (err) {
+      setTableLockMessage(err.response?.data?.message || err.message || "Could not close the table");
+    } finally {
+      setBillingId("");
+      setCloseConfirmId("");
     }
   };
 
@@ -880,6 +896,45 @@ export default function WaiterManagement() {
                           className={`${btn} text-white disabled:opacity-70 ${isBilled ? "bg-slate-500" : "bg-violet-600 hover:bg-violet-700"}`}
                         >
                           {isBilled ? "Billed" : billingId === order._id ? "Sending..." : "Bill"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {order && !isLocked && !isJoinedChild && (
+                    <div className="mt-1.5">
+                      {closeConfirmId === order._id ? (
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCloseConfirmId("");
+                            }}
+                            className="inline-flex h-7 flex-1 items-center justify-center rounded-lg border border-slate-300 bg-white/80 px-2 text-[11px] font-bold text-slate-700"
+                          >
+                            Keep
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCloseTable(order);
+                            }}
+                            disabled={billingId === order._id}
+                            className="inline-flex h-7 flex-1 items-center justify-center rounded-lg bg-rose-600 px-2 text-[11px] font-bold text-white disabled:opacity-60"
+                          >
+                            Close table
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCloseConfirmId(order._id);
+                          }}
+                          title="Guests left without paying: cancel this order and free the table"
+                          className="text-[11px] font-bold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400"
+                        >
+                          Guests left? Close table
                         </button>
                       )}
                     </div>

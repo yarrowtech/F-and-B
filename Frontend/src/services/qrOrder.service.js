@@ -33,7 +33,16 @@ export const placeQrOrder = (token, payload) =>
     body: JSON.stringify(payload),
   });
 
-export const getQrOrderStatus = (orderId) => publicRequest(`/orders/${encodeURIComponent(orderId)}`);
+/* Only the phone that holds the order's key can read it. */
+export const getQrOrderStatus = (orderId, key) =>
+  publicRequest(`/orders/${encodeURIComponent(orderId)}?key=${encodeURIComponent(key || "")}`);
+
+/* Someone else at the table joins the running order with its 4-digit code. */
+export const joinQrOrder = (token, code) =>
+  publicRequest(`/table/${encodeURIComponent(token)}/join`, {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
 
 /* Waiter: QR orders waiting for me. */
 export const getPendingQrOrders = async () => {

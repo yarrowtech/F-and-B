@@ -315,6 +315,11 @@ const orderSchema = new mongoose.Schema(
       default: "",
     },
 
+    // Secret held by the phone that placed a QR order; needed to see or extend it.
+    // The table code lets others at the same table join it. Never sent to staff screens.
+    qrAccessKey: { type: String, select: false },
+    qrTableCode: { type: String, select: false },
+
     // When a QR order was waiting for a waiter, and who took it.
     qrRequestedAt: Date,
     qrAcceptedAt: Date,

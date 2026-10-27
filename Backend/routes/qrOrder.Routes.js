@@ -8,6 +8,7 @@ import {
   getQrOrderStatus,
   getTableByToken,
   getTableQrCodes,
+  joinQrOrder,
   placeQrOrder,
   regenerateTableQr,
   rejectQrOrder,
@@ -21,7 +22,8 @@ Mounted in server.js as: app.use("/api/qr-order", qrOrderRoutes);
 Public (customer, no login):
 GET  /api/qr-order/table/:token             which table is this QR + any running order
 POST /api/qr-order/table/:token/orders      place an order (or add to one nobody accepted yet)
-GET  /api/qr-order/orders/:orderId          track a QR order
+POST /api/qr-order/table/:token/join        join the table's order with its 4-digit code
+GET  /api/qr-order/orders/:orderId?key=     track a QR order (needs the order key)
 
 Waiter / manager:
 GET  /api/qr-order/pending                  QR orders waiting for me
@@ -48,6 +50,8 @@ const perTable = (max) =>
 
 router.get("/table/:token", perTable(200), getTableByToken);
 router.post("/table/:token/orders", perTable(20), placeQrOrder);
+// Guessing a 4-digit code is slow: only a few tries per table every 10 minutes.
+router.post("/table/:token/join", perTable(8), joinQrOrder);
 router.get("/orders/:orderId", getQrOrderStatus);
 
 router.get("/pending", auth, allowRoles("waiter", "manager"), getPendingQrOrders);

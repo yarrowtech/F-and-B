@@ -1973,6 +1973,49 @@ export const addItemsToOrder = async (req, res) => {
   }
 };
 
+/* ================= CLOSE ORDER (guests left / abandoned) ================= */
+
+export const closeOrder = async (req, res) => {
+  try {
+    const filter = {
+      _id: req.params.id,
+      restaurant: req.user.restaurant,
+      status: { $in: ACTIVE_ORDER_STATUSES },
+    };
+    // A waiter can only close their own orders; a manager can close any in the restaurant.
+    if (req.user.role === "waiter") filter.waiter = req.user.id;
+
+    const order = await Order.findOne(filter);
+    if (!order) return sendError(res, "Active order not found", 404);
+
+    if (await Bill.exists({ order: order._id, paymentStatus: "PAID" })) {
+      return sendError(res, "This order is already paid.");
+    }
+
+    await Bill.deleteMany({ order: order._id, paymentStatus: "PENDING" });
+
+    order.status = "CANCELLED";
+    await order.save();
+
+    await Table.updateMany(
+      { _id: { $in: [order.table, ...(order.joinedTables || [])] } },
+      { status: "available" }
+    );
+
+    await logAction({
+      action: "ORDER_CLOSED",
+      userId: req.user.id,
+      role: String(req.user.role || "").toUpperCase(),
+      meta: { orderId: order._id, reason: String(req.body?.reason || "").slice(0, 120) },
+    });
+
+    return sendSuccess(res, { orderId: order._id });
+  } catch (err) {
+    await logError(err, "CLOSE_ORDER");
+    return sendError(res, err.message);
+  }
+};
+
 /* ================= GET ORDERS ================= */
 
 export const getOrders = async (req, res) => {

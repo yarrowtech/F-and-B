@@ -1063,6 +1063,7 @@ import tableRoutes from "./routes/table.Routes.js";
 import reservationRoutes from "./routes/reservation.Routes.js";
 import waiterTableRoutes from "./routes/waiterTable.Routes.js";
 import qrOrderRoutes from "./routes/qrOrder.Routes.js";
+import { startQrOrderExpiry } from "./controllers/qrOrder.Controller.js";
 import feedbackRoutes from "./routes/feedback.Routes.js";
 import crmRoutes from "./routes/crm.Routes.js";
 import restaurantRoutes from "./routes/restaurant.routes.js";
@@ -1277,4 +1278,5 @@ initSocket(server);
 
 server.listen(PORT, () => {
   logger.info(`API running at http://localhost:${PORT}`);
+  startQrOrderExpiry();
 });

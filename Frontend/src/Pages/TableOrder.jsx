@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { FaCheckCircle, FaMinus, FaPlus, FaSearch, FaShoppingBasket, FaTimes } from "react-icons/fa";
 import { getPublicMenu } from "../services/publicMenu.service";
-import { getQrOrderStatus, getQrTable, placeQrOrder } from "../services/qrOrder.service";
+import { getQrOrderStatus, getQrTable, joinQrOrder, placeQrOrder } from "../services/qrOrder.service";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-IN", {
@@ -12,6 +12,32 @@ const formatCurrency = (value) =>
   }).format(Number(value || 0));
 
 const POLL_MS = 6000;
+
+// The phone that placed (or joined) an order keeps its secret key here. The key is
+// what lets this phone, and only this phone, see the order.
+const readSaved = (token) => {
+  try {
+    const value = JSON.parse(localStorage.getItem(`qr-order:${token}`) || "null");
+    return value?.orderId && value?.key ? value : null;
+  } catch {
+    return null;
+  }
+};
+const writeSaved = (token, value) => {
+  try {
+    localStorage.setItem(`qr-order:${token}`, JSON.stringify(value));
+  } catch {
+    /* storage can be blocked */
+  }
+};
+const clearSaved = (token) => {
+  try {
+    localStorage.removeItem(`qr-order:${token}`);
+  } catch {
+    /* storage can be blocked */
+  }
+};
+const FINISHED = ["CANCELLED", "PAID"];
 
 // What the customer sees for each order status.
 const STATUS_INFO = {
@@ -52,11 +78,13 @@ export default function TableOrder() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  const [order, setOrder] = useState(null); // tracked order summary
-  const [otherOrder, setOtherOrder] = useState(null); // running order that is not a QR order
+  const [order, setOrder] = useState(null); // this phone's order
+  const [orderKey, setOrderKey] = useState("");
+  const [otherOrder, setOtherOrder] = useState(null); // someone else's order on this table
+  const [joinCode, setJoinCode] = useState("");
+  const [joinError, setJoinError] = useState("");
+  const [joining, setJoining] = useState(false);
   const [view, setView] = useState("menu"); // menu | track
-
-  const storageKey = `qr-order:${token}`;
 
   const loadAll = useCallback(async () => {
     try {
@@ -69,24 +97,37 @@ export default function TableOrder() {
       const menu = await getPublicMenu(info.restaurant._id);
       setItems(Array.isArray(menu.items) ? menu.items : []);
 
-      const active = info.activeOrder;
-      if (active?.source === "QR") {
-        setOrder(active);
-        setView("track");
+      // "My order" opens only for a phone that holds this order's key.
+      const saved = readSaved(token);
+      let mine = null;
+      if (saved) {
         try {
-          localStorage.setItem(storageKey, active.orderId);
+          mine = await getQrOrderStatus(saved.orderId, saved.key);
         } catch {
-          /* storage can be blocked */
+          clearSaved(token);
         }
-      } else if (active) {
-        setOtherOrder(active);
       }
+      if (mine?.status === "PAID") {
+        clearSaved(token);
+        mine = null;
+      }
+
+      if (mine) {
+        setOrder(mine);
+        setOrderKey(saved.key);
+        setView("track");
+      } else {
+        setOrder(null);
+        setOrderKey("");
+      }
+      // Whatever is running on the table and is not mine belongs to someone else.
+      setOtherOrder(info.activeOrder && (!mine || FINISHED.includes(mine.status)) ? info.activeOrder : null);
     } catch (err) {
       setError(err.message || "Could not open this table.");
     } finally {
       setLoading(false);
     }
-  }, [token, storageKey]);
+  }, [token]);
 
   useEffect(() => {
     loadAll();
@@ -95,17 +136,17 @@ export default function TableOrder() {
   // Keep the order status fresh while the customer watches it.
   useEffect(() => {
     if (view !== "track" || !order?.orderId) return undefined;
-    if (["PAID", "CANCELLED"].includes(order.status)) return undefined;
+    if (FINISHED.includes(order.status)) return undefined;
 
     const timer = setInterval(async () => {
       try {
-        setOrder(await getQrOrderStatus(order.orderId));
+        setOrder(await getQrOrderStatus(order.orderId, orderKey));
       } catch {
         /* keep the last known status */
       }
     }, POLL_MS);
     return () => clearInterval(timer);
-  }, [view, order?.orderId, order?.status]);
+  }, [view, order?.orderId, order?.status, orderKey]);
 
   const courses = useMemo(
     () => [...new Set(items.map((item) => item.courseType).filter(Boolean))],
@@ -150,7 +191,9 @@ export default function TableOrder() {
 
   const filtersActive = course !== "all" || cuisine !== "all" || search.trim() !== "";
 
-  const canOrder = !otherOrder && (!order || order.status === "PENDING_ACCEPT");
+  // A finished order (declined, expired, paid) no longer blocks ordering again.
+  const isNewOrder = !order || FINISHED.includes(order.status);
+  const canOrder = !otherOrder && (isNewOrder || order.status === "PENDING_ACCEPT");
 
   const setQty = (id, delta) =>
     setCart((prev) => {
@@ -181,6 +224,7 @@ export default function TableOrder() {
       setSubmitError("");
       const result = await placeQrOrder(token, {
         customerName: customerName.trim(),
+        orderKey: isNewOrder ? "" : orderKey,
         items: cartLines.map((line) => ({
           menuItem: line.id,
           quantity: line.qty,
@@ -188,14 +232,12 @@ export default function TableOrder() {
         })),
       });
 
-      try {
-        localStorage.setItem(storageKey, result.orderId);
-      } catch {
-        /* storage can be blocked */
-      }
+      const key = result.orderKey || orderKey;
+      writeSaved(token, { orderId: result.orderId, key });
+      setOrderKey(key);
       setCart({});
       setCartOpen(false);
-      setOrder(await getQrOrderStatus(result.orderId));
+      setOrder(await getQrOrderStatus(result.orderId, key));
       setView("track");
     } catch (err) {
       setSubmitError(err.message || "Could not send your order.");
@@ -203,6 +245,30 @@ export default function TableOrder() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const joinTable = async () => {
+    if (joinCode.length !== 4 || joining) return;
+    try {
+      setJoining(true);
+      setJoinError("");
+      const joined = await joinQrOrder(token, joinCode);
+      writeSaved(token, { orderId: joined.orderId, key: joined.orderKey });
+      setJoinCode("");
+      await loadAll();
+    } catch (err) {
+      setJoinError(err.message || "Could not join.");
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  const startNewOrder = () => {
+    clearSaved(token);
+    setOrder(null);
+    setOrderKey("");
+    setView("menu");
+    loadAll();
   };
 
   /* ---------- states ---------- */
@@ -329,6 +395,17 @@ export default function TableOrder() {
               </ul>
             </section>
 
+            {order.tableCode && (
+              <section className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200">
+                <p className="text-xs font-semibold text-slate-500">
+                  Others at your table can see this order with this code.
+                </p>
+                <p className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-lg font-black tracking-[0.2em] text-white">
+                  {order.tableCode}
+                </p>
+              </section>
+            )}
+
             {order.status === "PENDING_ACCEPT" ? (
               <button
                 type="button"
@@ -337,20 +414,53 @@ export default function TableOrder() {
               >
                 Add more items
               </button>
+            ) : FINISHED.includes(order.status) ? (
+              <button
+                type="button"
+                onClick={startNewOrder}
+                className="min-h-11 w-full rounded-xl bg-emerald-600 text-sm font-bold text-white"
+              >
+                Order again
+              </button>
             ) : (
-              order.status !== "CANCELLED" && (
-                <p className="rounded-xl bg-white px-4 py-3 text-center text-xs font-semibold text-slate-500 ring-1 ring-slate-200">
-                  Want something more? Please tell your waiter and they will add it.
-                </p>
-              )
+              <p className="rounded-xl bg-white px-4 py-3 text-center text-xs font-semibold text-slate-500 ring-1 ring-slate-200">
+                Want something more? Please tell your waiter and they will add it.
+              </p>
             )}
           </>
         ) : (
           <>
             {otherOrder && (
-              <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 ring-1 ring-amber-200">
-                Your waiter is already taking care of this table. To add items, please ask your waiter.
-              </p>
+              <div className="space-y-2 rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
+                <p className="text-sm font-semibold text-amber-800">
+                  This table already has an order. To add items, please ask your waiter.
+                </p>
+                {otherOrder.canJoin && (
+                  <div>
+                    <p className="text-xs font-semibold text-amber-800">
+                      Sitting with the person who ordered? Enter their 4-digit table code:
+                    </p>
+                    <div className="mt-1.5 flex gap-2">
+                      <input
+                        value={joinCode}
+                        onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                        inputMode="numeric"
+                        placeholder="0000"
+                        className="h-10 w-24 rounded-lg border border-amber-300 bg-white px-3 text-center text-base font-black tracking-[0.2em] outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={joinTable}
+                        disabled={joinCode.length !== 4 || joining}
+                        className="min-h-10 rounded-lg bg-amber-600 px-4 text-sm font-bold text-white disabled:opacity-50"
+                      >
+                        {joining ? "..." : "Join"}
+                      </button>
+                    </div>
+                    {joinError && <p className="mt-1 text-xs font-bold text-rose-600">{joinError}</p>}
+                  </div>
+                )}
+              </div>
             )}
             {order?.status === "PENDING_ACCEPT" && (
               <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-200">
@@ -530,7 +640,7 @@ export default function TableOrder() {
                 </div>
               ))}
 
-              {!order && (
+              {isNewOrder && (
                 <input
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
