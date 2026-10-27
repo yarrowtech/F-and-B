@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import TableJoinPicker from "../common/TableJoinPicker";
 import WaiterTableAssignment from "../common/WaiterTableAssignment";
+import TableQrModal, { TableQrButton } from "../common/TableQrModal";
 import { useEffect, useState } from "react";
 import {
   getTables,
@@ -34,6 +35,7 @@ const AdminTableManagement = () => {
   const [tables, setTables] = useState([]);
   const [loadingTables, setLoadingTables] = useState(false);
   const [activeTab, setActiveTab] = useState("manage");
+  const [showTableQr, setShowTableQr] = useState(false);
   const [orderDetailsTable, setOrderDetailsTable] = useState(null);
 
   const [reservations, setReservations] = useState([]);
@@ -315,14 +317,21 @@ const handleDelete = async (id) => {
         </select>
 
         {selectedRestaurant && activeTab === "manage" && (
-          <button
-            onClick={openAddModal}
-            className="flex min-h-10 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
-          >
-            <span className="text-lg leading-none">+</span> Add Table
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <TableQrButton restaurantId={selectedRestaurant} onClick={() => setShowTableQr(true)} />
+            <button
+              onClick={openAddModal}
+              className="flex min-h-10 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
+            >
+              <span className="text-lg leading-none">+</span> Add Table
+            </button>
+          </div>
         )}
       </div>
+
+      {showTableQr && selectedRestaurant && (
+        <TableQrModal restaurantId={selectedRestaurant} onClose={() => setShowTableQr(false)} />
+      )}
 
       {feedback.message && (
         <div

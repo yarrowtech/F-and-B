@@ -132,6 +132,7 @@ const Department = lazy(() => import("./Pages/Department"));
 const KitchenPage = lazy(() => import("./Pages/Kitchen"));
 const FloorPage = lazy(() => import("./Pages/Floor"));
 const PublicMenu = lazy(() => import("./Pages/PublicMenu"));
+const TableOrder = lazy(() => import("./Pages/TableOrder"));
 const CustomerFeedback = lazy(() => import("./Pages/CustomerFeedback"));
 const ProjectDocument = lazy(() => import("./Pages/ProjectDocument"));
 
@@ -288,6 +289,7 @@ const App = () => {
           <Route path="/subscription" element={<Subscription />} />
           <Route path="/project-document" element={<ProjectDocument />} />
           <Route path="/public-menu/:restaurantId" element={<PublicMenu />} />
+          <Route path="/order/:token" element={<TableOrder />} />
           <Route path="/feedback/:billId" element={<CustomerFeedback />} />
           <Route path="/vendor-invite/:token" element={<VendorInvitationAccept />} />
 

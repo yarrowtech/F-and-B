@@ -1427,7 +1427,7 @@ const getIngredientMultiplier = (ingredientName, customizations = []) => {
   return 1;
 };
 
-const populateOrderDetails = (query) =>
+export const populateOrderDetails = (query) =>
   query
     .populate("table", "tableNumber")
     .populate("joinedTables", "tableNumber")
@@ -1463,7 +1463,7 @@ const getOrderNotificationPayload = (order, type) => {
   };
 };
 
-const emitOrderNotification = (event, order, type) => {
+export const emitOrderNotification = (event, order, type) => {
   try {
     getIO().emit(event, getOrderNotificationPayload(order, type));
   } catch (err) {
@@ -1763,21 +1763,22 @@ const deductInventoryForOrder = async (order, session, user = {}) => {
 
 /* ================= JOINED TABLES ================= */
 
-const uniqueIds = (ids = []) => [
+export const uniqueIds = (ids = []) => [
   ...new Set(ids.map((id) => String(id?._id || id || "")).filter(Boolean)),
 ];
 
 // An order that already uses any of these tables, as main or joined table.
-const findOrderUsingTables = (restaurantId, tableIds, excludeOrderId = null) =>
+export const findOrderUsingTables = (restaurantId, tableIds, excludeOrderId = null) =>
   Order.findOne({
     ...(excludeOrderId ? { _id: { $ne: excludeOrderId } } : {}),
     restaurant: restaurantId,
-    status: { $in: ACTIVE_ORDER_STATUSES },
+    // A QR order still waiting for a waiter already holds its table.
+    status: { $in: [...ACTIVE_ORDER_STATUSES, "PENDING_ACCEPT"] },
     $or: [{ table: { $in: tableIds } }, { joinedTables: { $in: tableIds } }],
   });
 
 // Throws a user-facing error when a table is missing, foreign, or already in use.
-const validateJoinTables = async (restaurantId, tableIds, excludeOrderId = null) => {
+export const validateJoinTables = async (restaurantId, tableIds, excludeOrderId = null) => {
   if (tableIds.length === 0) return [];
 
   const tables = await Table.find({ _id: { $in: tableIds }, restaurant: restaurantId });
@@ -1806,7 +1807,12 @@ export const createOrder = async (req, res) => {
     const existingTableOrder = await findOrderUsingTables(req.user.restaurant, [table._id]);
 
     if (existingTableOrder) {
-      return sendError(res, "This table already has an active order");
+      return sendError(
+        res,
+        existingTableOrder.status === "PENDING_ACCEPT"
+          ? "A customer QR order is waiting for this table. Accept it from the QR orders panel."
+          : "This table already has an active order"
+      );
     }
 
     // A group seated from a reservation keeps the tables that were booked for it.

@@ -14,6 +14,7 @@ import SettingsPage from "./WaiterSettings";
 import WaiterMessage from "./WaiterMessages";
 import WaiterNotifications from "./WaiterNotification";
 import WaiterDashboard from "./WaiterDashboard";
+import WaiterQrOrders from "../common/WaiterQrOrders";
 import socket from "../../socket/socket";
 
 /* ─── Profile Popup ─── */
@@ -265,6 +266,9 @@ const Waiter = () => {
             ref={mainRef}
             className="flex-1 overflow-y-auto bg-white p-3 pb-24 dark:bg-neutral-800 sm:p-4 2xl:p-6 2xl:pb-6"
           >
+            <div className="mb-3 empty:hidden">
+              <WaiterQrOrders />
+            </div>
             {renderContent()}
           </main>
         </div>

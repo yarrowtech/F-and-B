@@ -334,7 +334,7 @@ const getTables = async (req, res) => {
 
     const activeOrders = await Order.find({
       restaurant: restaurantId,
-      status: { $nin: ["PAID", "CANCELLED"] },
+      status: { $nin: ["PAID", "CANCELLED", "PENDING_ACCEPT"] },
     })
       .populate("waiter", "name employeeId")
       .populate("items.menuItem", "name price cuisine courseType")

@@ -67,6 +67,15 @@ const tableSchema = new mongoose.Schema(
       default: "available",
     },
 
+    // Random token in the table's QR code. It identifies the table without
+    // exposing the table number, so a customer cannot just type another one.
+    qrToken: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,

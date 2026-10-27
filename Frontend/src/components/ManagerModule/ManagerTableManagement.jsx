@@ -1,4 +1,5 @@
 import WaiterTableAssignment from "../common/WaiterTableAssignment";
+import TableQrModal, { TableQrButton } from "../common/TableQrModal";
 import TableJoinPicker from "../common/TableJoinPicker";
 import { createElement, useCallback, useEffect, useState } from "react";
 import { FaCheckCircle, FaStore, FaTable } from "react-icons/fa";
@@ -42,6 +43,7 @@ const STATUS_STYLES = {
 const ManagerTableManagement = () => {
   const { restaurantId, restaurantName, restaurantType } = getAssignedRestaurant();
   const [activeTab, setActiveTab] = useState("live");
+  const [showTableQr, setShowTableQr] = useState(false);
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState(null);
@@ -171,9 +173,16 @@ const ManagerTableManagement = () => {
   return (
     <div className="min-h-screen bg-slate-50 p-3 dark:bg-neutral-950 sm:p-4">
       <div className="mx-auto max-w-7xl space-y-4">
-        <p className="text-sm font-medium text-slate-500 dark:text-neutral-400">
-          {restaurantName} &middot; Table management
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-medium text-slate-500 dark:text-neutral-400">
+            {restaurantName} &middot; Table management
+          </p>
+          <TableQrButton restaurantId={restaurantId} onClick={() => setShowTableQr(true)} />
+        </div>
+
+        {showTableQr && restaurantId && (
+          <TableQrModal restaurantId={restaurantId} onClose={() => setShowTableQr(false)} />
+        )}
 
         {feedback ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">

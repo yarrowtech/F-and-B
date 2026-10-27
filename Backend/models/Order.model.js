@@ -301,6 +301,24 @@ const orderSchema = new mongoose.Schema(
       index: true,
     },
 
+    // WAITER = taken by staff, QR = placed by the customer from the table QR code.
+    source: {
+      type: String,
+      enum: ["WAITER", "QR"],
+      default: "WAITER",
+      index: true,
+    },
+
+    customerName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    // When a QR order was waiting for a waiter, and who took it.
+    qrRequestedAt: Date,
+    qrAcceptedAt: Date,
+
     chef: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",
@@ -328,6 +346,7 @@ const orderSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
+        "PENDING_ACCEPT", // QR order waiting for a waiter; the kitchen cannot see it yet
         "PENDING",
         "ACCEPTED",
         "PREPARING",
