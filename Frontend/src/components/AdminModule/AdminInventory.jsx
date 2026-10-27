@@ -14,7 +14,7 @@ import {
 } from "../../services/inventory.service";
 import { getRestaurants } from "../../services/restaurant.service";
 import { getKitchenSections } from "../../services/kitchenSection.service";
-import { getStockByLocation, transferStock } from "../../services/inventoryStock.service";
+import { getStockByLocation, transferStock, getStockTransferHistory } from "../../services/inventoryStock.service";
 import StockApprovalNotice from "../common/StockApprovalNotice";
 
 /* ─────────────────────────────────────
@@ -134,11 +134,11 @@ function UnitSelect({ value, customValue, onChange, onCustomChange, required }) 
 /* ─────────────────────────────────────
    MODAL WRAPPER
 ───────────────────────────────────── */
-function Modal({ title, accent = "bg-green-600", onClose, children }) {
+function Modal({ title, accent = "bg-green-600", wide = false, onClose, children }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 pb-[88px] sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 flex max-h-[calc(100vh-5.5rem)] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-900 sm:max-h-[92vh] sm:max-w-lg sm:rounded-2xl">
+      <div className={`relative z-10 flex max-h-[calc(100vh-5.5rem)] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-900 sm:max-h-[92vh] ${wide ? "sm:max-w-4xl" : "sm:max-w-lg"} sm:rounded-2xl`}>
         <div className={`${accent} px-6 py-4 flex items-center justify-between shrink-0`}>
           <h2 className="text-base font-bold text-white">{title}</h2>
           <button onClick={onClose}
@@ -252,6 +252,12 @@ const AdminInventory = ({
   const [transferItemSearch, setTransferItemSearch] = useState("");
   const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [transferError, setTransferError]         = useState("");
+  const [showHistoryModal, setShowHistoryModal]   = useState(false);
+  const [historyRows, setHistoryRows]             = useState([]);
+  const [historyLoading, setHistoryLoading]       = useState(false);
+  const [historyError, setHistoryError]           = useState("");
+  const [historySection, setHistorySection]       = useState("all");
+  const [historyDirection, setHistoryDirection]   = useState("ISSUE");
 
   const resolveUnit = (f) => f.unit === "__custom__" ? f.unitCustom.trim() : f.unit;
 
@@ -340,6 +346,36 @@ const AdminInventory = ({
     } finally {
       setLocationStockLoading(false);
     }
+  };
+
+  const visibleHistoryRows = historyRows.filter(
+    (row) => historyDirection === "ALL" || row.direction === historyDirection
+  );
+
+  const loadTransferHistory = async (sectionId = "all") => {
+    if (!selectedRestaurant) return;
+    try {
+      setHistoryLoading(true);
+      setHistoryError("");
+      const rows = await getStockTransferHistory(
+        selectedRestaurant,
+        sectionId !== "all" ? { section: sectionId } : {}
+      );
+      setHistoryRows(rows);
+    } catch (err) {
+      setHistoryRows([]);
+      setHistoryError(err?.response?.data?.message || "Failed to load transfer history");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const openHistoryModal = (sectionId = "all") => {
+    setHistorySection(sectionId);
+    setHistoryDirection("ISSUE");
+    setHistoryRows([]);
+    setShowHistoryModal(true);
+    loadTransferHistory(sectionId);
   };
 
   const openTransferModal = () => {
@@ -754,6 +790,13 @@ const AdminInventory = ({
             </button>
             <button
               type="button"
+              onClick={() => openHistoryModal("all")}
+              className="min-h-9 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              Transfer History
+            </button>
+            <button
+              type="button"
               onClick={openTransferModal}
               disabled={kitchenSections.length === 0}
               className="min-h-9 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
@@ -793,6 +836,13 @@ const AdminInventory = ({
                 >
                   {kitchenSections.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
                 </select>
+                <button
+                  type="button"
+                  onClick={() => openHistoryModal(locationFilter || "all")}
+                  className="min-h-9 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  Transfer History
+                </button>
                 <button
                   type="button"
                   onClick={openTransferModal}
@@ -1069,6 +1119,86 @@ const AdminInventory = ({
           </div>
         )}
       </div>
+
+      {/* TRANSFER HISTORY MODAL */}
+      {showHistoryModal && (
+        <Modal title="Transfer History" accent="bg-emerald-600" wide onClose={() => setShowHistoryModal(false)}>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <select
+              value={historySection}
+              onChange={(e) => {
+                setHistorySection(e.target.value);
+                loadTransferHistory(e.target.value);
+              }}
+              className="min-h-9 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+            >
+              <option value="all">All sections</option>
+              {kitchenSections.map((section) => (
+                <option key={section._id} value={section._id}>{section.name}</option>
+              ))}
+            </select>
+            <select
+              value={historyDirection}
+              onChange={(e) => setHistoryDirection(e.target.value)}
+              className="min-h-9 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+            >
+              <option value="ISSUE">Warehouse to section</option>
+              <option value="RETURN">Section back to warehouse</option>
+              <option value="ALL">All transfers</option>
+            </select>
+            <p className="ml-auto text-xs text-gray-400 dark:text-gray-500">
+              {historyLoading ? "Loading..." : `${visibleHistoryRows.length} transfer${visibleHistoryRows.length === 1 ? "" : "s"}`}
+            </p>
+          </div>
+
+          {historyError ? (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 dark:bg-red-900/20 dark:text-red-300">{historyError}</p>
+          ) : !historyLoading && visibleHistoryRows.length === 0 ? (
+            <div className="flex flex-col items-center py-10">
+              <span className="mb-2 text-4xl">📭</span>
+              <p className="font-medium text-gray-400 dark:text-gray-500">No transfers found.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl ring-1 ring-gray-100 dark:ring-gray-700">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  <tr>
+                    {["Date", "Item", "Transfer", "Quantity", "By", "Reason"].map((head) => (
+                      <th key={head} className="px-3 py-2 text-left font-semibold">{head}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {visibleHistoryRows.map((row) => (
+                    <tr key={row._id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/60">
+                      <td className="whitespace-nowrap px-3 py-2 text-gray-600 dark:text-gray-300">
+                        {new Date(row.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                      </td>
+                      <td className="px-3 py-2 font-semibold text-gray-800 dark:text-gray-100">{row.item?.name || "Deleted item"}</td>
+                      <td className="whitespace-nowrap px-3 py-2">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200">
+                          <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-700">
+                            {row.direction === "RETURN" ? row.section?.name || "Section" : "Warehouse"}
+                          </span>
+                          <span className={row.direction === "RETURN" ? "text-amber-600" : "text-emerald-600"}>&rarr;</span>
+                          <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-700">
+                            {row.direction === "RETURN" ? "Warehouse" : row.section?.name || "Section"}
+                          </span>
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 font-semibold text-gray-800 dark:text-gray-100">
+                        {formatQuantity(row.quantity)} {row.item?.unit || ""}
+                      </td>
+                      <td className="px-3 py-2 text-gray-600 dark:text-gray-300">{row.transferredByName || "-"}</td>
+                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{row.reason || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Modal>
+      )}
 
       {/* LOGS MODAL */}
       {showLogsModal && (
