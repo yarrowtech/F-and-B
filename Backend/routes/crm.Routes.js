@@ -2,6 +2,12 @@ import express from "express";
 import crmController from "../controllers/crm.Controller.js";
 import auth from "../middlewares/auth.middleware.js";
 import allowRoles from "../middlewares/role.middleware.js";
+import {
+  createCeoAgentApiKey,
+  createCeoAgentSsoLink,
+  getCeoAgentApiKeyStatus,
+  listCeoAgentResults,
+} from "../controllers/ceoAgent.Controller.js";
 
 const router = express.Router();
 
@@ -12,6 +18,11 @@ Mounted in server.js as:
 app.use("/api/crm", crmRoutes);
 
 Final URLs:
+
+POST   /api/crm/ceo-agent/sso                           (admin)
+GET    /api/crm/ceo-agent/api-key                       (admin)
+POST   /api/crm/ceo-agent/api-key                       (admin)
+GET    /api/crm/ceo-agent/results                       (admin)
 
 GET    /api/crm/:restaurantId/customers                (admin, manager)
 GET    /api/crm/:restaurantId/customers/:phone         (admin, manager)
@@ -28,6 +39,11 @@ PUT    /api/crm/:restaurantId/loyalty                   (admin, manager)
 GET    /api/crm/:restaurantId/coupons                   (admin, manager)
 POST   /api/crm/:restaurantId/customers/:phone/coupon    (admin, manager)
 */
+
+router.post("/ceo-agent/sso", auth, allowRoles("admin"), createCeoAgentSsoLink);
+router.get("/ceo-agent/api-key", auth, allowRoles("admin"), getCeoAgentApiKeyStatus);
+router.post("/ceo-agent/api-key", auth, allowRoles("admin"), createCeoAgentApiKey);
+router.get("/ceo-agent/results", auth, allowRoles("admin"), listCeoAgentResults);
 
 router.get(
   "/:restaurantId/customers",

@@ -1,6 +1,7 @@
 import CustomCouponForm from "../common/CustomCouponForm";
 import CampaignImageUpload from "../common/CampaignImageUpload";
 import { useEffect, useState } from "react";
+import AdminCeoAgent from "./AdminCeoAgent";
 import { getRestaurants } from "../../services/restaurant.service";
 import {
   getCustomers,
@@ -237,6 +238,7 @@ const AdminCRM = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-3 dark:bg-gray-900 sm:p-4">
+      {activeTab !== "ceo-agent" && (
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <select
           value={selectedRestaurant}
@@ -259,9 +261,10 @@ const AdminCRM = () => {
           />
         )}
       </div>
+      )}
 
-      {selectedRestaurant && (
-        <div className="mb-4 grid grid-cols-3 gap-1.5 rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700 sm:flex sm:w-fit">
+      {(
+        <div className="mb-4 grid grid-cols-2 gap-1.5 rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700 sm:flex sm:w-fit">
           <button
             type="button"
             onClick={() => setActiveTab("customers")}
@@ -295,6 +298,17 @@ const AdminCRM = () => {
           >
             Loyalty & Coupons
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("ceo-agent")}
+            className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+              activeTab === "ceo-agent"
+                ? "bg-green-600 text-white"
+                : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+            }`}
+          >
+            CEO Agent
+          </button>
         </div>
       )}
 
@@ -304,7 +318,9 @@ const AdminCRM = () => {
         </div>
       )}
 
-      {!selectedRestaurant ? (
+      {activeTab === "ceo-agent" ? (
+        <AdminCeoAgent embedded />
+      ) : !selectedRestaurant ? (
         <div className="flex min-h-48 items-center justify-center text-gray-400 dark:text-gray-500 text-sm">
           Select a restaurant to view its customers
         </div>

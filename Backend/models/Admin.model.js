@@ -88,6 +88,11 @@ const adminSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // API key the CEO Agent uses to read this admin's data. Only a hash is
+    // stored; the key itself is shown once when created.
+    ceoAgentApiKeyHash: { type: String, select: false, default: "" },
+    ceoAgentApiKeyCreatedAt: { type: Date, default: null },
+
     address: {
       line1: { type: String, trim: true, default: "" },
       line2: { type: String, trim: true, default: "" },

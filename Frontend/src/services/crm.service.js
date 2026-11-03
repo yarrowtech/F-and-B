@@ -72,3 +72,26 @@ export const issueCustomCoupon = async (restaurantId, payload) => {
   const res = await api.post(`/crm/${restaurantId}/coupons`, payload);
   return res.data;
 };
+
+/* ===============================
+   CEO AGENT (marketing automation)
+=============================== */
+export const getCeoAgentLink = async () => {
+  const res = await api.post("/crm/ceo-agent/sso");
+  return res.data.data.url;
+};
+
+export const getCeoAgentApiKeyStatus = async () => {
+  const res = await api.get("/crm/ceo-agent/api-key");
+  return res.data.data;
+};
+
+export const createCeoAgentApiKey = async () => {
+  const res = await api.post("/crm/ceo-agent/api-key");
+  return res.data.data.apiKey;
+};
+
+export const getCeoAgentResults = async () => {
+  const res = await api.get("/crm/ceo-agent/results");
+  return res.data.data;
+};
