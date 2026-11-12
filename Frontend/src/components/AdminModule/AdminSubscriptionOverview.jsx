@@ -224,7 +224,7 @@ export default function AdminSubscriptionOverview({ onSubscriptionChange }) {
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+      <div className="admin-dark-scope rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
         Loading subscription...
       </div>
     );
@@ -242,7 +242,7 @@ export default function AdminSubscriptionOverview({ onSubscriptionChange }) {
   }, {});
 
   return (
-    <section className="space-y-4">
+    <section className="admin-dark-scope space-y-4">
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-600">
           {error}
@@ -389,13 +389,13 @@ export default function AdminSubscriptionOverview({ onSubscriptionChange }) {
                 onClick={() => setBillingCycle(cycle)}
                 className={`inline-flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-semibold capitalize transition disabled:opacity-60 ${
                   billingCycle === cycle
-                    ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+                    ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-white dark:ring-slate-600"
                     : "text-slate-500 hover:text-slate-700"
                 }`}
               >
                 {cycle}
                 {cycle === "yearly" && yearlySavingPercent > 0 && (
-                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
                     Save {yearlySavingPercent}%
                   </span>
                 )}
@@ -416,16 +416,16 @@ export default function AdminSubscriptionOverview({ onSubscriptionChange }) {
                 key={plan.code}
                 className={`relative flex flex-col rounded-xl border p-4 transition ${
                   isCurrentPlan
-                    ? "border-emerald-300 bg-emerald-50/40 ring-1 ring-emerald-200"
+                    ? "border-emerald-300 bg-emerald-50/40 ring-1 ring-emerald-200 dark:border-emerald-500/50 dark:bg-emerald-500/10 dark:ring-emerald-500/30"
                     : plan.isPopular
-                      ? "border-violet-300 bg-violet-50/40 ring-1 ring-violet-200"
-                      : "border-slate-200 bg-white hover:border-slate-300"
+                      ? "border-violet-300 bg-violet-50/40 ring-1 ring-violet-200 dark:border-violet-500/50 dark:bg-violet-500/10 dark:ring-violet-500/30"
+                      : "border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:hover:border-slate-500"
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <h4 className="text-lg font-bold text-slate-900">{plan.name}</h4>
                   {isCurrentPlan ? (
-                    <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
+                    <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
                       Current
                     </span>
                   ) : plan.isPopular ? (
@@ -454,7 +454,7 @@ export default function AdminSubscriptionOverview({ onSubscriptionChange }) {
                   )}
                 </div>
                 {pricing.offerEnabled ? (
-                  <p className="mt-1 text-xs font-semibold text-emerald-600">
+                  <p className="mt-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                     {pricing.label || `${pricing.discountPercent}% off`} · save{" "}
                     {formatCurrency(pricing.savingsAmount)}
                   </p>
@@ -465,7 +465,7 @@ export default function AdminSubscriptionOverview({ onSubscriptionChange }) {
                 <ul className="mt-3 flex-1 space-y-1.5 border-t border-slate-100 pt-3 text-sm text-slate-700">
                   {(plan.displayFeatures || []).slice(0, 6).map((feature) => (
                     <li key={feature} className="flex items-start gap-2">
-                      <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-700">
+                      <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
                         ✓
                       </span>
                       <span>{feature}</span>
@@ -479,10 +479,10 @@ export default function AdminSubscriptionOverview({ onSubscriptionChange }) {
                   onClick={() => handleUpgrade(plan)}
                   className={`mt-4 w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed ${
                     isCurrentPlan
-                      ? "bg-slate-100 text-slate-500"
+                      ? "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300"
                       : plan.isPopular
                         ? "bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-60"
-                        : "bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60"
+                        : "bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-700 dark:hover:bg-slate-600"
                   }`}
                 >
                   {isCurrentPlan
@@ -517,12 +517,12 @@ export default function AdminSubscriptionOverview({ onSubscriptionChange }) {
                     <th
                       key={plan.code}
                       className={`px-3 py-2.5 text-center text-sm font-bold text-slate-800 ${
-                        isCurrent ? "rounded-t-lg bg-emerald-50" : ""
+                        isCurrent ? "rounded-t-lg bg-emerald-50 dark:bg-emerald-500/15" : ""
                       }`}
                     >
                       {plan.name}
                       {isCurrent && (
-                        <span className="ml-1.5 text-[10px] font-bold uppercase text-emerald-600">
+                        <span className="ml-1.5 text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400">
                           current
                         </span>
                       )}
@@ -554,7 +554,7 @@ export default function AdminSubscriptionOverview({ onSubscriptionChange }) {
                           <td
                             key={`${plan.code}-${row.key}`}
                             className={`border-b border-slate-100 px-3 py-2.5 text-center text-slate-700 ${
-                              isCurrent ? "bg-emerald-50/50" : ""
+                              isCurrent ? "bg-emerald-50/50 dark:bg-emerald-500/10" : ""
                             }`}
                           >
                             {value === true ? (

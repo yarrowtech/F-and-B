@@ -229,7 +229,7 @@ const AdminSupport = () => {
 
   return (
     <div className="min-h-full p-4 text-gray-800 dark:text-gray-200 sm:p-6">
-      <div className="mb-5 rounded-2xl border border-green-100 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.16),transparent_30%),linear-gradient(180deg,#ffffff_0%,#f0fdf4_100%)] p-4 shadow-sm dark:border-green-900/50 dark:bg-gray-800 sm:p-5">
+      <div className="mb-5 rounded-2xl border border-green-100 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.16),transparent_30%),linear-gradient(180deg,#ffffff_0%,#f0fdf4_100%)] p-4 shadow-sm dark:border-green-900/50 dark:bg-none dark:bg-gray-800 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-600 text-white shadow-lg">
@@ -545,7 +545,7 @@ const AdminSupport = () => {
                   type="button"
                   onClick={closeForm}
                   disabled={submitting}
-                  className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
+                  className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:hover:bg-gray-700/60 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
                 >
                   Cancel
                 </button>

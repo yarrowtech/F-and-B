@@ -77,8 +77,8 @@ const QuickMessages = ({ onPick }) => {
             title={t.text}
             className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${
               t.priority === "urgent"
-                ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100"
-                : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-400 hover:bg-emerald-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:hover:bg-red-900/40"
+                : "border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
             }`}
           >
             {t.title}

@@ -568,7 +568,7 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
                   key={method}
                   type="button"
                   onClick={() => togglePaymentMethod(method)}
-                  className="rounded-full bg-sky-100 px-3 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-200"
+                  className="rounded-full bg-sky-100 px-3 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-200 dark:hover:bg-sky-900/40 dark:bg-sky-950 dark:text-sky-200"
                 >
                   {paymentMethodLabel(method)} x
                 </button>
@@ -596,7 +596,7 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
               <button
                 type="button"
                 onClick={() => change("logoUrl", "")}
-                className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300"
+                className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 dark:hover:bg-red-900/40 dark:bg-red-900/20 dark:text-red-300"
               >
                 Remove Logo
               </button>
@@ -920,7 +920,7 @@ const handleDelete = async () => {
               filtered.map((r, idx) => (
                 <tr
                   key={r._id}
-                  className="border-t border-gray-100 transition-colors hover:bg-gray-50 dark:border-gray-700"
+                  className="border-t border-gray-100 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
                 >
                   <td className="px-5 py-4 text-gray-400 dark:text-gray-500">{idx + 1}</td>
                   <td className="px-5 py-4 font-semibold text-gray-800 dark:text-gray-100">{r.name}</td>
@@ -1060,7 +1060,7 @@ const handleDelete = async () => {
                   {staff.map((emp, idx) => (
                     <tr
                       key={emp._id}
-                      className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+                      className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                     >
                       <td className="px-4 py-3 text-gray-400 dark:text-gray-500 text-sm">{idx + 1}</td>
                       <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-100">{emp.name}</td>

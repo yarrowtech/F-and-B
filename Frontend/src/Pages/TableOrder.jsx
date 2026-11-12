@@ -604,7 +604,7 @@ export default function TableOrder() {
               <button
                 type="button"
                 onClick={() => setCartOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700/60"
               >
                 <FaTimes />
               </button>

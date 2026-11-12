@@ -265,7 +265,7 @@
 //                 <td className="text-center">
 //                   <button
 //                     onClick={() => handleDelete(emp._id)}
-//                     className="text-red-600 hover:bg-red-50 rounded-full w-8 h-8"
+//                     className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-full w-8 h-8"
 //                   >
 //                     <FaTrash />
 //                   </button>
@@ -825,7 +825,7 @@ export default function AdminStaffManagement() {
               className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
                 activeTab === "staff"
                   ? "bg-green-600 text-white"
-                  : "text-gray-600 hover:bg-gray-50"
+                  : "text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/60"
               }`}
             >
               <FaUsers />
@@ -837,7 +837,7 @@ export default function AdminStaffManagement() {
               className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
                 activeTab === "vendor"
                   ? "bg-green-600 text-white"
-                  : "text-gray-600 hover:bg-gray-50"
+                  : "text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/60"
               }`}
             >
               <FaHandshake />
@@ -853,7 +853,7 @@ export default function AdminStaffManagement() {
               setHistoryOpen(true);
               fetchDeleteHistory();
             }}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 dark:hover:bg-gray-700/60"
           >
             History
           </button>
@@ -1120,7 +1120,7 @@ export default function AdminStaffManagement() {
                   <button
                     type="button"
                     onClick={handleCancelAdd}
-                    className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+                    className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/60 disabled:opacity-60"
                     disabled={loading}
                   >
                     Cancel
@@ -1449,7 +1449,7 @@ export default function AdminStaffManagement() {
                     setShowEmployeeDetails(false);
                     setEditingEmployee(null);
                   }}
-                  className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+                  className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/60 disabled:opacity-60"
                   disabled={detailsLoading || resetLoading}
                 >
                   Close
@@ -1604,7 +1604,7 @@ export default function AdminStaffManagement() {
               filteredEmployees.map((emp) => (
                 <tr
                   key={emp.id ?? emp._id ?? emp.employeeId}
-                  className="border-t hover:bg-gray-50 transition-colors"
+                  className="border-t hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors"
                 >
                   <td className="px-5 py-4 text-sm">
                     <button
@@ -1639,7 +1639,7 @@ export default function AdminStaffManagement() {
     <button
       type="button"
       onClick={() => openEditModal(emp)}
-      className="text-blue-600 hover:bg-blue-50 rounded-full w-10 h-10 flex items-center justify-center transition"
+      className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/40 rounded-full w-10 h-10 flex items-center justify-center transition"
       title="Edit"
     >
       <FaEdit />
@@ -1656,7 +1656,7 @@ export default function AdminStaffManagement() {
           role: emp.role,
         })
       }
-      className="text-red-600 hover:bg-red-50 rounded-full w-8 h-8 flex items-center justify-center transition"
+      className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-full w-8 h-8 flex items-center justify-center transition"
       title="Delete"
     >
       <FaTrash />
@@ -1703,7 +1703,7 @@ export default function AdminStaffManagement() {
                 <button
                   type="button"
                   onClick={fetchDeleteHistory}
-                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-60 sm:px-4"
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/60 disabled:opacity-60 sm:px-4"
                   disabled={historyLoading}
                 >
                   {historyLoading ? "Loading..." : "Refresh"}
@@ -1753,7 +1753,7 @@ export default function AdminStaffManagement() {
                     deleteHistory.map((h) => (
                       <tr
                         key={h.id}
-                        className="border-t hover:bg-gray-50 transition-colors"
+                        className="border-t hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors"
                       >
                         <td className="px-5 py-3 font-mono text-gray-700">
                           {h?.meta?.employeeId ?? h?.meta?.employeeDbId ?? "—"}
@@ -1844,7 +1844,7 @@ export default function AdminStaffManagement() {
         <button
           onClick={() => setConfirmDelete(null)}
           disabled={deleteLoading}
-          className="flex-1 py-3 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition disabled:opacity-60"
+          className="flex-1 py-3 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition disabled:opacity-60"
         >
           Cancel
         </button>

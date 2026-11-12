@@ -416,7 +416,7 @@ export default function FloorPlan({
               className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                 activeZone === z
                   ? "bg-indigo-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700/60 dark:bg-gray-700 dark:text-gray-300"
               }`}
             >
               {z}
@@ -435,7 +435,7 @@ export default function FloorPlan({
           <button
             type="button"
             onClick={handleAutoArrange}
-            className="ml-auto rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300"
+            className="ml-auto rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 dark:bg-indigo-900/30 dark:text-indigo-300"
             title="Automatically line up all tables into neat rows"
           >
             ✨ Auto-Arrange
@@ -446,7 +446,7 @@ export default function FloorPlan({
           <button
             type="button"
             onClick={openFloorSettings}
-            className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 dark:bg-gray-700 dark:text-gray-200"
+            className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700/60 dark:bg-gray-700 dark:text-gray-200"
           >
             📐 Floor Size ({currentDims.widthFt}×{currentDims.heightFt} ft)
           </button>
@@ -457,7 +457,7 @@ export default function FloorPlan({
             <button
               type="button"
               onClick={() => setShowAddMarker((v) => !v)}
-              className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 dark:bg-gray-700 dark:text-gray-200"
+              className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700/60 dark:bg-gray-700 dark:text-gray-200"
             >
               + Add Marker
             </button>
@@ -482,7 +482,7 @@ export default function FloorPlan({
           <button
             type="button"
             onClick={() => setSelectedForMerge(selectedForMerge.length ? [] : [])}
-            className="ml-auto rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300"
+            className="ml-auto rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 dark:bg-indigo-900/30 dark:text-indigo-300"
           >
             {selectedForMerge.length > 0 ? `Selected: ${selectedForMerge.length} (tap tables)` : "Tap here, then tables, to merge"}
           </button>
@@ -624,7 +624,7 @@ export default function FloorPlan({
                     e.stopPropagation();
                     setEditingTableId((cur) => (cur === t._id ? null : t._id));
                   }}
-                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-[11px] text-gray-600 shadow hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-[11px] text-gray-600 shadow hover:bg-gray-50 dark:hover:bg-gray-700/60 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
                   title="Edit shape & rotation"
                 >
                   ⚙

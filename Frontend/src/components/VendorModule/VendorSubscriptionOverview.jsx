@@ -708,7 +708,7 @@ export default function VendorSubscriptionOverview({ onSubscriptionChange }) {
                   <button
                     type="button"
                     onClick={() => setDetailPlanCode(plan.code)}
-                    className="rounded-full border border-slate-200 bg-white/90 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                    className="rounded-full border border-slate-200 bg-white/90 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-white dark:hover:bg-gray-700"
                   >
                     View Plan Details
                   </button>

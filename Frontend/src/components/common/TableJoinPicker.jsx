@@ -38,7 +38,7 @@ export default function TableJoinPicker({
               className={`h-8 rounded-lg px-3 text-xs font-bold transition ${
                 on
                   ? "bg-emerald-600 text-white"
-                  : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-neutral-900 dark:text-neutral-200 dark:ring-neutral-700"
+                  : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:bg-neutral-900 dark:text-neutral-200 dark:ring-neutral-700"
               }`}
             >
               T{table.tableNumber}

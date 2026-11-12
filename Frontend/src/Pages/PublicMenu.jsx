@@ -210,7 +210,7 @@ export default function PublicMenu() {
                 </div>
                 <div className="divide-y divide-slate-100">
                   {items.map((item) => (
-                    <article key={item._id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 px-4 py-4 transition hover:bg-slate-50">
+                    <article key={item._id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 px-4 py-4 transition hover:bg-slate-50 dark:hover:bg-slate-700/60">
                       <div className="min-w-0">
                         <h3 className="truncate text-base font-bold text-slate-900">
                           {item.name}

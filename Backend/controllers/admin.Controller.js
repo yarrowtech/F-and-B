@@ -275,6 +275,82 @@ export const getMyProfile = async (req, res) => {
   }
 };
 
+const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
+
+export const sendChangePasswordOtp = async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.user.id).select("_id email businessName");
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    const { expiresInMinutes } = await requestPasswordResetOtp({
+      accountType: "admin",
+      accountId: admin._id,
+      email: admin.email,
+      name: admin.businessName,
+      roleLabel: "Admin",
+    });
+
+    return res.json({
+      success: true,
+      message: "Verification code sent to your email",
+      expiresInMinutes,
+    });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+export const changeMyPassword = async (req, res) => {
+  try {
+    const currentPassword = String(req.body.currentPassword || "");
+    const newPassword = String(req.body.newPassword || "");
+    const otp = String(req.body.otp || "").trim();
+
+    if (!currentPassword || !newPassword || !otp) {
+      return res
+        .status(400)
+        .json({ message: "Current password, new password and email code are required" });
+    }
+
+    if (!STRONG_PASSWORD_REGEX.test(newPassword)) {
+      return res.status(400).json({
+        message:
+          "New password must be at least 8 characters and include uppercase, lowercase, number and special character",
+      });
+    }
+
+    const admin = await Admin.findById(req.user.id);
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    // Check the current password first so a typo does not use up an OTP attempt.
+    const matches = await admin.matchPassword(currentPassword);
+    if (!matches) {
+      return res.status(400).json({ message: "Current password is incorrect" });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ message: "New password must be different from the current one" });
+    }
+
+    await resetPasswordWithOtp({
+      accountType: "admin",
+      email: admin.email,
+      otp,
+      newPassword,
+      accountModel: Admin,
+      accountQuery: { _id: admin._id },
+    });
+
+    return res.json({ success: true, message: "Password changed successfully" });
+  } catch (err) {
+    return res.status(400).json({ message: err.message });
+  }
+};
+
 export const updateMyProfile = async (req, res) => {
   try {
     const admin = await Admin.findById(req.user.id).select("_id email");

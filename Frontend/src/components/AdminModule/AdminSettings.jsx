@@ -41,9 +41,16 @@ export default function SettingsPage({
   darkMode = false,
   onThemeChange,
 }) {
-  const [twoFactorAuth, setTwoFactorAuth] = useState(false);
-  const [analyticsTracking, setAnalyticsTracking] = useState(true);
-  const [locationAccess, setLocationAccess] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+    otp: "",
+  });
   const [restaurants, setRestaurants] = useState([]);
   const [loadingRestaurants, setLoadingRestaurants] = useState(true);
   const [savingRestaurantId, setSavingRestaurantId] = useState("");
@@ -85,6 +92,49 @@ export default function SettingsPage({
     loadRestaurants();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    setOtpSent(false);
+    setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "", otp: "" });
+  };
+
+  const handleSendPasswordOtp = async () => {
+    try {
+      setOtpSending(true);
+      const res = await API.post("/admin/change-password/send-otp");
+      setOtpSent(true);
+      notify(res.data?.message || "Verification code sent to your email");
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to send verification code", true);
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleChangePassword = async (event) => {
+    event.preventDefault();
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      notify("New password and confirm password do not match", true);
+      return;
+    }
+
+    try {
+      setPasswordSaving(true);
+      await API.put("/admin/change-password", {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+        otp: passwordForm.otp,
+      });
+      closePasswordModal();
+      notify("Password changed successfully");
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to change password", true);
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
 
   const handleToggleVendorInventory = async (restaurant) => {
     const restaurantId = restaurant?._id || restaurant?.id;
@@ -351,56 +401,106 @@ export default function SettingsPage({
             <ShieldCheck size={20} /> Security & Privacy
           </h2>
 
-          <div className="flex flex-col border-b border-gray-200 py-3 dark:border-gray-700 md:flex-row md:items-center md:justify-between">
-            <div className="mb-2 md:mb-0">
-              <p className="font-medium">Two-Factor Authentication</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Add an extra layer of security
-              </p>
-            </div>
-            <div className="self-start md:self-auto">
-              <Toggle
-                checked={twoFactorAuth}
-                onChange={() => setTwoFactorAuth(!twoFactorAuth)}
-              />
-            </div>
-          </div>
-
-          <button className="flex w-full items-center gap-2 border-b border-gray-200 py-3 text-left text-sm text-blue-600 hover:underline dark:border-gray-700 dark:text-blue-400 md:text-base">
+          <button
+            type="button"
+            onClick={() => setShowPasswordModal(true)}
+            className="flex w-full items-center gap-2 py-3 text-left text-sm text-blue-600 hover:underline dark:text-blue-400 md:text-base"
+          >
             <LockKeyhole size={16} /> Change Password
           </button>
-
-          <div className="flex flex-col border-b border-gray-200 py-3 dark:border-gray-700 md:flex-row md:items-center md:justify-between">
-            <div className="mb-2 md:mb-0">
-              <p className="font-medium">Analytics Tracking</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Help us improve the product
-              </p>
-            </div>
-            <div className="self-start md:self-auto">
-              <Toggle
-                checked={analyticsTracking}
-                onChange={() => setAnalyticsTracking(!analyticsTracking)}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col py-3 md:flex-row md:items-center md:justify-between">
-            <div className="mb-2 md:mb-0">
-              <p className="font-medium">Location Access</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Allow the site to use your location
-              </p>
-            </div>
-            <div className="self-start md:self-auto">
-              <Toggle
-                checked={locationAccess}
-                onChange={() => setLocationAccess(!locationAccess)}
-              />
-            </div>
-          </div>
         </section>
       </div>
+
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+          <form
+            onSubmit={handleChangePassword}
+            className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-gray-800"
+          >
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Change Password</h2>
+              <button type="button" onClick={closePasswordModal} aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
+
+            {[
+              ["currentPassword", "Current password", "current-password"],
+              ["newPassword", "New password", "new-password"],
+              ["confirmPassword", "Confirm new password", "new-password"],
+            ].map(([field, label, autoComplete]) => (
+              <label key={field} className="mb-3 block text-sm font-medium">
+                {label}
+                <input
+                  type="password"
+                  required
+                  autoComplete={autoComplete}
+                  value={passwordForm[field]}
+                  onChange={(e) =>
+                    setPasswordForm((prev) => ({ ...prev, [field]: e.target.value }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900"
+                />
+              </label>
+            ))}
+
+            <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+              At least 8 characters with uppercase, lowercase, a number and a special character.
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium">
+                Email verification code
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  required
+                  autoComplete="one-time-code"
+                  value={passwordForm.otp}
+                  onChange={(e) =>
+                    setPasswordForm((prev) => ({
+                      ...prev,
+                      otp: e.target.value.replace(/\D/g, ""),
+                    }))
+                  }
+                  placeholder="6-digit code"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-900"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={handleSendPasswordOtp}
+                disabled={otpSending}
+                className="mt-2 text-sm text-blue-600 hover:underline disabled:opacity-60 dark:text-blue-400"
+              >
+                {otpSending
+                  ? "Sending..."
+                  : otpSent
+                    ? "Resend code to my email"
+                    : "Send code to my email"}
+              </button>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closePasswordModal}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={passwordSaving}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {passwordSaving ? "Saving..." : "Change Password"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {showProfileModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">

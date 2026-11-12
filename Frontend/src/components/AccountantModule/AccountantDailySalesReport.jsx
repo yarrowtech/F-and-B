@@ -181,7 +181,7 @@ export default function AccountantDailySalesReport() {
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
                 <Printer size={17} /> Print
               </button>

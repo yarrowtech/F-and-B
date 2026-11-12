@@ -14,7 +14,7 @@ function StockApprovalNotice({ message, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="min-h-11 min-w-24 rounded-full border-4 border-emerald-200 bg-emerald-300 px-6 py-2 text-sm font-bold text-gray-950 transition hover:bg-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2 focus:ring-offset-gray-950"
+            className="min-h-11 min-w-24 rounded-full border-4 border-emerald-200 bg-emerald-300 px-6 py-2 text-sm font-bold text-gray-950 transition hover:bg-emerald-200 dark:hover:bg-emerald-900/40 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2 focus:ring-offset-gray-950"
           >
             OK
           </button>

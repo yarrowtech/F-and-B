@@ -723,7 +723,7 @@ export default function AdminAccount() {
                     return (
                       <tr
                         key={bill._id}
-                        className={voided ? "bg-rose-50/50" : "hover:bg-slate-50"}
+                        className={voided ? "bg-rose-50/50" : "hover:bg-slate-50 dark:hover:bg-slate-700/60"}
                       >
                         <td className="px-4 py-2.5 align-top">
                           <div className="font-bold text-slate-900">

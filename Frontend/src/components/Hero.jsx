@@ -1,12 +1,5 @@
 import React from "react";
 
-const heroStats = [
-  { value: "20+", label: "Restaurants" },
-  { value: "8+", label: "Services" },
-  { value: "12+", label: "Brands" },
-  { value: "22+", label: "Countries" },
-];
-
 const heroTitle = "Streamline your Restaurant";
 
 const Hero = () => {
@@ -76,23 +69,6 @@ const Hero = () => {
           >
             Explore services
           </a>
-        </div>
-
-        <div className="absolute bottom-9 left-0 right-0 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4 md:bottom-12">
-          {heroStats.map(({ value, label }, index) => (
-            <div
-              key={label}
-              className="hero-reveal min-w-0"
-              style={{ animationDelay: `${820 + index * 100}ms` }}
-            >
-              <p className="hero-stat-value text-3xl font-black leading-none text-white/82 sm:text-4xl md:text-5xl">
-                {value}
-              </p>
-              <p className="hero-stat-label mt-1.5 text-base font-bold text-white sm:text-lg md:text-xl">
-                {label}
-              </p>
-            </div>
-          ))}
         </div>
       </div>
     </section>

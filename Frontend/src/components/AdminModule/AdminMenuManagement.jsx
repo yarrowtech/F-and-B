@@ -23,7 +23,7 @@ const Modal = ({ title, onClose, children }) => (
     <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white shadow-2xl ring-1 ring-slate-200 sm:max-w-2xl sm:rounded-3xl">
       <div className="sticky top-0 flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4 sm:items-center sm:px-6">
         <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">{title}</h2>
-        <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+        <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-slate-700">
           <FaTimes />
         </button>
       </div>
@@ -419,7 +419,7 @@ export default function AdminMenuManagement() {
       <div className="rounded-3xl border border-slate-200 p-4">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-semibold text-slate-800">Ingredients</h3>
-          <button type="button" onClick={() => setIngredients((prev) => [...prev, emptyIngredient()])} className="rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100">
+          <button type="button" onClick={() => setIngredients((prev) => [...prev, emptyIngredient()])} className="rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40">
             + Add Row
           </button>
         </div>
@@ -433,7 +433,7 @@ export default function AdminMenuManagement() {
               <input type="number" min="0.01" step="any" placeholder="Qty" value={ing.quantity} onChange={(e) => updateIngredient(idx, "quantity", e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-400" />
               <div className="flex items-center text-sm font-medium text-slate-500">{inventoryItems.find((inv) => inv._id === ing.itemId)?.unit || "-"}</div>
               {ingredients.length > 1 && (
-                <button type="button" onClick={() => setIngredients((prev) => prev.filter((_, i) => i !== idx))} className="inline-flex items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-600 hover:bg-rose-100">
+                <button type="button" onClick={() => setIngredients((prev) => prev.filter((_, i) => i !== idx))} className="inline-flex items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/40">
                   <FaTrash />
                 </button>
               )}
@@ -443,7 +443,7 @@ export default function AdminMenuManagement() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <button type="button" onClick={() => { setShowAddModal(false); setShowEditModal(false); setEditingId(null); }} className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        <button type="button" onClick={() => { setShowAddModal(false); setShowEditModal(false); setEditingId(null); }} className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60">
           Cancel
         </button>
         <button type="submit" disabled={submitting} className="flex-1 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">
@@ -588,7 +588,7 @@ export default function AdminMenuManagement() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {filteredMenus.map((item) => (
-                    <tr key={item._id} className="align-top hover:bg-slate-50/80">
+                    <tr key={item._id} className="align-top hover:bg-slate-50/80 dark:hover:bg-slate-700/60">
                       <td className="px-5 py-4">
                         <p className="font-semibold text-slate-900">{item.name}</p>
                       </td>
@@ -625,7 +625,7 @@ export default function AdminMenuManagement() {
                             <FaEdit />
                             Edit
                           </button>
-                          <button onClick={() => setDeleteTarget(item)} className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100">
+                          <button onClick={() => setDeleteTarget(item)} className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 dark:hover:bg-rose-900/40">
                             <FaTrash />
                             Delete
                           </button>
@@ -686,7 +686,7 @@ export default function AdminMenuManagement() {
                     type="button"
                     onClick={handleDownloadMenuSalesExcel}
                     disabled={!selectedRestaurant || ordersExporting || (ordersFilter === "date" && (!selectedOrderStartDate || !selectedOrderEndDate))}
-                    className="col-span-2 inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 sm:col-span-1"
+                    className="col-span-2 inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 disabled:opacity-50 sm:col-span-1"
                   >
                     <FaFileExcel />
                     {ordersExporting ? "Downloading..." : "Download Excel"}
@@ -735,7 +735,7 @@ export default function AdminMenuManagement() {
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {filteredOrderAnalytics.map((item, index) => (
-                        <tr key={`${item.name}-${index}`} className="hover:bg-slate-50/80">
+                        <tr key={`${item.name}-${index}`} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/60">
                           <td className="px-5 py-4 font-semibold text-slate-900">{item.name}</td>
                           <td className="px-5 py-4 text-sm text-slate-700">{item.cuisine || "-"}</td>
                           <td className="px-5 py-4 text-sm text-slate-700">{item.courseType || "-"}</td>
@@ -770,7 +770,7 @@ export default function AdminMenuManagement() {
                 <p className="mt-1 text-sm text-slate-600">Course: {deleteTarget.courseType}</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => setDeleteTarget(null)} className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button onClick={() => setDeleteTarget(null)} className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60">Cancel</button>
                 <button onClick={() => { handleDelete(deleteTarget._id); setDeleteTarget(null); }} className="flex-1 rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white hover:bg-rose-700">Delete Item</button>
               </div>
             </div>

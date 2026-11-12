@@ -143,7 +143,7 @@ const PushAlertToggle = () => {
                 type="button"
                 onClick={handleDisable}
                 disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-200 disabled:opacity-60 dark:bg-white/10 dark:text-gray-200"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-200 dark:hover:bg-gray-700/60 disabled:opacity-60 dark:bg-white/10 dark:text-gray-200"
               >
                 {busy && <Loader2 size={13} className="animate-spin" />}
                 Turn off

@@ -776,7 +776,7 @@ const SubscriptionManagement = () => {
             className={`rounded-[1.15rem] border px-4 py-3 text-left transition ${
               activeTab === "admin"
                 ? "border-violet-200 bg-[linear-gradient(135deg,rgba(245,243,255,0.95),rgba(255,255,255,0.95))] text-violet-700"
-                : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white"
+                : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white dark:hover:bg-gray-700"
             }`}
           >
             <div className="flex items-center justify-between gap-3">
@@ -796,7 +796,7 @@ const SubscriptionManagement = () => {
             className={`rounded-[1.15rem] border px-4 py-3 text-left transition ${
               activeTab === "vendor"
                 ? "border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.95),rgba(255,255,255,0.95))] text-emerald-700"
-                : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white"
+                : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white dark:hover:bg-gray-700"
             }`}
           >
             <div className="flex items-center justify-between gap-3">
@@ -1153,7 +1153,7 @@ const SubscriptionManagement = () => {
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:hover:bg-slate-700/60"
                 >
                   Close
                 </button>
@@ -1434,7 +1434,7 @@ const SubscriptionManagement = () => {
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                  className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:hover:bg-slate-700/60"
                 >
                   Cancel
                 </button>
@@ -1463,7 +1463,7 @@ const SubscriptionManagement = () => {
                 <button
                   type="button"
                   onClick={resetVendorForm}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:hover:bg-slate-700/60"
                 >
                   Close
                 </button>
@@ -1582,7 +1582,7 @@ const SubscriptionManagement = () => {
                 <button
                   type="button"
                   onClick={resetVendorForm}
-                  className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                  className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:hover:bg-slate-700/60"
                 >
                   Cancel
                 </button>

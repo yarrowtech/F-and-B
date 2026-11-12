@@ -498,7 +498,7 @@ export default function ManagerReports() {
                     setReportData(null);
                     setError("");
                   }}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-neutral-700 dark:text-white"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700/60 dark:bg-neutral-700 dark:text-white"
                   aria-label="Back to reports"
                 >
                   <ArrowLeft size={19} />

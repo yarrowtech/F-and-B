@@ -700,7 +700,7 @@ function BillCard({
                   cashReceived: receivedAmount,
                 })
               }
-              className="col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <FaPrint />
               Print Bill
@@ -712,7 +712,7 @@ function BillCard({
             <button
               type="button"
               onClick={() => downloadBillPdf(bill._id)}
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700 transition hover:bg-rose-100 dark:hover:bg-rose-900/40 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
             >
               <FaFilePdf />
               PDF
@@ -720,14 +720,14 @@ function BillCard({
             <button
               type="button"
               onClick={() => onVoidBill(bill)}
-              className="col-span-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-sm font-bold text-amber-800 transition hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+              className="col-span-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-sm font-bold text-amber-800 transition hover:bg-amber-100 dark:hover:bg-amber-900/40 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
             >
               Void &amp; Reissue
             </button>
             <button
               type="button"
               onClick={() => printBill(bill)}
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <FaPrint />
               Print
@@ -2055,7 +2055,7 @@ export default function AccountantOrderBilling() {
                                 onClick={() =>
                                   changeManualItemQuantity(item.menuItem, -1)
                                 }
-                                className="flex h-11 w-11 items-center justify-center rounded-md border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                                className="flex h-11 w-11 items-center justify-center rounded-md border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:text-slate-200"
                               >
                                 <FaMinus />
                               </button>
@@ -2080,7 +2080,7 @@ export default function AccountantOrderBilling() {
                                   );
                                   manualCodeInputRef.current?.focus();
                                 }}
-                                className="ml-0.5 min-h-11 rounded-md bg-rose-50 px-2 text-[9px] font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
+                                className="ml-0.5 min-h-11 rounded-md bg-rose-50 px-2 text-[9px] font-black text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300"
                               >
                                 Remove
                               </button>
@@ -2094,7 +2094,7 @@ export default function AccountantOrderBilling() {
                           onClick={() =>
                             setShowAllFastAddItems((current) => !current)
                           }
-                          className="w-full border-t border-emerald-100 bg-emerald-50/70 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                          className="w-full border-t border-emerald-100 bg-emerald-50/70 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
                         >
                           {showAllFastAddItems
                             ? "Show less"
@@ -2131,7 +2131,7 @@ export default function AccountantOrderBilling() {
                             onClick={() =>
                               changeManualItemQuantity(justAddedItem.menuItem, -1)
                             }
-                            className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                            className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:text-slate-200"
                           >
                             <FaMinus />
                           </button>
@@ -2158,7 +2158,7 @@ export default function AccountantOrderBilling() {
                             );
                             manualCodeInputRef.current?.focus();
                           }}
-                          className="min-h-11 rounded-lg bg-rose-50 px-3 text-xs font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
+                          className="min-h-11 rounded-lg bg-rose-50 px-3 text-xs font-black text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300"
                         >
                           Remove
                         </button>
@@ -2311,7 +2311,7 @@ export default function AccountantOrderBilling() {
                         <button
                           type="button"
                           onClick={() => changeManualItemQuantity(item.menuItem, -1)}
-                          className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:text-slate-200"
                         >
                           <FaMinus />
                         </button>
@@ -2646,7 +2646,7 @@ export default function AccountantOrderBilling() {
                     className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                       historyFilter.paymentMethod === m
                         ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"
+                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"
                     }`}
                   >
                     {m ? paymentMethodLabel(m) : "All Methods"}
@@ -2665,7 +2665,7 @@ export default function AccountantOrderBilling() {
                     className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                       historyFilter.orderType === t
                         ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"
+                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"
                     }`}
                   >
                     {t || "All Types"}
@@ -2890,7 +2890,7 @@ export default function AccountantOrderBilling() {
                                     cashReceived: Number(cashReceived[bill._id] || 0),
                                   })
                                 }
-                                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                               >
                                 <FaPrint />
                                 Print Bill
@@ -2910,7 +2910,7 @@ export default function AccountantOrderBilling() {
                               <button
                                 type="button"
                                 onClick={() => downloadBillPdf(bill._id)}
-                                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
+                                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:hover:bg-rose-900/40 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
                               >
                                 <FaFilePdf />
                                 PDF
@@ -2919,7 +2919,7 @@ export default function AccountantOrderBilling() {
                               <button
                                 type="button"
                                 onClick={() => handleVoidBill(bill)}
-                                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+                                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 dark:hover:bg-amber-900/40 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
                               >
                                 Void &amp; Reissue
                               </button>
@@ -2927,7 +2927,7 @@ export default function AccountantOrderBilling() {
                               <button
                                 type="button"
                                 onClick={() => printBill(bill)}
-                                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                               >
                                 <FaPrint />
                                 Print Bill
@@ -3095,7 +3095,7 @@ export default function AccountantOrderBilling() {
                           <button
                             type="button"
                             onClick={() => changeManualItemQuantity(item.menuItem, -1)}
-                            className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                            className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:text-slate-200"
                           >
                             <FaMinus />
                           </button>
@@ -3181,7 +3181,7 @@ export default function AccountantOrderBilling() {
               <button
                 type="button"
                 onClick={closeBillModal}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/80 text-slate-700 shadow-sm transition hover:bg-white"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/80 text-slate-700 shadow-sm transition hover:bg-white dark:hover:bg-gray-700"
               >
                 <FaTimes />
               </button>
@@ -3877,7 +3877,7 @@ export default function AccountantOrderBilling() {
                   className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                     voidReason === preset
                       ? "border-amber-400 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
                   }`}
                 >
                   {preset}
@@ -3907,7 +3907,7 @@ export default function AccountantOrderBilling() {
                 type="button"
                 onClick={closeVoidModal}
                 disabled={voiding}
-                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:hover:bg-slate-700/60 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
                 Cancel
               </button>

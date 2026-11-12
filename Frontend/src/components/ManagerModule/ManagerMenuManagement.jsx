@@ -12,7 +12,7 @@ const Modal = ({ title, onClose, children }) => (
     <div className="relative z-10 max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-neutral-700">
       <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 dark:border-neutral-700 sm:px-6">
         <h2 className="text-lg font-bold text-slate-900 dark:text-white sm:text-2xl">{title}</h2>
-        <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+        <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 hover:text-slate-700">
           <FaTimes />
         </button>
       </div>
@@ -454,7 +454,7 @@ export default function ManagerMenuManagement() {
       <div className="rounded-2xl border border-slate-200 p-4 dark:border-neutral-700">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h3 className="text-base font-semibold text-slate-800 dark:text-white">Ingredients</h3>
-          <button type="button" onClick={() => setIngredients((prev) => [...prev, emptyIngredient()])} className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300">
+          <button type="button" onClick={() => setIngredients((prev) => [...prev, emptyIngredient()])} className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300">
             <FaPlus />
             Add Row
           </button>
@@ -469,7 +469,7 @@ export default function ManagerMenuManagement() {
               <input type="number" min="0.01" step="any" placeholder="Qty" value={ingredient.quantity} onChange={(e) => updateIngredient(index, "quantity", e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white" />
               <div className="flex items-center text-sm font-medium text-slate-500 dark:text-neutral-400">{inventoryItems.find((item) => item._id === ingredient.itemId)?.unit || "-"}</div>
               {ingredients.length > 1 && (
-                <button type="button" onClick={() => setIngredients((prev) => prev.filter((_, i) => i !== index))} className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-600 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
+                <button type="button" onClick={() => setIngredients((prev) => prev.filter((_, i) => i !== index))} className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/40 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
                   <FaTrash />
                 </button>
               )}
@@ -668,7 +668,7 @@ export default function ManagerMenuManagement() {
                   type="button"
                   onClick={handleDownloadMenuSalesExcel}
                   disabled={!assignedRestaurantId || ordersExporting || (ordersFilter === "date" && (!selectedStartDate || !selectedEndDate))}
-                  className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200"
+                  className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 disabled:opacity-50 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200"
                 >
                   <span className="inline-flex items-center gap-2">
                     <FaFileExcel />

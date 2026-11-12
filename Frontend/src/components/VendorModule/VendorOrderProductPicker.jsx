@@ -70,7 +70,7 @@ export default function VendorOrderProductPicker({ products, selectedIds, maxNew
                         onClick={() => setSelectedProductIds((current) =>
                           isSelected ? current.filter((id) => id !== product._id) : [...current, product._id]
                         )}
-                        className={`min-h-10 flex-1 rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${isSelected ? "border border-green-700 bg-white text-green-800 hover:bg-green-50 dark:bg-neutral-900 dark:text-green-300" : "bg-green-700 text-white hover:bg-green-800"}`}
+                        className={`min-h-10 flex-1 rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${isSelected ? "border border-green-700 bg-white text-green-800 hover:bg-green-50 dark:hover:bg-green-900/40 dark:bg-neutral-900 dark:text-green-300" : "bg-green-700 text-white hover:bg-green-800"}`}
                       >
                         {isSelected ? "Selected" : alreadyAdded ? "Select to add more" : canSelect ? "Select" : "Order limit reached"}
                       </button>

@@ -854,7 +854,7 @@ export default function WaiterManagement() {
                             e.stopPropagation();
                             handleTableClick(table);
                           }}
-                          className={`${btn} border border-slate-200 bg-white/80 text-slate-700 hover:bg-white dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200`}
+                          className={`${btn} border border-slate-200 bg-white/80 text-slate-700 hover:bg-white dark:hover:bg-gray-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200`}
                         >
                           Edit
                         </button>
@@ -975,7 +975,7 @@ export default function WaiterManagement() {
                         className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold ring-1 transition ${
                           tableTool === "move"
                             ? "bg-slate-900 text-white ring-slate-900 dark:bg-white dark:text-slate-900"
-                            : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700"
+                            : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700"
                         }`}
                       >
                         <FaExchangeAlt className="text-[10px]" />
@@ -989,7 +989,7 @@ export default function WaiterManagement() {
                         className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold ring-1 transition ${
                           tableTool === "join" || joinSelection.length > 0
                             ? "bg-emerald-600 text-white ring-emerald-600"
-                            : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700"
+                            : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700"
                         }`}
                       >
                         <FaTable className="text-[10px]" />
@@ -1040,7 +1040,7 @@ export default function WaiterManagement() {
                             className={`h-8 rounded-lg px-3 text-xs font-bold transition ${
                               on
                                 ? "bg-emerald-600 text-white"
-                                : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200"
+                                : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700/60 dark:bg-slate-800 dark:text-slate-200"
                             }`}
                           >
                             T{table.tableNumber}
@@ -1430,7 +1430,7 @@ export default function WaiterManagement() {
                         className={`rounded-full px-3 py-2 text-xs font-bold transition ${
                           cancelDialog.reason === reason
                             ? "bg-rose-600 text-white"
-                            : "bg-rose-50 text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-200 dark:ring-rose-900/40"
+                            : "bg-rose-50 text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200 dark:ring-rose-900/40"
                         }`}
                       >
                         {reason}

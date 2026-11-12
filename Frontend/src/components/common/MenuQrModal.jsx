@@ -66,7 +66,7 @@ export default function MenuQrModal({ restaurantId, restaurantName, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-neutral-800 dark:text-neutral-200"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700/60 dark:bg-neutral-800 dark:text-neutral-200"
           >
             <FaTimes />
           </button>

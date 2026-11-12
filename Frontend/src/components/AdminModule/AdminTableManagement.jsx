@@ -483,7 +483,7 @@ const handleDelete = async (id) => {
               {tables.map((t) => (
                 <tr
                   key={t._id}
-                  className="border-t border-gray-100 transition-colors hover:bg-gray-50 dark:border-gray-700"
+                  className="border-t border-gray-100 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/60 dark:border-gray-700"
                 >
                   <td className="px-6 py-4 text-base font-bold text-gray-800 dark:text-gray-100">
                     T{t.tableNumber}
@@ -1120,10 +1120,10 @@ const BookingsPanel = ({ reservations, loading, onAdd, onSeat, onCancel, onDelet
 
 const SummaryCard = ({ label, value, tone }) => {
   const tones = {
-    slate: "bg-slate-900 text-white",
-    green: "bg-green-600 text-white",
-    red: "bg-red-600 text-white",
-    blue: "bg-blue-600 text-white",
+    slate: "bg-slate-900 text-white dark:bg-gray-800 dark:ring-1 dark:ring-gray-700",
+    green: "bg-green-600 text-white dark:bg-green-500/15 dark:text-green-300 dark:ring-1 dark:ring-green-500/30",
+    red: "bg-red-600 text-white dark:bg-red-500/15 dark:text-red-300 dark:ring-1 dark:ring-red-500/30",
+    blue: "bg-blue-600 text-white dark:bg-blue-500/15 dark:text-blue-300 dark:ring-1 dark:ring-blue-500/30",
   };
 
   return (

@@ -13,6 +13,8 @@ import {
    resetForgotPassword,
    getMyProfile,
    updateMyProfile,
+   changeMyPassword,
+   sendChangePasswordOtp,
    createEmployee,
    getEmployees,
    deleteEmployee,
@@ -45,6 +47,8 @@ router.use(role("ADMIN"));
 
 router.get("/me", getMyProfile);
 router.put("/profile", updateMyProfile);
+router.post("/change-password/send-otp", loginLimiter, sendChangePasswordOtp);
+router.put("/change-password", loginLimiter, changeMyPassword);
 
 /* ================= EMPLOYEE ================= */
 router.post("/employee", createEmployee);        // CREATE

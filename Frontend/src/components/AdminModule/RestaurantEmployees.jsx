@@ -97,7 +97,7 @@ export default function RestaurantEmployees({ restaurantId, onBack }) {
   if (!restaurant) return <p className="p-6">Loading...</p>;
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 overflow-x-hidden">
+    <div className="admin-dark-scope p-4 sm:p-6 space-y-6 overflow-x-hidden">
       {/* ===== BACK ===== */}
       <button
         onClick={onBack}

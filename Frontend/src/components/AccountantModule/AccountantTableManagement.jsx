@@ -479,9 +479,9 @@ const AccountantTableManagement = () => {
 
 const StatCard = ({ label, value, icon, tone = "slate" }) => {
   const tones = {
-    slate: "bg-slate-900 text-white",
-    emerald: "bg-emerald-600 text-white",
-    rose: "bg-rose-600 text-white",
+    slate: "bg-slate-900 text-white dark:bg-neutral-800 dark:ring-1 dark:ring-neutral-700",
+    emerald: "bg-emerald-600 text-white dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-1 dark:ring-emerald-500/30",
+    rose: "bg-rose-600 text-white dark:bg-rose-500/15 dark:text-rose-300 dark:ring-1 dark:ring-rose-500/30",
   };
   return (
     <div className={`flex items-center justify-between rounded-2xl p-4 shadow-sm ${tones[tone] || tones.slate}`}>

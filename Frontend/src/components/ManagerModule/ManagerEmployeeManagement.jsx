@@ -524,7 +524,7 @@ const ManagerEmployeeManagement = () => {
                   className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-sm sm:text-base font-semibold transition-all ${
                     activePeriod === key && !customActive
                       ? "bg-violet-600 text-white shadow-md"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-violet-50 hover:text-violet-700"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-violet-50 dark:hover:bg-violet-900/40 hover:text-violet-700"
                   }`}
                 >
                   {label}
@@ -547,7 +547,7 @@ const ManagerEmployeeManagement = () => {
                 Apply
               </button>
               <button onClick={resetWork}
-                className="col-span-1 px-4 sm:px-5 py-2 sm:py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-xl text-sm sm:text-base font-semibold transition-colors">
+                className="col-span-1 px-4 sm:px-5 py-2 sm:py-2.5 bg-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700/60 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-xl text-sm sm:text-base font-semibold transition-colors">
                 Reset
               </button>
             </div>

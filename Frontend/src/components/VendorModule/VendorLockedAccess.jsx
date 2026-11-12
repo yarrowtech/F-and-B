@@ -14,7 +14,7 @@ export default function VendorLockedAccess({
   onOpenSubscription,
 }) {
   return (
-    <div className="rounded-[2rem] border border-amber-200 bg-[linear-gradient(135deg,#fffaf0_0%,#ffffff_52%,#f8fafc_100%)] p-6 shadow-sm">
+    <div className="admin-dark-scope rounded-[2rem] border border-amber-200 bg-[linear-gradient(135deg,#fffaf0_0%,#ffffff_52%,#f8fafc_100%)] p-6 shadow-sm dark:border-amber-500/30 dark:bg-none dark:bg-gray-800">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-2xl">
           <div className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">

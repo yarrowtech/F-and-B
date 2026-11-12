@@ -2755,7 +2755,7 @@ export default function AdminVendorStorefront({ vendorId, onBack }) {
                         <button
                           type="button"
                           onClick={() => openNegotiation(product)}
-                          className="mt-2 w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 transition hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200"
+                          className="mt-2 w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 transition hover:bg-amber-100 dark:hover:bg-amber-900/40 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200"
                         >
                           {agreedPrices[product.id] ? `Using agreed price: ${formatCurrency(agreedPrices[product.id].agreedPrice)}` : "Negotiate price"}
                         </button>

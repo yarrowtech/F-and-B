@@ -94,19 +94,19 @@
 //                   <div className="flex flex-wrap justify-center items-center gap-3">
 //                     <button
 //                       onClick={() => handleUpgrade(r.id)}
-//                       className="flex items-center gap-1 px-3 py-1 text-sm rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200"
+//                       className="flex items-center gap-1 px-3 py-1 text-sm rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 dark:hover:bg-blue-900/40"
 //                     >
 //                       <FaArrowUp /> Upgrade
 //                     </button>
 //                     <button
 //                       onClick={() => handleCancel(r.id)}
-//                       className="flex items-center gap-1 px-3 py-1 text-sm rounded-md bg-red-100 text-red-700 hover:bg-red-200"
+//                       className="flex items-center gap-1 px-3 py-1 text-sm rounded-md bg-red-100 text-red-700 hover:bg-red-200 dark:hover:bg-red-900/40"
 //                     >
 //                       <FaTimes /> Cancel
 //                     </button>
 //                     <button
 //                       onClick={() => handlePayment(r)}
-//                       className="flex items-center gap-1 px-3 py-1 text-sm rounded-md bg-green-100 text-green-700 hover:bg-green-200"
+//                       className="flex items-center gap-1 px-3 py-1 text-sm rounded-md bg-green-100 text-green-700 hover:bg-green-200 dark:hover:bg-green-900/40"
 //                     >
 //                       <FaMoneyBill /> ₹{plans.find((p) => p.name === r.plan).price}
 //                     </button>
@@ -323,7 +323,7 @@ export default function RestaurantSubscription() {
                   disabled={disabled}
                   className={`flex items-center gap-1 px-3 py-2 text-sm rounded-md
                   ${disabled ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                              : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
+                              : "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:hover:bg-blue-900/40"}`}
                 >
                   <FaArrowUp /> Upgrade
                 </button>
@@ -332,7 +332,7 @@ export default function RestaurantSubscription() {
                   disabled={disabled}
                   className={`flex items-center gap-1 px-3 py-2 text-sm rounded-md
                   ${disabled ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                              : "bg-red-100 text-red-700 hover:bg-red-200"}`}
+                              : "bg-red-100 text-red-700 hover:bg-red-200 dark:hover:bg-red-900/40"}`}
                 >
                   <FaTimes /> Cancel
                 </button>
@@ -341,7 +341,7 @@ export default function RestaurantSubscription() {
                   disabled={disabled}
                   className={`flex items-center gap-1 px-3 py-2 text-sm rounded-md
                   ${disabled ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                              : "bg-green-100 text-green-700 hover:bg-green-200"}`}
+                              : "bg-green-100 text-green-700 hover:bg-green-200 dark:hover:bg-green-900/40"}`}
                 >
                   <FaMoneyBill /> {INR.format(price)}
                 </button>
@@ -419,7 +419,7 @@ export default function RestaurantSubscription() {
                         disabled={disabled}
                         className={`flex items-center gap-1 px-3 py-1 text-sm rounded-md
                         ${disabled ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                                    : "bg-blue-100 text-blue-700 hover:bg-blue-200"}`}
+                                    : "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:hover:bg-blue-900/40"}`}
                       >
                         <FaArrowUp /> Upgrade
                       </button>
@@ -428,7 +428,7 @@ export default function RestaurantSubscription() {
                         disabled={disabled}
                         className={`flex items-center gap-1 px-3 py-1 text-sm rounded-md
                         ${disabled ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                                    : "bg-red-100 text-red-700 hover:bg-red-200"}`}
+                                    : "bg-red-100 text-red-700 hover:bg-red-200 dark:hover:bg-red-900/40"}`}
                       >
                         <FaTimes /> Cancel
                       </button>
@@ -437,7 +437,7 @@ export default function RestaurantSubscription() {
                         disabled={disabled}
                         className={`flex items-center gap-1 px-3 py-1 text-sm rounded-md
                         ${disabled ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                                    : "bg-green-100 text-green-700 hover:bg-green-200"}`}
+                                    : "bg-green-100 text-green-700 hover:bg-green-200 dark:hover:bg-green-900/40"}`}
                       >
                         <FaMoneyBill /> {INR.format(price)}
                       </button>

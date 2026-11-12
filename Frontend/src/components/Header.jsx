@@ -219,7 +219,7 @@ const Header = ({ landingTheme, onLandingThemeToggle }) => {
                   onClick={handleLogout}
                   className={`rounded-full border px-4 py-2.5 text-sm font-semibold transition xl:px-5 xl:py-3 ${
                     isLandingLight
-                      ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                      ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:hover:bg-red-900/40"
                       : "border-red-400/25 bg-red-500/12 text-red-200 hover:bg-red-500/20"
                   }`}
                 >
