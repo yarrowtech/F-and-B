@@ -330,12 +330,13 @@ const Message = lazy(() => import("./AdminMessage"));
 const Notification = lazy(() => import("./AdminNotification"));
 const TableManagement = lazy(() => import("./AdminTableManagement"));
 const AdminFeedback = lazy(() => import("./AdminFeedback"));
+const StampManagement = lazy(() => import("../common/StampManagement"));
 const AdminCRM = lazy(() => import("./AdminCRM"));
 const AdminVendorDirectory = lazy(() => import("./AdminVendorDirectory"));
 const AdminVendorStorefront = lazy(() => import("./AdminVendorStorefront"));
 const AdminSystemUsage = lazy(() => import("./AdminSystemUsage"));
 
-import { FaAddressBook, FaStar, FaBox, FaEnvelope, FaChartBar, FaHandshake, FaHeadset, FaHeartbeat, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList, FaCogs } from "react-icons/fa";
+import { FaAddressBook, FaStamp, FaStar, FaBox, FaEnvelope, FaChartBar, FaHandshake, FaHeadset, FaHeartbeat, FaSignOutAlt, FaStickyNote, FaTachometerAlt, FaUserCircle, FaUsers, FaUtensils, FaClipboardList, FaCogs } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
 import API from "../../services/api";
 import {
@@ -454,6 +455,7 @@ const BOTTOM_NAV = [
   { key: "menu",       label: "Menu",       icon: FaClipboardList },
   { key: "table",      label: "Table",      icon: FaUtensils },
   { key: "feedback",   label: "Feedback",   icon: FaStar },
+  { key: "stamp",      label: "Stamp",      icon: FaStamp },
   { key: "crm",        label: "CRM",        icon: FaAddressBook },
   { key: "subscription", label: "Subscription", icon: FaClipboardList },
   { key: "account",    label: "Account",    icon: FaUserCircle },
@@ -641,6 +643,9 @@ const Admin = () => {
 
       case "feedback":
         return <AdminFeedback />;
+
+      case "stamp":
+        return <StampManagement mode="admin" />;
 
       case "crm":
         return <AdminCRM />;

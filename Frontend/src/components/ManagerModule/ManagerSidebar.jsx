@@ -15,6 +15,7 @@ import {
   FaTable,
   FaEnvelope,
   FaStar,
+  FaStamp,
   FaAddressBook,
 } from "react-icons/fa";
 import useMessageUnread from "../../hooks/useMessageUnread";
@@ -63,6 +64,7 @@ const ManagerSidebar = ({
     { name: "Menu Management",  icon: FaUtensils,      key: "menu-management" },
     { name: "Table Management", icon: FaTable,         key: "table-management" },
     { name: "Feedback",         icon: FaStar,          key: "feedback" },
+    { name: "Stamp",            icon: FaStamp,         key: "stamp" },
     { name: "CRM",              icon: FaAddressBook,   key: "crm" },
     { name: "Account",          icon: FaWallet,        key: "account" },
     { name: "Profile",          icon: FaUserCircle,    key: "profile" },

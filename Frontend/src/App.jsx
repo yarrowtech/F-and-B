@@ -134,6 +134,7 @@ const FloorPage = lazy(() => import("./Pages/Floor"));
 const PublicMenu = lazy(() => import("./Pages/PublicMenu"));
 const TableOrder = lazy(() => import("./Pages/TableOrder"));
 const CustomerFeedback = lazy(() => import("./Pages/CustomerFeedback"));
+const StampReview = lazy(() => import("./Pages/StampReview"));
 const ProjectDocument = lazy(() => import("./Pages/ProjectDocument"));
 
 /* ================= LOGIN PAGES ================= */
@@ -291,6 +292,7 @@ const App = () => {
           <Route path="/public-menu/:restaurantId" element={<PublicMenu />} />
           <Route path="/order/:token" element={<TableOrder />} />
           <Route path="/feedback/:billId" element={<CustomerFeedback />} />
+          <Route path="/stamp/:restaurantId" element={<StampReview />} />
           <Route path="/vendor-invite/:token" element={<VendorInvitationAccept />} />
 
         {/* ===== DEPARTMENTS ===== */}

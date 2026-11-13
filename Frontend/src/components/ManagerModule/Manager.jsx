@@ -15,6 +15,7 @@ import {
   FaUtensils,
   FaWallet,
   FaStar,
+  FaStamp,
   FaAddressBook,
 } from "react-icons/fa";
 import { Moon, Sun } from "lucide-react";
@@ -26,6 +27,7 @@ import ManagerInventoryManagement from "./ManagerInventoryManagement";
 import ManagerMenuManagement from "./ManagerMenuManagement";
 import ManagerTableManagement from "./ManagerTableManagement";
 import ManagerFeedback from "./ManagerFeedback";
+import StampManagement from "../common/StampManagement";
 import ManagerCRM from "./ManagerCRM";
 import ManagerProfile from "./ManagerProfile";
 import ManagerAccount from "./ManagerAccount";
@@ -138,6 +140,7 @@ const BOTTOM_NAV = [
   { key: "menu-management",  label: "Menu",       icon: FaUtensils },
   { key: "table-management", label: "Tables",     icon: FaTable },
   { key: "feedback",         label: "Feedback",   icon: FaStar },
+  { key: "stamp",            label: "Stamp",      icon: FaStamp },
   { key: "crm",              label: "CRM",        icon: FaAddressBook },
   { key: "account",          label: "Account",    icon: FaWallet },
   { key: "profile",          label: "Profile",    icon: FaUserCircle },
@@ -204,6 +207,7 @@ const ManagerPanel = () => {
       case "table-management":
         return tableManagementEnabled ? <ManagerTableManagement /> : <ManagerDashboard />;
       case "feedback":         return <ManagerFeedback />;
+      case "stamp":            return <StampManagement mode="manager" />;
       case "crm":               return <ManagerCRM />;
       case "account":          return <ManagerAccount />;
       case "profile":          return <ManagerProfile />;

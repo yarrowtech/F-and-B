@@ -51,11 +51,18 @@ const feedbackSchema = new mongoose.Schema(
       index: true,
     },
 
+    // Required for bill feedback (one per bill). Stamp-QR reviews have no bill.
     bill: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Bill",
-      required: true,
-      unique: true, // one feedback per bill
+      default: undefined,
+    },
+
+    source: {
+      type: String,
+      enum: ["bill", "stamp"],
+      default: "bill",
+      index: true,
     },
 
     order: {
@@ -131,5 +138,24 @@ const feedbackSchema = new mongoose.Schema(
 );
 
 feedbackSchema.index({ restaurant: 1, createdAt: -1 });
+
+// One feedback per bill — only enforced when a bill is present.
+feedbackSchema.index(
+  { bill: 1 },
+  { unique: true, partialFilterExpression: { bill: { $type: "objectId" } } }
+);
+
+// Replaces the old non-partial unique index on `bill` (which would reject
+// a second bill-less stamp review). Safe to call repeatedly.
+export const ensureFeedbackIndexes = async () => {
+  try {
+    const indexes = await mongoose.model("Feedback").collection.indexes();
+    const legacy = indexes.find((i) => i.name === "bill_1" && !i.partialFilterExpression);
+    if (legacy) await mongoose.model("Feedback").collection.dropIndex("bill_1");
+    await mongoose.model("Feedback").createIndexes();
+  } catch (err) {
+    console.error("Feedback index sync failed:", err.message);
+  }
+};
 
 export default mongoose.model("Feedback", feedbackSchema);

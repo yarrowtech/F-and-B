@@ -275,11 +275,19 @@ select,
   --tw-ring-color: #374151 !important;
 }
 
-.dark .admin-dark-scope input,
-.dark .admin-dark-scope select,
-.dark .admin-dark-scope textarea {
+.dark .admin-dark-scope input:not(.bg-transparent),
+.dark .admin-dark-scope select:not(.bg-transparent),
+.dark .admin-dark-scope textarea:not(.bg-transparent) {
   background-color: #111827 !important;
   border-color: #374151 !important;
+  color: #f9fafb !important;
+}
+
+.dark .admin-dark-scope input.bg-transparent,
+.dark .admin-dark-scope select.bg-transparent,
+.dark .admin-dark-scope textarea.bg-transparent {
+  background-color: transparent !important;
+  border-color: transparent !important;
   color: #f9fafb !important;
 }
 
@@ -311,6 +319,20 @@ select,
 .dark .admin-dark-scope .bg-rose-50,
 .dark .admin-dark-scope .bg-red-50 {
   background-color: rgba(127, 29, 29, 0.35) !important;
+}
+
+.dark .admin-dark-scope .text-red-600,
+.dark .admin-dark-scope .text-red-700,
+.dark .admin-dark-scope .text-rose-600,
+.dark .admin-dark-scope .text-rose-700 {
+  color: #fca5a5 !important;
+}
+
+.dark .admin-dark-scope .border-red-100,
+.dark .admin-dark-scope .border-red-200,
+.dark .admin-dark-scope .border-rose-100,
+.dark .admin-dark-scope .border-rose-200 {
+  border-color: rgba(248, 113, 113, 0.35) !important;
 }
 
 .dark .admin-dark-scope .bg-blue-50,

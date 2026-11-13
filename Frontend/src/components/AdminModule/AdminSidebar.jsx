@@ -18,6 +18,7 @@ import {
   FaTimes,
   FaEnvelope,
   FaStar,
+  FaStamp,
   FaAddressBook,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
@@ -74,6 +75,7 @@ const Sidebar = ({
     { name: "Menu Management",     icon: FaClipboardList, key: "menu" },
     { name: "Table Management",    icon: FaUtensils,      key: "table" },
     { name: "Feedback",            icon: FaStar,          key: "feedback" },
+    { name: "Stamp",               icon: FaStamp,         key: "stamp" },
     { name: "CRM",                 icon: FaAddressBook,   key: "crm" },
     { name: "Subscription",        icon: FaCreditCard,    key: "subscription" },
     { name: "Account",             icon: FaUserCircle,    key: "account" },
