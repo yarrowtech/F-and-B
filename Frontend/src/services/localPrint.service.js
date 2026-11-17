@@ -216,20 +216,23 @@ const isAgentReachable = async () => {
   }
 };
 
-export const printJobsOnThisDevice = async (jobs = [], options = {}) => {
+export const printJobsOnThisDevice = async (jobs = []) => {
   const printableJobs = jobs.filter((job) => job?.receiptText);
   if (!printableJobs.length) return 0;
 
   if (!(await isAgentReachable())) {
+    // Default: print through this browser. With Chrome started using
+    // --kiosk-printing this prints straight to the default printer, no dialog.
+    // Set localStorage printViaServer=true to queue on the server instead.
+    let viaServer = false;
     try {
-      return await queueJobsOnServer(printableJobs);
-    } catch (err) {
-      if (options.fallbackToBrowser === true) {
-        await printMultipleTextsInBrowser(printableJobs, "Bill And KOT");
-        return printableJobs.length;
-      }
-      throw err;
+      viaServer = window.localStorage.getItem("printViaServer") === "true";
+    } catch {
+      viaServer = false;
     }
+    if (viaServer) return queueJobsOnServer(printableJobs);
+    await printMultipleTextsInBrowser(printableJobs, "Bill And KOT");
+    return printableJobs.length;
   }
 
   const printed = await printBatchOnThisDevice(printableJobs);
