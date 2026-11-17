@@ -1188,6 +1188,7 @@ const ESC_POS_ALIGN_CENTER = "\x1B\x61\x01";
 const ESC_POS_BOLD_ON = "\x1B\x45\x01";
 const ESC_POS_BOLD_OFF = "\x1B\x45\x00";
 const ESC_POS_DOUBLE_SIZE = "\x1D\x21\x11";
+const ESC_POS_DOUBLE_HEIGHT = "\x1D\x21\x01";
 const ESC_POS_TALL_HEIGHT = "\x1D\x21\x02";
 const ESC_POS_NORMAL_SIZE = "\x1D\x21\x00";
 const ESC_POS_FEED_AND_CUT = "\x1D\x56\x41\x03";
@@ -1551,10 +1552,10 @@ const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt, dailyKot
   let itemsBlock = "";
   items.forEach((item) => {
     const quantity = String(Number(item.quantity || 0));
-    const wrappedName = kotWrap(item.menuItem?.name || "Menu Item", 13);
+    const wrappedName = kotWrap(item.menuItem?.name || "Menu Item", 29);
     const rows = [`${quantity.padEnd(2, " ")} ${wrappedName[0] || "MENU ITEM"}`];
     wrappedName.slice(1).forEach((line) => rows.push(`   ${line}`));
-    itemsBlock += `${ESC_POS_DOUBLE_SIZE}${rows.join("\n")}${ESC_POS_NORMAL_SIZE}\n`;
+    itemsBlock += `${ESC_POS_DOUBLE_HEIGHT}${rows.join("\n")}${ESC_POS_NORMAL_SIZE}\n`;
 
     if ((item.customization || []).length > 0) {
       kotWrap(`NOTE: ${item.customization.join(", ")}`, KOT_WIDTH - 3).forEach((line) => {
@@ -1564,7 +1565,7 @@ const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt, dailyKot
     itemsBlock += "\n";
   });
 
-  const footer = [kotLine(), kotCenter("NO PRICE ON KOT"), "", ""].join("\n");
+  const footer = [kotLine(), "", ""].join("\n");
   const heading = `${ESC_POS_INIT}${ESC_POS_ALIGN_CENTER}${ESC_POS_BOLD_ON}${ESC_POS_DOUBLE_SIZE}KOT${ESC_POS_NORMAL_SIZE}\n${kotText(outletName).toUpperCase()}${ESC_POS_BOLD_OFF}${ESC_POS_ALIGN_LEFT}\n`;
   return appendKotFeed(
     `${heading}${ESC_POS_BOLD_ON}${metaLines.join("\n")}\n${itemsBlock}${footer}${ESC_POS_BOLD_OFF}`

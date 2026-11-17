@@ -158,6 +158,7 @@ const ESC_POS_ALIGN_CENTER = "\x1B\x61\x01";
 const ESC_POS_BOLD_ON = "\x1B\x45\x01";
 const ESC_POS_BOLD_OFF = "\x1B\x45\x00";
 const ESC_POS_DOUBLE_SIZE = "\x1D\x21\x11";
+const ESC_POS_DOUBLE_HEIGHT = "\x1D\x21\x01";
 const ESC_POS_TALL_HEIGHT = "\x1D\x21\x02";
 const ESC_POS_NORMAL_SIZE = "\x1D\x21\x00";
 const ESC_POS_FULL_CUT = "\x1D\x56\x00";
@@ -885,10 +886,10 @@ const buildManualKotReceiptText = ({ order, restaurant, dailyKotNumber }) => {
   getBillableOrderItems(order).forEach((item) => {
     const quantity = String(Number(item.quantity || 0));
     const itemName = item.menuItem?.name || item.name || "Menu Item";
-    const wrappedName = receiptWrap(String(itemName).toUpperCase(), 13);
+    const wrappedName = receiptWrap(String(itemName).toUpperCase(), 29);
     const rows = [`${quantity.padEnd(2, " ")} ${wrappedName[0] || "MENU ITEM"}`];
     wrappedName.slice(1).forEach((line) => rows.push(`   ${line}`));
-    itemsBlock += `${ESC_POS_DOUBLE_SIZE}${rows.join("\n")}${ESC_POS_NORMAL_SIZE}\n`;
+    itemsBlock += `${ESC_POS_DOUBLE_HEIGHT}${rows.join("\n")}${ESC_POS_NORMAL_SIZE}\n`;
 
     if (Array.isArray(item.customization) && item.customization.length > 0) {
       receiptWrap(`NOTE: ${item.customization.join(", ")}`.toUpperCase(), width - 3).forEach((line) => {
@@ -898,7 +899,7 @@ const buildManualKotReceiptText = ({ order, restaurant, dailyKotNumber }) => {
     itemsBlock += "\n";
   });
 
-  const footer = [receiptLine(width), receiptCenter("NO PRICE ON KOT", width), "", ""].join("\n");
+  const footer = [receiptLine(width), "", ""].join("\n");
   const heading = `${ESC_POS_INIT}${ESC_POS_ALIGN_CENTER}${ESC_POS_BOLD_ON}${ESC_POS_DOUBLE_SIZE}KOT${ESC_POS_NORMAL_SIZE}\n${receiptText(title).toUpperCase()}${ESC_POS_BOLD_OFF}${ESC_POS_ALIGN_LEFT}\n`;
   return appendThermalFeed(
     `${heading}${ESC_POS_BOLD_ON}${metaLines.join("\n")}\n${itemsBlock}${footer}${ESC_POS_BOLD_OFF}`,
