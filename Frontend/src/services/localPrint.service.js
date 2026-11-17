@@ -22,35 +22,32 @@ const ESC_POS_LEGACY_FULL_CUT = "\x1D\x56\x41\x00";
 const ESC_POS_ENABLE_AUTO_CUT = "\x1C\x7D\x60\x01";
 const ESC_POS_ALT_FULL_CUT = "\x1B\x69";
 const ESC_POS_ALT_PARTIAL_CUT = "\x1B\x6D";
-const ESC_POS_CUT_BUNDLE =
-  `${ESC_POS_ENABLE_AUTO_CUT}${ESC_POS_FEED_AND_CUT}${ESC_POS_FEED_AND_FULL_CUT}` +
-  `${ESC_POS_LEGACY_FULL_CUT}${ESC_POS_FULL_CUT}${ESC_POS_PARTIAL_CUT}` +
-  `${ESC_POS_ALT_FULL_CUT}${ESC_POS_ALT_PARTIAL_CUT}`;
+const ESC_POS_CUT_BUNDLE = `${ESC_POS_FEED_AND_FULL_CUT}${ESC_POS_FULL_CUT}`;
 
-const stripEscPosControls = (value) => {
-  const text = String(value ?? "");
-  let cleaned = "";
+/* eslint-disable no-control-regex */
+// Marks the end of a slip: every kind of cut / form-feed code.
+const CUT_CODES =
+  /\u001dV[AB][\s\S]|\u001dV[\u0000-\u0003012]|\u001b[im]|\u001c}`[\s\S]|\u000c/g;
 
-  for (let index = 0; index < text.length; index += 1) {
-    const code = text.charCodeAt(index);
+// Remove ESC/POS commands by their real lengths (ESC @ is only 2 bytes, so
+// skipping a fixed 3 would eat the next letter and print a stray "a").
+const stripEscPosControls = (value) =>
+  String(value ?? "")
+    .replace(CUT_CODES, "")
+    .replace(/\u001b@/g, "")
+    .replace(/\u001b[a-zA-Z!\-=][\u0000-\u001f0-9]/g, "")
+    .replace(/\u001d![\s\S]/g, "")
+    .replace(/[\u0000-\u0008\u000b\u000e-\u001f]/g, "");
 
-    if (code === 0x1b || code === 0x1d || code === 0x1c) {
-      index += 2;
-      continue;
-    }
+/* eslint-enable no-control-regex */
 
-    if (code === 0x0c) {
-      continue;
-    }
-
-    if ((code >= 0x00 && code <= 0x08) || code === 0x0b || (code >= 0x0e && code <= 0x1f)) {
-      continue;
-    }
-
-    cleaned += text[index];
-  }
-
-  return cleaned;
+const splitIntoSlips = (receiptText) => {
+  const slips = String(receiptText ?? "")
+    .replace(/-{8,}[ \t]*\r?\n[ \t]*CUT HERE[ \t]*\r?\n[ \t]*-{8,}[ \t]*\r?\n?/g, "")
+    .split(CUT_CODES)
+    .map((part) => stripEscPosControls(part).replace(/\s+$/, ""))
+    .filter((part) => part.trim());
+  return slips.length > 0 ? slips : [stripEscPosControls(receiptText)];
 };
 
 const escapeHtml = (value) =>
@@ -103,11 +100,15 @@ export const printTextInBrowser = (receiptText, title = "Print") => {
             padding: 3mm;
             white-space: pre;
             word-break: normal;
+            break-after: page;
           }
+          pre:last-of-type { break-after: auto; }
         </style>
       </head>
       <body>
-        <pre>${escapeHtml(stripEscPosControls(receiptText))}</pre>
+        ${splitIntoSlips(receiptText)
+          .map((slip) => `<pre>${escapeHtml(slip)}</pre>`)
+          .join("")}
         <script>
           window.onload = function () {
             window.focus();
@@ -123,91 +124,19 @@ export const printTextInBrowser = (receiptText, title = "Print") => {
   doc.close();
 };
 
-export const printMultipleTextsInBrowser = (jobs = [], title = "Print") => {
+// A browser cannot send ESC/POS cut commands, so a printer only cuts when the
+// driver ends a print job. Print each receipt as its own job (one after the
+// other) so the bill and every KOT is cut separately instead of all being
+// merged into one long strip with a single cut at the end.
+export const printMultipleTextsInBrowser = async (jobs = [], title = "Print") => {
   const printableJobs = jobs.filter((job) => job?.receiptText);
-  if (printableJobs.length === 0) return;
 
-  const iframe = document.createElement("iframe");
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "0";
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentDocument || iframe.contentWindow?.document;
-  if (!doc) {
-    iframe.remove();
-    throw new Error("Browser print frame is not available");
+  for (let index = 0; index < printableJobs.length; index += 1) {
+    const job = printableJobs[index];
+    const jobTitle = job.payload?.cuisine ? `KOT - ${job.payload.cuisine}` : title;
+    printTextInBrowser(job.receiptText, jobTitle);
+    if (index < printableJobs.length - 1) await sleep(1500);
   }
-
-  const sections = printableJobs
-    .map(
-      (job, index) => `
-        <section class="receipt ${index < printableJobs.length - 1 ? "receipt-gap" : ""}">
-          <pre>${escapeHtml(stripEscPosControls(job.receiptText))}</pre>
-        </section>
-      `
-    )
-    .join("");
-
-  doc.open();
-  doc.write(`
-    <!doctype html>
-    <html>
-      <head>
-        <title>${escapeHtml(title)}</title>
-        <style>
-          @page { size: 80mm auto; margin: 0; }
-          * { box-sizing: border-box; }
-          body {
-            margin: 0;
-            background: #fff;
-            color: #000;
-            font-family: "Courier New", monospace;
-            font-size: 16px;
-            font-weight: 900;
-            line-height: 1.35;
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-          }
-          .receipt {
-            width: 72mm;
-            margin: 0;
-            padding: 3mm;
-            page-break-inside: avoid;
-            break-inside: avoid;
-          }
-          .receipt-gap {
-            padding-bottom: 26mm;
-            border-bottom: 1px dashed #bbb;
-            margin-bottom: 6mm;
-            page-break-after: always;
-            break-after: page;
-          }
-          pre {
-            margin: 0;
-            white-space: pre;
-            word-break: normal;
-          }
-        </style>
-      </head>
-      <body>
-        ${sections}
-        <script>
-          window.onload = function () {
-            window.focus();
-            window.print();
-            setTimeout(function () {
-              window.frameElement && window.frameElement.remove();
-            }, 1000);
-          };
-        </script>
-      </body>
-    </html>
-  `);
-  doc.close();
 };
 
 export const printOnThisDevice = async ({ receiptText, printerName = "" }) => {
@@ -271,8 +200,39 @@ const combinePrintJobs = (jobs, ensureCutAfterEach) => {
   ];
 };
 
+// One request: the agent prints every receipt in order and cuts after each.
+// Returns null when the agent is an older version without /print-batch.
+const printBatchOnThisDevice = async (jobs) => {
+  const res = await fetch(`${getLocalPrintAgentUrl()}/print-batch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jobs: jobs.map((job) => ({
+        receiptText: job.receiptText,
+        printerName: USE_SERVER_PRINTER_NAME ? job.printerName || "" : "",
+      })),
+    }),
+  });
+  if (res.status === 404) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.success === false) {
+    throw new Error(data.message || "Local printer is not available");
+  }
+  return Number(data.printed) || jobs.length;
+};
+
 export const printJobsOnThisDevice = async (jobs = [], options = {}) => {
   const printableJobs = jobs.filter((job) => job?.receiptText);
+
+  if (printableJobs.length > 1) {
+    try {
+      const printedByAgent = await printBatchOnThisDevice(printableJobs);
+      if (printedByAgent !== null) return printedByAgent;
+    } catch {
+      // Agent unreachable: fall through to the per-job / browser fallback below.
+    }
+  }
+
   const fallbackToBrowser = options.fallbackToBrowser !== false;
   const combineBrowserFallback = options.combineBrowserFallback === true;
   const localPrintJobs =
@@ -307,7 +267,7 @@ export const printJobsOnThisDevice = async (jobs = [], options = {}) => {
   }
 
   if (shouldUseCombinedBrowserFallback) {
-    printMultipleTextsInBrowser(printableJobs, "Bill And KOT");
+    await printMultipleTextsInBrowser(printableJobs, "Bill And KOT");
     printedCount = printableJobs.length;
   }
 

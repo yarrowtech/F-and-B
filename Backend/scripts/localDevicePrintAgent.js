@@ -50,12 +50,99 @@ const readJson = (req) =>
     req.on("error", reject);
   });
 
-const printText = async ({ receiptText, printerName = "" }) => {
-  await printRawReceipt({
-    receiptText,
-    printerName,
-    jobName: "device-print",
-  });
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Cut command sets for the common thermal printer families. Pick one with the
+// LOCAL_PRINT_CUT_MODE env var (or a per-request "cutMode"):
+//   escpos          Epson-compatible, feed + full cut       (default, most printers)
+//   escpos-partial  Epson-compatible, feed + partial cut
+//   star            Star Line Mode printers (TSP100/143/650 ...): ESC d 2
+//   driver          send no cut bytes; the Windows driver's own "cut after
+//                   document" option does the cutting
+//   none            no cut bytes, just extra blank feed (tear-off printers)
+const CUT_MODES = ["escpos", "escpos-partial", "star", "driver", "none"];
+const DEFAULT_CUT_MODE = CUT_MODES.includes(String(process.env.LOCAL_PRINT_CUT_MODE || "").trim())
+  ? String(process.env.LOCAL_PRINT_CUT_MODE).trim()
+  : "escpos";
+
+const FEED = "\n\n\n\n\n";
+const CUT_SEQUENCES = {
+  escpos: `${FEED}\u001dVB\u0000\u001dV\u0000`,
+  "escpos-partial": `${FEED}\u001dVA\u0003\u001dV\u0001`,
+  star: `${FEED}\u001bd\u0002`,
+  driver: `${FEED}\n`,
+  none: `${FEED}\n`,
+};
+
+// Cut / form-feed codes already in the text (from any printer family). Each
+// one marks the end of a slip, so split there and re-cut every slip in the
+// selected mode: that is what cuts between KOT copies, not just at the end.
+const CUT_CODES =
+  /\u001dV[\u0000\u0001012]|\u001dV[AB][\s\S]|\u001b[im]|\u001c}`[\s\S]|\u000c/g;
+
+// KOTs saved before the change still contain a printed "CUT HERE" box. It only
+// wastes paper now that every slip is really cut, so drop it.
+const stripCutHereText = (text) =>
+  String(text || "").replace(/-{8,}[ \t]*\r?\n[ \t]*CUT HERE[ \t]*\r?\n[ \t]*-{8,}[ \t]*\r?\n?/g, "");
+
+// Split a receipt into slips (at every cut code) and give each its own cut.
+const splitSlips = (text, mode = DEFAULT_CUT_MODE) => {
+  const cutMode = CUT_MODES.includes(mode) ? mode : DEFAULT_CUT_MODE;
+  return stripCutHereText(text)
+    .split(CUT_CODES)
+    .map((part) => part.replace(/\s+$/, ""))
+    .filter((part) => part.trim())
+    .map((part) => `${part}${CUT_SEQUENCES[cutMode]}`);
+};
+
+// Every slip (bill, each KOT, each KOT copy) is sent as its own print job, so
+// the cut command AND the driver's "cut at end of document" both fire between
+// slips instead of relying on a cut code in the middle of one long job.
+const printSlips = async ({ receiptText, printerName = "", cutMode, jobName }) => {
+  const slips = splitSlips(receiptText, cutMode);
+  console.log(`[print] ${jobName}: ${slips.length} slip(s), cut mode ${cutMode || DEFAULT_CUT_MODE}`);
+  for (let i = 0; i < slips.length; i += 1) {
+    await printRawReceipt({ receiptText: slips[i], printerName, jobName });
+    await sleep(1500); // let the printer finish feeding and cutting before the next slip
+  }
+  return slips.length;
+};
+
+const printBatch = async (jobs = [], cutMode) => {
+  const printable = (Array.isArray(jobs) ? jobs : []).filter((job) =>
+    String(job?.receiptText || "").trim()
+  );
+  let printed = 0;
+  for (const job of printable) {
+    printed += await printSlips({
+      receiptText: job.receiptText,
+      printerName: job.printerName || "",
+      cutMode: job.cutMode || cutMode,
+      jobName: "batch-print",
+    });
+  }
+  return printed;
+};
+
+const printText = async ({ receiptText, printerName = "", cutMode }) => {
+  await printSlips({ receiptText, printerName, cutMode, jobName: "device-print" });
+};
+
+// Two tiny receipts, so you can see whether the printer cuts between them.
+const printCutTest = async ({ printerName = "", cutMode } = {}) => {
+  const mode = CUT_MODES.includes(cutMode) ? cutMode : DEFAULT_CUT_MODE;
+  await printBatch(
+    [1, 2].map((n) => ({
+      receiptText: `CUT TEST ${n} OF 2
+Mode: ${mode}
+
+If the paper was cut after
+this slip, this mode works.`,
+      printerName,
+      cutMode: mode,
+    }))
+  );
+  return mode;
 };
 
 const getPrinters = async () => {
@@ -89,6 +176,18 @@ const server = http.createServer(async (req, res) => {
       const body = await readJson(req);
       await printText(body);
       return sendJson(res, 200, { success: true });
+    }
+
+    if (req.method === "POST" && req.url === "/print-test") {
+      const body = await readJson(req);
+      const mode = await printCutTest(body);
+      return sendJson(res, 200, { success: true, mode, availableModes: CUT_MODES });
+    }
+
+    if (req.method === "POST" && req.url === "/print-batch") {
+      const body = await readJson(req);
+      const printed = await printBatch(body.jobs, body.cutMode);
+      return sendJson(res, 200, { success: true, printed });
     }
 
     return sendJson(res, 404, { success: false, message: "Not found" });

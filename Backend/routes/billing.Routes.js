@@ -115,6 +115,13 @@ router.post(
 );
 
 router.post(
+  "/:id/settle",
+  auth,
+  allowRoles("accountant"),
+  billingController.settleManualBill
+);
+
+router.post(
   "/:id/void",
   auth,
   allowRoles("accountant", "admin"),

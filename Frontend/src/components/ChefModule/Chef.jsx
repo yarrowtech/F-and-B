@@ -24,7 +24,7 @@ import ChefMessage from "./ChefMessage";
 import ChefNotifications from "./ChefNotification";
 import { getUser, logout } from "../../services/auth.service";
 import { getMyKotPrintJobs, markMyKotPrintJobPrinted } from "../../services/kotPrint.service";
-import { printTextInBrowser } from "../../services/localPrint.service";
+import { printJobsOnThisDevice } from "../../services/localPrint.service";
 import socket from "../../socket/socket";
 
 function ChefProfileButton() {
@@ -228,7 +228,9 @@ const Chef = () => {
 
     try {
       setKotPrintingId(job._id);
-      printTextInBrowser(job.receiptText, job.payload?.cuisine ? `KOT - ${job.payload.cuisine}` : "KOT");
+      // Straight to the thermal printer through the local print agent (cuts each
+      // copy); only opens the browser print dialog if the agent is unreachable.
+      await printJobsOnThisDevice([job]);
       await markMyKotPrintJobPrinted(job._id);
       window.dispatchEvent(new CustomEvent("chef-kot-printed"));
       setPrintNotice(`KOT printed: ${job.payload?.cuisine || "Kitchen"}`);
@@ -238,6 +240,28 @@ const Chef = () => {
         `KOT print failed. Start printer helper on this billing machine: npm run local:print-agent`
       );
       console.error("KOT print failed", err);
+    } finally {
+      setKotPrintingId("");
+    }
+  };
+
+  // One click prints every queued KOT (each cut separately) and marks them printed.
+  const handlePrintAllKotJobs = async () => {
+    const jobs = kotPrintJobs.filter((job) => job?._id && job.receiptText);
+    if (jobs.length === 0) return;
+
+    try {
+      setKotPrintingId("ALL");
+      await printJobsOnThisDevice(jobs);
+      await Promise.all(jobs.map((job) => markMyKotPrintJobPrinted(job._id)));
+      window.dispatchEvent(new CustomEvent("chef-kot-printed"));
+      setPrintNotice(`${jobs.length} KOT printed`);
+      await loadKotPrintJobs();
+    } catch (err) {
+      setPrintNotice(
+        "KOT print failed. Start printer helper on this billing machine: npm run local:print-agent"
+      );
+      console.error("KOT print all failed", err);
     } finally {
       setKotPrintingId("");
     }
@@ -287,6 +311,19 @@ const Chef = () => {
               {kotPrintJobs.length}
             </span>
           </p>
+          <div className="flex items-center gap-2">
+          {kotPrintJobs.length > 1 && (
+            <button
+              type="button"
+              onClick={handlePrintAllKotJobs}
+              disabled={kotPrintingId !== ""}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-green-700 px-2.5 text-xs font-bold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
+              title="Print every KOT in the queue"
+            >
+              <Printer size={13} />
+              {kotPrintingId === "ALL" ? "Printing" : `Print All (${kotPrintJobs.length})`}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => loadKotPrintJobs({ showLoading: true })}
@@ -297,6 +334,7 @@ const Chef = () => {
             <RefreshCw size={13} className={kotLoading ? "animate-spin" : ""} />
             Refresh
           </button>
+          </div>
         </div>
 
         {kotError && (

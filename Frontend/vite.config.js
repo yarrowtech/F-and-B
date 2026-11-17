@@ -11,6 +11,7 @@ export default defineConfig({
     cssTarget: "chrome61",
   },
   server: {
+    host: true,
     proxy: {
       '/api': {
         target: 'http://localhost:5000',

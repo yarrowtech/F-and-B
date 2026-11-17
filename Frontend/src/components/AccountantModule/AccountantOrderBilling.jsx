@@ -25,6 +25,7 @@ import {
   getBillingInbox,
   getBillingSettings,
   markBillPaid,
+  settleManualBill,
   voidBill,
 } from "../../services/billing.service";
 import { printJobsOnThisDevice } from "../../services/localPrint.service";
@@ -804,6 +805,12 @@ export default function AccountantOrderBilling() {
   const [voidReason, setVoidReason] = useState("");
   const [voidError, setVoidError] = useState("");
   const [voiding, setVoiding] = useState(false);
+  const [settleTarget, setSettleTarget] = useState(null);
+  const [settleMethod, setSettleMethod] = useState("");
+  const [settleCash, setSettleCash] = useState("");
+  const [settleCardLast4, setSettleCardLast4] = useState("");
+  const [settling, setSettling] = useState(false);
+  const [settleError, setSettleError] = useState("");
   const [manualSearch, setManualSearch] = useState("");
   const [manualCodeInput, setManualCodeInput] = useState("");
   const [quickNameSearch, setQuickNameSearch] = useState("");
@@ -1239,7 +1246,7 @@ export default function AccountantOrderBilling() {
     const printWindow =
       targetWindow || window.open("", "_blank", "width=420,height=720");
     if (!printWindow) {
-      alert("Allow popup windows to print the bill");
+      showNotice("Allow popup windows in your browser to print the bill.", "warning", "Popup blocked");
       return;
     }
 
@@ -1269,7 +1276,7 @@ export default function AccountantOrderBilling() {
       });
     } catch (err) {
       console.error("PRINT BILL AND KOT ERROR:", err);
-      alert(err.response?.data?.message || err.message || "Failed to print bill and KOT");
+      showNotice(err.response?.data?.message || err.message || "Please try again.", "error", "Failed to print bill and KOT");
     }
   };
 
@@ -1343,7 +1350,7 @@ export default function AccountantOrderBilling() {
       }
     } catch (err) {
       console.error("PRINT BILL ERROR:", err);
-      alert("Failed to print bill");
+      showNotice("Please try again.", "error", "Failed to print bill");
     } finally {
       setSavingBill(false);
     }
@@ -1365,7 +1372,7 @@ export default function AccountantOrderBilling() {
       await fetchBills();
     } catch (err) {
       console.error("PAY BILL ERROR:", err);
-      alert("Payment failed");
+      showNotice("Please try again.", "error", "Payment failed");
     }
   };
 
@@ -1511,7 +1518,7 @@ export default function AccountantOrderBilling() {
 
   const submitManualBill = async () => {
     if (manualBill.items.length === 0) {
-      alert("Please select at least one menu item");
+      showNotice("Add at least one menu item before finalizing.", "warning", "No items added");
       return;
     }
 
@@ -1520,7 +1527,6 @@ export default function AccountantOrderBilling() {
 
       const bill = await createManualBill({
         orderType: manualBill.orderType,
-        paymentMethod: manualBill.paymentMethod,
         customerPhone: manualBill.customerPhone,
         customerEmail: manualBill.customerEmail,
         cgstRate: sanitizeNumber(manualBill.cgstRate),
@@ -1545,14 +1551,28 @@ export default function AccountantOrderBilling() {
       const createdBill = bill?.bill || bill;
         const manualPrintJobs = [bill?.printJob, bill?.kotPrintJob].filter(Boolean);
         if (manualPrintJobs.length > 0) {
-          await printJobsOnThisDevice(manualPrintJobs, {
+          // Print in the background: the printer needs several seconds per slip
+          // (feed + cut), and the cashier should not wait for it.
+          printJobsOnThisDevice(manualPrintJobs, {
             combineBrowserFallback: true,
             combineLocalJobs: false,
             ensureCutAfterEach: true,
+          }).catch((printErr) => {
+            console.error("MANUAL BILL PRINT ERROR:", printErr);
+            showNotice(
+              "The bill was saved but did not print. Check the print agent and printer.",
+              "warning",
+              "Printing failed"
+            );
           });
         }
 
       setBills((prev) => [createdBill, ...prev]);
+      setSettleTarget(createdBill);
+      setSettleMethod(manualPaymentMethods[0] || "CASH");
+      setSettleCash("");
+      setSettleCardLast4("");
+      setSettleError("");
       setManualBill({
         orderType: "TAKEAWAY",
         paymentMethod: manualPaymentMethods[0] || "CASH",
@@ -1577,11 +1597,117 @@ export default function AccountantOrderBilling() {
       setShowAllFastAddItems(false);
     } catch (err) {
       console.error("CREATE MANUAL BILL ERROR:", err);
-      alert(err.response?.data?.message || err.message || "Failed to create bill");
+      showNotice(err.response?.data?.message || err.message || "Please try again.", "error", "Failed to create bill");
     } finally {
       setCreatingManualBill(false);
     }
   };
+
+  // F5 = Finalize Order on the New Bill tab (instead of reloading the page).
+  const submitManualBillRef = useRef(submitManualBill);
+  submitManualBillRef.current = submitManualBill;
+  useEffect(() => {
+    if (tab !== "NEW") return undefined;
+    const onKeyDown = (event) => {
+      if (event.key !== "F5") return;
+      event.preventDefault();
+      if (
+        event.repeat ||
+        creatingManualBill ||
+        settleTarget ||
+        showManualAdvanced ||
+        showManualComplimentary ||
+        manualBill.items.length === 0
+      ) {
+        return;
+      }
+      submitManualBillRef.current();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [tab, creatingManualBill, settleTarget, showManualAdvanced, showManualComplimentary, manualBill.items.length]);
+
+  const closeSettleModal = () => {
+    if (settling) return;
+    setSettleTarget(null);
+    setSettleCash("");
+    setSettleError("");
+  };
+
+  const confirmSettlement = async () => {
+    if (!settleTarget?._id || !settleMethod) return;
+
+    try {
+      setSettling(true);
+      setSettleError("");
+
+      const settled = await settleManualBill(settleTarget._id, {
+        paymentMethod: settleMethod,
+        cashReceived: settleMethod === "CASH" ? Number(settleCash || 0) : 0,
+        cardLast4: settleMethod === "CARD" ? settleCardLast4 : "",
+      });
+
+      const { settlementPrintJob, ...updatedBill } = settled;
+      setBills((prev) =>
+        prev.map((bill) =>
+          bill._id === updatedBill._id ? { ...bill, ...updatedBill } : bill
+        )
+      );
+
+      if (settlementPrintJob) {
+        await printJobsOnThisDevice([settlementPrintJob], {
+          combineBrowserFallback: true,
+          combineLocalJobs: false,
+          ensureCutAfterEach: true,
+        });
+      }
+
+      setSettleTarget(null);
+      setSettleCash("");
+    } catch (err) {
+      console.error("SETTLE BILL ERROR:", err);
+      setSettleError(err.response?.data?.message || err.message || "Failed to settle bill");
+    } finally {
+      setSettling(false);
+    }
+  };
+
+  // Settle popup keyboard control: arrows or 1-9 pick the payment type,
+  // Enter settles & prints, Esc skips.
+  const confirmSettlementRef = useRef(confirmSettlement);
+  confirmSettlementRef.current = confirmSettlement;
+  useEffect(() => {
+    if (!settleTarget) return undefined;
+    const onKeyDown = (event) => {
+      const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(event.target?.tagName);
+      const count = manualPaymentMethods.length;
+      const current = manualPaymentMethods.indexOf(settleMethod);
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeSettleModal();
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (!event.repeat) confirmSettlementRef.current();
+        return;
+      }
+      if (typing || count === 0) return;
+      if (/^[1-9]$/.test(event.key) && manualPaymentMethods[Number(event.key) - 1]) {
+        event.preventDefault();
+        setSettleMethod(manualPaymentMethods[Number(event.key) - 1]);
+      } else if (["ArrowRight", "ArrowDown"].includes(event.key)) {
+        event.preventDefault();
+        setSettleMethod(manualPaymentMethods[(current + 1) % count]);
+      } else if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
+        event.preventDefault();
+        setSettleMethod(manualPaymentMethods[(current - 1 + count) % count]);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [settleTarget, settleMethod, manualPaymentMethods, settling]);
 
   const filteredBills = Array.isArray(bills)
     ? bills.filter((bill) => {
@@ -1637,7 +1763,7 @@ export default function AccountantOrderBilling() {
       });
     } catch (err) {
       console.error("DOWNLOAD BILLING HISTORY EXCEL ERROR:", err);
-      alert("Failed to download billing history Excel");
+      showNotice("Please try again.", "error", "Excel download failed");
     }
   };
 
@@ -1662,7 +1788,7 @@ export default function AccountantOrderBilling() {
   const handleAddMenuByCode = () => {
     const normalizedCode = String(manualCodeInput || "").trim().toUpperCase();
     if (!/^[A-Z0-9]{1,20}$/.test(normalizedCode)) {
-      alert("Enter a valid menu code using letters and numbers");
+      showNotice("Enter a valid menu code using letters and numbers.", "warning", "Invalid menu code");
       return;
     }
 
@@ -1673,7 +1799,7 @@ export default function AccountantOrderBilling() {
     );
 
     if (!matchedItem) {
-      alert("No menu item found for this code");
+      showNotice("No available menu item matches this code.", "warning", "Menu item not found");
       return;
     }
 
@@ -1769,17 +1895,17 @@ export default function AccountantOrderBilling() {
           </div>
         </div>
       )}
-      <div className="mx-auto max-w-7xl space-y-3 sm:space-y-4">
-        <div className="rounded-[28px] bg-[#eef4fb] px-3 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className={`grid gap-1.5 rounded-2xl bg-white/70 p-1.5 dark:bg-slate-800 sm:flex sm:w-fit ${
+      <div className="mx-auto max-w-7xl space-y-2 sm:space-y-3">
+        <div className="rounded-2xl bg-[#eef4fb] px-2 py-1.5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className={`grid gap-1 rounded-xl bg-white/70 p-1 dark:bg-slate-800 sm:flex sm:w-fit ${
               isManualOnlyRestaurant ? "grid-cols-2" : "grid-cols-3"
             }`}>
               {!isManualOnlyRestaurant && (
                 <button
                   type="button"
                   onClick={() => setTab("INBOX")}
-                  className={`min-h-11 rounded-xl px-4 py-2 text-sm font-bold transition ${
+                  className={`min-h-9 rounded-lg px-3 py-1.5 text-sm font-bold transition ${
                     tab === "INBOX"
                       ? "bg-emerald-600 text-white shadow"
                       : "text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-900"
@@ -1792,7 +1918,7 @@ export default function AccountantOrderBilling() {
               <button
                 type="button"
                 onClick={() => setTab("NEW")}
-                className={`min-h-11 rounded-xl px-4 py-2 text-sm font-bold transition ${
+                className={`min-h-9 rounded-lg px-3 py-1.5 text-sm font-bold transition ${
                   tab === "NEW"
                     ? "bg-emerald-600 text-white shadow"
                     : "text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-900"
@@ -1804,7 +1930,7 @@ export default function AccountantOrderBilling() {
               <button
                 type="button"
                 onClick={() => setTab("HISTORY")}
-                className={`min-h-11 rounded-xl px-4 py-2 text-sm font-bold transition ${
+                className={`min-h-9 rounded-lg px-3 py-1.5 text-sm font-bold transition ${
                   tab === "HISTORY"
                     ? "bg-slate-900 text-white shadow"
                     : "text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-900"
@@ -1815,14 +1941,14 @@ export default function AccountantOrderBilling() {
             </div>
 
             {tab !== "NEW" && (
-              <div className="flex min-h-10 w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 dark:border-slate-700 dark:bg-slate-950 lg:max-w-md">
+              <div className="flex min-h-9 w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 dark:border-slate-700 dark:bg-slate-950 lg:max-w-md">
                 <FaSearch className="text-slate-400" />
                 <input
                   type="text"
                   placeholder="Search bill no, order no or table..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="h-10 w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  className="h-9 w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
                   {...getTouchInputProps("text")}
                 />
               </div>
@@ -1834,82 +1960,38 @@ export default function AccountantOrderBilling() {
           <div className="rounded-[28px] bg-[#f8fbff] p-2.5 shadow-sm ring-1 ring-[#dce7f3] dark:bg-slate-900 dark:ring-slate-700 min-[1024px]:p-3 xl:rounded-[30px]">
             <div className="grid gap-2.5 min-[1024px]:grid-cols-[220px_minmax(0,1fr)_195px] min-[1024px]:gap-3 xl:gap-4 xl:grid-cols-[360px_minmax(0,1fr)_300px]">
               <div className="space-y-3 min-[1024px]:sticky min-[1024px]:top-4 min-[1024px]:self-start">
-                <div className="rounded-[24px] border border-[#d7e3ef] bg-white p-3.5 shadow-sm dark:border-slate-700 dark:bg-slate-950 min-[1024px]:p-4 xl:rounded-[26px] xl:p-5">
-                  <div className="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-[0.95rem] font-black uppercase tracking-[0.16em] text-slate-900 dark:text-white xl:text-[1.05rem] xl:tracking-[0.18em]">
-                        Bill Setup
-                      </h3>
-                    </div>
-                    <div className="min-w-[68px] rounded-xl border border-[#d7e3ef] bg-[#f8fbff] px-2.5 py-2.5 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900 xl:min-w-[76px] xl:rounded-2xl xl:px-3 xl:py-3">
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
-                        Items
-                      </p>
-                      <p className="mt-0.5 text-xl font-black text-emerald-700 dark:text-emerald-200 xl:mt-1 xl:text-2xl">
-                        {manualBill.items.length}
-                      </p>
+                <div className="rounded-[20px] border border-[#d7e3ef] bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[22px] xl:p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-900 dark:text-white">
+                      Bill Setup
+                    </h3>
+                    <div className="flex items-center gap-1.5 text-xs font-black">
+                      <span className="rounded-lg bg-slate-100 px-2 py-1 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                        {manualBill.items.length} items
+                      </span>
+                      <span className="rounded-lg bg-[#e8f8ef] px-2 py-1 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200">
+                        {formatCurrency(manualTotals.totalAmount)}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="mb-4 rounded-[20px] border border-[#dcebdc] bg-[#eef8f3] p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 xl:mb-5 xl:rounded-[22px] xl:p-4">
-                    <div className="grid gap-3">
-                      <div className="grid grid-cols-3 gap-2 text-center">
-                        <div className="rounded-xl bg-white/80 px-2.5 py-2.5 dark:bg-slate-950 xl:rounded-2xl xl:px-3 xl:py-3">
-                          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-                            Items
-                          </p>
-                          <p className="mt-1 text-sm font-black text-slate-900 dark:text-white">
-                            {manualBill.items.length}
-                          </p>
-                        </div>
-                        <div className="rounded-xl bg-white/80 px-2.5 py-2.5 dark:bg-slate-950 xl:rounded-2xl xl:px-3 xl:py-3">
-                          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-                            Payment
-                          </p>
-                          <p className="mt-1 truncate text-sm font-black text-slate-900 dark:text-white">
-                            {paymentMethodLabel(manualBill.paymentMethod)}
-                          </p>
-                        </div>
-                        <div className="rounded-xl bg-[#e8f8ef] px-2.5 py-2.5 dark:bg-emerald-950/30 xl:rounded-2xl xl:px-3 xl:py-3">
-                          <p className="text-[10px] font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
-                            Total
-                          </p>
-                          <p className="mt-1 text-sm font-black text-emerald-700 dark:text-emerald-200">
-                            {formatCurrency(manualTotals.totalAmount)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2 xl:gap-4">
+                  <div className="grid grid-cols-2 gap-2">
                     <select
                       value={manualBill.orderType}
                       onChange={(e) => updateManualBill("orderType", e.target.value)}
-                      className="min-h-12 rounded-xl border border-[#d7e3ef] bg-white px-4 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 xl:min-h-14 xl:rounded-2xl xl:px-5"
+                      className="min-h-10 rounded-xl border border-[#d7e3ef] bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     >
                       <option value="TAKEAWAY">Takeaway</option>
                       <option value="ONLINE">Online</option>
                       <option value="PACKAGING">Packaging</option>
                       <option value="OTHER">Other</option>
                     </select>
-                    <select
-                      value={manualBill.paymentMethod}
-                      onChange={(e) => updateManualBill("paymentMethod", e.target.value)}
-                      className="min-h-12 rounded-xl border border-[#d7e3ef] bg-white px-4 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 xl:min-h-14 xl:rounded-2xl xl:px-5"
-                    >
-                      {manualPaymentMethods.map((method) => (
-                        <option key={method} value={method}>
-                          {paymentMethodLabel(method)}
-                        </option>
-                      ))}
-                    </select>
                     <input
                       type="text"
                       placeholder="Customer phone"
                       value={manualBill.customerPhone}
                       onChange={(e) => updateManualBill("customerPhone", e.target.value)}
-                      className="min-h-12 rounded-xl border border-[#d7e3ef] bg-white px-4 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 xl:min-h-14 xl:rounded-2xl xl:px-5"
+                      className="min-h-10 min-w-0 rounded-xl border border-[#d7e3ef] bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                       {...getTouchInputProps("number")}
                     />
                     <input
@@ -1917,38 +1999,10 @@ export default function AccountantOrderBilling() {
                       placeholder="Customer email"
                       value={manualBill.customerEmail}
                       onChange={(e) => updateManualBill("customerEmail", e.target.value)}
-                      className="min-h-12 rounded-xl border border-[#d7e3ef] bg-white px-4 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 xl:min-h-14 xl:rounded-2xl xl:px-5"
+                      className="col-span-2 min-h-10 rounded-xl border border-[#d7e3ef] bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                       {...getTouchInputProps("email")}
                     />
                   </div>
-
-                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                    <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-[#d7e3ef] dark:bg-slate-900 dark:ring-slate-700 xl:rounded-2xl xl:px-4 xl:py-4">
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                        Order Type
-                      </p>
-                      <p className="mt-1 truncate text-xs font-black uppercase tracking-wide text-slate-800 dark:text-slate-100">
-                        {manualBill.orderType}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-[#d7e3ef] dark:bg-slate-900 dark:ring-slate-700 xl:rounded-2xl xl:px-4 xl:py-4">
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                        Payment
-                      </p>
-                      <p className="mt-1 truncate text-xs font-black uppercase tracking-wide text-slate-800 dark:text-slate-100">
-                        {paymentMethodLabel(manualBill.paymentMethod)}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-[#d7e3ef] dark:bg-slate-900 dark:ring-slate-700 xl:rounded-2xl xl:px-4 xl:py-4">
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                        Contact
-                      </p>
-                      <p className="mt-1 truncate text-xs font-black tracking-wide text-slate-800 dark:text-slate-100">
-                        {manualBill.customerPhone || manualBill.customerEmail || "Walk-in"}
-                      </p>
-                    </div>
-                  </div>
-
                 </div>
 
                 <div className="rounded-[22px] border border-[#d7e3ef] bg-white shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[24px]">
@@ -1969,6 +2023,26 @@ export default function AccountantOrderBilling() {
                     </span>
                     <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
                       {showManualComplimentary ? "Close" : "Open"}
+                    </span>
+                  </button>
+                </div>
+
+                <div className="rounded-[22px] border border-[#d7e3ef] bg-white shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[24px]">
+                  <button
+                    type="button"
+                    onClick={() => setShowManualAdvanced(true)}
+                    className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                  >
+                    <span>
+                      <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">
+                        Advanced Bill Options
+                      </span>
+                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                        GST, discount, service, packaging, and extra charge
+                      </span>
+                    </span>
+                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
+                      Open
                     </span>
                   </button>
                 </div>
@@ -2330,121 +2404,6 @@ export default function AccountantOrderBilling() {
                   ))}
                 </div>
 
-                <div className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900 xl:rounded-[22px]">
-                  <button
-                    type="button"
-                    onClick={() => setShowManualAdvanced((value) => !value)}
-                    className="flex min-h-12 w-full items-center justify-between gap-3 px-3 text-left"
-                  >
-                    <span>
-                      <span className="block text-sm font-black text-slate-800 dark:text-slate-100">
-                        Advanced Bill Options
-                      </span>
-                      <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        GST, discount, service, packaging, and extra charge
-                      </span>
-                    </span>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700 shadow-sm dark:bg-slate-950 dark:text-slate-200">
-                      {showManualAdvanced ? "Hide" : "Open"}
-                    </span>
-                  </button>
-
-                  {showManualAdvanced && (
-                    <div className="border-t border-slate-200 p-3 dark:border-slate-700">
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          ["cgstRate", "CGST %"],
-                          ["sgstRate", "SGST %"],
-                          ["serviceCharge", "Service"],
-                          ["packagingCharge", "Packaging"],
-                          ["extraCharge", "Extra Charge"],
-                        ].map(([field, label]) => (
-                          <label key={field} className="text-xs font-bold text-slate-500">
-                            {label}
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={manualBill[field]}
-                              onChange={(e) => updateManualBill(field, e.target.value)}
-                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                              {...getTouchInputProps("number")}
-                            />
-                          </label>
-                        ))}
-                      </div>
-                      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-950">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-xs font-bold text-slate-500">
-                            Discount
-                          </label>
-                          <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900">
-                            {DISCOUNT_TYPE_OPTIONS.map((option) => (
-                              <button
-                                key={`manual-${option.value}`}
-                                type="button"
-                                onClick={() => updateManualBill("discountType", option.value)}
-                                className={`min-h-8 rounded-md px-3 text-xs font-bold ${
-                                  manualBill.discountType === option.value
-                                    ? "bg-emerald-600 text-white"
-                                    : "text-slate-600 dark:text-slate-300"
-                                }`}
-                              >
-                                {option.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={manualBill.discount}
-                          onChange={(e) => updateManualBill("discount", e.target.value)}
-                          className="mt-2 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                          placeholder={manualBill.discountType === "PERCENT" ? "Enter % discount" : "Enter amount discount"}
-                          {...getTouchInputProps("number")}
-                        />
-                      </div>
-                      <label className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-white px-3 text-sm font-bold text-slate-700 dark:bg-slate-950 dark:text-slate-200">
-                        <span>Show service charge on bill</span>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(manualBill.showServiceCharge)}
-                          onChange={(e) =>
-                            updateManualBill("showServiceCharge", e.target.checked)
-                          }
-                          className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                        />
-                      </label>
-                      <label className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-white px-3 text-sm font-bold text-slate-700 dark:bg-slate-950 dark:text-slate-200">
-                        <span>Show packaging charge on bill</span>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(manualBill.showPackagingCharge)}
-                          onChange={(e) =>
-                            updateManualBill("showPackagingCharge", e.target.checked)
-                          }
-                          className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                        />
-                      </label>
-                      <label className="mt-3 block text-xs font-bold text-slate-500">
-                        Extra Charge Reason
-                        <textarea
-                          rows="2"
-                          value={manualBill.extraChargeReason}
-                          onChange={(e) =>
-                            updateManualBill("extraChargeReason", e.target.value)
-                          }
-                          placeholder="Example: late-night packing, rush delivery, special handling..."
-                          className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                          {...getTouchInputProps("text")}
-                        />
-                      </label>
-                    </div>
-                  )}
-                </div>
-
                 <div className="mt-4 space-y-2 rounded-xl bg-white p-3 text-sm dark:bg-slate-900 min-[1024px]:hidden">
                   <div className="flex justify-between text-slate-600 dark:text-slate-300">
                     <span>Items</span>
@@ -2578,6 +2537,9 @@ export default function AccountantOrderBilling() {
                   >
                     <FaCheck />
                     {creatingManualBill ? "Generating..." : "Finalize Order"}
+                    {!creatingManualBill && (
+                      <kbd className="ml-1 rounded bg-white/25 px-1.5 py-0.5 text-[10px] font-bold">F5</kbd>
+                    )}
                   </button>
                 </div>
               </div>
@@ -2585,14 +2547,10 @@ export default function AccountantOrderBilling() {
 
             <div className="sticky bottom-20 z-30 mt-4 rounded-2xl border border-emerald-200 bg-white/95 p-3 shadow-2xl shadow-slate-900/10 backdrop-blur dark:border-emerald-900/60 dark:bg-slate-950/95 min-[1024px]:hidden 2xl:bottom-0">
               <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
-                <div className="grid grid-cols-3 gap-2 text-center sm:max-w-lg">
+                <div className="grid grid-cols-2 gap-2 text-center sm:max-w-lg">
                   <div className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-900">
                     <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Items</p>
                     <p className="mt-1 text-sm font-black text-slate-900 dark:text-white">{manualBill.items.length}</p>
-                  </div>
-                  <div className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-900">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Payment</p>
-                    <p className="mt-1 truncate text-sm font-black text-slate-900 dark:text-white">{paymentMethodLabel(manualBill.paymentMethod)}</p>
                   </div>
                   <div className="rounded-xl bg-emerald-50 px-3 py-2 dark:bg-emerald-950/30">
                     <p className="text-[10px] font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-300">Total</p>
@@ -3832,6 +3790,128 @@ export default function AccountantOrderBilling() {
         </div>
       )}
 
+      {settleTarget && (
+        <div
+          className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          onClick={closeSettleModal}
+        >
+          <div
+            className="w-full max-w-md rounded-t-2xl bg-white p-5 shadow-2xl dark:bg-slate-900 sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-lg text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+                <FaCheck />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                  Settle Bill #{settleTarget.billNo}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Bill generated. Choose how the customer paid.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-center dark:bg-emerald-950/30">
+              <p className="text-[10px] font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
+                Amount to collect
+              </p>
+              <p className="mt-1 text-2xl font-black text-emerald-700 dark:text-emerald-200">
+                {formatCurrency(settleTarget.totalAmount)}
+              </p>
+            </div>
+
+            <p className="mt-4 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              Payment type
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {manualPaymentMethods.map((method) => (
+                <button
+                  key={method}
+                  type="button"
+                  onClick={() => {
+                    setSettleMethod(method);
+                    setSettleError("");
+                  }}
+                  className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-bold transition ${
+                    settleMethod === method
+                      ? "border-emerald-500 bg-emerald-600 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                  }`}
+                >
+                  <span className="mr-1 text-[10px] opacity-60">
+                    {manualPaymentMethods.indexOf(method) + 1}
+                  </span>
+                  {paymentMethodLabel(method)}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-slate-400">
+              Arrows / 1-9 to choose &middot; Enter to settle &amp; print &middot; Esc to skip
+            </p>
+
+            {settleMethod === "CASH" && (
+              <div className="mt-3">
+                <CashChangeCalculator
+                  compact
+                  totalAmount={settleTarget.totalAmount}
+                  received={settleCash}
+                  onReceivedChange={setSettleCash}
+                  changeDue={Math.max(
+                    Number(settleCash || 0) - Number(settleTarget.totalAmount || 0),
+                    0
+                  )}
+                  inputProps={getTouchInputProps("number")}
+                />
+              </div>
+            )}
+
+            {settleMethod === "CARD" && (
+              <label className="mt-3 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Card last 4 digits <span className="font-semibold normal-case">(optional)</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  autoFocus
+                  value={settleCardLast4}
+                  onChange={(e) => setSettleCardLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  placeholder="e.g. 4242"
+                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold tracking-[0.3em] text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                />
+              </label>
+            )}
+
+            {settleError && (
+              <p role="alert" className="mt-3 text-sm font-semibold text-rose-600 dark:text-rose-300">
+                {settleError}
+              </p>
+            )}
+
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={closeSettleModal}
+                disabled={settling}
+                className="min-h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+              >
+                Skip
+              </button>
+              <button
+                type="button"
+                onClick={confirmSettlement}
+                disabled={settling || !settleMethod}
+                className="inline-flex min-h-11 flex-[2] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <FaPrint />
+                {settling ? "Settling..." : "Settle & Print"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {voidTarget && (
         <div
           className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
@@ -3946,6 +4026,130 @@ export default function AccountantOrderBilling() {
             >
               Go to History
             </button>
+          </div>
+        </div>
+      )}
+
+      {showManualAdvanced && (
+        <div className="fixed inset-0 z-[85] flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="absolute inset-0" onClick={() => setShowManualAdvanced(false)} />
+          <div className="relative z-10 w-full max-w-lg rounded-t-3xl bg-white shadow-2xl dark:bg-slate-950 sm:rounded-3xl">
+            <div className="flex items-start justify-between gap-3 border-b border-emerald-100 px-4 py-4 dark:border-emerald-900/50 sm:px-6">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">Advanced Bill Options</h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  GST, discount, service, packaging, and extra charge.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowManualAdvanced(false)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                <FaTimes />
+              </button>
+            </div>
+            <div className="max-h-[75vh] overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          ["cgstRate", "CGST %"],
+                          ["sgstRate", "SGST %"],
+                          ["serviceCharge", "Service"],
+                          ["packagingCharge", "Packaging"],
+                          ["extraCharge", "Extra Charge"],
+                        ].map(([field, label]) => (
+                          <label key={field} className="text-xs font-bold text-slate-500">
+                            {label}
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={manualBill[field]}
+                              onChange={(e) => updateManualBill(field, e.target.value)}
+                              className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                              {...getTouchInputProps("number")}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-950">
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="text-xs font-bold text-slate-500">
+                            Discount
+                          </label>
+                          <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900">
+                            {DISCOUNT_TYPE_OPTIONS.map((option) => (
+                              <button
+                                key={`manual-${option.value}`}
+                                type="button"
+                                onClick={() => updateManualBill("discountType", option.value)}
+                                className={`min-h-8 rounded-md px-3 text-xs font-bold ${
+                                  manualBill.discountType === option.value
+                                    ? "bg-emerald-600 text-white"
+                                    : "text-slate-600 dark:text-slate-300"
+                                }`}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={manualBill.discount}
+                          onChange={(e) => updateManualBill("discount", e.target.value)}
+                          className="mt-2 min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                          placeholder={manualBill.discountType === "PERCENT" ? "Enter % discount" : "Enter amount discount"}
+                          {...getTouchInputProps("number")}
+                        />
+                      </div>
+                      <label className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-white px-3 text-sm font-bold text-slate-700 dark:bg-slate-950 dark:text-slate-200">
+                        <span>Show service charge on bill</span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(manualBill.showServiceCharge)}
+                          onChange={(e) =>
+                            updateManualBill("showServiceCharge", e.target.checked)
+                          }
+                          className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                      </label>
+                      <label className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-white px-3 text-sm font-bold text-slate-700 dark:bg-slate-950 dark:text-slate-200">
+                        <span>Show packaging charge on bill</span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(manualBill.showPackagingCharge)}
+                          onChange={(e) =>
+                            updateManualBill("showPackagingCharge", e.target.checked)
+                          }
+                          className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                      </label>
+                      <label className="mt-3 block text-xs font-bold text-slate-500">
+                        Extra Charge Reason
+                        <textarea
+                          rows="2"
+                          value={manualBill.extraChargeReason}
+                          onChange={(e) =>
+                            updateManualBill("extraChargeReason", e.target.value)
+                          }
+                          placeholder="Example: late-night packing, rush delivery, special handling..."
+                          className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                          {...getTouchInputProps("text")}
+                        />
+                      </label>
+            </div>
+            <div className="border-t border-slate-100 px-4 py-3 dark:border-slate-800 sm:px-6">
+              <button
+                type="button"
+                onClick={() => setShowManualAdvanced(false)}
+                className="min-h-11 w-full rounded-xl bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

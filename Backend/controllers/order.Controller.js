@@ -1213,7 +1213,7 @@ const kotCopyHeader = (copyNumber, copyCount) =>
   `${kotCenter(`COPY ${copyNumber} OF ${copyCount}`)}\n${kotLine()}\n`;
 
 const kotCopySeparator = () =>
-  `\n${kotLine()}\n${kotCenter("CUT HERE")}\n${kotLine()}\n\n\n\n\n${ESC_POS_CUT_BUNDLE}\f`;
+  `\n\n\n\n${ESC_POS_CUT_BUNDLE}\f`;
 
 // receiptText already ends with its own cut+feed (appendKotFeed always cuts);
 // strip that off before repeating so each copy gets exactly one cut instead
@@ -1534,7 +1534,7 @@ const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt, dailyKot
   const tableNo = getOrderTableLabel(order, "N/A");
   const waiterName = order.waiter?.name || "N/A";
   const outletName = order.restaurant?.name || "KITCHEN";
-  const bodyLines = [
+  const metaLines = [
     kotLine(),
     kotPair("KOT NO", dailyKotNumber || kotNo || "-"),
     kotPair("TABLE", tableNo),
@@ -1542,25 +1542,32 @@ const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt, dailyKot
     kotPair("WAITER", waiterName),
     kotPair("TIME", formatKotDateTime(printedAt)),
     kotLine(),
-    "QTY  DESCRIPTION",
+    "QTY  ITEM",
     kotLine(),
   ];
 
+  // Item rows print in double size so the kitchen can read them at a glance;
+  // everything else stays normal bold.
+  let itemsBlock = "";
   items.forEach((item) => {
-    bodyLines.push(...kotItemRows(item.quantity, item.menuItem?.name || "Menu Item"));
+    const quantity = String(Number(item.quantity || 0));
+    const wrappedName = kotWrap(item.menuItem?.name || "Menu Item", 13);
+    const rows = [`${quantity.padEnd(2, " ")} ${wrappedName[0] || "MENU ITEM"}`];
+    wrappedName.slice(1).forEach((line) => rows.push(`   ${line}`));
+    itemsBlock += `${ESC_POS_DOUBLE_SIZE}${rows.join("\n")}${ESC_POS_NORMAL_SIZE}\n`;
+
     if ((item.customization || []).length > 0) {
-      kotWrap(`NOTE: ${item.customization.join(", ")}`).forEach((line) =>
-        bodyLines.push(`     ${line}`.slice(0, KOT_WIDTH))
-      );
+      kotWrap(`NOTE: ${item.customization.join(", ")}`, KOT_WIDTH - 3).forEach((line) => {
+        itemsBlock += `   ${line}\n`;
+      });
     }
+    itemsBlock += "\n";
   });
 
-  bodyLines.push(kotLine());
-  bodyLines.push(kotCenter("NO PRICE ON KOT"));
-  bodyLines.push("");
-  bodyLines.push("");
+  const footer = [kotLine(), kotCenter("NO PRICE ON KOT"), "", ""].join("\n");
+  const heading = `${ESC_POS_INIT}${ESC_POS_ALIGN_CENTER}${ESC_POS_BOLD_ON}${ESC_POS_DOUBLE_SIZE}KOT${ESC_POS_NORMAL_SIZE}\n${kotText(outletName).toUpperCase()}${ESC_POS_BOLD_OFF}${ESC_POS_ALIGN_LEFT}\n`;
   return appendKotFeed(
-    `${buildEscPosKotHeading(["KOT DETAILS", outletName])}${buildEscPosLargeKotBody(bodyLines.join("\n"))}`
+    `${heading}${ESC_POS_BOLD_ON}${metaLines.join("\n")}\n${itemsBlock}${footer}${ESC_POS_BOLD_OFF}`
   );
 };
 

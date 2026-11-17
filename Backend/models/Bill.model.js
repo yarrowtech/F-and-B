@@ -259,6 +259,11 @@ const billSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    cardLast4: {
+      type: String,
+      default: "",
+      match: /^(\d{4})?$/,
+    },
 
     voidedAt: { type: Date, default: null },
     voidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee", default: null },

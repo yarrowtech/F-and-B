@@ -161,15 +161,12 @@ const ESC_POS_DOUBLE_SIZE = "\x1D\x21\x11";
 const ESC_POS_TALL_HEIGHT = "\x1D\x21\x02";
 const ESC_POS_NORMAL_SIZE = "\x1D\x21\x00";
 const ESC_POS_FULL_CUT = "\x1D\x56\x00";
-const ESC_POS_FEED_AND_CUT = "\x1D\x56\x41\x03";
 const ESC_POS_FEED_AND_FULL_CUT = "\x1D\x56\x42\x00";
-const ESC_POS_LEGACY_FULL_CUT = "\x1D\x56\x41\x00";
-const ESC_POS_ENABLE_AUTO_CUT = "\x1C\x7D\x60\x01";
-const ESC_POS_ALT_FULL_CUT = "\x1B\x69";
-const ESC_POS_ALT_PARTIAL_CUT = "\x1B\x6D";
-const ESC_POS_CUT_BUNDLE =
-  `${ESC_POS_ENABLE_AUTO_CUT}${ESC_POS_FEED_AND_CUT}${ESC_POS_FEED_AND_FULL_CUT}` +
-  `${ESC_POS_LEGACY_FULL_CUT}${ESC_POS_FULL_CUT}${ESC_POS_ALT_FULL_CUT}${ESC_POS_ALT_PARTIAL_CUT}`;
+// Standard ESC/POS only: feed to the cutter and cut (GS V 66 0), then plain
+// GS V 0 for printers that only know the older cut form. The legacy ESC i /
+// ESC m and the non-standard FS } codes were removed: this printer printed
+// them as stray "m"/"a" characters instead of cutting.
+const ESC_POS_CUT_BUNDLE = `${ESC_POS_FEED_AND_FULL_CUT}${ESC_POS_FULL_CUT}`;
 const appendThermalFeed = (text, extraLines = 9, options = {}) =>
   `${String(text || "").replace(/\s+$/, "")}${"\n".repeat(Math.max(extraLines, 5))}${options.cut ? ESC_POS_CUT_BUNDLE : ""}\f`;
 
@@ -191,7 +188,7 @@ const kotCopyHeader = (copyNumber, copyCount, width = 32) =>
   `${receiptCenter(`COPY ${copyNumber} OF ${copyCount}`, width)}\n${receiptLine(width)}\n`;
 
 const kotCopySeparator = (width = 32) =>
-  `\n${receiptLine(width)}\n${receiptCenter("CUT HERE", width)}\n${receiptLine(width)}\n\n\n\n\n${ESC_POS_CUT_BUNDLE}\f`;
+  `\n\n\n\n${ESC_POS_CUT_BUNDLE}\f`;
 
 // receiptText already ends with its own cut+feed (appendThermalFeed was
 // called with {cut:true}); strip that off before repeating so each copy
@@ -872,36 +869,39 @@ const buildBillReceiptText = (bill) => {
 const buildManualKotReceiptText = ({ order, restaurant, dailyKotNumber }) => {
   const width = 32;
   const title = restaurant?.name || "Restaurant";
-  const bodyLines = [
+  const metaLines = [
     receiptLine(width),
     receiptPair("KOT NO", dailyKotNumber || "-", width),
     receiptPair("TYPE", order.orderType || "MANUAL", width),
     receiptPair("TIME", receiptBillDate(order.createdAt || new Date()), width),
     receiptLine(width),
-    "QTY  DESCRIPTION",
+    "QTY  ITEM",
     receiptLine(width),
   ];
 
+  // Item rows print in double size so the kitchen can read them at a glance;
+  // everything else stays normal bold.
+  let itemsBlock = "";
   getBillableOrderItems(order).forEach((item) => {
-    const quantity = String(Number(item.quantity || 0)).padEnd(4, " ");
+    const quantity = String(Number(item.quantity || 0));
     const itemName = item.menuItem?.name || item.name || "Menu Item";
-    const wrappedName = receiptWrap(String(itemName).toUpperCase(), width - 5);
-    bodyLines.push(`${quantity} ${wrappedName[0] || "MENU ITEM"}`.slice(0, width));
-    wrappedName.slice(1).forEach((line) => bodyLines.push(`     ${line}`.slice(0, width)));
+    const wrappedName = receiptWrap(String(itemName).toUpperCase(), 13);
+    const rows = [`${quantity.padEnd(2, " ")} ${wrappedName[0] || "MENU ITEM"}`];
+    wrappedName.slice(1).forEach((line) => rows.push(`   ${line}`));
+    itemsBlock += `${ESC_POS_DOUBLE_SIZE}${rows.join("\n")}${ESC_POS_NORMAL_SIZE}\n`;
 
     if (Array.isArray(item.customization) && item.customization.length > 0) {
-      receiptWrap(`NOTE: ${item.customization.join(", ")}`.toUpperCase(), width).forEach((line) =>
-        bodyLines.push(`     ${line}`.slice(0, width))
-      );
+      receiptWrap(`NOTE: ${item.customization.join(", ")}`.toUpperCase(), width - 3).forEach((line) => {
+        itemsBlock += `   ${line}\n`;
+      });
     }
+    itemsBlock += "\n";
   });
 
-  bodyLines.push(receiptLine(width));
-  bodyLines.push(receiptCenter("NO PRICE ON KOT", width));
-  bodyLines.push("");
-  bodyLines.push("");
+  const footer = [receiptLine(width), receiptCenter("NO PRICE ON KOT", width), "", ""].join("\n");
+  const heading = `${ESC_POS_INIT}${ESC_POS_ALIGN_CENTER}${ESC_POS_BOLD_ON}${ESC_POS_DOUBLE_SIZE}KOT${ESC_POS_NORMAL_SIZE}\n${receiptText(title).toUpperCase()}${ESC_POS_BOLD_OFF}${ESC_POS_ALIGN_LEFT}\n`;
   return appendThermalFeed(
-    `${buildEscPosHeading(["KOT DETAILS", title])}${buildEscPosLargeKotBody(bodyLines.join("\n"))}`,
+    `${heading}${ESC_POS_BOLD_ON}${metaLines.join("\n")}\n${itemsBlock}${footer}${ESC_POS_BOLD_OFF}`,
     9,
     { cut: true }
   );
@@ -1205,7 +1205,7 @@ const createManualBill = async (req, res) => {
       orderType = "TAKEAWAY",
       customerPhone = "",
       customerEmail = "",
-      paymentMethod = "CASH",
+      paymentMethod = "",
       cgstRate,
       sgstRate,
       serviceCharge = 0,
@@ -1745,6 +1745,94 @@ const customizeBill = async (req, res) => {
   }
 };
 
+const buildSettlementReceiptText = (bill, { cashReceived = 0 } = {}) => {
+  const width = 32;
+  const restaurant = bill.restaurant || {};
+  const template = getBillingTemplate(restaurant);
+  const title = template.headerTitle || restaurant.name || "Restaurant";
+  const total = Number(bill.totalAmount || 0);
+  const received = Number(cashReceived || 0);
+  const method = String(bill.paymentMethod || "").replace(/_/g, " ");
+  const lines = [
+    receiptCenter(String(title).toUpperCase(), width),
+    receiptCenter("PAYMENT SETTLEMENT", width),
+    receiptLine(width),
+    receiptPair("BILL NO", bill.billNo || bill._id || "N/A", width),
+    receiptPair("DATE", receiptBillDate(bill.paidAt || new Date()), width),
+    receiptLine(width),
+    receiptPair("TOTAL", asMoney(total), width),
+    receiptPair("PAID BY", method, width),
+  ];
+
+  if (bill.paymentMethod === "CARD" && /^\d{4}$/.test(bill.cardLast4 || "")) {
+    lines.push(receiptPair("CARD", `XXXX ${bill.cardLast4}`, width));
+  }
+
+  if (bill.paymentMethod === "CASH" && received > 0) {
+    lines.push(
+      receiptPair("RECEIVED", asMoney(received), width),
+      receiptPair("CHANGE", asMoney(Math.max(received - total, 0)), width)
+    );
+  }
+
+  lines.push(receiptLine(width), receiptCenter("PAID - THANK YOU", width));
+  return appendThermalFeed(lines.join("\n"), 9, { cut: true });
+};
+
+// Manual (walk-in) bills are created first, then settled here once the
+// accountant picks how the customer paid.
+const settleManualBill = async (req, res) => {
+  try {
+    const { paymentMethod, cashReceived = 0, cardLast4 = "" } = req.body;
+    const normalizedCardLast4 = String(cardLast4 || "").trim();
+    if (normalizedCardLast4 && !/^\d{4}$/.test(normalizedCardLast4)) {
+      return sendError(res, "Card last 4 digits must be exactly 4 numbers");
+    }
+
+    const bill = await Bill.findOne({
+      _id: req.params.id,
+      restaurant: req.user.restaurant,
+    });
+
+    if (!bill) return sendError(res, "Bill not found", 404);
+    if (bill.paymentStatus !== "PAID") {
+      return sendError(res, "Only paid bills can be settled", 409);
+    }
+
+    bill.paymentMethod = await resolvePaymentMethod(bill.restaurant, paymentMethod);
+    bill.cardLast4 = bill.paymentMethod === "CARD" ? normalizedCardLast4 : "";
+    await bill.save();
+
+    const populatedBill = await findBillWithOrder({
+      _id: bill._id,
+      restaurant: req.user.restaurant,
+    });
+    const agent = await PrintAgent.findOne({
+      restaurant: bill.restaurant,
+      isActive: true,
+    }).sort({ updatedAt: -1 });
+
+    const settlementPrintJob = {
+      _id: `local-settlement-${bill._id}`,
+      restaurant: bill.restaurant,
+      bill: bill._id,
+      requestedBy: req.user.id,
+      printerName: agent?.billPrinterName || "",
+      receiptText: buildSettlementReceiptText(populatedBill, {
+        cashReceived: sanitizeAmount(cashReceived),
+      }),
+      status: "LOCAL",
+    };
+
+    invalidateCacheNamespaces(["dashboard"]);
+
+    return sendSuccess(res, { ...populatedBill.toObject(), settlementPrintJob });
+  } catch (err) {
+    logger.error(err);
+    return sendError(res, err.message);
+  }
+};
+
 const markPaid = async (req, res) => {
   try {
     const { id } = req.params;
@@ -2264,6 +2352,7 @@ export default {
   customizeBill,
   getBillPrintBundle,
   markPaid,
+  settleManualBill,
   generateBillPDF,
   generatePublicBillPDF,
 };

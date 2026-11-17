@@ -157,6 +157,11 @@ export const markBillPaid = async (
   return res.data.data;
 };
 
+export const settleManualBill = async (billId, payload) => {
+  const res = await API.post(`/billing/${billId}/settle`, payload);
+  return res.data.data;
+};
+
 /**
  * ❌ Void a paid bill and reissue a pending copy
  * POST /api/billing/:id/void
