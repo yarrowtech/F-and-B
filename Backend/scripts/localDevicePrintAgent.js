@@ -208,3 +208,54 @@ server.listen(PORT, HOST, () => {
     });
   }
 });
+
+// Cloud queue mode: other devices (phones, tablets, other PCs) queue print jobs on
+// the server; this agent polls and prints them, so no browser print dialog.
+// Set PRINT_QUEUE_URL (e.g. https://efnbmms.com/api/print-queue), PRINT_AGENT_KEY
+// and PRINT_RESTAURANT_ID in the environment to turn it on.
+const QUEUE_URL = String(process.env.PRINT_QUEUE_URL || "").trim().replace(/\/$/, "");
+const QUEUE_KEY = String(process.env.PRINT_AGENT_KEY || "").trim();
+const QUEUE_RESTAURANT = String(process.env.PRINT_RESTAURANT_ID || "").trim();
+
+const queueFetch = (path, body = {}) =>
+  fetch(`${QUEUE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-agent-key": QUEUE_KEY,
+      "x-restaurant-id": QUEUE_RESTAURANT,
+    },
+    body: JSON.stringify(body),
+  });
+
+const pollQueue = async () => {
+  try {
+    const res = await queueFetch("/claim");
+    const job = (await res.json().catch(() => ({})))?.data;
+    if (res.ok && job) {
+      let error = "";
+      try {
+        await printSlips({
+          receiptText: job.receiptText,
+          printerName: job.printerName || "",
+          jobName: job.jobName || "queue-print",
+        });
+      } catch (err) {
+        error = err.message || "Print failed";
+        console.log(`[queue] print failed: ${error}`);
+      }
+      await queueFetch(`/${job._id}/done`, { error }).catch(() => {});
+      return setImmediate(pollQueue); // more jobs may be waiting
+    }
+  } catch (err) {
+    console.log(`[queue] ${err.message}`);
+  }
+  setTimeout(pollQueue, 2000);
+};
+
+if (QUEUE_URL && QUEUE_KEY && QUEUE_RESTAURANT) {
+  console.log(`[queue] polling ${QUEUE_URL}`);
+  pollQueue();
+} else {
+  console.log("[queue] cloud queue off (set PRINT_QUEUE_URL, PRINT_AGENT_KEY, PRINT_RESTAURANT_ID to enable)");
+}

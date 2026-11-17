@@ -161,45 +161,6 @@ export const printOnThisDevice = async ({ receiptText, printerName = "" }) => {
   return data;
 };
 
-const ensureReceiptCut = (receiptText) => {
-  const text = String(receiptText || "");
-  const trimmedText = text.replace(/\s+$/, "");
-  return trimmedText.endsWith(ESC_POS_FULL_CUT) ||
-    trimmedText.endsWith(ESC_POS_PARTIAL_CUT) ||
-    trimmedText.endsWith(ESC_POS_FEED_AND_CUT) ||
-    trimmedText.endsWith(ESC_POS_FEED_AND_FULL_CUT) ||
-    trimmedText.endsWith(ESC_POS_LEGACY_FULL_CUT) ||
-    trimmedText.endsWith(ESC_POS_ALT_FULL_CUT) ||
-    trimmedText.endsWith(ESC_POS_ALT_PARTIAL_CUT)
-    ? text
-    : `${trimmedText}\n\n\n\n\n${ESC_POS_CUT_BUNDLE}\f`;
-};
-
-const combinePrintJobs = (jobs, ensureCutAfterEach) => {
-  if (jobs.length <= 1) return jobs;
-
-  const printerNames = new Set(
-    jobs.map((job) =>
-      USE_SERVER_PRINTER_NAME ? String(job.printerName || "").trim() : ""
-    )
-  );
-
-  if (printerNames.size > 1) return jobs;
-
-  return [
-    {
-      ...jobs[0],
-      receiptText: jobs
-        .map((job) =>
-          ensureCutAfterEach
-            ? ensureReceiptCut(job.receiptText)
-            : String(job.receiptText || "")
-        )
-        .join(""),
-    },
-  ];
-};
-
 // One request: the agent prints every receipt in order and cuts after each.
 // Returns null when the agent is an older version without /print-batch.
 const printBatchOnThisDevice = async (jobs) => {
@@ -221,55 +182,62 @@ const printBatchOnThisDevice = async (jobs) => {
   return Number(data.printed) || jobs.length;
 };
 
+// No agent on this device (phone, tablet, PC without a printer): queue the jobs
+// on the server. The agent on the printer PC picks them up and prints them.
+const queueJobsOnServer = async (jobs) => {
+  const res = await fetch(`${import.meta.env.VITE_API_URL || "/api"}/print-queue`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+    },
+    body: JSON.stringify({
+      jobs: jobs.map((job) => ({
+        receiptText: job.receiptText,
+        printerName: USE_SERVER_PRINTER_NAME ? job.printerName || "" : "",
+      })),
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.success === false) {
+    throw new Error(data.message || "Could not send the print job to the printer");
+  }
+  return jobs.length;
+};
+
+const isAgentReachable = async () => {
+  try {
+    const res = await fetch(`${getLocalPrintAgentUrl()}/health`, {
+      signal: AbortSignal.timeout(1500),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+};
+
 export const printJobsOnThisDevice = async (jobs = [], options = {}) => {
   const printableJobs = jobs.filter((job) => job?.receiptText);
+  if (!printableJobs.length) return 0;
 
-  if (printableJobs.length > 1) {
+  if (!(await isAgentReachable())) {
     try {
-      const printedByAgent = await printBatchOnThisDevice(printableJobs);
-      if (printedByAgent !== null) return printedByAgent;
-    } catch {
-      // Agent unreachable: fall through to the per-job / browser fallback below.
-    }
-  }
-
-  const fallbackToBrowser = options.fallbackToBrowser !== false;
-  const combineBrowserFallback = options.combineBrowserFallback === true;
-  const localPrintJobs =
-    options.combineLocalJobs === true
-      ? combinePrintJobs(printableJobs, options.ensureCutAfterEach === true)
-      : printableJobs;
-  let printedCount = 0;
-  let shouldUseCombinedBrowserFallback = false;
-
-  for (const job of localPrintJobs) {
-    try {
-      await printOnThisDevice({
-        receiptText: job.receiptText,
-        printerName: job.printerName || "",
-      });
-      printedCount +=
-        localPrintJobs.length === 1 && printableJobs.length > 1
-          ? printableJobs.length
-          : 1;
-      if (localPrintJobs.length > 1 && printedCount < printableJobs.length) {
-        await sleep(700);
-      }
+      return await queueJobsOnServer(printableJobs);
     } catch (err) {
-      if (!fallbackToBrowser) throw err;
-      if (combineBrowserFallback) {
-        shouldUseCombinedBrowserFallback = true;
-        break;
+      if (options.fallbackToBrowser === true) {
+        await printMultipleTextsInBrowser(printableJobs, "Bill And KOT");
+        return printableJobs.length;
       }
-      printTextInBrowser(job.receiptText, job.payload?.cuisine ? `KOT - ${job.payload.cuisine}` : "Print");
-      printedCount += 1;
+      throw err;
     }
   }
 
-  if (shouldUseCombinedBrowserFallback) {
-    await printMultipleTextsInBrowser(printableJobs, "Bill And KOT");
-    printedCount = printableJobs.length;
-  }
+  const printed = await printBatchOnThisDevice(printableJobs);
+  if (printed !== null) return printed;
 
-  return printedCount;
+  for (const job of printableJobs) {
+    await printOnThisDevice({ receiptText: job.receiptText, printerName: job.printerName || "" });
+    await sleep(700);
+  }
+  return printableJobs.length;
 };

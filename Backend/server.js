@@ -16,6 +16,7 @@
 // import orderRoutes from "./routes/order.Routes.js";
 // import menuRoutes from "./routes/Menu.Routes.js";
 // import billingRoutes from "./routes/billing.Routes.js";
+import printQueueRoutes from "./routes/printQueue.Routes.js";
 // import tableRoutes from "./routes/table.Routes.js";
 // import restaurantRoutes from "./routes/restaurant.routes.js";
 // import dashboardRoutes from "./routes/dashboard.routes.js";
@@ -1215,6 +1216,7 @@ app.use("/api/vendor", vendorRoutes);
 app.use("/api/order", orderRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/billing", billingRoutes);
+app.use("/api/print-queue", printQueueRoutes);
 app.use("/api/tables", tableRoutes);
 app.use("/api/reservations", reservationRoutes);
 app.use("/api/waiter-tables", waiterTableRoutes);
