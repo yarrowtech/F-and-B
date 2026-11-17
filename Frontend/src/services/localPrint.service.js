@@ -124,19 +124,16 @@ export const printTextInBrowser = (receiptText, title = "Print") => {
   doc.close();
 };
 
-// A browser cannot send ESC/POS cut commands, so a printer only cuts when the
-// driver ends a print job. Print each receipt as its own job (one after the
-// other) so the bill and every KOT is cut separately instead of all being
-// merged into one long strip with a single cut at the end.
+// One browser print for everything: the bill and every KOT copy go into a single
+// print job, one slip per page. With "cut at end of page" enabled in the printer
+// driver, the printer cuts after every slip.
 export const printMultipleTextsInBrowser = async (jobs = [], title = "Print") => {
   const printableJobs = jobs.filter((job) => job?.receiptText);
-
-  for (let index = 0; index < printableJobs.length; index += 1) {
-    const job = printableJobs[index];
-    const jobTitle = job.payload?.cuisine ? `KOT - ${job.payload.cuisine}` : title;
-    printTextInBrowser(job.receiptText, jobTitle);
-    if (index < printableJobs.length - 1) await sleep(1500);
-  }
+  if (!printableJobs.length) return;
+  const combined = printableJobs
+    .map((job) => `${String(job.receiptText).replace(/\s+$/, "")}\f`)
+    .join("");
+  printTextInBrowser(combined, printableJobs.length > 1 ? title : "Print");
 };
 
 export const printOnThisDevice = async ({ receiptText, printerName = "" }) => {
