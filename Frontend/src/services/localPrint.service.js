@@ -58,7 +58,8 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
-export const printTextInBrowser = (receiptText, title = "Print") => {
+export const printTextInBrowser = (receiptText, title = "Print") =>
+  new Promise((resolve) => {
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
@@ -122,7 +123,12 @@ export const printTextInBrowser = (receiptText, title = "Print") => {
     </html>
   `);
   doc.close();
-};
+
+  // Resolve when the print dialog is closed (or after 2 minutes, just in case).
+  const finish = () => resolve();
+  iframe.contentWindow?.addEventListener("afterprint", finish);
+  setTimeout(finish, 120000);
+  });
 
 // One browser print for everything: the bill and every KOT copy go into a single
 // print job, one slip per page. With "cut at end of page" enabled in the printer
@@ -133,7 +139,7 @@ export const printMultipleTextsInBrowser = async (jobs = [], title = "Print") =>
   const combined = printableJobs
     .map((job) => `${String(job.receiptText).replace(/\s+$/, "")}\f`)
     .join("");
-  printTextInBrowser(combined, printableJobs.length > 1 ? title : "Print");
+  await printTextInBrowser(combined, printableJobs.length > 1 ? title : "Print");
 };
 
 export const printOnThisDevice = async ({ receiptText, printerName = "" }) => {
@@ -202,7 +208,7 @@ const queueJobsOnServer = async (jobs) => {
   return jobs.length;
 };
 
-const isAgentReachable = async () => {
+export const isAgentReachable = async () => {
   try {
     const res = await fetch(`${getLocalPrintAgentUrl()}/health`, {
       signal: AbortSignal.timeout(1500),

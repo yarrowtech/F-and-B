@@ -28,7 +28,7 @@ import {
   settleManualBill,
   voidBill,
 } from "../../services/billing.service";
-import { printJobsOnThisDevice } from "../../services/localPrint.service";
+import { isAgentReachable, printJobsOnThisDevice } from "../../services/localPrint.service";
 import { getMenu } from "../../services/menu.service";
 import { changeOrderTable } from "../../services/order.service";
 import { getTables } from "../../services/table.service";
@@ -1553,11 +1553,7 @@ export default function AccountantOrderBilling() {
         if (manualPrintJobs.length > 0) {
           // Print in the background: the printer needs several seconds per slip
           // (feed + cut), and the cashier should not wait for it.
-          printJobsOnThisDevice(manualPrintJobs, {
-            combineBrowserFallback: true,
-            combineLocalJobs: false,
-            ensureCutAfterEach: true,
-          }).catch((printErr) => {
+          const printPromise = printJobsOnThisDevice(manualPrintJobs).catch((printErr) => {
             console.error("MANUAL BILL PRINT ERROR:", printErr);
             showNotice(
               "The bill was saved but did not print. Check the print agent and printer.",
@@ -1565,6 +1561,9 @@ export default function AccountantOrderBilling() {
               "Printing failed"
             );
           });
+          // Browser printing: show the print dialog first and open the Settle
+          // popup only after it closes. With the agent, keep it in the background.
+          if (!(await isAgentReachable())) await printPromise;
         }
 
       setBills((prev) => [createdBill, ...prev]);
