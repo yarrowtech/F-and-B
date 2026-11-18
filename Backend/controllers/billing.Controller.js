@@ -1439,6 +1439,430 @@ const createManualBill = async (req, res) => {
   }
 };
 
+/* ===============================
+   ACCOUNTANT TABLE BILLING
+   (waiter takes the order on paper, accountant enters it per table)
+=============================== */
+const buildTableBillFields = ({ order, body = {}, bill = null, template = {} }) => {
+  const orderItems = getBillableOrderItems(order);
+  const has = (key) => body[key] !== undefined && body[key] !== null;
+
+  let complimentaryType = has("complimentaryType")
+    ? body.complimentaryType
+    : bill?.complimentaryType || "NONE";
+  let complimentaryMenuIds = has("complimentaryItems")
+    ? normalizeIdList(body.complimentaryItems).map(String)
+    : orderItems
+        .filter((item) =>
+          (bill?.complimentaryItems || []).some((id) => String(id) === String(item._id))
+        )
+        .map((item) => String(item.menuItem));
+
+  const totals = calculateManualBillTotals({
+    orderItems,
+    complimentaryType,
+    complimentaryItems: complimentaryMenuIds,
+    cgstRate: body.cgstRate ?? bill?.cgstRate ?? template.cgstRate,
+    sgstRate: body.sgstRate ?? bill?.sgstRate ?? template.sgstRate,
+    serviceCharge: body.serviceCharge ?? bill?.serviceCharge ?? 0,
+    packagingCharge: body.packagingCharge ?? bill?.packagingCharge ?? 0,
+    extraCharge: body.extraCharge ?? bill?.extraCharge ?? 0,
+    discount: body.discount ?? bill?.discountValue ?? 0,
+    discountType: body.discountType ?? bill?.discountType ?? "AMOUNT",
+  });
+
+  const selected = new Set(complimentaryMenuIds);
+  const complimentaryOrderItems =
+    complimentaryType === "FULL_ORDER"
+      ? orderItems
+      : complimentaryType === "ITEMS"
+        ? orderItems.filter((item) => selected.has(String(item.menuItem)))
+        : [];
+  const finalComplimentaryType =
+    complimentaryOrderItems.length > 0 ? complimentaryType : "NONE";
+
+  const fields = {
+    itemsTotal: totals.itemsTotal,
+    cgstRate: totals.cgstRate,
+    sgstRate: totals.sgstRate,
+    cgst: totals.cgst,
+    sgst: totals.sgst,
+    serviceCharge: totals.serviceCharge,
+    packagingCharge: totals.packagingCharge,
+    extraCharge: totals.extraCharge,
+    extraChargeReason:
+      totals.extraCharge > 0
+        ? sanitizeText(has("extraChargeReason") ? body.extraChargeReason : bill?.extraChargeReason)
+        : "",
+    discount: totals.discount,
+    discountType: totals.discountType,
+    discountValue: totals.discountValue,
+    complimentaryType: finalComplimentaryType,
+    complimentaryItems: complimentaryOrderItems.map((item) => item._id),
+    complimentaryAmount: totals.complimentaryAmount,
+    complimentaryNote:
+      finalComplimentaryType === "NONE"
+        ? ""
+        : sanitizeText(has("complimentaryNote") ? body.complimentaryNote : bill?.complimentaryNote),
+    totalAmount: totals.totalAmount,
+  };
+  if (has("customerPhone")) fields.customerPhone = sanitizeText(body.customerPhone);
+  if (has("customerEmail")) fields.customerEmail = sanitizeText(body.customerEmail).toLowerCase();
+  if (typeof body.showServiceCharge === "boolean") fields.showServiceCharge = body.showServiceCharge;
+  if (typeof body.showPackagingCharge === "boolean") fields.showPackagingCharge = body.showPackagingCharge;
+  return fields;
+};
+
+const assertAccountantBillingRestaurant = async (restaurantId) => {
+  const restaurant = await Restaurant.findById(restaurantId)
+    .select("restaurantType billingTemplate")
+    .lean();
+  if (!restaurant) {
+    throw Object.assign(new Error("Restaurant not found"), { status: 404 });
+  }
+  if (restaurant.restaurantType !== "ACCOUNTANT_BILLING") {
+    throw Object.assign(
+      new Error("Table billing is not enabled for this restaurant"),
+      { status: 403 }
+    );
+  }
+  return restaurant;
+};
+
+const findOpenTableBill = async (restaurantId, tableId) => {
+  const orders = await Order.find({
+    restaurant: restaurantId,
+    table: tableId,
+    orderType: "DINE_IN",
+    status: { $nin: ["PAID", "CANCELLED"] },
+  })
+    .select("_id")
+    .lean();
+  if (orders.length === 0) return null;
+  return Bill.findOne({
+    restaurant: restaurantId,
+    order: { $in: orders.map((o) => o._id) },
+    paymentStatus: "PENDING",
+  }).sort({ createdAt: -1 });
+};
+
+const getTableBoard = async (req, res) => {
+  try {
+    await assertAccountantBillingRestaurant(req.user.restaurant);
+    const tables = await Table.find({ restaurant: req.user.restaurant })
+      .sort({ tableNumber: 1 })
+      .select("tableNumber capacity status")
+      .lean();
+    const openOrders = await Order.find({
+      restaurant: req.user.restaurant,
+      table: { $in: tables.map((t) => t._id) },
+      orderType: "DINE_IN",
+      status: { $nin: ["PAID", "CANCELLED"] },
+    })
+      .select("_id table")
+      .lean();
+    const bills = await Bill.find({
+      restaurant: req.user.restaurant,
+      order: { $in: openOrders.map((o) => o._id) },
+      paymentStatus: "PENDING",
+    })
+      .select("order billNo totalAmount")
+      .lean();
+    const billByOrder = new Map(bills.map((b) => [String(b.order), b]));
+    const billByTable = new Map();
+    openOrders.forEach((o) => {
+      const bill = billByOrder.get(String(o._id));
+      if (bill) billByTable.set(String(o.table), bill);
+    });
+
+    return sendSuccess(
+      res,
+      tables.map((t) => {
+        const bill = billByTable.get(String(t._id));
+        return {
+          ...t,
+          openBill: bill
+            ? { _id: bill._id, billNo: bill.billNo, totalAmount: bill.totalAmount }
+            : null,
+        };
+      })
+    );
+  } catch (err) {
+    logger.error(err);
+    return sendError(res, err.message, err.status || 400);
+  }
+};
+
+const getTableOrder = async (req, res) => {
+  try {
+    await assertAccountantBillingRestaurant(req.user.restaurant);
+    const open = await findOpenTableBill(req.user.restaurant, req.params.tableId);
+    if (!open) return sendSuccess(res, null);
+    return sendSuccess(res, await findBillWithOrder({ _id: open._id }));
+  } catch (err) {
+    logger.error(err);
+    return sendError(res, err.message, err.status || 400);
+  }
+};
+
+const generateTableBill = async (req, res) => {
+  let session;
+  try {
+    const restaurantSettings = await assertAccountantBillingRestaurant(
+      req.user.restaurant
+    );
+    const { items = [] } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return sendError(res, "Select at least one menu item");
+    }
+
+    const table = await Table.findOne({
+      _id: req.params.tableId,
+      restaurant: req.user.restaurant,
+    });
+    if (!table) return sendError(res, "Table not found", 404);
+
+    const template = getBillingTemplate(restaurantSettings);
+    session = await mongoose.startSession();
+    session.startTransaction();
+
+    const menuItems = await Menu.find({
+      _id: { $in: items.map((i) => sanitizeText(i.menuItem)).filter(Boolean) },
+      restaurant: req.user.restaurant,
+      isAvailable: true,
+    })
+      .populate({ path: "ingredients.item", select: "name unit quantity isActive" })
+      .session(session);
+    const menuById = new Map(menuItems.map((m) => [String(m._id), m]));
+
+    const now = new Date();
+    const existingBill = await findOpenTableBill(req.user.restaurant, table._id);
+    const existingOrder = existingBill
+      ? await Order.findById(existingBill.order).session(session)
+      : null;
+
+    const newItems = items.map((item) => {
+      const menu = menuById.get(sanitizeText(item.menuItem));
+      const quantity = Math.floor(sanitizeAmount(item.quantity));
+      if (!menu) throw new Error("One or more selected menu items are not available");
+      if (quantity < 1) throw new Error("Quantity must be at least 1");
+      return {
+        menuItem: menu._id,
+        quantity,
+        customization: Array.isArray(item.customization)
+          ? item.customization.map(sanitizeText).filter(Boolean)
+          : [],
+        status: "SERVED",
+        price: menu.price,
+        isAdditional: Boolean(existingOrder),
+        addedAt: now,
+      };
+    });
+
+    await deductInventoryForManualBill({
+      menuById,
+      orderItems: newItems,
+      restaurantId: req.user.restaurant,
+      userId: req.user.id,
+      userName: req.user.name,
+      session,
+    });
+
+    let order = existingOrder;
+    if (order) {
+      order.items.push(...newItems);
+      await order.save({ session });
+    } else {
+      [order] = await Order.create(
+        [
+          {
+            restaurant: req.user.restaurant,
+            table: table._id,
+            waiter: null,
+            chef: null,
+            orderType: "DINE_IN",
+            items: newItems,
+            status: "SERVED",
+            acceptedAt: now,
+            preparingAt: now,
+            readyAt: now,
+            servedAt: now,
+          },
+        ],
+        { session }
+      );
+    }
+
+    const totalFields = buildTableBillFields({
+      order,
+      body: req.body,
+      bill: existingBill,
+      template,
+    });
+
+    let billId;
+    if (existingBill) {
+      existingBill.set(totalFields);
+      await existingBill.save({ session });
+      billId = existingBill._id;
+    } else {
+      const [bill] = await Bill.create(
+        [
+          {
+            restaurant: req.user.restaurant,
+            billNo: await allocateBillNumber(req.user.restaurant, session),
+            order: order._id,
+            accountant: req.user.id,
+            generatedBy: req.user.id,
+            generatedAt: now,
+            paymentStatus: "PENDING",
+            ...totalFields,
+          },
+        ],
+        { session }
+      );
+      billId = bill._id;
+    }
+
+    table.status = "occupied";
+    await table.save({ session });
+
+    // Each round gets its own KOT number and prints only the new items.
+    const { dailySerial, dateKey } = await allocateDailyKotNumber({
+      restaurantId: req.user.restaurant,
+      printedAt: now,
+      session,
+    });
+
+    await session.commitTransaction();
+    session.endSession();
+    session = null;
+
+    invalidateCacheNamespaces(["dashboard", `menu-analytics:${req.user.restaurant}`]);
+
+    const populatedBill = await findBillWithOrder({
+      _id: billId,
+      restaurant: req.user.restaurant,
+    });
+    const printJob = await buildManualBillPrintJob(billId, req.user.id);
+
+    const kotCopyCount = getKotCopyCount(template.kotCopyCount);
+    const kotText = buildManualKotReceiptText({
+      order: {
+        orderType: `DINE-IN T${table.tableNumber}`,
+        createdAt: now,
+        items: newItems.map((i) => ({
+          ...i,
+          name: menuById.get(String(i.menuItem))?.name,
+        })),
+      },
+      restaurant: populatedBill.restaurant,
+      dailyKotNumber: dailySerial,
+    });
+    const agent = await PrintAgent.findOne({
+      restaurant: req.user.restaurant,
+      isActive: true,
+    }).sort({ updatedAt: -1 });
+    const kotPrintJob = {
+      _id: `table-kot-${billId}-${dailySerial}`,
+      restaurant: req.user.restaurant,
+      bill: billId,
+      requestedBy: req.user.id,
+      printerName:
+        String(process.env.KOT_DEFAULT_PRINTER || "").trim() ||
+        agent?.billPrinterName ||
+        "",
+      receiptText: repeatKotReceiptText(kotText, kotCopyCount),
+      payload: {
+        kotNo: String(dailySerial),
+        dailyKotNumber: dailySerial,
+        kotDateKey: dateKey,
+        copyCount: kotCopyCount,
+      },
+      copyCount: kotCopyCount,
+      status: "LOCAL",
+    };
+
+    return sendSuccess(
+      res,
+      { ...populatedBill.toObject(), printJob, kotPrintJob },
+      201
+    );
+  } catch (err) {
+    if (session) {
+      await session.abortTransaction();
+      session.endSession();
+    }
+    logger.error(err);
+    return sendError(res, err.message, err.status || 400);
+  }
+};
+
+const settleTableBill = async (req, res) => {
+  try {
+    await assertAccountantBillingRestaurant(req.user.restaurant);
+    const { paymentMethod, cashReceived = 0, cardLast4 = "" } = req.body;
+    const last4 = String(cardLast4 || "").trim();
+    if (last4 && !/^\d{4}$/.test(last4)) {
+      return sendError(res, "Card last 4 digits must be exactly 4 numbers");
+    }
+
+    const bill = await findOpenTableBill(req.user.restaurant, req.params.tableId);
+    if (!bill) return sendError(res, "No open bill for this table", 404);
+
+    // Charges / discount / complimentary may be adjusted at settlement time.
+    {
+      const order = await Order.findById(bill.order);
+      bill.set(
+        buildTableBillFields({
+          order,
+          body: req.body,
+          bill,
+          template: getBillingTemplate(await Restaurant.findById(bill.restaurant).select("billingTemplate").lean()),
+        })
+      );
+    }
+
+    const now = new Date();
+    bill.paymentStatus = "PAID";
+    bill.paymentMethod = await resolvePaymentMethod(bill.restaurant, paymentMethod);
+    bill.cardLast4 = bill.paymentMethod === "CARD" ? last4 : "";
+    bill.accountant = req.user.id;
+    bill.paidAt = now;
+    await bill.save();
+
+    await Order.findByIdAndUpdate(bill.order, { status: "PAID", paidAt: now });
+    await Table.findByIdAndUpdate(req.params.tableId, { status: "available" });
+
+    const populatedBill = await findBillWithOrder({
+      _id: bill._id,
+      restaurant: req.user.restaurant,
+    });
+    const agent = await PrintAgent.findOne({
+      restaurant: bill.restaurant,
+      isActive: true,
+    }).sort({ updatedAt: -1 });
+
+    const settlementPrintJob = {
+      _id: `local-settlement-${bill._id}`,
+      restaurant: bill.restaurant,
+      bill: bill._id,
+      requestedBy: req.user.id,
+      printerName: agent?.billPrinterName || "",
+      receiptText: buildSettlementReceiptText(populatedBill, {
+        cashReceived: sanitizeAmount(cashReceived),
+      }),
+      status: "LOCAL",
+    };
+
+    invalidateCacheNamespaces(["dashboard"]);
+    return sendSuccess(res, { ...populatedBill.toObject(), settlementPrintJob });
+  } catch (err) {
+    logger.error(err);
+    return sendError(res, err.message, err.status || 400);
+  }
+};
+
 const getHistory = async (req, res) => {
   try {
     const { query } = await buildBillingHistoryQuery(req);
@@ -1893,6 +2317,28 @@ const voidBill = async (req, res) => {
     }
 
     const restaurantIds = await getAuthorizedRestaurantIds(req);
+
+    // A table that already has a new running order cannot take a re-issued bill.
+    const reissueRequested = req.body.reissue !== false;
+    const target = await Bill.findOne({
+      _id: req.params.id,
+      restaurant: { $in: restaurantIds },
+      paymentStatus: "PAID",
+    })
+      .populate({ path: "order", select: "table orderType" })
+      .lean();
+    const tableId = target?.order?.table || null;
+    if (reissueRequested && tableId) {
+      const busy = await findOpenTableBill(target.restaurant, tableId);
+      if (busy) {
+        return sendError(
+          res,
+          "This table already has a running bill. Settle it first, or void without re-issuing.",
+          409
+        );
+      }
+    }
+
     const bill = await Bill.findOneAndUpdate(
       {
         _id: req.params.id,
@@ -1948,9 +2394,14 @@ const voidBill = async (req, res) => {
 
     if (bill.order) {
       await Order.findByIdAndUpdate(bill.order, {
-        status: "SERVED",
+        status: reissue || !tableId ? "SERVED" : "CANCELLED",
         paidAt: null,
       });
+    }
+
+    // Re-issued table bill is running again, so the table is occupied.
+    if (reissue && tableId) {
+      await Table.findByIdAndUpdate(tableId, { status: "occupied" });
     }
 
     invalidateCacheNamespaces(["dashboard", `menu-analytics:${bill.restaurant}`]);
@@ -2350,6 +2801,10 @@ export default {
   getHistory,
   exportBillingHistoryExcel,
   createManualBill,
+  getTableBoard,
+  getTableOrder,
+  generateTableBill,
+  settleTableBill,
   customizeBill,
   getBillPrintBundle,
   markPaid,

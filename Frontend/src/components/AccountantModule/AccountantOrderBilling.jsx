@@ -32,6 +32,7 @@ import { isAgentReachable, printJobsOnThisDevice } from "../../services/localPri
 import { getMenu } from "../../services/menu.service";
 import { changeOrderTable } from "../../services/order.service";
 import { getTables } from "../../services/table.service";
+import AccountantTableBilling from "./AccountantTableBilling";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-IN", {
@@ -790,7 +791,7 @@ function CashChangeCalculator({
   );
 }
 
-export default function AccountantOrderBilling() {
+function ClassicAccountantOrderBilling() {
   const [bills, setBills] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -4276,5 +4277,38 @@ export default function AccountantOrderBilling() {
         </div>
       )}
     </div>
+  );
+}
+
+/* Picks the table-billing screen for ACCOUNTANT_BILLING restaurants. */
+export default function AccountantOrderBilling() {
+  const [restaurantType, setRestaurantType] = useState(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      return String(
+        user?.restaurant?.restaurantType || user?.restaurantType || ""
+      ).toUpperCase();
+    } catch {
+      return "";
+    }
+  });
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    getBillingSettings()
+      .then((s) => {
+        if (s?.restaurant?.restaurantType) {
+          setRestaurantType(String(s.restaurant.restaurantType).toUpperCase());
+        }
+      })
+      .catch(() => {})
+      .finally(() => setChecked(true));
+  }, []);
+
+  if (!checked && !restaurantType) return null;
+  return restaurantType === "ACCOUNTANT_BILLING" ? (
+    <AccountantTableBilling />
+  ) : (
+    <ClassicAccountantOrderBilling />
   );
 }

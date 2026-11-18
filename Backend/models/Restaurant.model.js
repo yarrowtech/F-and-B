@@ -243,7 +243,7 @@ const restaurantSchema = new mongoose.Schema(
 
     restaurantType: {
       type: String,
-      enum: ["MANUAL_ONLY", "HYBRID"],
+      enum: ["MANUAL_ONLY", "HYBRID", "ACCOUNTANT_BILLING"],
       default: "HYBRID",
       index: true,
     },

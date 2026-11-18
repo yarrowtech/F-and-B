@@ -136,7 +136,7 @@ export const getTableByToken = async (req, res) => {
     const restaurant = await Restaurant.findById(table.restaurant)
       .select("name phone restaurantType")
       .lean();
-    if (!restaurant || restaurant.restaurantType === "MANUAL_ONLY") {
+    if (!restaurant || ["MANUAL_ONLY", "ACCOUNTANT_BILLING"].includes(restaurant.restaurantType)) {
       return fail(res, "Ordering from the table is not available here.", 404);
     }
 
@@ -167,7 +167,7 @@ export const placeQrOrder = async (req, res) => {
     if (!table) return fail(res, "This QR code is not valid. Please ask the staff.", 404);
 
     const restaurant = await Restaurant.findById(table.restaurant).select("restaurantType").lean();
-    if (!restaurant || restaurant.restaurantType === "MANUAL_ONLY") {
+    if (!restaurant || ["MANUAL_ONLY", "ACCOUNTANT_BILLING"].includes(restaurant.restaurantType)) {
       return fail(res, "Ordering from the table is not available here.", 404);
     }
 

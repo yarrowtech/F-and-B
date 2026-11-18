@@ -48,6 +48,11 @@ const RESTAURANT_TYPE_OPTIONS = [
     label: "Manual Billing Only",
     hint: "No table management or table-based billing flow.",
   },
+  {
+    value: "ACCOUNTANT_BILLING",
+    label: "Accountant Table Billing",
+    hint: "Waiter takes orders on paper; accountant picks a table, adds items, prints KOT + bill, then settles.",
+  },
 ];
 
 const emptyForm = {
@@ -796,7 +801,11 @@ const handleDelete = async () => {
   );
 
   const restaurantTypeLabel = (value) =>
-    value === "MANUAL_ONLY" ? "Manual Only" : "Manual + System";
+    value === "MANUAL_ONLY"
+      ? "Manual Only"
+      : value === "ACCOUNTANT_BILLING"
+        ? "Accountant Table Billing"
+        : "Manual + System";
 
   /* ── role badge colour ── */
   const roleBadge = (role) => {

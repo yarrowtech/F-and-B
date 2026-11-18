@@ -220,7 +220,7 @@ const sanitizeRestaurantType = (value, fallback = defaultRestaurantType) => {
     .trim()
     .toUpperCase();
 
-  return ["MANUAL_ONLY", "HYBRID"].includes(normalized)
+  return ["MANUAL_ONLY", "HYBRID", "ACCOUNTANT_BILLING"].includes(normalized)
     ? normalized
     : fallback;
 };

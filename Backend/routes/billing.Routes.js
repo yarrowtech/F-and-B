@@ -93,6 +93,34 @@ router.post(
   billingController.createManualBill
 );
 
+router.get(
+  "/tables",
+  auth,
+  allowRoles("accountant"),
+  billingController.getTableBoard
+);
+
+router.get(
+  "/table/:tableId/order",
+  auth,
+  allowRoles("accountant"),
+  billingController.getTableOrder
+);
+
+router.post(
+  "/table/:tableId/generate",
+  auth,
+  allowRoles("accountant"),
+  billingController.generateTableBill
+);
+
+router.post(
+  "/table/:tableId/settle",
+  auth,
+  allowRoles("accountant"),
+  billingController.settleTableBill
+);
+
 router.post(
   "/:id/customize",
   auth,

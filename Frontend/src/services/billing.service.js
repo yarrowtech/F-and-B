@@ -228,3 +228,34 @@ export const downloadBillPdf = async (billId, targetWindow = null) => {
     alert("Failed to download bill PDF");
   }
 };
+
+/* ===== Accountant table billing (restaurantType = ACCOUNTANT_BILLING) ===== */
+export const getTableBoard = async () => {
+  const res = await API.get("/billing/tables");
+  return res.data.data;
+};
+
+export const getTableOpenBill = async (tableId) => {
+  const res = await API.get(`/billing/table/${tableId}/order`);
+  return res.data.data;
+};
+
+export const generateTableBill = async (tableId, payload) => {
+  const res = await API.post(`/billing/table/${tableId}/generate`, payload);
+  return res.data.data;
+};
+
+export const settleTableBill = async (tableId, payload) => {
+  const res = await API.post(`/billing/table/${tableId}/settle`, payload);
+  return res.data.data;
+};
+
+export const getTableBillingHistory = async () => {
+  const res = await API.get("/billing/history");
+  return res.data.data;
+};
+
+export const voidTableBill = async (billId, reason, reissue = true) => {
+  const res = await API.post(`/billing/${billId}/void`, { reason, reissue });
+  return res.data.data;
+};
