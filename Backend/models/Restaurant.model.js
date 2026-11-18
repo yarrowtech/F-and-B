@@ -180,6 +180,11 @@ const billingTemplateSchema = new mongoose.Schema(
       min: 1,
       max: 10,
     },
+    // Print the payment settlement slip after a bill is settled.
+    printSettlementSlip: {
+      type: Boolean,
+      default: true,
+    },
   },
   { _id: false }
 );

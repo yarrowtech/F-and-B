@@ -8,7 +8,7 @@ import { createKitchenSection, getKitchenSections } from "../../services/kitchen
 import MenuQrModal, { MenuQrButton } from "../common/MenuQrModal";
 
 const COURSE_PRESETS = ["Starter", "Main Course", "Dessert", "Beverage", "Snack", "Soup"];
-const emptyForm = { name: "", price: "", menuCode: "", cuisine: "", newSectionName: "", newSectionPrinter: "", courseType: "", courseTypeCustom: "", isAvailable: true };
+const emptyForm = { name: "", price: "", menuCode: "", cuisine: "", newSectionName: "", newSectionPrinter: "", courseType: "", courseTypeCustom: "", isAvailable: true, gstFree: false };
 const emptyIngredient = () => ({ itemId: "", quantity: "" });
 const ORDER_FILTERS = [
   { key: "today", label: "Today" },
@@ -208,6 +208,7 @@ export default function AdminMenuManagement() {
       cuisine,
       courseType,
       isAvailable: form.isAvailable,
+      gstFree: Boolean(form.gstFree),
       ingredients: ingredients
         .filter((i) => i.itemId && i.quantity && Number(i.quantity) > 0)
         .map((i) => ({ item: i.itemId, quantity: Number(i.quantity) })),
@@ -237,6 +238,7 @@ export default function AdminMenuManagement() {
       courseType: courseIsPreset ? item.courseType : "__custom__",
       courseTypeCustom: courseIsPreset ? "" : item.courseType,
       isAvailable: item.isAvailable,
+      gstFree: Boolean(item.gstFree),
     });
     setIngredients(
       item.ingredients?.length
@@ -416,6 +418,14 @@ export default function AdminMenuManagement() {
         Available for ordering
       </label>
 
+      <label className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
+        <input type="checkbox" checked={Boolean(form.gstFree)} onChange={(e) => setForm({ ...form, gstFree: e.target.checked })} className="h-4 w-4 accent-emerald-600" />
+        <span>
+          GST free item
+          <span className="block text-xs font-normal text-slate-500">No GST is added on this item (e.g. packaged water, ice). Leave unticked for normal GST.</span>
+        </span>
+      </label>
+
       <div className="rounded-3xl border border-slate-200 p-4">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-semibold text-slate-800">Ingredients</h3>
@@ -536,6 +546,7 @@ export default function AdminMenuManagement() {
                     <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${item.isAvailable ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}>
                       {item.isAvailable ? "Available" : "Unavailable"}
                     </span>
+                    {item.gstFree && (<span className="ml-1 inline-flex shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">GST Free</span>)}
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -618,6 +629,7 @@ export default function AdminMenuManagement() {
                         <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${item.isAvailable ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}>
                           {item.isAvailable ? "Available" : "Unavailable"}
                         </span>
+                        {item.gstFree && (<span className="ml-1 inline-flex shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">GST Free</span>)}
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex justify-end gap-2">

@@ -231,6 +231,7 @@ const defaultBillingTemplate = {
   sgstRate: 2.5,
   kotCopyCount: 1,
   billCopyCount: 1,
+  printSettlementSlip: true,
 };
 
 const getBillingTemplate = (restaurant) => ({
@@ -507,6 +508,7 @@ const buildPublicBillPdfUrl = (billId) => {
 
 const calculateBillTotals = ({
   itemsTotal,
+  gstFreeAmount = 0,
   complimentaryAmount = 0,
   cgstRate = 2.5,
   sgstRate = 2.5,
@@ -529,11 +531,15 @@ const calculateBillTotals = ({
     discountType === "PERCENT" ? "PERCENT" : "AMOUNT";
   const normalizedDiscountValue = sanitizeAmount(discount);
 
+  const taxableAmount = Math.max(
+    normalizedItemsTotal - sanitizeAmount(gstFreeAmount),
+    0
+  );
   const cgst = Number(
-    (normalizedItemsTotal * (normalizedCgstRate / 100)).toFixed(2)
+    (taxableAmount * (normalizedCgstRate / 100)).toFixed(2)
   );
   const sgst = Number(
-    (normalizedItemsTotal * (normalizedSgstRate / 100)).toFixed(2)
+    (taxableAmount * (normalizedSgstRate / 100)).toFixed(2)
   );
   const subtotalBeforeDiscount =
     normalizedItemsTotal +
@@ -561,6 +567,7 @@ const calculateBillTotals = ({
 
   return {
     itemsTotal: normalizedItemsTotal,
+    taxableAmount,
     cgstRate: normalizedCgstRate,
     sgstRate: normalizedSgstRate,
     cgst,
@@ -622,9 +629,13 @@ const calculateManualBillTotals = ({
     0
   );
 
+  // GST-free items (water, ice...) are billed at their exact price with no tax.
+  let taxableAmount = 0;
   const itemWiseRoundedTotal = chargeableOrderItems.reduce((sum, item) => {
     const price = Number(item.price ?? item.menuItem?.price ?? 0);
     const quantity = Number(item.quantity || 0);
+    if (item.gstFree === true) return sum + price * quantity;
+    taxableAmount += price * quantity;
     const unitWithTax = price * (1 + (normalizedCgstRate + normalizedSgstRate) / 100);
     return sum + Math.ceil(unitWithTax) * quantity;
   }, 0);
@@ -655,6 +666,7 @@ const calculateManualBillTotals = ({
 
   return {
     itemsTotal: Number(baseItemsTotal.toFixed(2)),
+    taxableAmount: Number(taxableAmount.toFixed(2)),
     complimentaryAmount: complimentaryOrderItems.reduce(
       (sum, item) => sum + getOrderItemAmount(item),
       0
@@ -836,12 +848,12 @@ const buildBillReceiptText = (bill) => {
   if (template.showTaxBreakup) {
     lines.push(
       receiptPair(
-        `CGST ${Number(bill.cgstRate || 0)}% On ${asMoney(taxableBase)}`,
+        `CGST ${Number(bill.cgstRate || 0)}% On ${asMoney(bill.taxableAmount ?? taxableBase)}`,
         asMoney(bill.cgst),
         width
       ),
       receiptPair(
-        `SGST ${Number(bill.sgstRate || 0)}% On ${asMoney(taxableBase)}`,
+        `SGST ${Number(bill.sgstRate || 0)}% On ${asMoney(bill.taxableAmount ?? taxableBase)}`,
         asMoney(bill.sgst),
         width
       )
@@ -1297,6 +1309,7 @@ const createManualBill = async (req, res) => {
           : [],
         status: "SERVED",
         price: menu.price,
+        gstFree: Boolean(menu.gstFree),
       };
     });
 
@@ -1371,6 +1384,7 @@ const createManualBill = async (req, res) => {
           generatedBy: req.user.id,
           generatedAt: now,
           itemsTotal: totals.itemsTotal,
+          taxableAmount: totals.taxableAmount,
           cgstRate: totals.cgstRate,
           sgstRate: totals.sgstRate,
           cgst: totals.cgst,
@@ -1490,6 +1504,7 @@ const buildTableBillFields = ({ order, body = {}, bill = null, template = {} }) 
 
   const fields = {
     itemsTotal: totals.itemsTotal,
+    taxableAmount: totals.taxableAmount,
     cgstRate: totals.cgstRate,
     sgstRate: totals.sgstRate,
     cgst: totals.cgst,
@@ -1661,6 +1676,7 @@ const generateTableBill = async (req, res) => {
           : [],
         status: "SERVED",
         price: menu.price,
+        gstFree: Boolean(menu.gstFree),
         isAdditional: Boolean(existingOrder),
         addedAt: now,
       };
@@ -1863,7 +1879,13 @@ const settleTableBill = async (req, res) => {
     };
 
     invalidateCacheNamespaces(["dashboard"]);
-    return sendSuccess(res, { ...populatedBill.toObject(), settlementPrintJob });
+    // Restaurant setting: "Print settlement slip" = No -> nothing is printed.
+    const printSlip =
+      getBillingTemplate(populatedBill.restaurant).printSettlementSlip !== false;
+    return sendSuccess(res, {
+      ...populatedBill.toObject(),
+      settlementPrintJob: printSlip ? settlementPrintJob : null,
+    });
   } catch (err) {
     logger.error(err);
     return sendError(res, err.message, err.status || 400);
@@ -2006,8 +2028,16 @@ const customizeBill = async (req, res) => {
         )
       : bill.itemsTotal + sanitizeAmount(bill.complimentaryAmount);
 
+    const freeItemIds = new Set((complimentary.complimentaryItems || []).map(String));
+    const gstFreeAmount = Array.isArray(bill.order?.items)
+      ? getBillableOrderItems(bill.order)
+          .filter((item) => item.gstFree === true && !freeItemIds.has(String(item._id)))
+          .reduce((sum, item) => sum + getOrderItemAmount(item), 0)
+      : 0;
+
     const totals = calculateBillTotals({
       itemsTotal: originalItemsTotal,
+      gstFreeAmount,
       complimentaryAmount: complimentary.complimentaryAmount,
       cgstRate: req.body.cgstRate ?? bill.cgstRate ?? 2.5,
       sgstRate: req.body.sgstRate ?? bill.sgstRate ?? 2.5,
@@ -2019,6 +2049,7 @@ const customizeBill = async (req, res) => {
     });
 
     bill.itemsTotal = totals.itemsTotal;
+    bill.taxableAmount = totals.taxableAmount;
     bill.complimentaryType = complimentary.complimentaryType;
     bill.complimentaryItems = complimentary.complimentaryItems;
     bill.complimentaryAmount = complimentary.complimentaryAmount;
@@ -2258,7 +2289,13 @@ const settleManualBill = async (req, res) => {
 
     invalidateCacheNamespaces(["dashboard"]);
 
-    return sendSuccess(res, { ...populatedBill.toObject(), settlementPrintJob });
+    // Restaurant setting: "Print settlement slip" = No -> nothing is printed.
+    const printSlip =
+      getBillingTemplate(populatedBill.restaurant).printSettlementSlip !== false;
+    return sendSuccess(res, {
+      ...populatedBill.toObject(),
+      settlementPrintJob: printSlip ? settlementPrintJob : null,
+    });
   } catch (err) {
     logger.error(err);
     return sendError(res, err.message);
@@ -2372,6 +2409,7 @@ const voidBill = async (req, res) => {
         billNo: await allocateBillNumber(bill.restaurant),
         order: bill.order,
         itemsTotal: bill.itemsTotal,
+        taxableAmount: bill.taxableAmount,
         cgst: bill.cgst,
         cgstRate: bill.cgstRate,
         sgst: bill.sgst,

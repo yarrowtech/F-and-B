@@ -284,6 +284,7 @@ export const createMenuItem = async (req, res) => {
       courseType,
       description,
       isAvailable,
+      gstFree,
       ingredients,
     } = req.body;
 
@@ -368,6 +369,7 @@ export const createMenuItem = async (req, res) => {
       courseType: courseType.trim(),
       description: description || "",
       isAvailable: isAvailable ?? true,
+      gstFree: gstFree === true || gstFree === "true",
       ingredients,
     });
 
@@ -571,9 +573,11 @@ export const updateMenuItem = async (req, res) => {
       courseType,
       description,
       isAvailable,
+      gstFree,
       ingredients,
     } = req.body;
 
+    if (gstFree !== undefined) item.gstFree = gstFree === true || gstFree === "true";
     if (name !== undefined) item.name = name.trim();
     if (price !== undefined) item.price = Number(price);
     if (menuCode !== undefined) {

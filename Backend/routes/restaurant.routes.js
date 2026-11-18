@@ -28,6 +28,8 @@ router.get(
   auth,
   cacheResponse({
     ttlSeconds: 120,
+    // Browser must revalidate (ETag) so edits show immediately after saving.
+    cacheControl: "private, no-cache",
     namespace: (req) => `restaurants:${req.user.id}`,
   }),
   getRestaurants
@@ -39,6 +41,7 @@ router.get(
   auth,
   cacheResponse({
     ttlSeconds: 120,
+    cacheControl: "private, no-cache",
     namespace: (req) => `restaurant:${req.params.restaurantId}`,
   }),
   getRestaurantById

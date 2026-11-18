@@ -152,6 +152,12 @@ const orderItemSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Snapshot of Menu.gstFree when the item was ordered (no GST added to this line).
+    gstFree: {
+      type: Boolean,
+      default: false,
+    },
+
     isAdditional: {
       type: Boolean,
       default: false,

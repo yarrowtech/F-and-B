@@ -109,6 +109,7 @@ const defaultBillingTemplate = {
   paymentMethods: DEFAULT_PAYMENT_METHODS,
   kotCopyCount: 1,
   billCopyCount: 1,
+  printSettlementSlip: true,
 };
 const maxLogoBytes = 700 * 1024;
 
@@ -301,6 +302,7 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
         Math.max(Math.floor(Number(form.billCopyCount) || 1), 1),
         10
       ),
+      printSettlementSlip: form.printSettlementSlip !== false,
       paymentMethods:
         Array.isArray(form.paymentMethods) && form.paymentMethods.length > 0
           ? form.paymentMethods
@@ -547,6 +549,45 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
             Example: 2 means every bill prints twice (customer copy + counter copy).
           </p>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-900/10">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-700 dark:text-rose-300">
+              Settlement Slip
+            </p>
+            <p className="mt-1 text-sm text-rose-900 dark:text-rose-100">
+              Print a payment settlement slip after a bill is settled.
+            </p>
+          </div>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-rose-700 shadow-sm dark:bg-rose-950 dark:text-rose-200">
+            {form.printSettlementSlip !== false ? "Print: Yes" : "Print: No"}
+          </span>
+        </div>
+
+        <div className="mt-4 flex max-w-xs gap-2">
+          {[
+            [true, "Yes"],
+            [false, "No"],
+          ].map(([value, label]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => change("printSettlementSlip", value)}
+              className={`flex-1 rounded-xl border px-4 py-3 text-sm font-bold transition ${
+                (form.printSettlementSlip !== false) === value
+                  ? "border-rose-500 bg-rose-600 text-white"
+                  : "border-rose-200 bg-white text-gray-700 hover:bg-rose-100 dark:border-rose-900 dark:bg-gray-700 dark:text-gray-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          Yes: the slip prints after settlement. No: payment is saved but no slip is printed.
+        </p>
       </div>
 
       <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-900/40 dark:bg-sky-900/10">

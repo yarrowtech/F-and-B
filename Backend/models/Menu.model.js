@@ -128,6 +128,12 @@ const menuSchema = new mongoose.Schema(
       default: true,
     },
 
+    // GST-free item (e.g. packaged water, ice): billed at its price, no GST added.
+    gstFree: {
+      type: Boolean,
+      default: false,
+    },
+
     // 🔥 Ingredient mapping for stock deduction
     ingredients: {
       type: [ingredientSchema],

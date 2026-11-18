@@ -34,7 +34,7 @@ const ORDER_FILTERS = [
 ];
 
 const COURSE_PRESETS = ["Starter", "Main Course", "Dessert", "Beverage", "Snack", "Soup"];
-const emptyForm = { name: "", price: "", menuCode: "", cuisine: "", newSectionName: "", newSectionPrinter: "", courseType: "", courseTypeCustom: "", isAvailable: true };
+const emptyForm = { name: "", price: "", menuCode: "", cuisine: "", newSectionName: "", newSectionPrinter: "", courseType: "", courseTypeCustom: "", isAvailable: true, gstFree: false };
 const emptyIngredient = () => ({ itemId: "", quantity: "" });
 const resolveCourse = (form) => (form.courseType === "__custom__" ? form.courseTypeCustom.trim() : form.courseType);
 
@@ -97,6 +97,7 @@ const MenuMobileCard = ({ item, onEdit }) => (
       <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${item.isAvailable ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : "bg-slate-200 text-slate-700 dark:bg-neutral-800 dark:text-neutral-300"}`}>
         {item.isAvailable ? "Available" : "Unavailable"}
       </span>
+      {item.gstFree && (<span className="ml-1 inline-flex shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">GST Free</span>)}
     </div>
 
     <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-sm dark:bg-neutral-800/80">
@@ -288,6 +289,7 @@ export default function ManagerMenuManagement() {
       cuisine,
       courseType,
       isAvailable: form.isAvailable,
+      gstFree: Boolean(form.gstFree),
       ingredients: ingredients
         .filter((item) => item.itemId && item.quantity && Number(item.quantity) > 0)
         .map((item) => ({ item: item.itemId, quantity: Number(item.quantity) })),
@@ -318,6 +320,7 @@ export default function ManagerMenuManagement() {
       courseType: courseIsPreset ? item.courseType : "__custom__",
       courseTypeCustom: courseIsPreset ? "" : item.courseType || "",
       isAvailable: Boolean(item.isAvailable),
+      gstFree: Boolean(item.gstFree),
     });
     setIngredients(
       item.ingredients?.length
@@ -449,6 +452,14 @@ export default function ManagerMenuManagement() {
       <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 dark:bg-neutral-800 dark:text-neutral-200">
         <input type="checkbox" checked={form.isAvailable} onChange={(e) => setForm({ ...form, isAvailable: e.target.checked })} className="h-4 w-4 accent-emerald-600" />
         Available for ordering
+      </label>
+
+      <label className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 dark:bg-neutral-800 dark:text-neutral-200">
+        <input type="checkbox" checked={Boolean(form.gstFree)} onChange={(e) => setForm({ ...form, gstFree: e.target.checked })} className="h-4 w-4 accent-emerald-600" />
+        <span>
+          GST free item
+          <span className="block text-xs font-normal text-slate-500">No GST is added on this item (e.g. packaged water, ice). Leave unticked for normal GST.</span>
+        </span>
       </label>
 
       <div className="rounded-2xl border border-slate-200 p-4 dark:border-neutral-700">
@@ -602,6 +613,7 @@ export default function ManagerMenuManagement() {
                             <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${item.isAvailable ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : "bg-slate-200 text-slate-700 dark:bg-neutral-800 dark:text-neutral-300"}`}>
                               {item.isAvailable ? "Available" : "Unavailable"}
                             </span>
+                            {item.gstFree && (<span className="ml-1 inline-flex shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">GST Free</span>)}
                           </td>
                           <td className="px-5 py-4">
                             <div className="flex justify-end">

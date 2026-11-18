@@ -199,7 +199,7 @@ export const placeQrOrder = async (req, res) => {
       restaurant: table.restaurant,
       isAvailable: true,
     })
-      .select("_id price")
+      .select("_id price gstFree")
       .lean();
     const menuById = new Map(menuItems.map((menu) => [String(menu._id), menu]));
 
@@ -212,6 +212,7 @@ export const placeQrOrder = async (req, res) => {
       quantity: line.quantity,
       customization: line.customization,
       price: menuById.get(line.menuItem).price,
+      gstFree: Boolean(menuById.get(line.menuItem).gstFree),
     }));
 
     const existing = await findOrderUsingTables(table.restaurant, [table._id]).select(

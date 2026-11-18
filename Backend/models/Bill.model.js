@@ -140,6 +140,13 @@ const billSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Part of the items that GST was charged on (GST-free items are left out).
+    // null on older bills = GST was charged on the whole itemsTotal.
+    taxableAmount: {
+      type: Number,
+      default: null,
+    },
+
     cgst: {
       type: Number,
       default: 0,

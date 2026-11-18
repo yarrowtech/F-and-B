@@ -275,7 +275,14 @@ export default function AccountantTableBilling() {
       }
       return [
         ...prev,
-        { menuItem: item._id, name: item.name, price: Number(item.price || 0), quantity: 1, note: "" },
+        {
+          menuItem: item._id,
+          name: item.name,
+          price: Number(item.price || 0),
+          gstFree: item.gstFree === true,
+          quantity: 1,
+          note: "",
+        },
       ];
     });
   };
@@ -346,8 +353,15 @@ export default function AccountantTableBilling() {
         name: i.menuItem?.name || "Item",
         price: Number(i.price || 0),
         quantity: Number(i.quantity || 0),
+        gstFree: i.gstFree === true,
       })),
-      ...cart.map((l) => ({ id: l.menuItem, name: l.name, price: l.price, quantity: l.quantity })),
+      ...cart.map((l) => ({
+        id: l.menuItem,
+        name: l.name,
+        price: l.price,
+        quantity: l.quantity,
+        gstFree: l.gstFree === true,
+      })),
     ],
     [runningItems, cart]
   );
@@ -362,7 +376,10 @@ export default function AccountantTableBilling() {
     const itemsSubtotal = allLines.reduce((s, l) => s + l.price * l.quantity, 0);
     const base = chargeable.reduce((s, l) => s + l.price * l.quantity, 0);
     const withTax = chargeable.reduce(
-      (s, l) => s + Math.ceil(l.price * (1 + (effectiveCgst + effectiveSgst) / 100)) * l.quantity,
+      (s, l) =>
+        l.gstFree
+          ? s + l.price * l.quantity // GST-free item: exact price, no tax
+          : s + Math.ceil(l.price * (1 + (effectiveCgst + effectiveSgst) / 100)) * l.quantity,
       0
     );
     const complimentary = allLines
@@ -1320,6 +1337,7 @@ export default function AccountantTableBilling() {
                                               Code {item.menuCode || "----"}
                                             </span>
                                             <span>{item.courseType || "General"}</span>
+                                            {item.gstFree && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-700">GST Free</span>}
                                           </span>
                                         </span>
                                         <span className="shrink-0 text-right">
@@ -1432,6 +1450,7 @@ export default function AccountantTableBilling() {
                       <div className="flex min-w-0 items-center justify-between gap-3">
                         <p className="break-words pr-2 text-sm font-bold leading-snug text-slate-800 dark:text-slate-100">
                           {item.name}
+                          {item.gstFree && <span className="ml-2 align-middle rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-700">GST Free</span>}
                         </p>
                         <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-200 dark:bg-slate-900 dark:ring-emerald-900/60">
                           {formatCurrency(item.price * item.quantity)}

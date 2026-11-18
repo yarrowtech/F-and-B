@@ -1254,13 +1254,20 @@ const calculateOrderBillTotals = (order, billingTemplate = {}) => {
     (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
     0
   );
+  const taxableAmount = (order.items || [])
+    .filter((item) => item.status !== "CANCELLED" && !item.gstFree)
+    .reduce(
+      (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
+      0
+    );
   const cgstRate = getTaxRate(billingTemplate.cgstRate);
   const sgstRate = getTaxRate(billingTemplate.sgstRate);
-  const cgst = Math.round(itemsTotal * (cgstRate / 100));
-  const sgst = Math.round(itemsTotal * (sgstRate / 100));
+  const cgst = Math.round(taxableAmount * (cgstRate / 100));
+  const sgst = Math.round(taxableAmount * (sgstRate / 100));
 
   return {
     itemsTotal,
+    taxableAmount,
     cgstRate,
     sgstRate,
     cgst,
@@ -1851,6 +1858,7 @@ export const createOrder = async (req, res) => {
         quantity: item.quantity,
         customization: normalizeCustomization(item.customization),
         price: menu.price,
+        gstFree: Boolean(menu.gstFree),
       });
     }
 
@@ -1923,6 +1931,7 @@ export const addItemsToOrder = async (req, res) => {
           quantity: newItem.quantity,
           customization: normalizeCustomization(newItem.customization),
           price: menu.price,
+          gstFree: Boolean(menu.gstFree),
           isAdditional: true,
           addedAt,
         });
@@ -1942,6 +1951,7 @@ export const addItemsToOrder = async (req, res) => {
             quantity: newItem.quantity,
             customization: normalizeCustomization(newItem.customization),
             price: menu.price,
+            gstFree: Boolean(menu.gstFree),
           });
         }
       }

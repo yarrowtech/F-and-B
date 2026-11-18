@@ -137,8 +137,22 @@ const getComplimentaryAmount = (orderItems = [], customValues) => {
   return 0;
 };
 
+// Amount of GST-free items (water, ice...) that still gets billed, i.e. not complimentary.
+const getGstFreeAmount = (orderItems = [], customValues) => {
+  const selectedIds = new Set(customValues.complimentaryItems || []);
+  return orderItems
+    .filter((item) => item.gstFree === true)
+    .filter(
+      (item) =>
+        customValues.complimentaryType !== "FULL_ORDER" &&
+        !(customValues.complimentaryType === "ITEMS" && selectedIds.has(getOrderItemId(item)))
+    )
+    .reduce((sum, item) => sum + getOrderItemAmount(item), 0);
+};
+
 const buildTotals = (itemsTotal, customValues, orderItems = []) => {
   const complimentaryAmount = getComplimentaryAmount(orderItems, customValues);
+  const gstFreeAmount = getGstFreeAmount(orderItems, customValues);
   const safeItemsTotal = Math.max(
     sanitizeNumber(itemsTotal) - complimentaryAmount,
     0
@@ -152,8 +166,9 @@ const buildTotals = (itemsTotal, customValues, orderItems = []) => {
   const discountType =
     customValues.discountType === "PERCENT" ? "PERCENT" : "AMOUNT";
 
-  const cgst = Number((safeItemsTotal * (cgstRate / 100)).toFixed(2));
-  const sgst = Number((safeItemsTotal * (sgstRate / 100)).toFixed(2));
+  const taxableItemsTotal = Math.max(safeItemsTotal - gstFreeAmount, 0);
+  const cgst = Number((taxableItemsTotal * (cgstRate / 100)).toFixed(2));
+  const sgst = Number((taxableItemsTotal * (sgstRate / 100)).toFixed(2));
   const grossAmount =
     safeItemsTotal + cgst + sgst + serviceCharge + packagingCharge + extraCharge;
   const computedDiscount =
@@ -216,6 +231,7 @@ const buildManualTotals = (manualBill) => {
   const itemWiseRoundedTotal = chargeableItems.reduce((sum, item) => {
     const price = Number(item.price || 0);
     const quantity = Number(item.quantity || 0);
+    if (item.gstFree === true) return sum + price * quantity;
     const unitWithTax = price * (1 + (cgstRate + sgstRate) / 100);
     return sum + Math.ceil(unitWithTax) * quantity;
   }, 0);
@@ -261,6 +277,7 @@ const getManualRoundedLineTotal = (item, manualBill) => {
   const quantity = Number(item?.quantity || 0);
   const cgstRate = sanitizeNumber(manualBill?.cgstRate);
   const sgstRate = sanitizeNumber(manualBill?.sgstRate);
+  if (item?.gstFree === true) return price * quantity;
   const unitWithTax = price * (1 + (cgstRate + sgstRate) / 100);
   return Math.ceil(unitWithTax) * quantity;
 };
@@ -1443,6 +1460,7 @@ function ClassicAccountantOrderBilling() {
             menuItem: menuId,
             name: menuItem.name,
             price: Number(menuItem.price || 0),
+            gstFree: menuItem.gstFree === true,
             quantity: 1,
           },
         ],
@@ -2376,9 +2394,9 @@ function ClassicAccountantOrderBilling() {
                         <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
                           <span>Code {menuItems.find((menu) => menu._id === item.menuItem)?.menuCode || "----"}</span>
                           <span className="text-slate-300">|</span>
-                          <span>{formatCurrency(Math.ceil(Number(item.price || 0) * (1 + (sanitizeNumber(manualBill.cgstRate) + sanitizeNumber(manualBill.sgstRate)) / 100)))} x {item.quantity}</span>
+                          <span>{formatCurrency(item.gstFree ? Number(item.price || 0) : Math.ceil(Number(item.price || 0) * (1 + (sanitizeNumber(manualBill.cgstRate) + sanitizeNumber(manualBill.sgstRate)) / 100)))} x {item.quantity}</span>
                           <span className="text-slate-300">|</span>
-                          <span className="text-slate-700 dark:text-slate-200">GST rounded line item</span>
+                          <span className="text-slate-700 dark:text-slate-200">{item.gstFree ? "GST free item" : "GST rounded line item"}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 rounded-xl bg-white px-2 py-2 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
