@@ -168,6 +168,7 @@ const defaultBillingTemplate = {
   sgstRate: 2.5,
   paymentMethods: ["CASH", "CARD", "UPI"],
   kotCopyCount: 1,
+  billCopyCount: 1,
 };
 const maxLogoDataLength = 1000000;
 const defaultPaymentMethods = ["CASH", "CARD", "UPI"];
@@ -253,6 +254,10 @@ const sanitizeBillingTemplate = (payload = {}) => {
     kotCopyCount: sanitizeKotCopyCount(
       payload.kotCopyCount,
       defaultBillingTemplate.kotCopyCount
+    ),
+    billCopyCount: sanitizeKotCopyCount(
+      payload.billCopyCount,
+      defaultBillingTemplate.billCopyCount
     ),
   };
 };

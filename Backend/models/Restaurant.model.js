@@ -174,6 +174,12 @@ const billingTemplateSchema = new mongoose.Schema(
       min: 1,
       max: 10,
     },
+    billCopyCount: {
+      type: Number,
+      default: 1,
+      min: 1,
+      max: 10,
+    },
   },
   { _id: false }
 );

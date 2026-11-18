@@ -108,6 +108,7 @@ const defaultBillingTemplate = {
   sgstRate: 2.5,
   paymentMethods: DEFAULT_PAYMENT_METHODS,
   kotCopyCount: 1,
+  billCopyCount: 1,
 };
 const maxLogoBytes = 700 * 1024;
 
@@ -294,6 +295,10 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
       ...form,
       kotCopyCount: Math.min(
         Math.max(Math.floor(Number(form.kotCopyCount) || 1), 1),
+        10
+      ),
+      billCopyCount: Math.min(
+        Math.max(Math.floor(Number(form.billCopyCount) || 1), 1),
         10
       ),
       paymentMethods:
@@ -503,6 +508,43 @@ const BillingTemplateForm = ({ restaurant, onSave, onCancel, saving }) => {
           />
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             Example: 2 means every kitchen or cuisine KOT prints twice.
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
+              Bill Copies
+            </p>
+            <p className="mt-1 text-sm text-amber-900 dark:text-amber-100">
+              Each generated bill will print this many copies.
+            </p>
+          </div>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-amber-700 shadow-sm dark:bg-amber-950 dark:text-amber-200">
+            {Math.min(Math.max(Math.floor(Number(form.billCopyCount) || 1), 1), 10)}{" "}
+            {Math.min(Math.max(Math.floor(Number(form.billCopyCount) || 1), 1), 10) === 1
+              ? "copy"
+              : "copies"}
+          </span>
+        </div>
+
+        <div className="mt-4 max-w-xs">
+          <label className="mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+            Bill Copy Count
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="10"
+            step="1"
+            value={form.billCopyCount}
+            onChange={(e) => change("billCopyCount", e.target.value)}
+            className="w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-900 dark:bg-gray-700 dark:text-white"
+          />
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Example: 2 means every bill prints twice (customer copy + counter copy).
           </p>
         </div>
       </div>

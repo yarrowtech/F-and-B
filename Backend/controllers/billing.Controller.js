@@ -230,12 +230,19 @@ const defaultBillingTemplate = {
   cgstRate: 2.5,
   sgstRate: 2.5,
   kotCopyCount: 1,
+  billCopyCount: 1,
 };
 
 const getBillingTemplate = (restaurant) => ({
   ...defaultBillingTemplate,
   ...(restaurant?.billingTemplate?.toObject?.() || restaurant?.billingTemplate || {}),
 });
+
+// Each printed bill is already cut at the end, so extra copies are just repeats.
+const repeatBillReceiptText = (receiptText, restaurant) => {
+  const count = getKotCopyCount(getBillingTemplate(restaurant).billCopyCount);
+  return count <= 1 ? receiptText : String(receiptText).repeat(count);
+};
 
 const normalizePdfColor = (value, fallback) =>
   /^#[0-9a-fA-F]{6}$/.test(String(value || "").trim())
@@ -957,7 +964,7 @@ const queueBillPrintJob = async (billId, requestedBy = null) => {
   const bill = await findBillWithOrder({ _id: billId });
   if (!bill) return null;
 
-  const receiptText = buildBillReceiptText(bill);
+  const receiptText = repeatBillReceiptText(buildBillReceiptText(bill), bill.restaurant);
 
   const agent = await PrintAgent.findOne({
     restaurant: bill.restaurant?._id || bill.restaurant,
@@ -1008,7 +1015,7 @@ const buildManualBillPrintJob = async (billId, requestedBy = null) => {
     bill: bill._id,
     requestedBy,
     printerName: agent?.billPrinterName || "",
-    receiptText: buildBillReceiptText(bill),
+    receiptText: repeatBillReceiptText(buildBillReceiptText(bill), bill.restaurant),
     status: "LOCAL",
   };
 };
