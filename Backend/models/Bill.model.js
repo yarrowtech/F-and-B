@@ -370,6 +370,12 @@ export const syncBillIndexes = async () => {
 
     await Bill.syncIndexes();
   } catch (error) {
+    if (error?.code === 26 || error?.codeName === "NamespaceNotFound") {
+      await Bill.createCollection();
+      await Bill.syncIndexes();
+      return;
+    }
+
     if (error?.codeName === "IndexNotFound") {
       await Bill.syncIndexes();
       return;
