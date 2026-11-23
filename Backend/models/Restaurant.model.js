@@ -271,6 +271,19 @@ const restaurantSchema = new mongoose.Schema(
       min: 1,
     },
 
+    // Training mode: orders/bills are flagged isTest, use T- numbers, and stay
+    // out of live reports. Only an admin can switch it.
+    testMode: {
+      type: Boolean,
+      default: false,
+    },
+
+    nextTestBillNumber: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     billingTemplate: {
       type: billingTemplateSchema,
       default: () => ({}),

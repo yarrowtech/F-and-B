@@ -1111,6 +1111,7 @@ import KotPrintJob from "../models/KotPrintJob.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import { getIO } from "../socket.js";
 import { allocateDailyKotNumber } from "../utils/kotSerial.js";
+import { isTestModeActive } from "../utils/testMode.js";
 
 /* 🔥 LOGGER */
 import { logAction, logError } from "../utils/logger.js";
@@ -1543,6 +1544,7 @@ const buildKotReceiptText = ({ order, cuisine, items, kotNo, printedAt, dailyKot
   const waiterName = order.waiter?.name || "N/A";
   const outletName = order.restaurant?.name || "KITCHEN";
   const metaLines = [
+    ...(order.isTest ? ["*** TEST KOT - NOT VALID ***"] : []),
     kotLine(),
     kotPair("KOT NO", dailyKotNumber || kotNo || "-"),
     kotPair("TABLE", tableNo),
@@ -1696,6 +1698,9 @@ const syncTableStatusAfterMove = async ({
 };
 
 const deductInventoryForOrder = async (order, session, user = {}) => {
+  // Test orders must not touch real stock.
+  if (isTestModeActive()) return;
+
   const itemsToDeduct = getItemsForInventoryDeduction(order);
 
   for (const item of itemsToDeduct) {

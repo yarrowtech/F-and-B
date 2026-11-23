@@ -91,6 +91,7 @@
 
 import mongoose from "mongoose";
 import Restaurant from "./Restaurant.model.js";
+import { testModePlugin, isTestModeActive } from "../utils/testMode.js";
 
 const billSchema = new mongoose.Schema(
   {
@@ -281,6 +282,8 @@ const billSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+billSchema.plugin(testModePlugin);
+
 billSchema.index({ restaurant: 1, billNo: 1 }, { unique: true });
 billSchema.index({ restaurant: 1, paymentStatus: 1, paidAt: 1 });
 billSchema.index({ restaurant: 1, paymentStatus: 1, paymentMethod: 1, paidAt: 1 });
@@ -295,6 +298,20 @@ const normalizeBillSequenceNumber = (value, fallback = 1) => {
 };
 
 export const allocateBillNumber = async (restaurantId, session = null) => {
+  // Test mode uses its own T-1, T-2... series so real invoice numbers are
+  // never used up (no gaps in the real sequence).
+  if (isTestModeActive()) {
+    const testRestaurant = await Restaurant.findOneAndUpdate(
+      { _id: restaurantId },
+      { $inc: { nextTestBillNumber: 1 } },
+      { new: true, session, projection: { nextTestBillNumber: 1 } }
+    );
+    if (!testRestaurant) {
+      throw new Error("Restaurant not found for billing");
+    }
+    return `T-${Math.max(Number(testRestaurant.nextTestBillNumber) || 1, 1)}`;
+  }
+
   const restaurant = await Restaurant.findOneAndUpdate(
     { _id: restaurantId },
     [

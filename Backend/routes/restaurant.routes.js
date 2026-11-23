@@ -7,6 +7,8 @@ import {
   getRestaurantById,
   updateRestaurant,
   updateBillingTemplate,
+  updateTestMode,
+  clearTestData,
   deleteRestaurant,
   assignEmployeesToRestaurant,
   getRestaurantEmployees,
@@ -46,6 +48,10 @@ router.get(
   }),
   getRestaurantById
 );
+
+// Test (training) mode switch and cleanup (admin only)
+router.put("/:restaurantId/test-mode", auth, updateTestMode);
+router.delete("/:restaurantId/test-data", auth, clearTestData);
 
 // Update restaurant billing template
 router.put("/:restaurantId/billing-template", auth, updateBillingTemplate);

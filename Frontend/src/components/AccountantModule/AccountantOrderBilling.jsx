@@ -4311,6 +4311,7 @@ export default function AccountantOrderBilling() {
     }
   });
   const [checked, setChecked] = useState(false);
+  const [testMode, setTestMode] = useState(false);
 
   useEffect(() => {
     getBillingSettings()
@@ -4318,15 +4319,25 @@ export default function AccountantOrderBilling() {
         if (s?.restaurant?.restaurantType) {
           setRestaurantType(String(s.restaurant.restaurantType).toUpperCase());
         }
+        setTestMode(s?.restaurant?.testMode === true);
       })
       .catch(() => {})
       .finally(() => setChecked(true));
   }, []);
 
   if (!checked && !restaurantType) return null;
-  return restaurantType === "ACCOUNTANT_BILLING" ? (
-    <AccountantTableBilling />
-  ) : (
-    <ClassicAccountantOrderBilling />
+  return (
+    <>
+      {testMode && (
+        <div className="sticky top-0 z-30 bg-red-600 px-4 py-2 text-center text-sm font-bold tracking-wide text-white">
+          TEST MODE ON — bills and KOTs are practice only and are not counted
+        </div>
+      )}
+      {restaurantType === "ACCOUNTANT_BILLING" ? (
+        <AccountantTableBilling />
+      ) : (
+        <ClassicAccountantOrderBilling />
+      )}
+    </>
   );
 }

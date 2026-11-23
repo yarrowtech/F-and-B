@@ -91,6 +91,18 @@ export const updateRestaurantBillingTemplate = async (restaurantId, data) => {
   return (await api.put(`/restaurants/${restaurantId}/billing-template`, data)).data;
 };
 
+/* Turn test (training) mode on or off */
+export const updateRestaurantTestMode = async (restaurantId, enabled) => {
+  return (
+    await api.put(`/restaurants/${restaurantId}/test-mode`, { enabled })
+  ).data;
+};
+
+/* Delete all test orders and bills */
+export const clearRestaurantTestData = async (restaurantId) => {
+  return (await api.delete(`/restaurants/${restaurantId}/test-data`)).data;
+};
+
 /* Delete restaurant */
 export const deleteRestaurant = async (restaurantId) => {
   return (await api.delete(`/restaurants/${restaurantId}`)).data;

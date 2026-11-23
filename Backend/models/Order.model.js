@@ -104,6 +104,7 @@
 
 
 import mongoose from "mongoose";
+import { testModePlugin } from "../utils/testMode.js";
 
 /* ===============================
    ORDER ITEM SCHEMA
@@ -416,4 +417,6 @@ orderSchema.index({ restaurant: 1, createdAt: 1, status: 1 });
 /* ===============================
    EXPORT
 =============================== */
+orderSchema.plugin(testModePlugin);
+
 export default mongoose.model("Order", orderSchema);

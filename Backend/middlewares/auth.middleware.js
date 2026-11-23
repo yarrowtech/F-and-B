@@ -7,6 +7,7 @@ import SuperAdmin from "../models/superAdmin.js";
 import Vendor from "../models/Vendor.model.js";
 import { touchActivity } from "../utils/sessionUsage.js";
 import { isTokenBlacklisted } from "../utils/tokenBlacklist.js";
+import { loadRestaurantTestMode, runWithTestMode } from "../utils/testMode.js";
 
 const auth = async (req, res, next) => {
   try {
@@ -154,7 +155,11 @@ const auth = async (req, res, next) => {
       });
     }
 
-    next();
+    // Run the rest of the request inside the restaurant's test-mode context
+    // so Order/Bill creation and queries are scoped to test or live data.
+    const testMode = await loadRestaurantTestMode(req.user.restaurant);
+    req.testMode = testMode;
+    return runWithTestMode(testMode, next);
   } catch (err) {
     logger.error("AUTH ERROR:", err.message);
 

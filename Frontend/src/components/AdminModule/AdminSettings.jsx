@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link2, LockKeyhole, Moon, ShieldCheck, Store, Sun, UserCircle2, X } from "lucide-react";
+import { FlaskConical, Link2, LockKeyhole, Moon, ShieldCheck, Store, Sun, UserCircle2, X } from "lucide-react";
 import API from "../../services/api";
-import { getRestaurants, updateRestaurant } from "../../services/restaurant.service";
+import {
+  getRestaurants,
+  updateRestaurant,
+  updateRestaurantTestMode,
+  clearRestaurantTestData,
+} from "../../services/restaurant.service";
 
 const VENDOR_INVENTORY_SETTINGS_UPDATED_EVENT = "vendor-inventory-settings-updated";
 
@@ -60,6 +65,7 @@ export default function SettingsPage({
   const [profileForm, setProfileForm] = useState(emptyProfileForm);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   const notify = (text, isError = false) => {
     if (isError) {
@@ -133,6 +139,87 @@ export default function SettingsPage({
       notify(error?.response?.data?.message || "Failed to change password", true);
     } finally {
       setPasswordSaving(false);
+    }
+  };
+
+  const handleToggleTestMode = async (restaurant) => {
+    const restaurantId = restaurant?._id || restaurant?.id;
+    if (!restaurantId) return;
+
+    const nextEnabled = restaurant?.testMode !== true;
+    setConfirmDialog({
+      tone: nextEnabled ? "danger" : "safe",
+      title: nextEnabled
+        ? `Turn ON test mode for ${restaurant.name}?`
+        : `Turn OFF test mode for ${restaurant.name}?`,
+      points: nextEnabled
+        ? [
+            "All orders, KOTs and bills become practice only.",
+            'Every print shows "TEST - NOT VALID".',
+            "Bills use separate T- numbers; real numbers are not used up.",
+            "Stock does not change and real reports stay clean.",
+          ]
+        : ["The restaurant goes back to real billing.", "Test data stays saved until you clear it."],
+      confirmLabel: nextEnabled ? "Turn ON" : "Turn OFF",
+      onConfirm: () => runToggleTestMode(restaurant, nextEnabled),
+    });
+  };
+
+  const runToggleTestMode = async (restaurant, nextEnabled) => {
+    const restaurantId = restaurant?._id || restaurant?.id;
+
+    try {
+      setSavingRestaurantId(restaurantId);
+      await updateRestaurantTestMode(restaurantId, nextEnabled);
+      setRestaurants((prev) =>
+        prev.map((item) =>
+          String(item._id || item.id) === String(restaurantId)
+            ? { ...item, testMode: nextEnabled }
+            : item
+        )
+      );
+      notify(
+        nextEnabled
+          ? `Test mode is ON for ${restaurant.name}`
+          : `Test mode is OFF for ${restaurant.name}`
+      );
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to change test mode", true);
+    } finally {
+      setSavingRestaurantId("");
+    }
+  };
+
+  const handleClearTestData = async (restaurant) => {
+    const restaurantId = restaurant?._id || restaurant?.id;
+    if (!restaurantId) return;
+
+    setConfirmDialog({
+      tone: "danger",
+      title: `Clear test data for ${restaurant.name}?`,
+      points: [
+        "All test orders and test bills are deleted.",
+        "Real orders, bills and reports are not touched.",
+        "This cannot be undone.",
+      ],
+      confirmLabel: "Clear data",
+      onConfirm: () => runClearTestData(restaurant),
+    });
+  };
+
+  const runClearTestData = async (restaurant) => {
+    const restaurantId = restaurant?._id || restaurant?.id;
+
+    try {
+      setSavingRestaurantId(restaurantId);
+      const result = await clearRestaurantTestData(restaurantId);
+      notify(
+        `Test data cleared: ${result?.deletedBills || 0} bills, ${result?.deletedOrders || 0} orders`
+      );
+    } catch (error) {
+      notify(error?.response?.data?.message || "Failed to clear test data", true);
+    } finally {
+      setSavingRestaurantId("");
     }
   };
 
@@ -387,6 +474,161 @@ export default function SettingsPage({
                           disabled={saving}
                           onChange={() => handleToggleVendorInventory(restaurant)}
                         />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        {confirmDialog && (
+          <div className="fixed inset-0 z-[60] flex items-end justify-center p-4 sm:items-center">
+            <div
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setConfirmDialog(null)}
+            />
+            <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-800">
+              <div
+                className={`flex items-center gap-3 px-5 py-4 ${
+                  confirmDialog.tone === "danger"
+                    ? "bg-red-50 dark:bg-red-900/20"
+                    : "bg-green-50 dark:bg-green-900/20"
+                }`}
+              >
+                <span
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white ${
+                    confirmDialog.tone === "danger" ? "bg-red-600" : "bg-green-600"
+                  }`}
+                >
+                  <FlaskConical size={20} />
+                </span>
+                <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                  {confirmDialog.title}
+                </h3>
+              </div>
+
+              <ul className="space-y-2 px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
+                {confirmDialog.points.map((point) => (
+                  <li key={point} className="flex gap-2">
+                    <span
+                      className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                        confirmDialog.tone === "danger" ? "bg-red-500" : "bg-green-500"
+                      }`}
+                    />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="grid grid-cols-2 gap-3 border-t border-gray-100 px-5 py-4 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDialog(null)}
+                  className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  autoFocus
+                  onClick={() => {
+                    const action = confirmDialog.onConfirm;
+                    setConfirmDialog(null);
+                    action?.();
+                  }}
+                  className={`rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition ${
+                    confirmDialog.tone === "danger"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-green-600 hover:bg-green-700"
+                  }`}
+                >
+                  {confirmDialog.confirmLabel}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <section className="rounded-xl bg-white p-4 shadow dark:bg-gray-800">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold md:text-lg">
+            <FlaskConical size={20} /> Test Mode
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Switch it on for a restaurant and that whole restaurant goes into test mode: every
+            order, KOT and bill is practice only, prints "TEST - NOT VALID", uses separate T-
+            numbers, does not change stock, and stays out of real reports. Settle or void running
+            bills and free all tables before switching.
+          </p>
+
+          <div className="mt-5 space-y-3">
+            {loadingRestaurants ? (
+              <div className="rounded-xl border border-dashed border-gray-200 p-6 text-sm text-gray-400 dark:border-gray-700">
+                Loading restaurants...
+              </div>
+            ) : restaurants.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-200 p-6 text-sm text-gray-400 dark:border-gray-700">
+                No restaurants found for this admin.
+              </div>
+            ) : (
+              restaurants.map((restaurant) => {
+                const restaurantId = restaurant._id || restaurant.id;
+                const enabled = restaurant?.testMode === true;
+                const saving = savingRestaurantId === restaurantId;
+
+                return (
+                  <div
+                    key={restaurantId}
+                    className={`rounded-2xl border p-4 ${
+                      enabled
+                        ? "border-red-300 bg-red-50 dark:border-red-900/60 dark:bg-red-900/10"
+                        : "border-gray-200 bg-gray-50/70 dark:border-gray-700 dark:bg-gray-900/30"
+                    }`}
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Store size={16} className="text-indigo-600 dark:text-indigo-300" />
+                          <p className="font-semibold text-gray-900 dark:text-gray-100">
+                            {restaurant.name}
+                          </p>
+                          {restaurant.restaurantCode && (
+                            <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+                              {restaurant.restaurantCode}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                          {enabled
+                            ? "ON: this restaurant is in test mode. Nothing here counts as real."
+                            : "OFF: real billing."}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            enabled
+                              ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                              : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                          }`}
+                        >
+                          {enabled ? "TEST" : "LIVE"}
+                        </span>
+                        <Toggle
+                          checked={enabled}
+                          disabled={saving}
+                          onChange={() => handleToggleTestMode(restaurant)}
+                        />
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => handleClearTestData(restaurant)}
+                          className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60 dark:border-red-900 dark:bg-gray-800 dark:text-red-300"
+                        >
+                          Clear test data
+                        </button>
                       </div>
                     </div>
                   </div>

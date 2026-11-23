@@ -1,4 +1,5 @@
 import KotDailyCounter from "../models/KotDailyCounter.model.js";
+import { isTestModeActive } from "./testMode.js";
 
 const KOT_TIMEZONE = "Asia/Kolkata";
 
@@ -16,9 +17,12 @@ export const allocateDailyKotNumber = async ({
   session = null,
 }) => {
   const dateKey = getKotDateKey(printedAt);
-  const query = { restaurant: restaurantId, dateKey };
+  // Test mode counts KOTs on its own daily counter so real KOT numbers
+  // are never used up.
+  const counterKey = isTestModeActive() ? `TEST-${dateKey}` : dateKey;
+  const query = { restaurant: restaurantId, dateKey: counterKey };
   const update = {
-    $setOnInsert: { restaurant: restaurantId, dateKey },
+    $setOnInsert: { restaurant: restaurantId, dateKey: counterKey },
     $inc: { lastSerial: 1 },
   };
   const options = { new: true, upsert: true };

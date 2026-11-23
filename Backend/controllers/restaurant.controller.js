@@ -138,6 +138,11 @@
 
 import Restaurant from "../models/Restaurant.model.js";
 import Employee from "../models/Employee.model.js";
+import Bill from "../models/Bill.model.js";
+import Order from "../models/Order.model.js";
+import Table from "../models/Table.model.js";
+import KotDailyCounter from "../models/KotDailyCounter.model.js";
+import { invalidateTestModeCache } from "../utils/testMode.js";
 import { invalidateCacheNamespaces } from "../utils/cacheStore.js";
 
 const invalidateRestaurantCaches = ({ adminId, restaurantId }) => {
@@ -537,6 +542,96 @@ export const updateBillingTemplate = async (req, res) => {
     res.status(400).json({
       message: err.message
     });
+  }
+};
+
+
+/* =====================================================
+   TEST (TRAINING) MODE
+===================================================== */
+
+// Matches every document (null also matches a missing field), and because the
+// filter names isTest the automatic test/live scoping is skipped.
+const ANY_TEST_FLAG = { $in: [true, false, null] };
+
+const findOwnedRestaurant = (restaurantId, adminId) =>
+  Restaurant.findOne({ _id: restaurantId, admin: adminId });
+
+export const updateTestMode = async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const enabled = req.body?.enabled === true;
+
+    const restaurant = await findOwnedRestaurant(restaurantId, req.user.id);
+    if (!restaurant) {
+      return res.status(404).json({ message: "Restaurant not found" });
+    }
+
+    if (Boolean(restaurant.testMode) === enabled) {
+      return res.json({ success: true, restaurant });
+    }
+
+    // Switching while a table is running would leave a half-test, half-live bill.
+    const [runningBills, occupiedTables] = await Promise.all([
+      Bill.countDocuments({
+        restaurant: restaurant._id,
+        paymentStatus: "PENDING",
+        isTest: ANY_TEST_FLAG,
+      }),
+      Table.countDocuments({ restaurant: restaurant._id, status: "occupied" }),
+    ]);
+
+    if (runningBills > 0 || occupiedTables > 0) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Settle or void all running bills and free all tables before switching test mode.",
+      });
+    }
+
+    restaurant.testMode = enabled;
+    await restaurant.save();
+
+    invalidateTestModeCache(restaurant._id);
+    invalidateRestaurantCaches({ adminId: req.user.id, restaurantId });
+
+    res.json({ success: true, restaurant });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+export const clearTestData = async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+
+    const restaurant = await findOwnedRestaurant(restaurantId, req.user.id);
+    if (!restaurant) {
+      return res.status(404).json({ message: "Restaurant not found" });
+    }
+
+    const [bills, orders] = await Promise.all([
+      Bill.deleteMany({ restaurant: restaurant._id, isTest: true }),
+      Order.deleteMany({ restaurant: restaurant._id, isTest: true }),
+    ]);
+
+    // Restart the T- series and the test KOT counters.
+    restaurant.nextTestBillNumber = 0;
+    await restaurant.save();
+    await KotDailyCounter.deleteMany({
+      restaurant: restaurant._id,
+      dateKey: /^TEST-/,
+    });
+
+    invalidateRestaurantCaches({ adminId: req.user.id, restaurantId });
+
+    res.json({
+      success: true,
+      deletedBills: bills.deletedCount || 0,
+      deletedOrders: orders.deletedCount || 0,
+    });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 };
 

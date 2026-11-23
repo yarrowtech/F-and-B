@@ -14,6 +14,7 @@ import mongoose from "mongoose";
 import PDFDocument from "pdfkit";
 import ExcelJS from "exceljs";
 import { allocateDailyKotNumber } from "../utils/kotSerial.js";
+import { isTestModeActive } from "../utils/testMode.js";
 import { invalidateCacheNamespaces } from "../utils/cacheStore.js";
 import logger from "../utils/pinoLogger.js";
 import {
@@ -701,6 +702,9 @@ const deductInventoryForManualBill = async ({
   userName,
   session,
 }) => {
+  // Test orders must not touch real stock.
+  if (isTestModeActive()) return;
+
   for (const orderItem of orderItems) {
     const menu = menuById.get(String(orderItem.menuItem));
     const ingredients = Array.isArray(menu?.ingredients)
@@ -794,6 +798,9 @@ const buildBillReceiptText = (bill) => {
     Number(bill.discount || 0);
   const roundOff = Number(asMoney(Number(bill.totalAmount || 0) - rawTotal));
   const lines = [
+    ...(bill.isTest
+      ? [receiptCenter("*** TEST BILL ***", width), receiptCenter("NOT VALID", width)]
+      : []),
     ...(invoiceBadgeText ? [receiptCenter(invoiceBadgeText.toUpperCase(), width)] : []),
     receiptCenter(String(title).toUpperCase(), width),
   ];
@@ -890,6 +897,7 @@ const buildManualKotReceiptText = ({ order, restaurant, dailyKotNumber }) => {
   const width = 32;
   const title = restaurant?.name || "Restaurant";
   const metaLines = [
+    ...(order.isTest ? [receiptCenter("*** TEST KOT - NOT VALID ***", width)] : []),
     receiptLine(width),
     receiptPair("KOT NO", dailyKotNumber || "-", width),
     receiptPair("TYPE", order.orderType || "MANUAL", width),
@@ -1195,7 +1203,7 @@ const getInbox = async (req, res) => {
 const getBillingSettings = async (req, res) => {
   try {
     const restaurant = await Restaurant.findById(req.user.restaurant)
-      .select("name restaurantType billingTemplate")
+      .select("name restaurantType billingTemplate testMode")
       .lean();
 
     if (!restaurant) {
@@ -1207,6 +1215,7 @@ const getBillingSettings = async (req, res) => {
         _id: restaurant._id,
         name: restaurant.name,
         restaurantType: restaurant.restaurantType || "HYBRID",
+        testMode: restaurant.testMode === true,
         billingTemplate: getBillingTemplate(restaurant),
       },
     });
@@ -2217,6 +2226,9 @@ const buildSettlementReceiptText = (bill, { cashReceived = 0 } = {}) => {
   const received = Number(cashReceived || 0);
   const method = String(bill.paymentMethod || "").replace(/_/g, " ");
   const lines = [
+    ...(bill.isTest
+      ? [receiptCenter("*** TEST - NOT VALID ***", width)]
+      : []),
     receiptCenter(String(title).toUpperCase(), width),
     receiptCenter("PAYMENT SETTLEMENT", width),
     receiptLine(width),
