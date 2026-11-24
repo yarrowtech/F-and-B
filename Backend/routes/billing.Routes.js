@@ -114,6 +114,20 @@ router.post(
   billingController.generateTableBill
 );
 
+router.put(
+  "/table/:tableId/items",
+  auth,
+  allowRoles("accountant"),
+  billingController.editTableOrderItems
+);
+
+router.post(
+  "/table/:tableId/bill",
+  auth,
+  allowRoles("accountant"),
+  billingController.generateTableFinalBill
+);
+
 router.post(
   "/table/:tableId/settle",
   auth,

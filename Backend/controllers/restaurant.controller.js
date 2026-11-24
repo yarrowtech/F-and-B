@@ -140,7 +140,6 @@ import Restaurant from "../models/Restaurant.model.js";
 import Employee from "../models/Employee.model.js";
 import Bill from "../models/Bill.model.js";
 import Order from "../models/Order.model.js";
-import Table from "../models/Table.model.js";
 import KotDailyCounter from "../models/KotDailyCounter.model.js";
 import { invalidateTestModeCache } from "../utils/testMode.js";
 import { invalidateCacheNamespaces } from "../utils/cacheStore.js";
@@ -572,20 +571,28 @@ export const updateTestMode = async (req, res) => {
     }
 
     // Switching while a table is running would leave a half-test, half-live bill.
-    const [runningBills, occupiedTables] = await Promise.all([
+    const [runningBills, openOrders] = await Promise.all([
       Bill.countDocuments({
         restaurant: restaurant._id,
         paymentStatus: "PENDING",
         isTest: ANY_TEST_FLAG,
       }),
-      Table.countDocuments({ restaurant: restaurant._id, status: "occupied" }),
+      // A table can be left marked "occupied" after its order was paid, so
+      // look at unfinished orders instead of the table flag.
+      Order.countDocuments({
+        restaurant: restaurant._id,
+        table: { $ne: null },
+        status: {
+          $in: ["PENDING_ACCEPT", "PENDING", "ACCEPTED", "PREPARING", "READY", "SERVED"],
+        },
+        isTest: ANY_TEST_FLAG,
+      }),
     ]);
 
-    if (runningBills > 0 || occupiedTables > 0) {
+    if (runningBills > 0 || openOrders > 0) {
       return res.status(409).json({
         success: false,
-        message:
-          "Settle or void all running bills and free all tables before switching test mode.",
+        message: `Cannot switch test mode yet: ${runningBills} running bill(s) and ${openOrders} open table order(s). Settle or void them first.`,
       });
     }
 

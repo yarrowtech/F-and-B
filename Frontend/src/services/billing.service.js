@@ -245,6 +245,16 @@ export const generateTableBill = async (tableId, payload) => {
   return res.data.data;
 };
 
+export const editTableOrderItems = async (tableId, changes) => {
+  const res = await API.put(`/billing/table/${tableId}/items`, { changes });
+  return res.data.data;
+};
+
+export const generateTableFinalBill = async (tableId, payload) => {
+  const res = await API.post(`/billing/table/${tableId}/bill`, payload);
+  return res.data.data;
+};
+
 export const settleTableBill = async (tableId, payload) => {
   const res = await API.post(`/billing/table/${tableId}/settle`, payload);
   return res.data.data;

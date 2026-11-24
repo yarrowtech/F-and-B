@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { FaArrowLeft, FaCheck, FaMinus, FaPlus, FaPrint, FaSearch, FaTimes } from "react-icons/fa";
 import {
   generateTableBill,
+  generateTableFinalBill,
+  editTableOrderItems,
   getBillingSettings,
   getTableBillingHistory,
   getTableBoard,
@@ -95,6 +97,7 @@ export default function AccountantTableBilling() {
   const [discountType, setDiscountType] = useState("AMOUNT");
 
   const [settleOpen, setSettleOpen] = useState(false);
+  const [removeArmed, setRemoveArmed] = useState("");
   const [settleError, setSettleError] = useState("");
   const [method, setMethod] = useState("CASH");
   const [cashReceived, setCashReceived] = useState("");
@@ -453,7 +456,34 @@ export default function AccountantTableBilling() {
     setSettleError("");
   };
 
-  const handleGenerate = async () => {
+  // Correct an item that was already sent: reduce its quantity or remove it.
+  // (More of an item = Add Item + a new KOT.)
+  const editSentItem = async (item, quantity) => {
+    if (busy || !item?._id) return;
+    try {
+      setBusy(true);
+      setNotice("");
+      setRemoveArmed("");
+      const response = await editTableOrderItems(activeTable._id, [
+        { itemId: item._id, quantity },
+      ]);
+      if (response?.closed) {
+        setNotice("All items removed. The table is free again.");
+        closeTable();
+      } else {
+        setOpenBill(response);
+        setNotice("Item updated. Generate the bill again (F5).");
+      }
+      loadBoard();
+    } catch (err) {
+      setNotice(err?.response?.data?.message || err.message || "Failed to update item");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // F6: send the new items to the kitchen. Prints a KOT only (no bill).
+  const handleKot = async () => {
     if (cart.length === 0) {
       setNotice("Add at least one item");
       return;
@@ -469,12 +499,38 @@ export default function AccountantTableBilling() {
         })),
         ...chargePayload(),
       });
-      const { printJob, kotPrintJob, ...bill } = response;
+      const { kotPrintJob, ...bill } = response;
       setOpenBill(bill);
       setCart([]);
-      await printAll([printJob, kotPrintJob]);
+      await printAll([kotPrintJob]);
+      setNotice("KOT sent. Add more items, or press F5 for the bill.");
       loadBoard();
-      openSettlePopup(); // bill + KOT printed -> ask how the customer paid
+    } catch (err) {
+      setNotice(err?.response?.data?.message || err.message || "Failed to send KOT");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // F5: print the final bill for everything sent, then ask how they paid.
+  const handleBill = async () => {
+    if (!openBill) {
+      setNotice("Send a KOT first (F6), then generate the bill.");
+      return;
+    }
+    if (cart.length > 0) {
+      setNotice("You have new items. Send the KOT first (F6), then generate the bill.");
+      return;
+    }
+    try {
+      setBusy(true);
+      setNotice("");
+      const response = await generateTableFinalBill(activeTable._id, chargePayload());
+      const { printJob, ...bill } = response;
+      setOpenBill(bill);
+      await printAll([printJob]);
+      loadBoard();
+      openSettlePopup(); // bill printed -> ask how the customer paid
     } catch (err) {
       setNotice(err?.response?.data?.message || err.message || "Failed to generate bill");
     } finally {
@@ -484,7 +540,7 @@ export default function AccountantTableBilling() {
 
   const handleSettle = async () => {
     if (cart.length > 0) {
-      setSettleError("Finalize the new items first (KOT), or remove them.");
+      setSettleError("Send the KOT for the new items first, then generate the bill again.");
       return;
     }
     try {
@@ -506,21 +562,24 @@ export default function AccountantTableBilling() {
     }
   };
 
-  // F5 = Finalize Order (instead of reloading the page).
-  const handleGenerateRef = useRef(handleGenerate);
-  handleGenerateRef.current = handleGenerate;
+  // F6 = Send KOT, F5 = Generate Bill (F5 no longer reloads the page).
+  const handleKotRef = useRef(handleKot);
+  handleKotRef.current = handleKot;
+  const handleBillRef = useRef(handleBill);
+  handleBillRef.current = handleBill;
   useEffect(() => {
     if (!activeTable) return undefined;
     const onKeyDown = (event) => {
-      if (event.key !== "F5") return;
+      if (event.key !== "F5" && event.key !== "F6") return;
       event.preventDefault();
-      if (event.repeat || busy || cart.length === 0) return;
+      if (event.repeat || busy) return;
       if (settleOpen || showMenuList || showAdvanced || showComp) return;
-      handleGenerateRef.current();
+      if (event.key === "F6") handleKotRef.current();
+      else handleBillRef.current();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTable, busy, cart.length, settleOpen, showMenuList, showAdvanced, showComp]);
+  }, [activeTable, busy, settleOpen, showMenuList, showAdvanced, showComp]);
 
   // Settle pop-up keys: arrows / 1-9 choose, Enter settles & prints, Esc skips.
   const handleSettleRef = useRef(handleSettle);
@@ -1491,20 +1550,59 @@ export default function AccountantTableBilling() {
 
               {runningItems.length > 0 && (
                 <div className="mt-4">
-                  <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
-                    Already on bill (KOT printed)
+                  <p className="mb-1 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                    Already sent to kitchen (KOT printed)
+                  </p>
+                  <p className="mb-2 text-[11px] font-medium text-slate-500">
+                    Fix mistakes before the final bill. To add more, use Add Item and send a new KOT.
                   </p>
                   <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
-                    {runningItems.map((item, idx) => (
-                      <div key={item._id || idx} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                        <span className="min-w-0 truncate font-semibold text-slate-700 dark:text-slate-200">
-                          {item.quantity} × {item.menuItem?.name || "Item"}
-                        </span>
-                        <span className="shrink-0 font-bold text-slate-600 dark:text-slate-300">
-                          {formatCurrency(item.price * item.quantity)}
-                        </span>
-                      </div>
-                    ))}
+                    {runningItems.map((item, idx) => {
+                      const armed = removeArmed === String(item._id);
+                      return (
+                        <div
+                          key={item._id || idx}
+                          className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-slate-700 dark:text-slate-200">
+                              {item.quantity} × {item.menuItem?.name || "Item"}
+                            </p>
+                            <p className="text-[11px] font-bold text-slate-500">
+                              {formatCurrency(item.price * item.quantity)}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={busy || item.quantity <= 1}
+                              onClick={() => editSentItem(item, item.quantity - 1)}
+                              title="Reduce quantity by 1"
+                              className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
+                            >
+                              <FaMinus />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                armed
+                                  ? editSentItem(item, 0)
+                                  : setRemoveArmed(String(item._id))
+                              }
+                              onBlur={() => setRemoveArmed("")}
+                              className={`min-h-10 rounded-md px-2.5 text-[11px] font-black transition ${
+                                armed
+                                  ? "bg-rose-600 text-white"
+                                  : "bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
+                              }`}
+                            >
+                              {armed ? "Sure?" : "Remove"}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1516,7 +1614,7 @@ export default function AccountantTableBilling() {
                 <h3 className="mb-4 text-[1.05rem] font-black text-slate-900 dark:text-white">
                   Billing Summary
                 </h3>
-                <div className="space-y-3 text-sm">
+                <div className="space-y-1.5 text-sm">
                   <div className="flex justify-between gap-3 text-slate-600 dark:text-slate-300">
                     <span>Items Subtotal</span>
                     <span>{formatCurrency(totals.itemsSubtotal)}</span>
@@ -1556,35 +1654,51 @@ export default function AccountantTableBilling() {
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(true)}
-                  className="mt-5 inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  className="mt-3 inline-flex min-h-9 w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   Edit Taxes & Fees
                 </button>
 
-                <div className="mt-4 flex items-end justify-between gap-3 border-t border-dashed border-slate-200 pt-4 dark:border-slate-700">
+                <div className="mt-3 flex items-end justify-between gap-3 border-t border-dashed border-slate-200 pt-3 dark:border-slate-700">
                   <span className="text-sm font-black text-slate-900 dark:text-white">Total Amount</span>
-                  <span className="text-2xl font-black text-slate-900 dark:text-white">
+                  <span className="text-xl font-black text-slate-900 dark:text-white">
                     {formatCurrency(totals.total)}
                   </span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleGenerate}
-                  disabled={busy || cart.length === 0}
-                  className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <FaCheck />
-                  {busy ? "Generating..." : "Finalize Order"}
-                  <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-black">F5</span>
-                </button>
-                <p className="mt-1.5 text-center text-[11px] text-slate-500">Prints KOT + Bill</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleKot}
+                    disabled={busy || cart.length === 0}
+                    title="Prints a KOT with only the new items"
+                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-2 py-2 text-sm font-bold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {busy ? "Working..." : "Send KOT"}
+                    <span className="rounded bg-white/25 px-1 py-0.5 text-[10px] font-black">F6</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBill}
+                    disabled={busy || !openBill || cart.length > 0}
+                    title="Prints the final bill for all KOTs"
+                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-2 py-2 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {busy ? "Working..." : "Generate Bill"}
+                    <span className="rounded bg-white/25 px-1 py-0.5 text-[10px] font-black">F5</span>
+                  </button>
+                </div>
+                {cart.length > 0 && openBill && (
+                  <p className="mt-1 text-center text-[10px] text-slate-500">
+                    Send the KOT for the new items first
+                  </p>
+                )}
 
-                {openBill && (
+                {openBill?.billPrintedAt && cart.length === 0 && (
                   <button
                     type="button"
                     onClick={openSettlePopup}
-                    className="mt-3 min-h-12 w-full rounded-xl bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900"
+                    className="mt-2 min-h-11 w-full rounded-xl bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900"
                   >
                     Settle Payment
                   </button>

@@ -1455,7 +1455,7 @@ const createManualBill = async (req, res) => {
 
     return sendSuccess(
       res,
-      { ...populatedBill.toObject(), printJob, kotPrintJob },
+      { ...populatedBill.toObject(), kotPrintJob },
       201
     );
   } catch (err) {
@@ -1731,6 +1731,9 @@ const generateTableBill = async (req, res) => {
       bill: existingBill,
       template,
     });
+    // New items were added, so any bill printed earlier is out of date and
+    // must be generated again before settling.
+    totalFields.billPrintedAt = null;
 
     let billId;
     if (existingBill) {
@@ -1776,7 +1779,6 @@ const generateTableBill = async (req, res) => {
       _id: billId,
       restaurant: req.user.restaurant,
     });
-    const printJob = await buildManualBillPrintJob(billId, req.user.id);
 
     const kotCopyCount = getKotCopyCount(template.kotCopyCount);
     const kotText = buildManualKotReceiptText({
@@ -1817,7 +1819,7 @@ const generateTableBill = async (req, res) => {
 
     return sendSuccess(
       res,
-      { ...populatedBill.toObject(), printJob, kotPrintJob },
+      { ...populatedBill.toObject(), kotPrintJob },
       201
     );
   } catch (err) {
@@ -1825,6 +1827,123 @@ const generateTableBill = async (req, res) => {
       await session.abortTransaction();
       session.endSession();
     }
+    logger.error(err);
+    return sendError(res, err.message, err.status || 400);
+  }
+};
+
+// Before the final bill the accountant can correct what was already sent:
+// reduce a quantity or remove an item. (To add more, send a new KOT.)
+const editTableOrderItems = async (req, res) => {
+  try {
+    const restaurantSettings = await assertAccountantBillingRestaurant(
+      req.user.restaurant
+    );
+    const changes = Array.isArray(req.body?.changes) ? req.body.changes : [];
+    if (changes.length === 0) return sendError(res, "No changes to save");
+
+    const bill = await findOpenTableBill(req.user.restaurant, req.params.tableId);
+    if (!bill) return sendError(res, "No running order for this table", 404);
+
+    const order = await Order.findById(bill.order);
+    if (!order) return sendError(res, "Order not found", 404);
+
+    const now = new Date();
+    changes.forEach((change) => {
+      const item = order.items.id(sanitizeText(change.itemId));
+      if (!item || item.status === "CANCELLED") {
+        throw new Error("Item not found on this table");
+      }
+      const quantity = Math.floor(sanitizeAmount(change.quantity));
+      if (quantity < 0 || quantity > Number(item.quantity)) {
+        throw new Error("You can only reduce the quantity here. Use Add Item to add more.");
+      }
+      if (quantity === 0) {
+        item.status = "CANCELLED";
+        item.cancelledAt = now;
+        item.cancelledBy = req.user.id;
+        item.cancellationReason = "Removed by accountant before the final bill";
+        item.cancellationStage = "AFTER_PREPARATION";
+      } else {
+        item.quantity = quantity;
+      }
+    });
+
+    // Nothing left on the table: close the order and free the table.
+    if (getBillableOrderItems(order).length === 0) {
+      order.status = "CANCELLED";
+      await order.save();
+      bill.paymentStatus = "VOID";
+      bill.voidedAt = now;
+      bill.voidedBy = req.user.id;
+      bill.voidReason = "All items were removed before the final bill";
+      await bill.save();
+      await Table.findByIdAndUpdate(req.params.tableId, { status: "available" });
+      invalidateCacheNamespaces(["dashboard"]);
+      return sendSuccess(res, { closed: true });
+    }
+
+    await order.save();
+    bill.set(
+      buildTableBillFields({
+        order,
+        body: {},
+        bill,
+        template: getBillingTemplate(restaurantSettings),
+      })
+    );
+    // The totals changed, so the bill must be generated again.
+    bill.billPrintedAt = null;
+    await bill.save();
+
+    invalidateCacheNamespaces(["dashboard"]);
+    const populatedBill = await findBillWithOrder({
+      _id: bill._id,
+      restaurant: req.user.restaurant,
+    });
+    return sendSuccess(res, populatedBill.toObject());
+  } catch (err) {
+    logger.error(err);
+    return sendError(res, err.message, err.status || 400);
+  }
+};
+
+// Step 2 of table billing: print the final bill for everything sent so far.
+const generateTableFinalBill = async (req, res) => {
+  try {
+    const restaurantSettings = await assertAccountantBillingRestaurant(
+      req.user.restaurant
+    );
+
+    const bill = await findOpenTableBill(req.user.restaurant, req.params.tableId);
+    if (!bill) {
+      return sendError(res, "No running order for this table. Send a KOT first.", 404);
+    }
+
+    const order = await Order.findById(bill.order);
+    if (!order || getBillableOrderItems(order).length === 0) {
+      return sendError(res, "There are no items to bill on this table");
+    }
+
+    bill.set(
+      buildTableBillFields({
+        order,
+        body: req.body,
+        bill,
+        template: getBillingTemplate(restaurantSettings),
+      })
+    );
+    bill.billPrintedAt = new Date();
+    await bill.save();
+
+    const printJob = await buildManualBillPrintJob(bill._id, req.user.id);
+    const populatedBill = await findBillWithOrder({
+      _id: bill._id,
+      restaurant: req.user.restaurant,
+    });
+
+    return sendSuccess(res, { ...populatedBill.toObject(), printJob });
+  } catch (err) {
     logger.error(err);
     return sendError(res, err.message, err.status || 400);
   }
@@ -1841,6 +1960,9 @@ const settleTableBill = async (req, res) => {
 
     const bill = await findOpenTableBill(req.user.restaurant, req.params.tableId);
     if (!bill) return sendError(res, "No open bill for this table", 404);
+    if (!bill.billPrintedAt) {
+      return sendError(res, "Generate the bill before settling", 409);
+    }
 
     // Charges / discount / complimentary may be adjusted at settlement time.
     {
@@ -2861,6 +2983,8 @@ export default {
   getTableBoard,
   getTableOrder,
   generateTableBill,
+  generateTableFinalBill,
+  editTableOrderItems,
   settleTableBill,
   customizeBill,
   getBillPrintBundle,

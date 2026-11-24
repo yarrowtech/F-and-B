@@ -136,6 +136,13 @@ const billSchema = new mongoose.Schema(
       default: null,
     },
 
+    // Table billing: when the final bill was printed. null = KOT(s) sent but
+    // the bill is not generated yet (or new items were added afterwards).
+    billPrintedAt: {
+      type: Date,
+      default: null,
+    },
+
     itemsTotal: {
       type: Number,
       required: true,
