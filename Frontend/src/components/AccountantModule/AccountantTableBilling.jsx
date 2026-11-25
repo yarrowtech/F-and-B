@@ -378,13 +378,13 @@ export default function AccountantTableBilling() {
     const chargeable = allLines.filter((l) => !isFree(l));
     const itemsSubtotal = allLines.reduce((s, l) => s + l.price * l.quantity, 0);
     const base = chargeable.reduce((s, l) => s + l.price * l.quantity, 0);
-    const withTax = chargeable.reduce(
-      (s, l) =>
-        l.gstFree
-          ? s + l.price * l.quantity // GST-free item: exact price, no tax
-          : s + Math.ceil(l.price * (1 + (effectiveCgst + effectiveSgst) / 100)) * l.quantity,
+    const taxableAmount = chargeable.reduce(
+      (sum, line) => line.gstFree ? sum : sum + line.price * line.quantity,
       0
     );
+    const cgst = Math.round(taxableAmount * effectiveCgst + Number.EPSILON) / 100;
+    const sgst = Math.round(taxableAmount * effectiveSgst + Number.EPSILON) / 100;
+    const withTax = base + cgst + sgst;
     const complimentary = allLines
       .filter(isFree)
       .reduce((s, l) => s + l.price * l.quantity, 0);
@@ -393,17 +393,20 @@ export default function AccountantTableBilling() {
     const extra = num(extraCharge);
     const before = withTax + service + packaging + extra;
     const dv = num(discount);
-    const raw = discountType === "PERCENT" ? before * (Math.min(dv, 100) / 100) : dv;
+    const raw = discountType === "PERCENT" ? Number((before * (Math.min(dv, 100) / 100)).toFixed(2)) : dv;
     const applied = Math.min(raw, before);
     return {
       itemsSubtotal,
       complimentary,
-      tax: Math.max(withTax - base, 0),
+      tax: Number((cgst + sgst).toFixed(2)),
+      cgst,
+      sgst,
+      roundOff: Number((Math.round(Number((before - applied).toFixed(2))) - (before - applied)).toFixed(2)),
       service,
       packaging,
       extra,
       discount: applied,
-      total: Math.ceil(before - applied),
+      total: Math.round(Number((before - applied).toFixed(2))),
     };
   }, [
     allLines, compType, compItems, effectiveCgst, effectiveSgst,
@@ -1624,8 +1627,16 @@ export default function AccountantTableBilling() {
                     <span>-{formatCurrency(totals.complimentary)}</span>
                   </div>
                   <div className="flex justify-between gap-3 text-slate-600 dark:text-slate-300">
-                    <span>Taxes (GST)</span>
-                    <span>{formatCurrency(totals.tax)}</span>
+                    <span>CGST ({effectiveCgst}%)</span>
+                    <span>{formatCurrency(totals.cgst)}</span>
+                  </div>
+                  <div className="flex justify-between gap-3 text-slate-600 dark:text-slate-300">
+                    <span>SGST ({effectiveSgst}%)</span>
+                    <span>{formatCurrency(totals.sgst)}</span>
+                  </div>
+                  <div className="flex justify-between gap-3 text-slate-600 dark:text-slate-300">
+                    <span>Round Off</span>
+                    <span>{formatCurrency(totals.roundOff)}</span>
                   </div>
                   <div className="flex justify-between gap-3 text-slate-600 dark:text-slate-300">
                     <span>Service Charge</span>

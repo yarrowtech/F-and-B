@@ -906,9 +906,9 @@ const handleDelete = async (id) => {
 
 /* ══════════════ MODAL WRAPPER ══════════════ */
 const Modal = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+  <div className="fixed inset-0 z-[1000] flex items-end justify-center sm:items-center sm:p-4">
     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-    <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl dark:bg-gray-800 sm:mx-4 sm:max-w-md sm:rounded-2xl sm:p-7">
+    <div className="relative z-10 max-h-[92dvh] w-full pb-[max(1.25rem,env(safe-area-inset-bottom))] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl dark:bg-gray-800 sm:mx-4 sm:max-w-md sm:rounded-2xl sm:p-7">
       <div className="mb-6 flex items-start justify-between gap-3">
         <h2 className="text-lg font-bold text-gray-800 dark:text-white sm:text-xl">{title}</h2>
         <button

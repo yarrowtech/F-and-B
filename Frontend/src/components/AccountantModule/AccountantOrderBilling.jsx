@@ -75,7 +75,7 @@ const sanitizeNumber = (value) => {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 };
 
-const roundNetPayableUp = (value) => Math.ceil(Number(value || 0));
+const roundNetPayable = (value) => Math.round(Number(Number(value || 0).toFixed(2)));
 const DEFAULT_PAYMENT_METHODS = ["CASH", "CARD", "UPI"];
 const paymentMethodLabel = (method) =>
   String(method || "")
@@ -176,7 +176,7 @@ const buildTotals = (itemsTotal, customValues, orderItems = []) => {
       ? Number((grossAmount * (Math.min(discount, 100) / 100)).toFixed(2))
       : discount;
   const finalDiscount = Math.min(computedDiscount, grossAmount);
-  const totalAmount = roundNetPayableUp(grossAmount - finalDiscount);
+  const totalAmount = roundNetPayable(grossAmount - finalDiscount);
 
   return {
     itemsTotal: safeItemsTotal,
@@ -228,22 +228,14 @@ const buildManualTotals = (manualBill) => {
     (sum, item) => sum + getOrderItemAmount(item),
     0
   );
-  const itemWiseRoundedTotal = chargeableItems.reduce((sum, item) => {
-    const price = Number(item.price || 0);
-    const quantity = Number(item.quantity || 0);
-    if (item.gstFree === true) return sum + price * quantity;
-    const unitWithTax = price * (1 + (cgstRate + sgstRate) / 100);
-    return sum + Math.ceil(unitWithTax) * quantity;
-  }, 0);
-  const taxTotal = Number(Math.max(itemWiseRoundedTotal - itemsTotal, 0).toFixed(2));
-  const totalTaxRate = cgstRate + sgstRate;
-  const cgst =
-    totalTaxRate > 0
-      ? Number(((taxTotal * cgstRate) / totalTaxRate).toFixed(2))
-      : 0;
-  const sgst = Number((taxTotal - cgst).toFixed(2));
+  const taxableAmount = chargeableItems.reduce(
+    (sum, item) => item.gstFree === true ? sum : sum + getOrderItemAmount(item),
+    0
+  );
+  const cgst = Math.round(taxableAmount * cgstRate + Number.EPSILON) / 100;
+  const sgst = Math.round(taxableAmount * sgstRate + Number.EPSILON) / 100;
   const grossAmount =
-    itemWiseRoundedTotal + serviceCharge + packagingCharge + extraCharge;
+    itemsTotal + cgst + sgst + serviceCharge + packagingCharge + extraCharge;
   const computedDiscount =
     discountType === "PERCENT"
       ? Number((grossAmount * (Math.min(discountInput, 100) / 100)).toFixed(2))
@@ -268,18 +260,8 @@ const buildManualTotals = (manualBill) => {
     discountType,
     discountValue:
       discountType === "PERCENT" ? Math.min(discountInput, 100) : discountInput,
-    totalAmount: roundNetPayableUp(grossAmount - discount),
+    totalAmount: roundNetPayable(grossAmount - discount),
   };
-};
-
-const getManualRoundedLineTotal = (item, manualBill) => {
-  const price = Number(item?.price || 0);
-  const quantity = Number(item?.quantity || 0);
-  const cgstRate = sanitizeNumber(manualBill?.cgstRate);
-  const sgstRate = sanitizeNumber(manualBill?.sgstRate);
-  if (item?.gstFree === true) return price * quantity;
-  const unitWithTax = price * (1 + (cgstRate + sgstRate) / 100);
-  return Math.ceil(unitWithTax) * quantity;
 };
 
 const getDiscountLabel = (values) =>
@@ -2387,16 +2369,16 @@ function ClassicAccountantOrderBilling() {
                               </span>
                             )}
                             <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-200 dark:bg-slate-900 dark:ring-emerald-900/60">
-                              {formatCurrency(getManualRoundedLineTotal(item, manualBill))}
+                              {formatCurrency(getOrderItemAmount(item))}
                             </span>
                           </div>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
                           <span>Code {menuItems.find((menu) => menu._id === item.menuItem)?.menuCode || "----"}</span>
                           <span className="text-slate-300">|</span>
-                          <span>{formatCurrency(item.gstFree ? Number(item.price || 0) : Math.ceil(Number(item.price || 0) * (1 + (sanitizeNumber(manualBill.cgstRate) + sanitizeNumber(manualBill.sgstRate)) / 100)))} x {item.quantity}</span>
+                          <span>{formatCurrency(Number(item.price || 0))} x {item.quantity}</span>
                           <span className="text-slate-300">|</span>
-                          <span className="text-slate-700 dark:text-slate-200">{item.gstFree ? "GST free item" : "GST rounded line item"}</span>
+                          <span className="text-slate-700 dark:text-slate-200">{item.gstFree ? "GST free item" : "GST added to subtotal"}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 rounded-xl bg-white px-2 py-2 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
@@ -4256,7 +4238,7 @@ function ClassicAccountantOrderBilling() {
                         <span className="min-w-0">
                           <span className="block break-words leading-snug">{item.name}</span>
                           <span className="text-xs font-medium text-slate-400">
-                            Qty {item.quantity} | {formatCurrency(getManualRoundedLineTotal(item, manualBill))}
+                            Qty {item.quantity} | {formatCurrency(getOrderItemAmount(item))}
                           </span>
                         </span>
                         <span

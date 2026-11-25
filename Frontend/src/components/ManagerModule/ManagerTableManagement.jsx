@@ -545,9 +545,10 @@ const EmptyState = ({ children }) => (
 );
 
 const Modal = ({ title, onClose, children }) => (
-  <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+  <div className="fixed inset-0 z-[1000] flex items-end justify-center p-0 sm:items-center sm:p-4">
+
     <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" onClick={onClose} />
-    <div className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl dark:bg-neutral-900 sm:mx-4 sm:max-w-2xl sm:rounded-2xl sm:p-6">
+    <div className="relative z-10 max-h-[92dvh] w-full overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))] rounded-t-2xl bg-white p-5 shadow-2xl dark:bg-neutral-900 sm:mx-4 sm:max-w-2xl sm:rounded-2xl sm:p-6">
       <div className="mb-5 flex items-start justify-between gap-3">
         <h2 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h2>
         <button onClick={onClose} className="rounded-lg px-2 text-2xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-neutral-800">

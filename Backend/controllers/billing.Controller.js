@@ -306,7 +306,7 @@ const sanitizeAmount = (value) => {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 };
 
-const roundNetPayableUp = (value) => Math.ceil(Number(value || 0));
+const roundNetPayable = (value) => Math.round(Number(Number(value || 0).toFixed(2)));
 
 const sanitizeRate = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -562,7 +562,7 @@ const calculateBillTotals = ({
     rawDiscount,
     subtotalBeforeDiscount
   );
-  const totalAmount = roundNetPayableUp(
+  const totalAmount = roundNetPayable(
     subtotalBeforeDiscount - appliedDiscount
   );
 
@@ -630,27 +630,16 @@ const calculateManualBillTotals = ({
     0
   );
 
-  // GST-free items (water, ice...) are billed at their exact price with no tax.
-  let taxableAmount = 0;
-  const itemWiseRoundedTotal = chargeableOrderItems.reduce((sum, item) => {
-    const price = Number(item.price ?? item.menuItem?.price ?? 0);
-    const quantity = Number(item.quantity || 0);
-    if (item.gstFree === true) return sum + price * quantity;
-    taxableAmount += price * quantity;
-    const unitWithTax = price * (1 + (normalizedCgstRate + normalizedSgstRate) / 100);
-    return sum + Math.ceil(unitWithTax) * quantity;
-  }, 0);
-
-  const totalTax = Number(Math.max(itemWiseRoundedTotal - baseItemsTotal, 0).toFixed(2));
-  const totalTaxRate = normalizedCgstRate + normalizedSgstRate;
-  const cgst =
-    totalTaxRate > 0
-      ? Number(((totalTax * normalizedCgstRate) / totalTaxRate).toFixed(2))
-      : 0;
-  const sgst = Number((totalTax - cgst).toFixed(2));
+  // Calculate GST on the taxable subtotal; round only the final payable amount.
+  const taxableAmount = chargeableOrderItems.reduce(
+    (sum, item) => item.gstFree === true ? sum : sum + getOrderItemAmount(item),
+    0
+  );
+  const cgst = Math.round(taxableAmount * normalizedCgstRate + Number.EPSILON) / 100;
+  const sgst = Math.round(taxableAmount * normalizedSgstRate + Number.EPSILON) / 100;
 
   const subtotalBeforeDiscount =
-    itemWiseRoundedTotal +
+    baseItemsTotal + cgst + sgst +
     normalizedServiceCharge +
     normalizedPackagingCharge +
     normalizedExtraCharge;
@@ -685,7 +674,7 @@ const calculateManualBillTotals = ({
       normalizedDiscountType === "PERCENT"
         ? Math.min(normalizedDiscountValue, 100)
         : normalizedDiscountValue,
-    totalAmount: roundNetPayableUp(subtotalBeforeDiscount - appliedDiscount),
+    totalAmount: roundNetPayable(subtotalBeforeDiscount - appliedDiscount),
   };
 };
 
