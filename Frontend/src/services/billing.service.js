@@ -279,3 +279,22 @@ export const reviewVoidRequest = async (billId, requestId, decision) => {
   const res = await API.post(`/billing/${billId}/void-review`, { requestId, decision });
   return res.data.data;
 };
+
+export const getSalesReport = async (date, type) => {
+  const res = await API.get("/billing/sales-report", { params: { date, type } });
+  return res.data.data;
+};
+
+export const downloadSalesReportExcel = async (date, type) => {
+  const res = await API.get("/billing/sales-report", {
+    params: { date, type, format: "excel" }, responseType: "blob",
+  });
+  const url = URL.createObjectURL(res.data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${type}-sales-${date}.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};

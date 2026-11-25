@@ -28,6 +28,7 @@ const AccountantSidebar = ({ active, setActive }) => {
     { name: "Order Billing", icon: FaUtensils,      key: "orderbilling" },
     { name: "Tables",        icon: FaTable,         key: "tables" },
     { name: "Daily Sales Report", icon: FaChartBar, key: "daily-sales" },
+    { name: "Item-wise Sales Report", icon: FaChartBar, key: "item-sales" },
     { name: "Attendance",    icon: FaClipboardCheck,key: "attendance" },
     { name: "Profile",       icon: FaUserCircle,    key: "profile" },
     { name: "Notes",         icon: FaStickyNote,    key: "notes" },

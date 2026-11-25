@@ -49,6 +49,7 @@
 import express from "express";
 import billingController from "../controllers/billing.Controller.js";
 import auth from "../middlewares/auth.middleware.js";
+import { getAccountantSalesReport } from "../controllers/accountantSales.controller.js";
 import allowRoles from "../middlewares/role.middleware.js";
 
 const router = express.Router();
@@ -57,6 +58,8 @@ router.get(
   "/public/:id/pdf",
   billingController.generatePublicBillPDF
 );
+
+router.get("/sales-report", auth, allowRoles("accountant"), getAccountantSalesReport);
 
 router.get(
   "/settings",

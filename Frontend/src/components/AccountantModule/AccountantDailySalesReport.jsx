@@ -1,303 +1,112 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  CalendarDays,
-  CreditCard,
-  Download,
-  IndianRupee,
-  Landmark,
-  ReceiptIndianRupee,
-  Printer,
-  ReceiptText,
-  WalletCards,
-} from "lucide-react";
-import { getAccountantDashboard } from "../../services/dashboard.service";
+import { useEffect, useState } from "react";
+import { FaPrint, FaFileExcel } from "react-icons/fa";
+import { getSalesReport, downloadSalesReportExcel } from "../../services/billing.service";
+import { printJobsOnThisDevice } from "../../services/localPrint.service";
 
-const toLocalDateInput = (date = new Date()) => {
-  const offset = date.getTimezoneOffset() * 60 * 1000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
-};
+const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+const money = (value) => Number(value || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" });
 
-const formatMoney = (value) =>
-  `₹${Number(value || 0).toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-
-const formatTime = (value) =>
-  value
-    ? new Date(value).toLocaleTimeString("en-IN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      })
-    : "-";
-
-const escapeCsv = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
-
-function SummaryCard({ icon: Icon, label, value, tone }) {
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${tone}`}>
-        {React.createElement(Icon, { size: 20 })}
-      </div>
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-black text-slate-950 dark:text-white">{value}</p>
-    </article>
-  );
-}
-
-export default function AccountantDailySalesReport() {
-  const [selectedDate, setSelectedDate] = useState(toLocalDateInput);
-  const [paidBills, setPaidBills] = useState([]);
+export default function AccountantDailySalesReport({ type: initialType = "daily" }) {
+  const [type, setType] = useState(initialType);
+  const [date, setDate] = useState(today);
+  const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const itemReport = type === "items";
+  const title = itemReport ? "Item-wise Sales Report" : "Daily Sales Report";
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setError("");
+    setReport(null);
+    if (!date) { setLoading(false); return; }
+    getSalesReport(date, type)
+      .then((data) => { if (active) setReport(data); })
+      .catch((err) => { if (active) setError(err.response?.data?.message || "Unable to load report"); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [date, type]);
 
-    const loadReport = async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const data = await getAccountantDashboard({
-          filter: "custom",
-          from: selectedDate,
-          to: selectedDate,
+  const exportReport = async (format) => {
+    setBusy(format);
+    setError("");
+    try {
+      if (format === "excel") await downloadSalesReportExcel(date, type);
+      else {
+        const latest = await getSalesReport(date, type);
+        setReport(latest);
+        await printJobsOnThisDevice([{ receiptText: latest.receiptText, printerName: "", status: "LOCAL" }], {
+          combineBrowserFallback: true, combineLocalJobs: false, ensureCutAfterEach: true,
         });
-        if (active) setPaidBills(Array.isArray(data?.paidBills) ? data.paidBills : []);
-      } catch (requestError) {
-        if (active) {
-          setPaidBills([]);
-          setError(requestError.response?.data?.message || "Unable to load the daily sales report.");
-        }
-      } finally {
-        if (active) setLoading(false);
       }
-    };
-
-    loadReport();
-    return () => {
-      active = false;
-    };
-  }, [selectedDate]);
-
-  const report = useMemo(() => {
-    const totals = paidBills.reduce(
-      (result, bill) => {
-        const method = String(bill.paymentMethod || "OTHER").toUpperCase();
-        const gross = Number(bill.itemsTotal || 0);
-        const discount = Number(bill.discount || 0);
-        const tax = Number(bill.cgst || 0) + Number(bill.sgst || 0);
-        const collected = Number(bill.totalAmount || 0);
-
-        result.gross += gross;
-        result.discount += discount;
-        result.tax += tax;
-        result.net += Math.max(gross - discount, 0);
-        result.collected += collected;
-        result.payments[method] = (result.payments[method] || 0) + collected;
-        return result;
-      },
-      { gross: 0, discount: 0, tax: 0, net: 0, collected: 0, payments: {} }
-    );
-
-    return totals;
-  }, [paidBills]);
-
-  const downloadCsv = () => {
-    const headers = [
-      "Bill No",
-      "Order No",
-      "Table",
-      "Paid At",
-      "Payment Method",
-      "Gross",
-      "Discount",
-      "Tax",
-      "Net Sales",
-      "Total Collected",
-    ];
-    const rows = paidBills.map((bill) => [
-      bill.billNo || bill._id,
-      bill.order?.orderNo || "",
-      bill.order?.table?.tableNumber || "",
-      bill.paidAt || bill.updatedAt || "",
-      bill.paymentMethod || "",
-      Number(bill.itemsTotal || 0).toFixed(2),
-      Number(bill.discount || 0).toFixed(2),
-      (Number(bill.cgst || 0) + Number(bill.sgst || 0)).toFixed(2),
-      Math.max(Number(bill.itemsTotal || 0) - Number(bill.discount || 0), 0).toFixed(2),
-      Number(bill.totalAmount || 0).toFixed(2),
-    ]);
-    const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `daily-sales-${selectedDate}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(typeof err.response?.data?.message === "string" ? err.response.data.message : "Report export failed. Please try again.");
+    } finally { setBusy(""); }
   };
 
-  const displayDate = new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-
+  const rows = report ? (itemReport ? report.items : report.daily) : [];
+  const columns = itemReport
+    ? [["name", "Item"], ["quantity", "Sold Qty"], ["complimentaryQuantity", "Free Qty"], ["amount", "Item Value"]]
+    : [["billNo", "Bill"], ["table", "Table"], ["payment", "Payment"], ["items", "Items"], ["discount", "Discount"], ["cgst", "CGST"], ["sgst", "SGST"], ["charges", "Charges"], ["roundOff", "Round Off"], ["collected", "Collected"]];
+  const amountKeys = new Set(["amount", "items", "discount", "cgst", "sgst", "charges", "roundOff", "collected"]);
+  const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold disabled:opacity-50";
   return (
-    <div className="min-h-full bg-slate-50 p-3 text-slate-950 dark:bg-neutral-800 dark:text-white sm:p-5 lg:p-6">
-      <div className="mx-auto max-w-7xl space-y-5">
-        <header className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6 print:border-0 print:shadow-none">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-600">
-                Accountant Reports
-              </p>
-              <h1 className="mt-2 text-2xl font-black sm:text-3xl">Daily Sales Report</h1>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{displayDate}</p>
-            </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row print:hidden">
-              <label className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950">
-                <CalendarDays size={18} className="text-emerald-600" />
-                <input
-                  type="date"
-                  value={selectedDate}
-                  max={toLocalDateInput()}
-                  onChange={(event) => setSelectedDate(event.target.value)}
-                  className="bg-transparent text-sm font-bold outline-none dark:text-white"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={downloadCsv}
-                disabled={paidBills.length === 0}
-                className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Download size={17} /> Export CSV
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-              >
-                <Printer size={17} /> Print
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-            {error}
-          </div>
-        ) : null}
-
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <SummaryCard icon={ReceiptText} label="Paid Bills" value={loading ? "..." : paidBills.length} tone="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200" />
-          <SummaryCard icon={WalletCards} label="Gross Sales" value={loading ? "..." : formatMoney(report.gross)} tone="bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300" />
-          <SummaryCard icon={CreditCard} label="Discounts" value={loading ? "..." : formatMoney(report.discount)} tone="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" />
-          <SummaryCard icon={IndianRupee} label="Net Sales" value={loading ? "..." : formatMoney(report.net)} tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" />
-          <SummaryCard icon={ReceiptIndianRupee} label="Total Collected" value={loading ? "..." : formatMoney(report.collected)} tone="bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300" />
-        </section>
-
-        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <div className="border-b border-slate-200 px-4 py-4 dark:border-slate-700">
-              <h2 className="font-black">Sales Transactions</h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">All bills collected by you on this date</p>
-            </div>
-
-            {loading ? (
-              <div className="flex min-h-56 items-center justify-center text-sm font-semibold text-slate-500">Loading report...</div>
-            ) : paidBills.length === 0 ? (
-              <div className="flex min-h-56 items-center justify-center p-6 text-center text-sm font-semibold text-slate-500">
-                No paid sales found for {displayDate}.
-              </div>
-            ) : (
-              <>
-                <div className="divide-y divide-slate-100 dark:divide-slate-800 lg:hidden">
-                  {paidBills.map((bill) => (
-                    <article key={bill._id} className="p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-black">{bill.billNo || bill._id?.slice(-6)}</p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            Table {bill.order?.table?.tableNumber || "-"} · {formatTime(bill.paidAt || bill.updatedAt)}
-                          </p>
-                        </div>
-                        <p className="font-black text-emerald-700 dark:text-emerald-300">{formatMoney(bill.totalAmount)}</p>
-                      </div>
-                      <p className="mt-3 text-xs font-bold text-slate-500">{bill.paymentMethod || "OTHER"}</p>
-                    </article>
-                  ))}
-                </div>
-
-                <div className="hidden overflow-x-auto lg:block">
-                  <table className="w-full min-w-[760px] text-sm">
-                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800">
-                      <tr>
-                        {["Bill", "Order", "Table", "Time", "Payment", "Gross", "Discount", "Tax", "Net", "Collected"].map((heading) => (
-                          <th key={heading} className="px-4 py-3 font-bold">{heading}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {paidBills.map((bill) => (
-                        <tr key={bill._id}>
-                          <td className="px-4 py-3 font-bold">{bill.billNo || bill._id?.slice(-6)}</td>
-                          <td className="px-4 py-3">{bill.order?.orderNo || "-"}</td>
-                          <td className="px-4 py-3">{bill.order?.table?.tableNumber || "-"}</td>
-                          <td className="px-4 py-3">{formatTime(bill.paidAt || bill.updatedAt)}</td>
-                          <td className="px-4 py-3 font-semibold">{bill.paymentMethod || "OTHER"}</td>
-                          <td className="px-4 py-3">{formatMoney(bill.itemsTotal)}</td>
-                          <td className="px-4 py-3">{formatMoney(bill.discount)}</td>
-                          <td className="px-4 py-3">{formatMoney(Number(bill.cgst || 0) + Number(bill.sgst || 0))}</td>
-                          <td className="px-4 py-3 font-black text-emerald-700 dark:text-emerald-300">{formatMoney(Math.max(Number(bill.itemsTotal || 0) - Number(bill.discount || 0), 0))}</td>
-                          <td className="px-4 py-3 font-black text-violet-700 dark:text-violet-300">{formatMoney(bill.totalAmount)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </div>
-
-          <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <div className="flex items-center gap-2">
-              <Landmark size={19} className="text-emerald-600" />
-              <h2 className="font-black">Settlement Summary</h2>
-            </div>
-            <div className="mt-4 space-y-3">
-              {Object.entries(report.payments).length === 0 ? (
-                <p className="py-6 text-center text-sm font-semibold text-slate-500">No settlements</p>
-              ) : (
-                Object.entries(report.payments)
-                  .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([method, amount]) => (
-                    <div key={method} className="flex items-center justify-between rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
-                      <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{method}</span>
-                      <span className="font-black">{formatMoney(amount)}</span>
-                    </div>
-                  ))
-              )}
-            </div>
-            <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
-              <div className="flex justify-between text-sm">
-                <span className="font-semibold text-slate-500">Tax collected</span>
-                <span className="font-black">{formatMoney(report.tax)}</span>
-              </div>
-              <div className="mt-3 flex justify-between text-base">
-                <span className="font-black">Total collected</span>
-                <span className="font-black text-violet-700 dark:text-violet-300">{formatMoney(report.collected)}</span>
-              </div>
-            </div>
-          </aside>
-        </section>
-      </div>
+    <div className="min-h-full space-y-5 bg-slate-50 p-3 text-slate-950 dark:bg-neutral-800 dark:text-white sm:p-5">
+      <header className="rounded-2xl bg-white p-5 shadow-sm dark:bg-slate-900">
+        <h1 className="text-2xl font-black">{title}</h1>
+        <p className="mt-2 text-sm text-slate-500">Restaurant paid sales by payment date (IST). Voided and unpaid bills excluded.</p>
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="text-sm font-semibold">Report type
+            <select
+              value={type}
+              disabled={Boolean(busy)}
+              onChange={(event) => {
+                setReport(null);
+                setLoading(true);
+                setType(event.target.value);
+              }}
+              className="mt-1 block min-h-11 rounded-xl border border-slate-300 bg-white px-3 dark:bg-slate-900"
+            >
+              <option value="daily">Daily Sales (Bill-wise)</option>
+              <option value="items">Item-wise Sales</option>
+            </select>
+          </label>
+          <label className="text-sm font-semibold">Report date
+            <input type="date" value={date} max={today()} disabled={Boolean(busy)} onChange={(event) => setDate(event.target.value)} className="mt-1 block min-h-11 rounded-xl border border-slate-300 bg-transparent px-3" />
+          </label>
+          <button type="button" onClick={() => exportReport("thermal")} disabled={loading || !report || Boolean(busy)} className={`${button} bg-emerald-600 text-white`}><FaPrint />{busy === "thermal" ? "Printing..." : "Thermal Print"}</button>
+          <button type="button" onClick={() => exportReport("excel")} disabled={loading || !report || Boolean(busy)} className={`${button} border border-emerald-600 text-emerald-700 dark:text-emerald-300`}><FaFileExcel />{busy === "excel" ? "Downloading..." : "Excel Download"}</button>
+        </div>
+      </header>
+      {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-700">{error}</p>}
+      {loading && <p role="status">Loading report...</p>}
+      {report && !loading && <>
+        {report.isTest && <p className="font-bold text-amber-600">TEST REPORT ? test bills only</p>}
+        {itemReport && <p className="text-sm text-slate-500">Item values are before bill discounts and GST. Complimentary items appear under Free Qty.</p>}
+        {itemReport && report.missingOrders > 0 && <p role="alert" className="text-amber-700">{report.missingOrders} bill(s) have missing item details. Item totals may be incomplete.</p>}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {(itemReport ? [
+            ["Sold Quantity", rows.reduce((sum, row) => sum + row.quantity, 0)],
+            ["Free Quantity", rows.reduce((sum, row) => sum + row.complimentaryQuantity, 0)],
+            ["Item Value", money(rows.reduce((sum, row) => sum + row.amount, 0))],
+            ["Paid Bills", report.summary.billCount],
+          ] : [["Paid Bills", report.summary.billCount], ["Items", money(report.summary.items)], ["Discounts", money(report.summary.discounts)], ["Total Collected", money(report.summary.collected)]]).map(([label, value]) => <div key={label} className="rounded-xl bg-white p-4 dark:bg-slate-900"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-xl font-bold">{value}</p></div>)}
+        </div>
+        <div className="overflow-x-auto rounded-xl bg-white dark:bg-slate-900">
+          <table className="w-full text-left text-sm">
+            <thead><tr>{columns.map(([key, label]) => <th key={key} className="whitespace-nowrap border-b p-3">{label}</th>)}</tr></thead>
+            <tbody>{rows.map((row, index) => <tr key={index}>{columns.map(([key]) => <td key={key} className="whitespace-nowrap border-b border-slate-100 p-3 dark:border-slate-800">{amountKeys.has(key) ? money(row[key]) : row[key]}</td>)}</tr>)}</tbody>
+          </table>
+          {!rows.length && <p className="p-6 text-center text-slate-500">No paid sales for this date.</p>}
+        </div>
+        {!itemReport && <section className="rounded-xl bg-white p-4 dark:bg-slate-900">
+          <h2 className="font-bold">Payment Summary</h2>
+          {Object.entries(report.payments).map(([method, amount]) => <div key={method} className="mt-2 flex justify-between gap-3"><span>{method}</span><span>{money(amount)}</span></div>)}
+          <div className="mt-3 flex justify-between border-t pt-3 font-bold"><span>Total Collected</span><span>{money(report.summary.collected)}</span></div>
+        </section>}
+      </>}
     </div>
   );
 }
