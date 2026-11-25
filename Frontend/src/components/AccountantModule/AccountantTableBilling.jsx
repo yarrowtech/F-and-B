@@ -6,6 +6,7 @@ import {
   generateTableFinalBill,
   editTableOrderItems,
   getBillingSettings,
+  getBillPrintBundle,
   getTableBillingHistory,
   getTableBoard,
   getTableOpenBill,
@@ -60,6 +61,7 @@ export default function AccountantTableBilling() {
   const [historyFilter, setHistoryFilter] = useState("ALL");
   const [historySearch, setHistorySearch] = useState("");
   const [historyNotice, setHistoryNotice] = useState("");
+  const [printingBillId, setPrintingBillId] = useState("");
   const [voidTarget, setVoidTarget] = useState(null);
   const [voidReason, setVoidReason] = useState("");
   const [voidError, setVoidError] = useState("");
@@ -173,6 +175,25 @@ export default function AccountantTableBilling() {
           String(b.order?.table?.tableNumber || "").includes(q)
       );
   }, [history, historyFilter, historySearch]);
+
+  const reprintHistoryBill = async (bill) => {
+    if (printingBillId) return;
+    setPrintingBillId(bill._id);
+    setHistoryNotice("");
+    try {
+      const bundle = await getBillPrintBundle(bill._id);
+      if (!bundle.billPrintJob?.receiptText) throw new Error("Bill receipt is unavailable");
+      await printJobsOnThisDevice([bundle.billPrintJob], {
+        combineBrowserFallback: true,
+        combineLocalJobs: false,
+        ensureCutAfterEach: true,
+      });
+    } catch (err) {
+      setHistoryNotice(err?.response?.data?.message || err.message || "Could not print bill. Check the printer.");
+    } finally {
+      setPrintingBillId("");
+    }
+  };
 
   const handleVoid = async () => {
     if (voidReason.trim().length < 5) {
@@ -710,7 +731,7 @@ export default function AccountantTableBilling() {
                         <th className="py-2 pr-3">Payment</th>
                         <th className="py-2 pr-3 text-right">Total</th>
                         <th className="py-2 pr-3">Status</th>
-                        <th className="py-2" />
+                        <th className="py-2 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -740,6 +761,16 @@ export default function AccountantTableBilling() {
                             )}
                           </td>
                           <td className="py-2.5 text-right">
+                            <div className="flex flex-wrap justify-end gap-2">
+                            <button
+                              type="button"
+                              disabled={Boolean(printingBillId)}
+                              onClick={() => reprintHistoryBill(b)}
+                              aria-label={`Print bill #${b.billNo}`}
+                              className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                            >
+                              <FaPrint /> {printingBillId === b._id ? "Printing..." : "Print Bill"}
+                            </button>
                             {b.paymentStatus === "PAID" && (
                               <button
                                 type="button"
@@ -754,6 +785,7 @@ export default function AccountantTableBilling() {
                                 {b.voidRequest?.status === "PENDING" ? "Awaiting admin" : b.voidRequest?.status === "REJECTED" ? "Rejected - request again" : "Request Void"}
                               </button>
                             )}
+                            </div>
                           </td>
                         </tr>
                       ))}

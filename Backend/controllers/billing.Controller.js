@@ -787,6 +787,9 @@ const buildBillReceiptText = (bill) => {
     Number(bill.discount || 0);
   const roundOff = Number(asMoney(Number(bill.totalAmount || 0) - rawTotal));
   const lines = [
+    ...(bill.paymentStatus === "VOID"
+      ? [receiptCenter("*** VOID BILL ***", width), receiptCenter("NOT VALID FOR PAYMENT", width)]
+      : []),
     ...(bill.isTest
       ? [receiptCenter("*** TEST BILL ***", width), receiptCenter("NOT VALID", width)]
       : []),
@@ -804,7 +807,7 @@ const buildBillReceiptText = (bill) => {
   lines.push("");
   lines.push(
     receiptPair("BILL NO", bill.billNo || bill._id || "N/A", width),
-    receiptPair("DATE", receiptBillDate(bill.updatedAt || bill.createdAt), width),
+    receiptPair("DATE", receiptBillDate(bill.generatedAt || bill.createdAt), width),
     receiptLine(width),
     "ITEM          QTY   RATE     AMT",
     receiptLine(width)
@@ -1064,6 +1067,7 @@ const getBillPrintBundle = async (req, res) => {
 
     return sendSuccess(res, {
       bill,
+      billPrintJob,
       printJobs: [billPrintJob, ...kotPrintJobs],
     });
   } catch (err) {
