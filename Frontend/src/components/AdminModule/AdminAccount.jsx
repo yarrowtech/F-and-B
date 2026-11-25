@@ -13,6 +13,7 @@ import {
   downloadAdminAccountHistoryExcel,
   getAdminAccountHistory,
 } from "../../services/adminDashboard.service";
+import AdminVoidRequests from "./AdminVoidRequests";
 import { getRestaurants } from "../../services/restaurant.service";
 
 const formatCurrency = (value) =>
@@ -464,6 +465,7 @@ export default function AdminAccount() {
   return (
     <div className="admin-dark-scope min-h-screen bg-slate-50 p-3 sm:p-4 lg:p-5">
       <div className="mx-auto max-w-7xl space-y-4 sm:space-y-5">
+        <AdminVoidRequests restaurantId={selectedRestaurantId} onReviewed={() => fetchHistory(selectedRestaurantId, filters)} />
         <div className="grid gap-2.5 xl:grid-cols-[minmax(0,1fr)_auto]">
           {/* Restaurant + date filters */}
           <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200">

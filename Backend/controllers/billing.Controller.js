@@ -2472,114 +2472,96 @@ const markPaid = async (req, res) => {
   }
 };
 
-/**
- * Void a PAID bill (wrong count / wrong amount) and reissue a fresh PENDING
- * copy so the accountant can correct it from the inbox and collect again.
- */
+// A request never changes the payment status or reopens a settled order.
 const voidBill = async (req, res) => {
   try {
+    if (req.user.role !== "accountant") return sendError(res, "Accountant access required", 403);
     const reason = sanitizeText(req.body.reason);
-    if (reason.length < 5) {
-      return sendError(res, "Enter a reason (at least 5 characters)");
+    if (reason.length < 5 || reason.length > 300) {
+      return sendError(res, "Enter a reason between 5 and 300 characters", 400);
     }
-
-    const restaurantIds = await getAuthorizedRestaurantIds(req);
-
-    // A table that already has a new running order cannot take a re-issued bill.
-    const reissueRequested = req.body.reissue !== false;
-    const target = await Bill.findOne({
-      _id: req.params.id,
-      restaurant: { $in: restaurantIds },
-      paymentStatus: "PAID",
-    })
-      .populate({ path: "order", select: "table orderType" })
-      .lean();
-    const tableId = target?.order?.table || null;
-    if (reissueRequested && tableId) {
-      const busy = await findOpenTableBill(target.restaurant, tableId);
-      if (busy) {
-        return sendError(
-          res,
-          "This table already has a running bill. Settle it first, or void without re-issuing.",
-          409
-        );
-      }
-    }
-
     const bill = await Bill.findOneAndUpdate(
       {
         _id: req.params.id,
-        restaurant: { $in: restaurantIds },
+        restaurant: req.user.restaurant,
         paymentStatus: "PAID",
+        "voidRequest.status": { $ne: "PENDING" },
       },
-      {
+      { $set: { voidRequest: {
+        status: "PENDING",
+        requestId: new mongoose.Types.ObjectId(),
+        reason,
+        requestedBy: req.user.id,
+        requestedAt: new Date(),
+      } } },
+      { new: true, runValidators: true }
+    );
+    if (!bill) return sendError(res, "Paid bill unavailable or a void request is already pending", 409);
+    return sendSuccess(res, bill);
+  } catch (err) {
+    logger.error(err);
+    return sendError(res, err.message);
+  }
+};
+
+const getVoidRequests = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") return sendError(res, "Admin access required", 403);
+    const restaurantIds = await getAuthorizedRestaurantIds(req);
+    const bills = await Bill.find({
+      restaurant: { $in: restaurantIds },
+      paymentStatus: "PAID",
+      "voidRequest.status": "PENDING",
+    })
+      .populate("restaurant", "name")
+      .populate("voidRequest.requestedBy", "name")
+      .populate({ path: "order", select: "table orderType", populate: { path: "table", select: "tableNumber" } })
+      .sort({ "voidRequest.requestedAt": 1 });
+    return sendSuccess(res, bills);
+  } catch (err) {
+    logger.error(err);
+    return sendError(res, err.message);
+  }
+};
+
+const reviewVoidRequest = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") return sendError(res, "Admin access required", 403);
+    const { decision, requestId } = req.body;
+    if (!["APPROVED", "REJECTED"].includes(decision) || !mongoose.isValidObjectId(requestId)) {
+      return sendError(res, "A valid request and approval or rejection decision are required", 400);
+    }
+    const restaurantIds = await getAuthorizedRestaurantIds(req);
+    const now = new Date();
+    const changes = {
+      "voidRequest.status": decision,
+      "voidRequest.reviewedBy": req.user.id,
+      "voidRequest.reviewedAt": now,
+    };
+    const query = {
+      _id: req.params.id,
+      restaurant: { $in: restaurantIds },
+      paymentStatus: "PAID",
+      "voidRequest.status": "PENDING",
+      "voidRequest.requestId": requestId,
+    };
+    const target = await Bill.findOne(query).lean();
+    if (!target) return sendError(res, "Pending void request not found or already reviewed", 409);
+    if (decision === "APPROVED") {
+      Object.assign(changes, {
         paymentStatus: "VOID",
-        voidedAt: new Date(),
+        voidedAt: now,
         voidedBy: req.user.id,
-        voidReason: reason.slice(0, 300),
-      },
-      { new: true }
-    );
-
-    if (!bill) return sendError(res, "Paid bill not found or already voided", 404);
-
-    const reissue = req.body.reissue !== false;
-    let newBill = null;
-
-    if (reissue) {
-      newBill = await Bill.create({
-        restaurant: bill.restaurant,
-        billNo: await allocateBillNumber(bill.restaurant),
-        order: bill.order,
-        itemsTotal: bill.itemsTotal,
-        taxableAmount: bill.taxableAmount,
-        cgst: bill.cgst,
-        cgstRate: bill.cgstRate,
-        sgst: bill.sgst,
-        sgstRate: bill.sgstRate,
-        serviceCharge: bill.serviceCharge,
-        showServiceCharge: bill.showServiceCharge,
-        packagingCharge: bill.packagingCharge,
-        showPackagingCharge: bill.showPackagingCharge,
-        extraCharge: bill.extraCharge,
-        extraChargeReason: bill.extraChargeReason,
-        discount: bill.discount,
-        discountType: bill.discountType,
-        discountValue: bill.discountValue,
-        complimentaryType: bill.complimentaryType,
-        complimentaryItems: bill.complimentaryItems,
-        complimentaryAmount: bill.complimentaryAmount,
-        complimentaryNote: bill.complimentaryNote,
-        customerEmail: bill.customerEmail,
-        customerPhone: bill.customerPhone,
-        totalAmount: bill.totalAmount,
-        paymentStatus: "PENDING",
-        replacesBill: bill._id,
-      });
-      bill.reissuedAs = newBill._id;
-      await bill.save();
-    }
-
-    if (bill.order) {
-      await Order.findByIdAndUpdate(bill.order, {
-        status: reissue || !tableId ? "SERVED" : "CANCELLED",
-        paidAt: null,
+        voidReason: target.voidRequest.reason,
       });
     }
-
-    // Re-issued table bill is running again, so the table is occupied.
-    if (reissue && tableId) {
-      await Table.findByIdAndUpdate(tableId, { status: "occupied" });
-    }
-
+    const bill = await Bill.findOneAndUpdate(query, { $set: changes }, { new: true, runValidators: true });
+    if (!bill) return sendError(res, "This void request was already reviewed", 409);
+    // Paid orders have already released their tables. Leave that closed session
+    // intact: no copied bill, shared editable order, or reset of a newer session.
     invalidateCacheNamespaces(["dashboard", `menu-analytics:${bill.restaurant}`]);
-
-    logger.info(
-      { billId: bill._id, by: req.user.id, reason },
-      "Bill voided"
-    );
-
-    return sendSuccess(res, { voided: bill, reissued: newBill });
+    logger.info({ billId: bill._id, by: req.user.id, decision }, "Bill void request reviewed");
+    return sendSuccess(res, bill);
   } catch (err) {
     logger.error(err);
     return sendError(res, err.message);
@@ -2712,7 +2694,7 @@ const streamBillPDF = async (bill, res, req) => {
       detailsTextTop + 20
     );
     doc.text(
-      `Status: ${bill.paymentStatus === "PAID" ? "Paid" : "Pending"}`,
+      `Status: ${bill.paymentStatus === "VOID" ? "Void" : bill.paymentStatus === "PAID" ? "Paid" : "Pending"}`,
       320,
       detailsTextTop + 36
     );
@@ -2964,6 +2946,8 @@ const generatePublicBillPDF = async (req, res) => {
 
 export default {
   voidBill,
+  getVoidRequests,
+  reviewVoidRequest,
   getBillingSettings,
   getInbox,
   getHistory,

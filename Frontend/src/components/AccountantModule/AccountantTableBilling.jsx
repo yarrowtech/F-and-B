@@ -62,7 +62,6 @@ export default function AccountantTableBilling() {
   const [historyNotice, setHistoryNotice] = useState("");
   const [voidTarget, setVoidTarget] = useState(null);
   const [voidReason, setVoidReason] = useState("");
-  const [voidReissue, setVoidReissue] = useState(true);
   const [voidError, setVoidError] = useState("");
   const [voidBusy, setVoidBusy] = useState(false);
 
@@ -156,7 +155,10 @@ export default function AccountantTableBilling() {
   }, []);
 
   useEffect(() => {
-    if (view === "HISTORY") loadHistory();
+    if (view !== "HISTORY") return;
+    loadHistory();
+    const timer = setInterval(loadHistory, 20000);
+    return () => clearInterval(timer);
   }, [view, loadHistory]);
 
   const filteredHistory = useMemo(() => {
@@ -180,16 +182,10 @@ export default function AccountantTableBilling() {
     try {
       setVoidBusy(true);
       setVoidError("");
-      await voidTableBill(voidTarget._id, voidReason.trim(), voidReissue);
-      const tableNo = voidTarget.order?.table?.tableNumber ?? "";
-      setHistoryNotice(
-        voidReissue
-          ? `Bill #${voidTarget.billNo} voided. It is open again on Table ${tableNo} - correct it from the Tables tab.`
-          : `Bill #${voidTarget.billNo} voided.`
-      );
+      await voidTableBill(voidTarget._id, voidReason.trim());
+      setHistoryNotice(`Void request for bill #${voidTarget.billNo} sent to admin. The bill remains valid until approved.`);
       setVoidTarget(null);
       setVoidReason("");
-      setVoidReissue(true);
       loadHistory();
       loadBoard();
     } catch (err) {
@@ -747,15 +743,15 @@ export default function AccountantTableBilling() {
                             {b.paymentStatus === "PAID" && (
                               <button
                                 type="button"
+                                disabled={b.voidRequest?.status === "PENDING"}
                                 onClick={() => {
                                   setVoidTarget(b);
                                   setVoidReason("");
-                                  setVoidReissue(true);
                                   setVoidError("");
                                 }}
                                 className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-black text-rose-600 hover:bg-rose-100"
                               >
-                                Void Bill
+                                {b.voidRequest?.status === "PENDING" ? "Awaiting admin" : b.voidRequest?.status === "REJECTED" ? "Rejected - request again" : "Request Void"}
                               </button>
                             )}
                           </td>
@@ -772,32 +768,23 @@ export default function AccountantTableBilling() {
             <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
               <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900">
                 <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  Void Bill #{voidTarget.billNo}
+                  Request Void #{voidTarget.billNo}
                 </h3>
                 <p className="mt-1 text-sm text-slate-500">
                   Table {voidTarget.order?.table?.tableNumber ?? "-"} · {formatCurrency(voidTarget.totalAmount)}
                 </p>
                 <textarea
+                  maxLength={300}
                   value={voidReason}
                   onChange={(e) => setVoidReason(e.target.value)}
                   rows={3}
                   placeholder="Reason for voiding (min 5 characters)"
                   className="mt-3 w-full rounded-xl border border-[#d7e3ef] px-3 py-2 text-sm outline-none focus:border-rose-400 dark:border-slate-700 dark:bg-slate-950"
                 />
-                <label className="mt-3 flex items-start gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={voidReissue}
-                    onChange={(e) => setVoidReissue(e.target.checked)}
-                    className="mt-1"
-                  />
-                  <span>
-                    Re-open this bill on the table so I can correct and settle it again
-                    <span className="block text-xs font-normal text-slate-500">
-                      Untick to cancel the bill completely.
-                    </span>
-                  </span>
-                </label>
+                <p className="mt-3 text-sm text-slate-500">
+                  Admin approval is required. An approved void bill cannot be edited.
+                  Start a fresh bill from the Tables tab afterwards.
+                </p>
                 {voidError && <p className="mt-3 text-sm font-semibold text-red-600">{voidError}</p>}
                 <div className="mt-4 flex gap-2">
                   <button
@@ -813,7 +800,7 @@ export default function AccountantTableBilling() {
                     disabled={voidBusy}
                     className="min-h-11 flex-1 rounded-xl bg-rose-600 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-60"
                   >
-                    {voidBusy ? "Voiding..." : "Void Bill"}
+                    {voidBusy ? "Sending..." : "Request Void"}
                   </button>
                 </div>
               </div>

@@ -163,10 +163,13 @@ router.post(
   billingController.settleManualBill
 );
 
+router.get("/void-requests", auth, allowRoles("admin"), billingController.getVoidRequests);
+router.post("/:id/void-review", auth, allowRoles("admin"), billingController.reviewVoidRequest);
+
 router.post(
   "/:id/void",
   auth,
-  allowRoles("accountant", "admin"),
+  allowRoles("accountant"),
   billingController.voidBill
 );
 

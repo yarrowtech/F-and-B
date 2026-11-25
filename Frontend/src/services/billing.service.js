@@ -163,7 +163,7 @@ export const settleManualBill = async (billId, payload) => {
 };
 
 /**
- * ❌ Void a paid bill and reissue a pending copy
+ * ❌ Request admin approval to void a paid bill
  * POST /api/billing/:id/void
  */
 export const voidBill = async (billId, reason) => {
@@ -265,7 +265,17 @@ export const getTableBillingHistory = async () => {
   return res.data.data;
 };
 
-export const voidTableBill = async (billId, reason, reissue = true) => {
-  const res = await API.post(`/billing/${billId}/void`, { reason, reissue });
+export const voidTableBill = async (billId, reason) => {
+  const res = await API.post(`/billing/${billId}/void`, { reason });
+  return res.data.data;
+};
+
+export const getVoidRequests = async () => {
+  const res = await API.get("/billing/void-requests");
+  return res.data.data;
+};
+
+export const reviewVoidRequest = async (billId, requestId, decision) => {
+  const res = await API.post(`/billing/${billId}/void-review`, { requestId, decision });
   return res.data.data;
 };

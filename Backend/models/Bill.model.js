@@ -280,6 +280,15 @@ const billSchema = new mongoose.Schema(
       match: /^(\d{4})?$/,
     },
 
+    voidRequest: {
+      status: { type: String, enum: ["PENDING", "APPROVED", "REJECTED"], default: undefined },
+      requestId: { type: mongoose.Schema.Types.ObjectId },
+      reason: { type: String, trim: true, maxlength: 300 },
+      requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee" },
+      requestedAt: Date,
+      reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
+      reviewedAt: Date,
+    },
     voidedAt: { type: Date, default: null },
     voidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee", default: null },
     voidReason: { type: String, default: "", trim: true, maxlength: 300 },

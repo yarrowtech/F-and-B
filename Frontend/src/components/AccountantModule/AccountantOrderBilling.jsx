@@ -720,10 +720,11 @@ function BillCard({
             </button>
             <button
               type="button"
+              disabled={bill.voidRequest?.status === "PENDING"}
               onClick={() => onVoidBill(bill)}
               className="col-span-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-sm font-bold text-amber-800 transition hover:bg-amber-100 dark:hover:bg-amber-900/40 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
             >
-              Void &amp; Reissue
+              {bill.voidRequest?.status === "PENDING" ? "Awaiting admin" : bill.voidRequest?.status === "REJECTED" ? "Rejected - request again" : "Request Void"}
             </button>
             <button
               type="button"
@@ -1403,7 +1404,7 @@ function ClassicAccountantOrderBilling() {
       setVoidTarget(null);
       setVoidReason("");
       await fetchBills();
-      setTab("INBOX");
+      setTab("HISTORY");
     } catch (err) {
       console.error("VOID BILL ERROR:", err);
       setVoidError(err?.response?.data?.message || "Failed to void bill");
@@ -2876,10 +2877,11 @@ function ClassicAccountantOrderBilling() {
 
                               <button
                                 type="button"
+                                disabled={bill.voidRequest?.status === "PENDING"}
                                 onClick={() => handleVoidBill(bill)}
                                 className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 dark:hover:bg-amber-900/40 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
                               >
-                                Void &amp; Reissue
+                                {bill.voidRequest?.status === "PENDING" ? "Awaiting admin" : bill.voidRequest?.status === "REJECTED" ? "Rejected - request again" : "Request Void"}
                               </button>
 
                               <button
@@ -3927,11 +3929,11 @@ function ClassicAccountantOrderBilling() {
               </div>
               <div className="min-w-0">
                 <h2 className="text-lg font-black text-slate-900 dark:text-white">
-                  Void Bill #{voidTarget.billNo}
+                  Request Void for Bill #{voidTarget.billNo}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Amount Rs. {Number(voidTarget.totalAmount || 0).toFixed(2)}. This bill will be
-                  marked VOID and a corrected copy will move to Pending Bills.
+                  Amount Rs. {Number(voidTarget.totalAmount || 0).toFixed(2)}. This request will be
+                  sent to admin for approval. Once approved, it stays void and cannot be edited. Create a fresh bill separately.
                 </p>
               </div>
             </div>
@@ -3997,7 +3999,7 @@ function ClassicAccountantOrderBilling() {
                 disabled={voiding}
                 className="inline-flex min-h-12 items-center justify-center rounded-xl bg-amber-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {voiding ? "Voiding..." : "Void & Reissue"}
+                {voiding ? "Sending..." : "Send Request"}
               </button>
             </div>
           </div>
