@@ -946,7 +946,6 @@ const UserManagement = ({
     if (!address.state.trim()) e.addressState = "State is required";
     if (!address.pincode.trim()) e.addressPincode = "PIN code is required";
     if (!newAdminData.panNumber.trim()) e.panNumber = "PAN number is required";
-    else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(newAdminData.panNumber)) e.panNumber = "Invalid PAN format (e.g. ABCDE1234F)";
     if (!newAdminData.password) e.password = "Password is required";
     else if (!STRONG_PASSWORD_REGEX.test(newAdminData.password)) e.password = STRONG_PASSWORD_MESSAGE;
     setAdminErrors(e);
@@ -1568,12 +1567,11 @@ const UserManagement = ({
                     label="PAN Number"
                     value={newAdminData.panNumber}
                     onChange={(e) => {
-                      const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                      const val = e.target.value.toUpperCase();
                       setNewAdminData({ ...newAdminData, panNumber: val });
                       setAdminErrors((p) => ({ ...p, panNumber: "" }));
                     }}
-                    placeholder="ABCDE1234F"
-                    maxLength={10}
+                    placeholder="Enter PAN number"
                     error={adminErrors.panNumber}
                   />
                 </div>

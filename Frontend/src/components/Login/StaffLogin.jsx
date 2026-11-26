@@ -275,7 +275,6 @@ export default function StaffLogin() {
     else if (!/^\d{10}$/.test(adminSignup.mobile)) nextErrors.mobile = "Mobile must be 10 digits";
 
     if (!adminSignup.panNumber.trim()) nextErrors.panNumber = "PAN is required";
-    else if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(adminSignup.panNumber)) nextErrors.panNumber = "Invalid PAN format";
 
     if (!adminSignup.gstNumber.trim()) nextErrors.gstNumber = "GST is required";
     else if (!GST_REGEX.test(adminSignup.gstNumber)) nextErrors.gstNumber = "Invalid GST format";
@@ -1091,13 +1090,12 @@ export default function StaffLogin() {
                             onChange={(e) => {
                               updateAdminField(
                                 "panNumber",
-                                e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+                                e.target.value.toUpperCase()
                               );
                               setSignupErrors((current) => ({ ...current, panNumber: "" }));
                               resetSignupFeedback();
                             }}
-                            placeholder="ABCDE1234F"
-                            maxLength={10}
+                            placeholder="Enter PAN number"
                             error={signupErrors.panNumber}
                           />
                           <div className="sm:col-span-2">
