@@ -78,6 +78,12 @@ export default function AccountantTableBilling() {
   const [menuSearch, setMenuSearch] = useState("");
   const [showAllFastAdd, setShowAllFastAdd] = useState(false);
   const codeRef = useRef(null);
+  const nameRef = useRef(null);
+  const gridRef = useRef(null);
+  const [tableSel, setTableSel] = useState("");
+  const [listFocus, setListFocus] = useState(false);
+  const [selKey, setSelKey] = useState("");
+  const [nameIdx, setNameIdx] = useState(0);
 
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -567,6 +573,7 @@ export default function AccountantTableBilling() {
     }
     setNotice("");
     setShowFinalize(true); // review customer, charges and complimentary, then finalize
+    setTimeout(() => document.getElementById("fin-phone")?.focus(), 60);
   };
 
   const confirmFinalize = async () => {
@@ -666,6 +673,184 @@ export default function AccountantTableBilling() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [settleOpen, method, paymentMethods]);
+
+  // Table list: arrows move the highlighted table, Enter opens it.
+  const tableKeysRef = useRef({});
+  tableKeysRef.current = { openTable };
+  useEffect(() => {
+    if (activeTable || view !== "TABLES" || tables.length === 0) return undefined;
+    const current = tables.some((t) => t._id === tableSel) ? tableSel : tables[0]._id;
+    if (current !== tableSel) setTableSel(current);
+    const onKeyDown = (event) => {
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(event.target?.tagName)) return;
+      const k = event.key;
+      if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter"].includes(k)) return;
+      event.preventDefault();
+      const idx = Math.max(tables.findIndex((t) => t._id === current), 0);
+      if (k === "Enter") {
+        if (!event.repeat) tableKeysRef.current.openTable(tables[idx]);
+        return;
+      }
+      const cols = Math.max(
+        String(getComputedStyle(gridRef.current || document.body).gridTemplateColumns || "")
+          .split(" ").filter(Boolean).length,
+        1
+      );
+      let next = idx;
+      if (k === "ArrowRight") next = idx + 1;
+      else if (k === "ArrowLeft") next = idx - 1;
+      else if (k === "ArrowDown") next = idx + cols;
+      else if (k === "ArrowUp") next = idx - cols;
+      if (next < 0 || next > tables.length - 1) return; // stop at the edges
+      const id = tables[next]._id;
+      setTableSel(id);
+      document.getElementById(`table-card-${id}`)?.scrollIntoView({ block: "nearest" });
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeTable, view, tables, tableSel]);
+
+  /* ---------- keyboard-only billing ----------
+     F1 code box | F2 name search | F3 item list (Up/Down, + / -) | F4 kitchen note
+     F5 bill | F6 KOT | F7 reserved (split bill) | F8 complimentary | F9 packaging | F10 tables */
+  const navLines = [
+    ...cart.map((c) => ({ key: `c:${c.menuItem}`, kind: "cart", cart: c })),
+    ...runningItems.map((it, idx) => ({ key: `s:${it._id || idx}`, kind: "sent", item: it })),
+  ];
+  const rowSel = (k) =>
+    listFocus && selKey === k
+      ? " bg-emerald-50 ring-2 ring-inset ring-emerald-500 dark:bg-emerald-950/30"
+      : "";
+
+  const openFinalize = (focusId) => {
+    if (!openBill) {
+      setNotice("Send a KOT first (F6), then generate the bill.");
+      return;
+    }
+    if (cart.length > 0) {
+      setNotice("You have new items. Send the KOT first (F6), then generate the bill.");
+      return;
+    }
+    setNotice("");
+    setShowFinalize(true);
+    setTimeout(() => document.getElementById(focusId)?.focus(), 60);
+  };
+
+  const leaveTable = () => {
+    if (cart.length > 0 && !window.confirm("Discard the unsent items and go back to the tables?")) return;
+    closeTable();
+  };
+
+  const keysRef = useRef({});
+  keysRef.current = { changeQty, addItem, editSentItem, openFinalize, leaveTable, confirmFinalize };
+
+  const tableId = activeTable?._id;
+  useEffect(() => {
+    if (!tableId) return undefined;
+    const t = setTimeout(() => codeRef.current?.focus(), 100);
+    return () => clearTimeout(t);
+  }, [tableId]);
+
+  useEffect(() => {
+    if (!activeTable) return undefined;
+    const onKeyDown = (event) => {
+      if (busy || settleOpen || showMenuList || showAdvanced || showFinalize || cancelTarget) return;
+      const k = event.key;
+      const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(event.target?.tagName);
+      const fx = keysRef.current;
+      const idx = navLines.findIndex((l) => l.key === selKey);
+      const sel = idx >= 0 ? navLines[idx] : null;
+
+      if (k === "F1") {
+        event.preventDefault();
+        setListFocus(false);
+        codeRef.current?.focus();
+        return;
+      }
+      if (k === "F2") {
+        event.preventDefault();
+        setListFocus(false);
+        nameRef.current?.focus();
+        return;
+      }
+      if (k === "F3") {
+        event.preventDefault();
+        document.activeElement?.blur?.();
+        setListFocus(true);
+        if (!sel && navLines[0]) setSelKey(navLines[0].key);
+        return;
+      }
+      if (k === "F4") {
+        event.preventDefault();
+        if (sel?.kind === "cart") {
+          document.getElementById(`note-${sel.cart.menuItem}`)?.focus();
+        } else {
+          setNotice("Press F3, pick a new (unsent) item, then F4 for a kitchen note.");
+        }
+        return;
+      }
+      if (k === "F8" || k === "F9") {
+        event.preventDefault();
+        if (!event.repeat) fx.openFinalize(k === "F8" ? "fin-comp" : "fin-pack");
+        return;
+      }
+      if (k === "F10") {
+        event.preventDefault();
+        if (!event.repeat) fx.leaveTable();
+        return;
+      }
+      if (typing || !listFocus) return;
+
+      if (k === "Escape") {
+        event.preventDefault();
+        setListFocus(false);
+        codeRef.current?.focus();
+      } else if (k === "ArrowDown" || k === "ArrowUp") {
+        event.preventDefault();
+        if (navLines.length === 0) return;
+        const next = k === "ArrowDown" ? Math.min(idx + 1, navLines.length - 1) : Math.max(idx - 1, 0);
+        setSelKey(navLines[Math.max(next, 0)].key);
+      } else if (k === "+" || k === "=") {
+        event.preventDefault();
+        if (!sel) return;
+        if (sel.kind === "cart") fx.changeQty(sel.cart.menuItem, 1);
+        else {
+          const m = menu.find((x) => x._id === menuIdOf(sel.item));
+          if (m) fx.addItem(m);
+        }
+      } else if (k === "-") {
+        event.preventDefault();
+        if (!sel) return;
+        if (sel.kind === "cart") {
+          if (sel.cart.quantity <= 1) {
+            setSelKey((navLines[idx + 1] || navLines[idx - 1])?.key || "");
+          }
+          fx.changeQty(sel.cart.menuItem, -1);
+        } else {
+          fx.editSentItem(sel.item, sel.item.quantity - 1);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
+
+  // Finalize pop-up: Enter finalizes & prints, Esc closes.
+  useEffect(() => {
+    if (!showFinalize) return undefined;
+    const onKeyDown = (event) => {
+      const tag = event.target?.tagName;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setShowFinalize(false);
+      } else if (event.key === "Enter" && tag !== "BUTTON" && tag !== "TEXTAREA") {
+        event.preventDefault();
+        if (!event.repeat) keysRef.current.confirmFinalize();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showFinalize]);
 
   const toggleCompItem = (id) =>
     setCompItems((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -878,6 +1063,7 @@ export default function AccountantTableBilling() {
           )}
 
           <div
+            ref={gridRef}
             className={`grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 ${
               view === "TABLES" ? "" : "hidden"
             }`}
@@ -887,9 +1073,13 @@ export default function AccountantTableBilling() {
               return (
                 <button
                   key={table._id}
+                  id={`table-card-${table._id}`}
                   type="button"
-                  onClick={() => openTable(table)}
-                  className={`rounded-2xl border-2 p-3 text-left shadow-sm transition hover:shadow-md ${
+                  tabIndex={-1}
+                  onClick={() => { setTableSel(table._id); openTable(table); }}
+                  className={`rounded-2xl border-2 p-3 text-left shadow-sm outline-none transition hover:shadow-md ${
+                    tableSel === table._id ? "ring-4 ring-emerald-500 ring-offset-2 dark:ring-offset-neutral-800" : ""
+                  } ${
                     running
                       ? "border-amber-400 bg-amber-50 dark:bg-amber-950/30"
                       : "border-emerald-300 bg-white dark:bg-slate-900"
@@ -952,6 +1142,10 @@ export default function AccountantTableBilling() {
           </p>
         </div>
 
+        <p className="hidden rounded-xl bg-white px-3 py-1.5 text-center text-[11px] font-bold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:ring-slate-700 lg:block">
+          F1 Code · F2 Search · F3 Items (↑ ↓ + −) · F4 Note · F5 Bill · F6 KOT · F8 Complimentary · F9 Packaging · F10 Tables
+        </p>
+
         {notice && (
           <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{notice}</p>
         )}
@@ -986,7 +1180,7 @@ export default function AccountantTableBilling() {
                     </p>
                     <div className="divide-y divide-slate-100 rounded-2xl border border-amber-200 dark:divide-slate-800 dark:border-amber-900/50">
                       {cart.map((item) => (
-                        <div key={`left-cart-${item.menuItem}`} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                        <div key={`left-cart-${item.menuItem}`} className={`flex items-center justify-between gap-2 px-3 py-2 text-sm${rowSel(`c:${item.menuItem}`)}`}>
                           <div className="min-w-0">
                             <p className="truncate font-semibold text-slate-700 dark:text-slate-200">
                               {item.quantity} × {item.name}
@@ -1016,7 +1210,7 @@ export default function AccountantTableBilling() {
                               return (
                                 <div
                                   key={item._id || idx}
-                                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
+                                  className={`flex items-center justify-between gap-2 px-3 py-2 text-sm${rowSel(`s:${item._id || idx}`)}`}
                                 >
                                   <div className="min-w-0">
                                     <p className="truncate font-semibold text-slate-700 dark:text-slate-200">
@@ -1164,7 +1358,7 @@ export default function AccountantTableBilling() {
                       <div>
                         <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Customer</p>
                         <div className="grid gap-2">
-                          <input type="text" placeholder="Customer phone" value={customerPhone}
+                          <input id="fin-phone" type="text" placeholder="Customer phone" value={customerPhone}
                             onChange={(e) => setCustomerPhone(e.target.value)} className={`${inputCls} !min-h-9 !rounded-lg !py-1.5`} />
                           <input type="email" placeholder="Customer email" value={customerEmail}
                             onChange={(e) => setCustomerEmail(e.target.value)} className={`${inputCls} !min-h-9 !rounded-lg !py-1.5`} />
@@ -1178,7 +1372,7 @@ export default function AccountantTableBilling() {
                             ["ITEMS", "Selected items free"],
                           ].map(([value, label]) => (
                             <label key={value} className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
-                              <input type="radio" checked={compType === value} onChange={() => setCompType(value)} />
+                              <input id={value === "NONE" ? "fin-comp" : undefined} type="radio" checked={compType === value} onChange={() => setCompType(value)} />
                               {label}
                             </label>
                           ))}
@@ -1232,7 +1426,7 @@ export default function AccountantTableBilling() {
                           </label>
                           <label className="text-[11px] font-bold text-slate-500">
                             Packaging
-                            <input type="number" min="0" value={packagingCharge}
+                            <input id="fin-pack" type="number" min="0" value={packagingCharge}
                               onChange={(e) => setPackagingCharge(e.target.value)} className={`${inputCls} !min-h-9 !rounded-lg !py-1.5 mt-0.5`} />
                           </label>
                           <label className="col-span-2 text-[11px] font-bold text-slate-500">
@@ -1423,11 +1617,37 @@ export default function AccountantTableBilling() {
                     type="text"
                     autoComplete="off"
                     value={nameSearch}
+                    ref={nameRef}
                     onChange={(e) => {
                       setNameSearch(e.target.value);
                       setNameSearchOpen(true);
+                      setNameIdx(0);
                     }}
                     onFocus={() => setNameSearchOpen(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setNameIdx((i) => Math.min(i + 1, nameResults.length - 1));
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setNameIdx((i) => Math.max(i - 1, 0));
+                      } else if (e.key === "Enter") {
+                        e.preventDefault();
+                        const pick = nameResults[nameIdx] || nameResults[0];
+                        if (pick) {
+                          addItem(pick);
+                          setNameSearch("");
+                          setNameSearchOpen(false);
+                          setNameIdx(0);
+                          codeRef.current?.focus();
+                        }
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        setNameSearch("");
+                        setNameSearchOpen(false);
+                        codeRef.current?.focus();
+                      }
+                    }}
                     placeholder="Search item name, e.g. Paneer Tikka"
                     className="mt-3 min-h-12 w-full rounded-xl border border-emerald-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 dark:border-emerald-900/50 dark:bg-slate-900 dark:text-slate-100 xl:min-h-14 xl:rounded-2xl xl:px-5 xl:text-base"
                   />
@@ -1436,7 +1656,7 @@ export default function AccountantTableBilling() {
                       {nameResults.length === 0 ? (
                         <p className="px-4 py-3 text-sm font-semibold text-slate-500">No matching items</p>
                       ) : (
-                        nameResults.map((item) => (
+                        nameResults.map((item, i) => (
                           <button
                             key={item._id}
                             type="button"
@@ -1445,7 +1665,7 @@ export default function AccountantTableBilling() {
                               setNameSearch("");
                               setNameSearchOpen(false);
                             }}
-                            className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5 text-left last:border-b-0 hover:bg-emerald-50 dark:border-slate-800 dark:hover:bg-emerald-950/20"
+                            className={`flex min-h-12 w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5 text-left last:border-b-0 hover:bg-emerald-50 dark:border-slate-800 dark:hover:bg-emerald-950/20${i === nameIdx ? " bg-emerald-100 dark:bg-emerald-950/40" : ""}`}
                           >
                             <span className="min-w-0">
                               <span className="block truncate text-sm font-bold text-slate-800 dark:text-slate-100">
@@ -1695,6 +1915,7 @@ export default function AccountantTableBilling() {
                       </button>
                     </div>
                     <input
+                      id={`note-${item.menuItem}`}
                       value={item.note}
                       onChange={(e) => setNote(item.menuItem, e.target.value)}
                       aria-label={`Kitchen note for ${item.name}`}
