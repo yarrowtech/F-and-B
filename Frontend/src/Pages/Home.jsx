@@ -754,7 +754,7 @@ const Home = () => {
             <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
               <div className="rounded-2xl border border-[#4ade80]/18 bg-[#4ade80]/10 p-7">
                 <p className="text-lg leading-8 text-white/78">
-                  Tell us about your restaurant, team size, and current workflow. We will help map the right modules for your operation.
+                  Want to see it in action? Request a demo by filling out the contact form and submitting it. Tell us about your restaurant, team size, and current workflow, and we will get back to you to schedule your demo and map the right modules for your operation.
                 </p>
 
                 <div className="mt-8 grid gap-4">
@@ -777,56 +777,46 @@ const Home = () => {
               </div>
 
               <form
-                className="rounded-2xl border border-white/10 bg-[#17100d]/92 p-7 backdrop-blur md:p-8"
+                className="overflow-hidden rounded-3xl border border-white/10 bg-[#17100d]/92 shadow-2xl shadow-black/30 backdrop-blur"
                 onSubmit={handleContactSubmit}
               >
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <input
-                    type="text"
-                    name="name"
-                    value={contactForm.name}
-                    onChange={handleContactChange}
-                    placeholder="Your name"
-                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-[#4ade80]/50"
-                  />
-                  <input
-                    type="email"
-                    name="email"
-                    value={contactForm.email}
-                    onChange={handleContactChange}
-                    placeholder="Email address"
-                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-[#4ade80]/50"
-                  />
-                  <input
-                    type="text"
-                    name="company"
-                    value={contactForm.company}
-                    onChange={handleContactChange}
-                    placeholder="Business name"
-                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-[#4ade80]/50 sm:col-span-2"
-                  />
-                  <textarea
-                    name="message"
-                    rows="5"
-                    value={contactForm.message}
-                    onChange={handleContactChange}
-                    placeholder="Tell us what you need"
-                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition placeholder:text-white/35 focus:border-[#4ade80]/50 sm:col-span-2"
-                  />
-                  <button
-                    type="submit"
-                    disabled={contactSubmitting}
-                    className={`rounded-full bg-[#4ade80] px-6 py-3 font-bold text-[#140d09] transition hover:-translate-y-1 hover:brightness-110 sm:col-span-2 ${
-                      contactSubmitting ? "cursor-not-allowed opacity-70" : ""
-                    }`}
-                  >
-                    {contactSubmitting ? "Submitting..." : "Submit"}
-                  </button>
+                <div className="border-b border-white/10 bg-gradient-to-r from-[#4ade80]/15 to-transparent px-7 py-6 md:px-8">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#4ade80]">Request a demo</p>
+                  <h3 className="mt-2 text-2xl font-black text-white">Fill in the form and submit</h3>
+                  <p className="mt-1 text-sm text-white/60">Our team will contact you to schedule your demo.</p>
+                </div>
+                <div className="grid gap-5 p-7 sm:grid-cols-2 md:p-8">
+                  <div>
+                    <label htmlFor="contact-name" className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-white/60">Your name <span className="text-[#4ade80]">*</span></label>
+                    <input id="contact-name" type="text" name="name" value={contactForm.name} onChange={handleContactChange} placeholder="Full name" autoComplete="name" className="w-full rounded-xl border border-white/12 bg-white/[0.06] px-4 py-3.5 text-[15px] text-white outline-none transition placeholder:text-white/35 hover:border-white/25 focus:border-[#4ade80] focus:bg-white/[0.09] focus:ring-4 focus:ring-[#4ade80]/15" />
+                  </div>
+                  <div>
+                    <label htmlFor="contact-email" className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-white/60">Email address <span className="text-[#4ade80]">*</span></label>
+                    <input id="contact-email" type="email" name="email" value={contactForm.email} onChange={handleContactChange} placeholder="you@business.com" autoComplete="email" className="w-full rounded-xl border border-white/12 bg-white/[0.06] px-4 py-3.5 text-[15px] text-white outline-none transition placeholder:text-white/35 hover:border-white/25 focus:border-[#4ade80] focus:bg-white/[0.09] focus:ring-4 focus:ring-[#4ade80]/15" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label htmlFor="contact-company" className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-white/60">Business name</label>
+                    <input id="contact-company" type="text" name="company" value={contactForm.company} onChange={handleContactChange} placeholder="Restaurant or company name" autoComplete="organization" className="w-full rounded-xl border border-white/12 bg-white/[0.06] px-4 py-3.5 text-[15px] text-white outline-none transition placeholder:text-white/35 hover:border-white/25 focus:border-[#4ade80] focus:bg-white/[0.09] focus:ring-4 focus:ring-[#4ade80]/15" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label htmlFor="contact-message" className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-white/60">Message <span className="text-[#4ade80]">*</span></label>
+                    <textarea id="contact-message" name="message" rows="5" value={contactForm.message} onChange={handleContactChange} placeholder="Tell us about your restaurant, team size and what you need" className="w-full rounded-xl border border-white/12 bg-white/[0.06] px-4 py-3.5 text-[15px] text-white outline-none transition placeholder:text-white/35 hover:border-white/25 focus:border-[#4ade80] focus:bg-white/[0.09] focus:ring-4 focus:ring-[#4ade80]/15 resize-none" />
+                  </div>
                   {contactError && (
                     <p className="rounded-xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200 sm:col-span-2">
                       {contactError}
                     </p>
                   )}
+                  <button
+                    type="submit"
+                    disabled={contactSubmitting}
+                    className={`rounded-xl bg-[#4ade80] px-6 py-4 text-base font-bold text-[#140d09] shadow-lg shadow-[#4ade80]/20 transition hover:-translate-y-0.5 hover:brightness-110 sm:col-span-2 ${
+                      contactSubmitting ? "cursor-not-allowed opacity-70" : ""
+                    }`}
+                  >
+                    {contactSubmitting ? "Submitting..." : "Submit & Request Demo"}
+                  </button>
+                  <p className="text-center text-xs text-white/45 sm:col-span-2">Fields marked * are required. We never share your details.</p>
                 </div>
               </form>
             </div>
