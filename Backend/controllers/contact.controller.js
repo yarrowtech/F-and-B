@@ -1,4 +1,9 @@
 import ContactMessage from "../models/ContactMessage.model.js";
+import {
+  isMailerConfigured,
+  sendContactNotificationEmail,
+  sendContactConfirmationEmail,
+} from "../utils/mailer.js";
 import { successResponse, errorResponse } from "../utils/apiResponse.js";
 
 export const submitContactForm = async (req, res) => {
@@ -32,6 +37,16 @@ export const submitContactForm = async (req, res) => {
     }
 
     const contact = await ContactMessage.create(contactData);
+
+    // Fire-and-forget: a mail failure must not fail the saved submission.
+    if (isMailerConfigured()) {
+      sendContactNotificationEmail(contactData).catch((e) =>
+        console.error("Contact notification email failed:", e.message)
+      );
+      sendContactConfirmationEmail({ to: contactData.email, name: contactData.name }).catch((e) =>
+        console.error("Contact confirmation email failed:", e.message)
+      );
+    }
 
     return successResponse(res, "Message received. We will get back to you soon.", { id: contact._id }, 201);
   } catch (err) {

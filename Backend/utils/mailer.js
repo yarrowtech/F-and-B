@@ -828,4 +828,37 @@ export const sendCouponEmail = async ({ to, restaurantName, customerName, code, 
   });
 };
 
+const escapeHtml = (v) =>
+  String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+export const sendContactNotificationEmail = async ({ name, email, company, phone, message }) => {
+  const transport = getTransporter();
+  const { mailFrom } = getMailerConfig();
+  const to = String(process.env.CONTACT_NOTIFY_EMAIL || "yarrowtech@yarrowtech.in").trim();
+  const rows = [["Name", name], ["Email", email], ["Business", company], ["Phone", phone], ["Message", message]]
+    .filter(([, v]) => v);
+  await transport.sendMail({
+    from: mailFrom,
+    to,
+    replyTo: email,
+    subject: `New demo request from ${name}`,
+    text: rows.map(([k, v]) => `${k}: ${v}`).join("\n"),
+    html: `<h3>New demo request</h3><table cellpadding="6">${rows
+      .map(([k, v]) => `<tr><td><b>${k}</b></td><td>${escapeHtml(v).replace(/\n/g, "<br>")}</td></tr>`)
+      .join("")}</table>`,
+  });
+};
+
+export const sendContactConfirmationEmail = async ({ to, name }) => {
+  const transport = getTransporter();
+  const { mailFrom } = getMailerConfig();
+  await transport.sendMail({
+    from: mailFrom,
+    to,
+    subject: "We received your demo request",
+    text: `Hello ${name},\n\nThank you for contacting EFNBMMS. We received your request and our team will get back to you shortly to schedule your demo.\n\nRegards,\nEFNBMMS - A Product of YarrowTech`,
+    html: `<p>Hello ${escapeHtml(name)},</p><p>Thank you for contacting EFNBMMS. We received your request and our team will get back to you shortly to schedule your demo.</p><p>Regards,<br>EFNBMMS - A Product of YarrowTech</p>`,
+  });
+};
+
 export { isMailerConfigured };
