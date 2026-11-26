@@ -72,6 +72,15 @@ test('report handler scopes restaurant and paid date, returns real Excel for bot
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(Buffer.concat(chunks));
     const sheet = workbook.worksheets[0];
+    assert.equal(sheet.getCell('A1').isMerged, true);
+    assert.equal(sheet.views[0].state, 'frozen');
+    assert.ok(sheet.autoFilter);
+    assert.equal(sheet.pageSetup.orientation, type === 'daily' ? 'landscape' : 'portrait');
+    if (type === 'items') {
+      const dataRow = sheet.getRow(sheet.views[0].ySplit + 1);
+      assert.equal(dataRow.getCell(2).numFmt, '0.##');
+      assert.match(dataRow.getCell(4).numFmt, /0.00/);
+    }
     const last = sheet.getRow(sheet.rowCount);
     assert.equal(last.getCell(1).value, 'TOTAL');
     assert.equal(last.getCell(type === 'daily' ? 10 : 4).value, type === 'daily' ? 514 : 489.05);

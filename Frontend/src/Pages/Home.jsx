@@ -19,7 +19,7 @@ import API from "../services/api";
 import Header from "../components/Header";
 import Hero from "../components/Hero";
 import aboutImage from "../assets/Images/about.jpg";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 const serviceCards = [
   {
@@ -319,6 +319,7 @@ const VendorPlanPreviewCard = ({ plan, index, onOpen }) => {
 };
 
 const Home = () => {
+  const { hash } = useLocation();
   const [contactForm, setContactForm] = useState({
     name: "",
     email: "",
@@ -371,28 +372,34 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
-    if (!window.location.hash) {
-      window.scrollTo({ top: 0, behavior: "auto" });
-      return;
-    }
-
-    const sectionId = window.location.hash.replace("#", "");
-    const timeoutId = window.setTimeout(() => {
-      const target = document.getElementById(sectionId);
-      if (target) {
-        const headerOffset = 96;
-        const targetTop =
-          target.getBoundingClientRect().top + window.scrollY - headerOffset;
-
-        window.scrollTo({
-          top: Math.max(targetTop, 0),
-          behavior: "smooth",
-        });
-      }
-    }, 100);
-
-    return () => window.clearTimeout(timeoutId);
-  }, []);
+    let frameId;
+    let cancelled = false;
+    const alignSection = () => {
+      if (cancelled) return;
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        const sectionId = window.location.hash.slice(1);
+        if (!sectionId) return;
+        // scroll-margin keeps the heading below the fixed navigation.
+        document.getElementById(sectionId)?.scrollIntoView({ block: "start", behavior: "instant" });
+      });
+    };
+    const stopAlignment = () => { cancelled = true; window.cancelAnimationFrame(frameId); };
+    const handleHashChange = () => { cancelled = false; alignSection(); };
+    alignSection();
+    document.fonts?.ready.then(alignSection);
+    window.addEventListener("hashchange", handleHashChange);
+    window.addEventListener("load", alignSection);
+    window.addEventListener("wheel", stopAlignment, { passive: true });
+    window.addEventListener("touchstart", stopAlignment, { passive: true });
+    return () => {
+      stopAlignment();
+      window.removeEventListener("hashchange", handleHashChange);
+      window.removeEventListener("load", alignSection);
+      window.removeEventListener("wheel", stopAlignment);
+      window.removeEventListener("touchstart", stopAlignment);
+    };
+  }, [hash, plansLoading]);
 
   useEffect(() => {
     if (!selectedPlan) return undefined;
