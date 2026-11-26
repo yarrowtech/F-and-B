@@ -45,8 +45,6 @@ const inputCls =
   "min-h-10 min-w-0 w-full rounded-xl border border-[#d7e3ef] bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
 const cardCls =
   "rounded-[20px] border border-[#d7e3ef] bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[22px] xl:p-4";
-const pillCls =
-  "rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200";
 
 export default function AccountantTableBilling() {
   const [tables, setTables] = useState([]);
@@ -83,11 +81,11 @@ export default function AccountantTableBilling() {
 
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
-  const [showComp, setShowComp] = useState(false);
   const [compType, setCompType] = useState("NONE");
   const [compItems, setCompItems] = useState([]);
   const [compNote, setCompNote] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showFinalize, setShowFinalize] = useState(false);
   const [cgstRate, setCgstRate] = useState("");
   const [sgstRate, setSgstRate] = useState("");
   const [serviceCharge, setServiceCharge] = useState("");
@@ -223,8 +221,8 @@ export default function AccountantTableBilling() {
     setCart([]);
     setNotice("");
     setSettleOpen(false);
-    setShowComp(false);
     setShowAdvanced(false);
+    setShowFinalize(false);
     setShowMenuList(false);
     setCustomerPhone("");
     setCustomerEmail("");
@@ -567,12 +565,18 @@ export default function AccountantTableBilling() {
       setNotice("You have new items. Send the KOT first (F6), then generate the bill.");
       return;
     }
+    setNotice("");
+    setShowFinalize(true); // review customer, charges and complimentary, then finalize
+  };
+
+  const confirmFinalize = async () => {
     try {
       setBusy(true);
       setNotice("");
       const response = await generateTableFinalBill(activeTable._id, chargePayload());
       const { printJob, ...bill } = response;
       setOpenBill(bill);
+      setShowFinalize(false);
       await printAll([printJob]);
       loadBoard();
       openSettlePopup(); // bill printed -> ask how the customer paid
@@ -618,13 +622,13 @@ export default function AccountantTableBilling() {
       if (event.key !== "F5" && event.key !== "F6") return;
       event.preventDefault();
       if (event.repeat || busy) return;
-      if (settleOpen || showMenuList || showAdvanced || showComp || cancelTarget) return;
+      if (settleOpen || showMenuList || showAdvanced || showFinalize || cancelTarget) return;
       if (event.key === "F6") handleKotRef.current();
       else handleBillRef.current();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTable, busy, settleOpen, showMenuList, showAdvanced, showComp, cancelTarget]);
+  }, [activeTable, busy, settleOpen, showMenuList, showAdvanced, showFinalize, cancelTarget]);
 
   // Settle pop-up keys: arrows / 1-9 choose, Enter settles & prints, Esc skips.
   const handleSettleRef = useRef(handleSettle);
@@ -955,78 +959,102 @@ export default function AccountantTableBilling() {
         <div className="rounded-[28px] bg-[#f8fbff] p-2.5 shadow-sm ring-1 ring-[#dce7f3] dark:bg-slate-900 dark:ring-slate-700 min-[1024px]:p-3 xl:rounded-[30px]">
           <div className="grid gap-2.5 min-[1024px]:grid-cols-[220px_minmax(0,1fr)_195px] min-[1024px]:gap-3 xl:grid-cols-[360px_minmax(0,1fr)_300px] xl:gap-4">
             {/* ============ LEFT ============ */}
-            <div className="space-y-3 min-[1024px]:sticky min-[1024px]:top-4 min-[1024px]:self-start">
+            <div className="min-[1024px]:sticky min-[1024px]:top-4 min-[1024px]:self-start">
               <div className={cardCls}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-900 dark:text-white">
-                    Bill Setup
+                    Order Items
                   </h3>
                   <div className="flex items-center gap-1.5 text-xs font-black">
                     <span className="rounded-lg bg-slate-100 px-2 py-1 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                      {allLines.length} items
+                      Table {activeTable.tableNumber}
                     </span>
                     <span className="rounded-lg bg-[#e8f8ef] px-2 py-1 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200">
-                      {formatCurrency(totals.total)}
+                      {allLines.length} items
                     </span>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex min-h-10 items-center rounded-xl border border-[#d7e3ef] bg-slate-50 px-3 text-sm font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                    Table {activeTable.tableNumber}
+                {allLines.length === 0 && (
+                  <p className="rounded-xl bg-slate-50 px-3 py-6 text-center text-xs font-semibold text-slate-500 dark:bg-slate-900">
+                    No items yet. Add items to start the order.
+                  </p>
+                )}
+                {cart.length > 0 && (
+                  <div className="mb-4">
+                    <p className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-amber-600">
+                      New items (not sent yet)
+                    </p>
+                    <div className="divide-y divide-slate-100 rounded-2xl border border-amber-200 dark:divide-slate-800 dark:border-amber-900/50">
+                      {cart.map((item) => (
+                        <div key={`left-cart-${item.menuItem}`} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-slate-700 dark:text-slate-200">
+                              {item.quantity} × {item.name}
+                            </p>
+                            <p className="text-[11px] font-bold text-slate-500">
+                              {formatCurrency(item.price * item.quantity)}
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-black text-amber-700">
+                            NEW
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Customer phone"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    className={inputCls}
-                  />
-                  <input
-                    type="email"
-                    placeholder="Customer email"
-                    value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
-                    className={`${inputCls} col-span-2`}
-                  />
+                )}
+                      {runningItems.length > 0 && (
+                        <div>
+                          <p className="mb-1 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                            Already sent to kitchen (KOT printed)
+                          </p>
+                          <p className="mb-2 text-[11px] font-medium text-slate-500">
+                            Reducing or removing items requires a reason and prints a cancellation KOT. To add more, send a new KOT.
+                          </p>
+                          <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
+                            {runningItems.map((item, idx) => {
+                              return (
+                                <div
+                                  key={item._id || idx}
+                                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="truncate font-semibold text-slate-700 dark:text-slate-200">
+                                      {item.quantity} × {item.menuItem?.name || "Item"}
+                                    </p>
+                                    <p className="text-[11px] font-bold text-slate-500">
+                                      {formatCurrency(item.price * item.quantity)}
+                                    </p>
+                                  </div>
+                                  <div className="flex shrink-0 items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      disabled={busy || item.quantity <= 1}
+                                      onClick={() => editSentItem(item, item.quantity - 1)}
+                                      title="Reduce quantity by 1"
+                                      className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
+                                    >
+                                      <FaMinus />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={busy}
+                                      onClick={() => editSentItem(item, 0)}
+                                      className="min-h-10 rounded-md bg-rose-50 px-2.5 text-[11px] font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                <div className="mt-3 flex items-center justify-between border-t border-dashed border-slate-200 pt-3 text-sm font-black text-slate-900 dark:border-slate-700 dark:text-white">
+                  <span>Current total</span>
+                  <span>{formatCurrency(totals.total)}</span>
                 </div>
-              </div>
-
-              <div className="rounded-[22px] border border-[#d7e3ef] bg-white shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[24px]">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced(true)}
-                  className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                >
-                  <span>
-                    <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">
-                      Advanced Bill Options
-                    </span>
-                    <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
-                      GST, discount, service, packaging, and extra charge
-                    </span>
-                  </span>
-                  <span className={pillCls}>Open</span>
-                </button>
-              </div>
-
-              <div className="rounded-[22px] border border-[#d7e3ef] bg-white shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[24px]">
-                <button
-                  type="button"
-                  onClick={() => setShowComp(true)}
-                  className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                >
-                  <span>
-                    <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">
-                      Complimentary
-                    </span>
-                    <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
-                      {compType === "NONE"
-                        ? "No free items applied"
-                        : `${compType.replace("_", " ")} | ${formatCurrency(totals.complimentary)}`}
-                    </span>
-                  </span>
-                  <span className={pillCls}>Open</span>
-                </button>
               </div>
 
               {showAdvanced && createPortal(
@@ -1107,76 +1135,133 @@ export default function AccountantTableBilling() {
                 document.body
               )}
 
-              {showComp && createPortal(
-                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
-                  <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900">
-                    <div className="mb-1 flex items-center justify-between gap-3">
-                      <h3 className="text-base font-black text-slate-900 dark:text-white">
-                        Complimentary
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={() => setShowComp(false)}
-                        className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        aria-label="Close"
-                      >
-                        <FaTimes />
-                      </button>
+              {showFinalize && createPortal(
+                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-3">
+                  <div className="max-h-[96vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-4 shadow-xl dark:bg-slate-900">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-base font-black text-slate-900 dark:text-white">Finalize Billing</h3>
+                        <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                          Table {activeTable.tableNumber} · {allLines.length} items
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-lg bg-emerald-50 px-3 py-1 text-base font-black text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                          {formatCurrency(totals.total)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowFinalize(false)}
+                          className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          aria-label="Close"
+                        >
+                          <FaTimes />
+                        </button>
+                      </div>
                     </div>
-                    <p className="mb-4 text-xs text-slate-500">Mark the whole order or some items as free.</p>
-                    <div className="space-y-2 text-sm">
-                      {[
-                        ["NONE", "None"],
-                        ["FULL_ORDER", "Full order free"],
-                        ["ITEMS", "Selected items free"],
-                      ].map(([value, label]) => (
-                        <label key={value} className="flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-200">
-                          <input
-                            type="radio"
-                            checked={compType === value}
-                            onChange={() => setCompType(value)}
-                          />
-                          {label}
-                        </label>
-                      ))}
-                      {compType === "ITEMS" && (
-                        <div className="max-h-48 space-y-1.5 overflow-y-auto rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
-                          {Array.from(new Map(allLines.map((l) => [l.id, l])).values()).map((l) => (
-                            <label key={l.id} className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                              <input
-                                type="checkbox"
-                                checked={compItems.includes(l.id)}
-                                onChange={() => toggleCompItem(l.id)}
-                              />
-                              {l.name}
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Customer</p>
+                        <div className="grid gap-2">
+                          <input type="text" placeholder="Customer phone" value={customerPhone}
+                            onChange={(e) => setCustomerPhone(e.target.value)} className={`${inputCls} !min-h-9 !rounded-lg !py-1.5`} />
+                          <input type="email" placeholder="Customer email" value={customerEmail}
+                            onChange={(e) => setCustomerEmail(e.target.value)} className={`${inputCls} !min-h-9 !rounded-lg !py-1.5`} />
+                        </div>
+
+                        <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 mt-4">Complimentary</p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                          {[
+                            ["NONE", "None"],
+                            ["FULL_ORDER", "Full order free"],
+                            ["ITEMS", "Selected items free"],
+                          ].map(([value, label]) => (
+                            <label key={value} className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
+                              <input type="radio" checked={compType === value} onChange={() => setCompType(value)} />
+                              {label}
                             </label>
                           ))}
-                          {allLines.length === 0 && (
-                            <p className="text-xs text-slate-500">Add items first.</p>
+                        </div>
+                        {compType === "ITEMS" && (
+                          <div className="mt-2 max-h-28 space-y-1 overflow-y-auto rounded-lg bg-slate-50 p-2 dark:bg-slate-950">
+                            {Array.from(new Map(allLines.map((l) => [l.id, l])).values()).map((l) => (
+                              <label key={l.id} className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                <input type="checkbox" checked={compItems.includes(l.id)} onChange={() => toggleCompItem(l.id)} />
+                                {l.name}
+                              </label>
+                            ))}
+                            {allLines.length === 0 && <p className="text-xs text-slate-500">Add items first.</p>}
+                          </div>
+                        )}
+                        {compType !== "NONE" && (
+                          <input value={compNote} onChange={(e) => setCompNote(e.target.value)}
+                            placeholder="Reason / note" className={`${inputCls} !min-h-9 !rounded-lg !py-1.5 mt-2`} />
+                        )}
+                      </div>
+
+                      <div>
+                        <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Advanced Bill Options</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="text-[11px] font-bold text-slate-500">
+                            CGST %
+                            <input type="number" min="0" value={cgstRate !== "" ? cgstRate : taxDefaults.cgst}
+                              onChange={(e) => setCgstRate(e.target.value)} className={`${inputCls} !min-h-9 !rounded-lg !py-1.5 mt-0.5`} />
+                          </label>
+                          <label className="text-[11px] font-bold text-slate-500">
+                            SGST %
+                            <input type="number" min="0" value={sgstRate !== "" ? sgstRate : taxDefaults.sgst}
+                              onChange={(e) => setSgstRate(e.target.value)} className={`${inputCls} !min-h-9 !rounded-lg !py-1.5 mt-0.5`} />
+                          </label>
+                          <label className="col-span-2 text-[11px] font-bold text-slate-500">
+                            Discount
+                            <div className="mt-0.5 flex gap-2">
+                              <input type="number" min="0" value={discount}
+                                onChange={(e) => setDiscount(e.target.value)} className={`${inputCls} !min-h-9 !rounded-lg !py-1.5`} />
+                              <select value={discountType} onChange={(e) => setDiscountType(e.target.value)}
+                                className={`${inputCls} !min-h-9 !rounded-lg !py-1.5 !w-20 px-2 font-semibold`}>
+                                <option value="AMOUNT">₹</option>
+                                <option value="PERCENT">%</option>
+                              </select>
+                            </div>
+                          </label>
+                          <label className="text-[11px] font-bold text-slate-500">
+                            Service charge
+                            <input type="number" min="0" value={serviceCharge}
+                              onChange={(e) => setServiceCharge(e.target.value)} className={`${inputCls} !min-h-9 !rounded-lg !py-1.5 mt-0.5`} />
+                          </label>
+                          <label className="text-[11px] font-bold text-slate-500">
+                            Packaging
+                            <input type="number" min="0" value={packagingCharge}
+                              onChange={(e) => setPackagingCharge(e.target.value)} className={`${inputCls} !min-h-9 !rounded-lg !py-1.5 mt-0.5`} />
+                          </label>
+                          <label className="col-span-2 text-[11px] font-bold text-slate-500">
+                            Extra charge
+                            <input type="number" min="0" value={extraCharge}
+                              onChange={(e) => setExtraCharge(e.target.value)} className={`${inputCls} !min-h-9 !rounded-lg !py-1.5 mt-0.5`} />
+                          </label>
+                          {num(extraCharge) > 0 && (
+                            <input value={extraReason} onChange={(e) => setExtraReason(e.target.value)}
+                              placeholder="Extra charge reason" className={`${inputCls} !min-h-9 !rounded-lg !py-1.5 col-span-2`} />
                           )}
                         </div>
-                      )}
-                      {compType !== "NONE" && (
-                        <input
-                          value={compNote}
-                          onChange={(e) => setCompNote(e.target.value)}
-                          placeholder="Reason / note"
-                          className={inputCls}
-                        />
-                      )}
+                      </div>
                     </div>
+
                     <button
                       type="button"
-                      onClick={() => setShowComp(false)}
-                      className="mt-5 min-h-11 w-full rounded-xl bg-emerald-600 text-sm font-bold text-white hover:bg-emerald-700"
+                      onClick={confirmFinalize}
+                      disabled={busy}
+                      className="mt-4 min-h-11 w-full rounded-xl bg-emerald-600 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-60"
                     >
-                      Done
+                      {busy ? "Working..." : "Finalize Billing & Print"}
                     </button>
                   </div>
                 </div>,
                 document.body
               )}
             </div>
+
 
             {/* ============ MIDDLE ============ */}
             <div className="rounded-[24px] border border-[#d7e3ef] bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[26px] xl:p-5">
@@ -1620,54 +1705,6 @@ export default function AccountantTableBilling() {
                 ))}
               </div>
 
-              {runningItems.length > 0 && (
-                <div className="mt-4">
-                  <p className="mb-1 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
-                    Already sent to kitchen (KOT printed)
-                  </p>
-                  <p className="mb-2 text-[11px] font-medium text-slate-500">
-                    Reducing or removing items requires a reason and prints a cancellation KOT. To add more, send a new KOT.
-                  </p>
-                  <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
-                    {runningItems.map((item, idx) => {
-                      return (
-                        <div
-                          key={item._id || idx}
-                          className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold text-slate-700 dark:text-slate-200">
-                              {item.quantity} × {item.menuItem?.name || "Item"}
-                            </p>
-                            <p className="text-[11px] font-bold text-slate-500">
-                              {formatCurrency(item.price * item.quantity)}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-1.5">
-                            <button
-                              type="button"
-                              disabled={busy || item.quantity <= 1}
-                              onClick={() => editSentItem(item, item.quantity - 1)}
-                              title="Reduce quantity by 1"
-                              className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
-                            >
-                              <FaMinus />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => editSentItem(item, 0)}
-                              className="min-h-10 rounded-md bg-rose-50 px-2.5 text-[11px] font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* ============ RIGHT ============ */}
@@ -1762,16 +1799,6 @@ export default function AccountantTableBilling() {
                   <p className="mt-1 text-center text-[10px] text-slate-500">
                     Send the KOT for the new items first
                   </p>
-                )}
-
-                {openBill?.billPrintedAt && cart.length === 0 && (
-                  <button
-                    type="button"
-                    onClick={openSettlePopup}
-                    className="mt-2 min-h-11 w-full rounded-xl bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900"
-                  >
-                    Settle Payment
-                  </button>
                 )}
 
                 {openBill &&
