@@ -14,7 +14,8 @@ export default function AccountantDailySalesReport({ type: initialType = "daily"
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const itemReport = type === "items";
-  const title = itemReport ? "Item-wise Sales Report" : "Daily Sales Report";
+  const cancellationReport = type === "cancellations";
+  const title = cancellationReport ? "Item Cancellation Report" : itemReport ? "Item-wise Sales Report" : "Daily Sales Report";
 
   useEffect(() => {
     let active = true;
@@ -46,8 +47,20 @@ export default function AccountantDailySalesReport({ type: initialType = "daily"
     } finally { setBusy(""); }
   };
 
-  const rows = report ? (itemReport ? report.items : report.daily) : [];
-  const columns = itemReport
+  const reprintCancellation = async (row) => {
+    setBusy(row.cancellationId);
+    setError("");
+    try {
+      await printJobsOnThisDevice([{ receiptText: row.receiptText, status: "LOCAL", printerName: row.printerName || "" }], {
+        combineBrowserFallback: true, combineLocalJobs: false, ensureCutAfterEach: true,
+      });
+    } catch { setError("Unable to print cancellation KOT. Check the printer and retry."); }
+    finally { setBusy(""); }
+  };
+  const rows = report ? (cancellationReport ? report.cancellations : itemReport ? report.items : report.daily) : [];
+  const columns = cancellationReport
+    ? [["orderNo", "Order"], ["table", "Table"], ["name", "Item"], ["quantity", "Cancelled Qty"], ["amount", "Item Value"], ["reason", "Reason"], ["cancelledBy", "Cancelled By"], ["cancelledAt", "Time (IST)"]]
+    : itemReport
     ? [["name", "Item"], ["quantity", "Sold Qty"], ["complimentaryQuantity", "Free Qty"], ["amount", "Item Value"]]
     : [["billNo", "Bill"], ["table", "Table"], ["payment", "Payment"], ["items", "Items"], ["discount", "Discount"], ["cgst", "CGST"], ["sgst", "SGST"], ["charges", "Charges"], ["roundOff", "Round Off"], ["collected", "Collected"]];
   const amountKeys = new Set(["amount", "items", "discount", "cgst", "sgst", "charges", "roundOff", "collected"]);
@@ -56,7 +69,7 @@ export default function AccountantDailySalesReport({ type: initialType = "daily"
     <div className="min-h-full space-y-5 bg-slate-50 p-3 text-slate-950 dark:bg-neutral-800 dark:text-white sm:p-5">
       <header className="rounded-2xl bg-white p-5 shadow-sm dark:bg-slate-900">
         <h1 className="text-2xl font-black">{title}</h1>
-        <p className="mt-2 text-sm text-slate-500">Restaurant paid sales by payment date (IST). Voided and unpaid bills excluded.</p>
+        <p className="mt-2 text-sm text-slate-500">{cancellationReport ? "Cancellations by cancellation date (IST), including open and fully cancelled orders. Item values are before tax and discounts." : "Restaurant paid sales by payment date (IST). Voided and unpaid bills excluded."}</p>
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <label className="text-sm font-semibold">Report type
             <select
@@ -71,6 +84,7 @@ export default function AccountantDailySalesReport({ type: initialType = "daily"
             >
               <option value="daily">Daily Sales (Bill-wise)</option>
               <option value="items">Item-wise Sales</option>
+              <option value="cancellations">Item Cancellations</option>
             </select>
           </label>
           <label className="text-sm font-semibold">Report date
@@ -87,7 +101,11 @@ export default function AccountantDailySalesReport({ type: initialType = "daily"
         {itemReport && <p className="text-sm text-slate-500">Item values are before bill discounts and GST. Complimentary items appear under Free Qty.</p>}
         {itemReport && report.missingOrders > 0 && <p role="alert" className="text-amber-700">{report.missingOrders} bill(s) have missing item details. Item totals may be incomplete.</p>}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {(itemReport ? [
+          {(cancellationReport ? [
+            ["Cancellations", new Set(rows.map((row) => row.cancellationId)).size],
+            ["Cancelled Quantity", rows.reduce((sum, row) => sum + row.quantity, 0)],
+            ["Cancelled Item Value", money(rows.reduce((sum, row) => sum + row.amount, 0))],
+          ] : itemReport ? [
             ["Sold Quantity", rows.reduce((sum, row) => sum + row.quantity, 0)],
             ["Free Quantity", rows.reduce((sum, row) => sum + row.complimentaryQuantity, 0)],
             ["Item Value", money(rows.reduce((sum, row) => sum + row.amount, 0))],
@@ -96,12 +114,12 @@ export default function AccountantDailySalesReport({ type: initialType = "daily"
         </div>
         <div className="overflow-x-auto rounded-xl bg-white dark:bg-slate-900">
           <table className="w-full text-left text-sm">
-            <thead><tr>{columns.map(([key, label]) => <th key={key} className="whitespace-nowrap border-b p-3">{label}</th>)}</tr></thead>
-            <tbody>{rows.map((row, index) => <tr key={index}>{columns.map(([key]) => <td key={key} className="whitespace-nowrap border-b border-slate-100 p-3 dark:border-slate-800">{amountKeys.has(key) ? money(row[key]) : row[key]}</td>)}</tr>)}</tbody>
+            <thead><tr>{columns.map(([key, label]) => <th key={key} className="whitespace-nowrap border-b p-3">{label}</th>)}{cancellationReport && <th className="p-3">Cancellation KOT</th>}</tr></thead>
+            <tbody>{rows.map((row, index) => <tr key={index}>{columns.map(([key]) => <td key={key} className={`${key === "reason" ? "min-w-48 whitespace-normal break-words" : "whitespace-nowrap"} border-b border-slate-100 p-3 dark:border-slate-800`}>{key === "cancelledAt" ? new Date(row[key]).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : amountKeys.has(key) ? money(row[key]) : row[key]}</td>)}{cancellationReport && <td className="p-3"><button type="button" disabled={Boolean(busy)} onClick={() => reprintCancellation(row)} className={`${button} bg-emerald-600 text-white`}>Reprint KOT</button></td>}</tr>)}</tbody>
           </table>
-          {!rows.length && <p className="p-6 text-center text-slate-500">No paid sales for this date.</p>}
+          {!rows.length && <p className="p-6 text-center text-slate-500">{cancellationReport ? "No cancellations for this date." : "No paid sales for this date."}</p>}
         </div>
-        {!itemReport && <section className="rounded-xl bg-white p-4 dark:bg-slate-900">
+        {!itemReport && !cancellationReport && <section className="rounded-xl bg-white p-4 dark:bg-slate-900">
           <h2 className="font-bold">Payment Summary</h2>
           {Object.entries(report.payments).map(([method, amount]) => <div key={method} className="mt-2 flex justify-between gap-3"><span>{method}</span><span>{money(amount)}</span></div>)}
           <div className="mt-3 flex justify-between border-t pt-3 font-bold"><span>Total Collected</span><span>{money(report.summary.collected)}</span></div>

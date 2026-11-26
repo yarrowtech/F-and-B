@@ -5,6 +5,8 @@ import InventoryLog from "../models/InventoryLog.model.js";
 import KotPrintJob from "../models/KotPrintJob.model.js";
 import Menu from "../models/Menu.model.js";
 import Order from "../models/Order.model.js";
+import Employee from "../models/Employee.model.js";
+import { planItemCancellations, cancellationReceipt } from "../utils/itemCancellation.js";
 import PrintAgent from "../models/PrintAgent.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import Table from "../models/Table.model.js";
@@ -1539,7 +1541,7 @@ const buildTableBillFields = ({ order, body = {}, bill = null, template = {} }) 
 
 const assertAccountantBillingRestaurant = async (restaurantId) => {
   const restaurant = await Restaurant.findById(restaurantId)
-    .select("restaurantType billingTemplate")
+    .select("name restaurantType billingTemplate")
     .lean();
   if (!restaurant) {
     throw Object.assign(new Error("Restaurant not found"), { status: 404 });
@@ -1828,76 +1830,81 @@ const generateTableBill = async (req, res) => {
 // Before the final bill the accountant can correct what was already sent:
 // reduce a quantity or remove an item. (To add more, send a new KOT.)
 const editTableOrderItems = async (req, res) => {
+  let session;
   try {
-    const restaurantSettings = await assertAccountantBillingRestaurant(
-      req.user.restaurant
-    );
-    const changes = Array.isArray(req.body?.changes) ? req.body.changes : [];
-    if (changes.length === 0) return sendError(res, "No changes to save");
-
-    const bill = await findOpenTableBill(req.user.restaurant, req.params.tableId);
-    if (!bill) return sendError(res, "No running order for this table", 404);
-
-    const order = await Order.findById(bill.order);
-    if (!order) return sendError(res, "Order not found", 404);
-
+    const restaurantSettings = await assertAccountantBillingRestaurant(req.user.restaurant);
+    const openBill = await findOpenTableBill(req.user.restaurant, req.params.tableId);
+    if (!openBill) return sendError(res, "No running order for this table", 404);
+    const [employee, table, agent] = await Promise.all([
+      Employee.findById(req.user.id).select("name").lean(),
+      Table.findOne({ _id: req.params.tableId, restaurant: req.user.restaurant }).lean(),
+      PrintAgent.findOne({ restaurant: req.user.restaurant, isActive: true }).sort({ updatedAt: -1 }),
+    ]);
+    if (!table) return sendError(res, "Table not found", 404);
     const now = new Date();
-    changes.forEach((change) => {
-      const item = order.items.id(sanitizeText(change.itemId));
-      if (!item || item.status === "CANCELLED") {
-        throw new Error("Item not found on this table");
+    const eventId = new mongoose.Types.ObjectId();
+    let closed = false;
+    let cancellationKotPrintJob;
+    session = await mongoose.startSession();
+    await session.withTransaction(async () => {
+      const bill = await Bill.findOne({ _id: openBill._id, restaurant: req.user.restaurant, paymentStatus: "PENDING" }).session(session);
+      if (!bill) throw new Error("This bill is no longer open");
+      const order = await Order.findOne({ _id: bill.order, restaurant: req.user.restaurant, status: { $nin: ["PAID", "CANCELLED"] } }).session(session);
+      if (!order) throw new Error("This order is no longer open");
+      const planned = planItemCancellations(order.items, req.body?.changes);
+      const menu = await Menu.find({ _id: { $in: planned.map(({ item }) => item.menuItem) } }).select("name").session(session).lean();
+      const names = new Map(menu.map((item) => [String(item._id), item.name]));
+      const event = {
+        _id: eventId, tableNumber: String(table.tableNumber),
+        printerName: String(process.env.KOT_DEFAULT_PRINTER || "").trim() || agent?.billPrinterName || "",
+        cancelledBy: req.user.id, cancelledByName: employee?.name || String(req.user.id), cancelledAt: now,
+        items: planned.map(({ item, cancelledQuantity, reason }) => ({
+          itemId: item._id, menuItem: item.menuItem,
+          name: names.get(String(item.menuItem)) || "Unavailable item",
+          quantity: cancelledQuantity, price: item.price, reason,
+        })),
+      };
+      event.receiptText = cancellationReceipt({ restaurantName: restaurantSettings.name, table: table.tableNumber, orderNo: order.orderNo, event, isTest: order.isTest });
+      order.cancellations.push(event);
+      for (const { item, quantity, reason } of planned) {
+        if (quantity === 0) {
+          item.cancellationStage = item.status === "PENDING" ? "BEFORE_PREPARATION" : "AFTER_PREPARATION";
+          item.status = "CANCELLED";
+          item.cancelledAt = now;
+          item.cancelledBy = req.user.id;
+          item.cancellationReason = reason;
+        } else item.quantity = quantity;
       }
-      const quantity = Math.floor(sanitizeAmount(change.quantity));
-      if (quantity < 0 || quantity > Number(item.quantity)) {
-        throw new Error("You can only reduce the quantity here. Use Add Item to add more.");
-      }
-      if (quantity === 0) {
-        item.status = "CANCELLED";
-        item.cancelledAt = now;
-        item.cancelledBy = req.user.id;
-        item.cancellationReason = "Removed by accountant before the final bill";
-        item.cancellationStage = "AFTER_PREPARATION";
+      closed = getBillableOrderItems(order).length === 0;
+      if (closed) {
+        order.status = "CANCELLED";
+        bill.paymentStatus = "VOID";
+        bill.voidedAt = now;
+        bill.voidedBy = req.user.id;
+        bill.voidReason = "All items cancelled; see cancellation history for reasons";
+        await Table.findByIdAndUpdate(table._id, { status: "available" }, { session });
       } else {
-        item.quantity = quantity;
+        bill.set(buildTableBillFields({ order, body: {}, bill, template: getBillingTemplate(restaurantSettings) }));
       }
+      bill.billPrintedAt = null;
+      await order.save({ session });
+      await bill.save({ session });
+      cancellationKotPrintJob = {
+        _id: String(eventId), restaurant: req.user.restaurant, bill: bill._id,
+        requestedBy: req.user.id,
+        printerName: event.printerName,
+        receiptText: event.receiptText, status: "LOCAL",
+      };
     });
-
-    // Nothing left on the table: close the order and free the table.
-    if (getBillableOrderItems(order).length === 0) {
-      order.status = "CANCELLED";
-      await order.save();
-      bill.paymentStatus = "VOID";
-      bill.voidedAt = now;
-      bill.voidedBy = req.user.id;
-      bill.voidReason = "All items were removed before the final bill";
-      await bill.save();
-      await Table.findByIdAndUpdate(req.params.tableId, { status: "available" });
-      invalidateCacheNamespaces(["dashboard"]);
-      return sendSuccess(res, { closed: true });
-    }
-
-    await order.save();
-    bill.set(
-      buildTableBillFields({
-        order,
-        body: {},
-        bill,
-        template: getBillingTemplate(restaurantSettings),
-      })
-    );
-    // The totals changed, so the bill must be generated again.
-    bill.billPrintedAt = null;
-    await bill.save();
-
-    invalidateCacheNamespaces(["dashboard"]);
-    const populatedBill = await findBillWithOrder({
-      _id: bill._id,
-      restaurant: req.user.restaurant,
-    });
-    return sendSuccess(res, populatedBill.toObject());
+    invalidateCacheNamespaces(["dashboard", `menu-analytics:${req.user.restaurant}`]);
+    if (closed) return sendSuccess(res, { closed: true, cancellationKotPrintJob });
+    const populatedBill = await findBillWithOrder({ _id: openBill._id, restaurant: req.user.restaurant });
+    return sendSuccess(res, { ...populatedBill.toObject(), cancellationKotPrintJob });
   } catch (err) {
     logger.error(err);
     return sendError(res, err.message, err.status || 400);
+  } finally {
+    if (session) await session.endSession();
   }
 };
 

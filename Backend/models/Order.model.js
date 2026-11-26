@@ -265,6 +265,25 @@ const kotSchema = new mongoose.Schema(
 =============================== */
 const orderSchema = new mongoose.Schema(
   {
+    cancellations: {
+      type: [new mongoose.Schema({
+        tableNumber: String,
+        cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: "Employee", required: true },
+        cancelledByName: { type: String, required: true },
+        cancelledAt: { type: Date, required: true },
+        receiptText: { type: String, required: true },
+        printerName: { type: String, default: "" },
+        items: [{
+          itemId: mongoose.Schema.Types.ObjectId,
+          menuItem: mongoose.Schema.Types.ObjectId,
+          name: String,
+          quantity: Number,
+          price: Number,
+          reason: { type: String, required: true, maxlength: 500 },
+        }],
+      })],
+      default: [],
+    },
     restaurant: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Restaurant",
@@ -409,6 +428,7 @@ orderSchema.pre("save", function (next) {
 
 // Faster table queries
 orderSchema.index({ restaurant: 1, table: 1 });
+orderSchema.index({ restaurant: 1, "cancellations.cancelledAt": 1 });
 
 // Faster status filtering
 orderSchema.index({ restaurant: 1, status: 1 });

@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { getItemCancellationReport } from "./itemCancellationReport.controller.js";
 import Bill from "../models/Bill.model.js";
 import Restaurant from "../models/Restaurant.model.js";
 import { isTestModeActive } from "../utils/testMode.js";
@@ -7,10 +8,11 @@ import { salesDateRange, buildSalesReport, buildSalesReceipt, reportColumns } fr
 export const getAccountantSalesReport = async (req, res) => {
   try {
     const { date, type = "daily", format = "json" } = req.query;
-    if (!["daily", "items"].includes(type) || !["json", "excel"].includes(format)) return res.status(400).json({ message: "Invalid report type or format" });
+    if (!["daily", "items", "cancellations"].includes(type) || !["json", "excel"].includes(format)) return res.status(400).json({ message: "Invalid report type or format" });
     if (!req.user.restaurant) return res.status(403).json({ message: "Restaurant access required" });
     let range;
     try { range = salesDateRange(date); } catch (error) { return res.status(400).json({ message: error.message }); }
+    if (type === "cancellations") return await getItemCancellationReport(req, res, range);
     const [restaurant, bills] = await Promise.all([
       Restaurant.findById(req.user.restaurant).select("name").lean(),
       Bill.find({ restaurant: req.user.restaurant, paymentStatus: "PAID", paidAt: { $gte: range.start, $lt: range.end } })

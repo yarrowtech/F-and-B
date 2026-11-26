@@ -98,7 +98,10 @@ export default function AccountantTableBilling() {
   const [discountType, setDiscountType] = useState("AMOUNT");
 
   const [settleOpen, setSettleOpen] = useState(false);
-  const [removeArmed, setRemoveArmed] = useState("");
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelError, setCancelError] = useState("");
+  const cancellationBusy = useRef(false);
   const [settleError, setSettleError] = useState("");
   const [method, setMethod] = useState("CASH");
   const [cashReceived, setCashReceived] = useState("");
@@ -478,27 +481,49 @@ export default function AccountantTableBilling() {
 
   // Correct an item that was already sent: reduce its quantity or remove it.
   // (More of an item = Add Item + a new KOT.)
-  const editSentItem = async (item, quantity) => {
+  const editSentItem = (item, quantity) => {
     if (busy || !item?._id) return;
+    setCancelTarget({ item, quantity });
+    setCancelReason("");
+    setCancelError("");
+  };
+
+  const confirmItemCancellation = async () => {
+    if (!cancelTarget || cancellationBusy.current) return;
+    if (!cancelReason.trim()) {
+      setCancelError("Enter a reason for cancelling this item.");
+      return;
+    }
+    const { item, quantity } = cancelTarget;
+    cancellationBusy.current = true;
     try {
       setBusy(true);
       setNotice("");
-      setRemoveArmed("");
+      setCancelError("");
       const response = await editTableOrderItems(activeTable._id, [
-        { itemId: item._id, quantity },
+        { itemId: item._id, quantity, previousQuantity: item.quantity, reason: cancelReason.trim() },
       ]);
-      if (response?.closed) {
-        setNotice("All items removed. The table is free again.");
+      const { cancellationKotPrintJob, ...bill } = response;
+      setCancelTarget(null);
+      if (bill.closed) {
         closeTable();
       } else {
-        setOpenBill(response);
-        setNotice("Item updated. Generate the bill again (F5).");
+        setOpenBill(bill);
+      }
+      setNotice(bill.closed ? "All items cancelled. The table is free again." : "Cancellation saved. Generate the bill again (F5).");
+      try {
+        await printJobsOnThisDevice([cancellationKotPrintJob], {
+          combineBrowserFallback: true, combineLocalJobs: false, ensureCutAfterEach: true,
+        });
+      } catch {
+        setNotice("Cancellation saved, but printing failed. Reprint the cancellation KOT from Reports > Item Cancellations.");
       }
       loadBoard();
     } catch (err) {
-      setNotice(err?.response?.data?.message || err.message || "Failed to update item");
+      setCancelError(err?.response?.data?.message || err.message || "Failed to cancel item");
     } finally {
       setBusy(false);
+      cancellationBusy.current = false;
     }
   };
 
@@ -593,13 +618,13 @@ export default function AccountantTableBilling() {
       if (event.key !== "F5" && event.key !== "F6") return;
       event.preventDefault();
       if (event.repeat || busy) return;
-      if (settleOpen || showMenuList || showAdvanced || showComp) return;
+      if (settleOpen || showMenuList || showAdvanced || showComp || cancelTarget) return;
       if (event.key === "F6") handleKotRef.current();
       else handleBillRef.current();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTable, busy, settleOpen, showMenuList, showAdvanced, showComp]);
+  }, [activeTable, busy, settleOpen, showMenuList, showAdvanced, showComp, cancelTarget]);
 
   // Settle pop-up keys: arrows / 1-9 choose, Enter settles & prints, Esc skips.
   const handleSettleRef = useRef(handleSettle);
@@ -645,6 +670,7 @@ export default function AccountantTableBilling() {
   if (!activeTable) {
     return (
       <div className="min-h-screen bg-[#f3f7fc] p-3 dark:bg-neutral-800 sm:p-4 lg:p-6">
+        {notice && <p role="status" className="mx-auto mb-3 max-w-7xl rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{notice}</p>}
         <div className="mx-auto max-w-7xl">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="grid grid-cols-2 gap-1 rounded-xl bg-white/70 p-1 dark:bg-slate-800">
@@ -884,6 +910,27 @@ export default function AccountantTableBilling() {
   /* ================= BILLING SCREEN (same look as manual New Bill) ================= */
   return (
     <div className="min-h-screen bg-[#f3f7fc] p-3 dark:bg-neutral-800 sm:p-4 lg:p-6">
+      {cancelTarget && createPortal(
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 p-4">
+          <form
+            role="dialog" aria-modal="true" aria-labelledby="cancel-item-title"
+            onSubmit={(event) => { event.preventDefault(); confirmItemCancellation(); }}
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900 dark:text-white"
+          >
+            <h2 id="cancel-item-title" className="text-lg font-bold">Cancel kitchen item</h2>
+            <p className="mt-2 text-sm">Cancel {cancelTarget.item.quantity - cancelTarget.quantity} × {cancelTarget.item.menuItem?.name || "item"}. Remaining quantity: {cancelTarget.quantity}.</p>
+            <label className="mt-4 block text-sm font-semibold" htmlFor="item-cancel-reason">Reason (required)</label>
+            <textarea id="item-cancel-reason" autoFocus required maxLength={500} rows={3} value={cancelReason} disabled={busy}
+              onChange={(event) => setCancelReason(event.target.value)} className={`${inputCls} mt-1 py-2`} placeholder="Why is this item being cancelled?" />
+            {cancelError && <p role="alert" className="mt-2 text-sm text-red-600">{cancelError}</p>}
+            <p className="mt-2 text-xs text-slate-500">The reason is saved in reports and printed on a cancellation KOT.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" disabled={busy} onClick={() => setCancelTarget(null)} className="min-h-11 rounded-lg border px-4">Back</button>
+              <button type="submit" disabled={busy || !cancelReason.trim()} className="min-h-11 rounded-lg bg-red-600 px-4 font-bold text-white disabled:opacity-50">{busy ? "Saving..." : "Cancel & print KOT"}</button>
+            </div>
+          </form>
+        </div>, document.body
+      )}
       <div className="mx-auto max-w-7xl space-y-2 sm:space-y-3">
         <div className="flex items-center justify-between gap-2 rounded-2xl bg-[#eef4fb] px-3 py-2 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
           <button
@@ -1133,6 +1180,83 @@ export default function AccountantTableBilling() {
 
             {/* ============ MIDDLE ============ */}
             <div className="rounded-[24px] border border-[#d7e3ef] bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[26px] xl:p-5">
+              {cart.length > 0 && (
+                <div className="mb-3 overflow-hidden rounded-xl border border-emerald-300 bg-white shadow-sm dark:border-emerald-800 dark:bg-slate-900">
+                  <div className="flex items-center justify-between gap-3 border-b border-emerald-100 px-4 py-3 dark:border-emerald-900/50">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wide text-emerald-600">
+                        Current order
+                      </p>
+                      <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                        {cart.length} item{cart.length === 1 ? "" : "s"} added
+                      </p>
+                    </div>
+                    <p className="text-sm font-black text-emerald-700 dark:text-emerald-300">
+                      {formatCurrency(totals.total)}
+                    </p>
+                  </div>
+
+                  <div className="max-h-64 divide-y divide-slate-100 overflow-y-auto dark:divide-slate-800">
+                    {(showAllFastAdd ? cart : cart.slice(0, 7)).map((item) => (
+                      <div
+                        key={`fast-add-cart-${item.menuItem}`}
+                        className="flex items-center justify-between gap-2 px-3 py-1.5"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-black text-slate-900 dark:text-white">
+                            {item.name}
+                          </p>
+                          <p className="truncate text-[10px] font-semibold text-slate-500">
+                            Code {menu.find((m) => m._id === item.menuItem)?.menuCode || "----"}
+                            {" · "}
+                            {formatCurrency(item.price * item.quantity)}
+                          </p>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => changeQty(item.menuItem, -1)}
+                            className="flex h-11 w-11 items-center justify-center rounded-md border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                          >
+                            <FaMinus />
+                          </button>
+                          <span className="w-5 text-center text-xs font-black text-slate-900 dark:text-white">
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => changeQty(item.menuItem, 1)}
+                            className="flex h-11 w-11 items-center justify-center rounded-md bg-emerald-600 text-[10px] text-white hover:bg-emerald-700"
+                          >
+                            <FaPlus />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              changeQty(item.menuItem, -item.quantity);
+                              codeRef.current?.focus();
+                            }}
+                            className="ml-0.5 min-h-11 rounded-md bg-rose-50 px-2 text-[9px] font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {cart.length > 7 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllFastAdd((v) => !v)}
+                      className="w-full border-t border-emerald-100 bg-emerald-50/70 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                    >
+                      {showAllFastAdd ? "Show less" : `+ ${cart.length - 7} more items`}
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-[1.05rem] font-black text-slate-900 dark:text-white">
@@ -1163,83 +1287,6 @@ export default function AccountantTableBilling() {
               </div>
 
               <div className="relative mb-4 rounded-[22px] border border-emerald-200 bg-[#f2fcf7] p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20 xl:rounded-[24px] xl:p-5">
-                {cart.length > 0 && (
-                  <div className="absolute bottom-[calc(100%+0.5rem)] left-0 right-0 z-30 overflow-hidden rounded-2xl border border-emerald-300 bg-white shadow-xl dark:border-emerald-800 dark:bg-slate-900">
-                    <div className="flex items-center justify-between gap-3 border-b border-emerald-100 px-4 py-3 dark:border-emerald-900/50">
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-wide text-emerald-600">
-                          Current order
-                        </p>
-                        <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                          {cart.length} item{cart.length === 1 ? "" : "s"} added
-                        </p>
-                      </div>
-                      <p className="text-sm font-black text-emerald-700 dark:text-emerald-300">
-                        {formatCurrency(totals.total)}
-                      </p>
-                    </div>
-
-                    <div className="max-h-64 divide-y divide-slate-100 overflow-y-auto dark:divide-slate-800">
-                      {(showAllFastAdd ? cart : cart.slice(0, 7)).map((item) => (
-                        <div
-                          key={`fast-add-cart-${item.menuItem}`}
-                          className="flex items-center justify-between gap-2 px-3 py-1.5"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-black text-slate-900 dark:text-white">
-                              {item.name}
-                            </p>
-                            <p className="truncate text-[10px] font-semibold text-slate-500">
-                              Code {menu.find((m) => m._id === item.menuItem)?.menuCode || "----"}
-                              {" · "}
-                              {formatCurrency(item.price * item.quantity)}
-                            </p>
-                          </div>
-
-                          <div className="flex shrink-0 items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => changeQty(item.menuItem, -1)}
-                              className="flex h-11 w-11 items-center justify-center rounded-md border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
-                            >
-                              <FaMinus />
-                            </button>
-                            <span className="w-5 text-center text-xs font-black text-slate-900 dark:text-white">
-                              {item.quantity}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => changeQty(item.menuItem, 1)}
-                              className="flex h-11 w-11 items-center justify-center rounded-md bg-emerald-600 text-[10px] text-white hover:bg-emerald-700"
-                            >
-                              <FaPlus />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                changeQty(item.menuItem, -item.quantity);
-                                codeRef.current?.focus();
-                              }}
-                              className="ml-0.5 min-h-11 rounded-md bg-rose-50 px-2 text-[9px] font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {cart.length > 7 && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllFastAdd((v) => !v)}
-                        className="w-full border-t border-emerald-100 bg-emerald-50/70 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
-                      >
-                        {showAllFastAdd ? "Show less" : `+ ${cart.length - 7} more items`}
-                      </button>
-                    )}
-                  </div>
-                )}
-
                 <p className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
                   Fast Add By Code
                 </p>
@@ -1440,9 +1487,9 @@ export default function AccountantTableBilling() {
                           </div>
                         </div>
 
-                        <aside className="min-h-0 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950 min-[1024px]:border-l min-[1024px]:border-t-0">
+                        <aside className="min-h-0 border-t border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950 min-[1024px]:border-l min-[1024px]:border-t-0">
                           <div className="flex h-full min-h-0 flex-col">
-                            <div className="mb-3 flex items-center justify-between gap-3">
+                            <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
                               <div>
                                 <h3 className="text-base font-black text-slate-900 dark:text-white">
                                   Selected Items
@@ -1456,7 +1503,7 @@ export default function AccountantTableBilling() {
                               </p>
                             </div>
 
-                            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
                               {cart.length === 0 && (
                                 <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900">
                                   Selected dishes will appear here.
@@ -1466,36 +1513,36 @@ export default function AccountantTableBilling() {
                               {cart.map((item) => (
                                 <div
                                   key={`${item.menuItem}-picker-selected`}
-                                  className="rounded-xl bg-white p-3 shadow-sm dark:bg-slate-900"
+                                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 rounded-lg bg-white px-2.5 py-2 shadow-sm dark:bg-slate-900"
                                 >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                      <p className="break-words pr-2 text-sm font-bold leading-snug text-slate-800 dark:text-slate-100">
+                                  <div className="contents">
+                                    <div className="contents">
+                                      <p title={item.name} className="col-start-1 row-start-1 truncate text-sm font-bold leading-snug text-slate-800 dark:text-slate-100">
                                         {item.name}
                                       </p>
-                                      <p className="mt-1 text-xs font-semibold text-slate-500">
+                                      <p className="col-start-1 row-start-2 text-xs font-semibold text-slate-500">
                                         {formatCurrency(item.price)} x {item.quantity}
                                       </p>
                                     </div>
-                                    <p className="shrink-0 text-sm font-black text-slate-900 dark:text-white">
+                                    <p className="col-start-2 row-start-1 text-right text-sm font-black text-slate-900 dark:text-white">
                                       {formatCurrency(item.price * item.quantity)}
                                     </p>
                                   </div>
-                                  <div className="mt-3 flex items-center justify-end gap-2">
+                                  <div className="col-start-2 row-start-2 flex items-center justify-end gap-1">
                                     <button
                                       type="button"
-                                      onClick={() => changeQty(item.menuItem, -1)}
-                                      className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                                      aria-label={`Decrease quantity of ${item.name}`} onClick={() => changeQty(item.menuItem, -1)}
+                                      className="flex h-8 w-8 items-center justify-center rounded-md text-xs border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
                                     >
                                       <FaMinus />
                                     </button>
-                                    <span className="w-8 text-center text-sm font-black text-slate-800 dark:text-slate-100">
+                                    <span className="min-w-6 px-0.5 text-center text-sm font-black text-slate-800 dark:text-slate-100">
                                       {item.quantity}
                                     </span>
                                     <button
                                       type="button"
-                                      onClick={() => changeQty(item.menuItem, 1)}
-                                      className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                                      aria-label={`Increase quantity of ${item.name}`} onClick={() => changeQty(item.menuItem, 1)}
+                                      className="flex h-8 w-8 items-center justify-center rounded-md text-xs bg-emerald-600 text-white hover:bg-emerald-700"
                                     >
                                       <FaPlus />
                                     </button>
@@ -1521,51 +1568,54 @@ export default function AccountantTableBilling() {
                   document.body
                 )}
 
-              <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
+              <div className="max-h-[430px] space-y-1.5 overflow-y-auto pr-1">
                 {cart.map((item) => (
                   <div
                     key={item.menuItem}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-4 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:to-slate-950"
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1.5 rounded-lg border border-slate-200 bg-gradient-to-r from-slate-50 to-white px-2.5 py-2 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:to-slate-950"
                   >
                     <div className="min-w-0">
-                      <div className="flex min-w-0 items-center justify-between gap-3">
-                        <p className="break-words pr-2 text-sm font-bold leading-snug text-slate-800 dark:text-slate-100">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <p title={item.name} className="truncate text-sm font-bold leading-snug text-slate-800 dark:text-slate-100">
                           {item.name}
-                          {item.gstFree && <span className="ml-2 align-middle rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-700">GST Free</span>}
                         </p>
-                        <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-200 dark:bg-slate-900 dark:ring-emerald-900/60">
+                        {item.gstFree && <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-black uppercase text-amber-700">GST Free</span>}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs font-semibold text-slate-500">
+                        <span>{formatCurrency(item.price)} x {item.quantity}</span>
+                        <span className="font-black text-emerald-700 dark:text-emerald-300">
                           {formatCurrency(item.price * item.quantity)}
                         </span>
                       </div>
-                      <div className="mt-1 text-xs font-semibold text-slate-500">
-                        {formatCurrency(item.price)} x {item.quantity}
-                      </div>
-                      <input
-                        value={item.note}
-                        onChange={(e) => setNote(item.menuItem, e.target.value)}
-                        placeholder="Note for kitchen (optional)"
-                        className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900"
-                      />
                     </div>
-                    <div className="flex items-center gap-2 self-start rounded-xl bg-white px-2 py-2 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
+                        aria-label={`Decrease quantity of ${item.name}`}
                         onClick={() => changeQty(item.menuItem, -1)}
-                        className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                        className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
                       >
                         <FaMinus />
                       </button>
-                      <span className="w-8 text-center text-sm font-black text-slate-800 dark:text-slate-100">
+                      <span className="min-w-6 px-0.5 text-center text-sm font-black text-slate-800 dark:text-slate-100">
                         {item.quantity}
                       </span>
                       <button
                         type="button"
+                        aria-label={`Increase quantity of ${item.name}`}
                         onClick={() => changeQty(item.menuItem, 1)}
-                        className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                        className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-600 text-xs text-white hover:bg-emerald-700"
                       >
                         <FaPlus />
                       </button>
                     </div>
+                    <input
+                      value={item.note}
+                      onChange={(e) => setNote(item.menuItem, e.target.value)}
+                      aria-label={`Kitchen note for ${item.name}`}
+                      placeholder="Note for kitchen (optional)"
+                      className="col-span-2 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-xs outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900"
+                    />
                   </div>
                 ))}
               </div>
@@ -1576,11 +1626,10 @@ export default function AccountantTableBilling() {
                     Already sent to kitchen (KOT printed)
                   </p>
                   <p className="mb-2 text-[11px] font-medium text-slate-500">
-                    Fix mistakes before the final bill. To add more, use Add Item and send a new KOT.
+                    Reducing or removing items requires a reason and prints a cancellation KOT. To add more, send a new KOT.
                   </p>
                   <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
                     {runningItems.map((item, idx) => {
-                      const armed = removeArmed === String(item._id);
                       return (
                         <div
                           key={item._id || idx}
@@ -1607,19 +1656,10 @@ export default function AccountantTableBilling() {
                             <button
                               type="button"
                               disabled={busy}
-                              onClick={() =>
-                                armed
-                                  ? editSentItem(item, 0)
-                                  : setRemoveArmed(String(item._id))
-                              }
-                              onBlur={() => setRemoveArmed("")}
-                              className={`min-h-10 rounded-md px-2.5 text-[11px] font-black transition ${
-                                armed
-                                  ? "bg-rose-600 text-white"
-                                  : "bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
-                              }`}
+                              onClick={() => editSentItem(item, 0)}
+                              className="min-h-10 rounded-md bg-rose-50 px-2.5 text-[11px] font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
                             >
-                              {armed ? "Sure?" : "Remove"}
+                              Remove
                             </button>
                           </div>
                         </div>
