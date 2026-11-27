@@ -817,7 +817,6 @@ function ClassicAccountantOrderBilling() {
   const [quickNameSearch, setQuickNameSearch] = useState("");
   const [quickNameSearchOpen, setQuickNameSearchOpen] = useState(false);
   const [creatingManualBill, setCreatingManualBill] = useState(false);
-  const [showAllFastAddItems, setShowAllFastAddItems] = useState(false);
   const [showManualAdvanced, setShowManualAdvanced] = useState(false);
   const [showManualComplimentary, setShowManualComplimentary] = useState(false);
   const complimentaryItemRefs = useRef({});
@@ -875,6 +874,10 @@ function ClassicAccountantOrderBilling() {
   const [billTables, setBillTables] = useState([]);
   const [billTableId, setBillTableId] = useState("");
   const manualCodeInputRef = useRef(null);
+  const manualNameRef = useRef(null);
+  const [showManualFinalize, setShowManualFinalize] = useState(false);
+  const [manualListFocus, setManualListFocus] = useState(false);
+  const [manualSel, setManualSel] = useState("");
   const [historyFilter, setHistoryFilter] = useState({
     paymentMethod: "",
     orderType: "",
@@ -1551,6 +1554,7 @@ function ClassicAccountantOrderBilling() {
       });
 
       const createdBill = bill?.bill || bill;
+      setShowManualFinalize(false);
         const manualPrintJobs = [bill?.printJob, bill?.kotPrintJob].filter(Boolean);
         if (manualPrintJobs.length > 0) {
           // Print in the background: the printer needs several seconds per slip
@@ -1595,7 +1599,6 @@ function ClassicAccountantOrderBilling() {
         items: [],
       });
       setManualCodeInput("");
-      setShowAllFastAddItems(false);
     } catch (err) {
       console.error("CREATE MANUAL BILL ERROR:", err);
       showNotice(err.response?.data?.message || err.message || "Please try again.", "error", "Failed to create bill");
@@ -1604,29 +1607,102 @@ function ClassicAccountantOrderBilling() {
     }
   };
 
-  // F5 = Finalize Order on the New Bill tab (instead of reloading the page).
+  // Finalize Order opens the Finalize Billing pop-up (customer, complimentary, charges).
   const submitManualBillRef = useRef(submitManualBill);
   submitManualBillRef.current = submitManualBill;
+  const openManualFinalize = (focusId) => {
+    if (manualBill.items.length === 0) {
+      showNotice("Add at least one menu item before finalizing.", "warning", "No items added");
+      return;
+    }
+    setShowManualFinalize(true);
+    const id = typeof focusId === "string" ? focusId : "mfin-phone";
+    window.setTimeout(() => document.getElementById(id)?.focus(), 60);
+  };
+  const manualKeysRef = useRef({});
+  manualKeysRef.current = { openManualFinalize, changeManualItemQuantity };
+
+  /* Keyboard-only billing: F1 code | F2 search | F3 item list (Up/Down, + / -)
+     F5 finalize | F7 reserved (split bill) | F8 complimentary | F9 packaging */
   useEffect(() => {
     if (tab !== "NEW") return undefined;
     const onKeyDown = (event) => {
-      if (event.key !== "F5") return;
-      event.preventDefault();
+      const k = event.key;
+      const isFKey = /^F(1|2|3|5|8|9)$/.test(k);
+      const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(event.target?.tagName);
+      if (k === "F5") event.preventDefault();
       if (
-        event.repeat ||
         creatingManualBill ||
         settleTarget ||
         showManualAdvanced ||
         showManualComplimentary ||
-        manualBill.items.length === 0
+        showManualFinalize ||
+        showMenuPicker
       ) {
         return;
       }
-      submitManualBillRef.current();
+      const fx = manualKeysRef.current;
+      const items = manualBill.items;
+      const idx = items.findIndex((i) => i.menuItem === manualSel);
+      const sel = idx >= 0 ? items[idx] : null;
+
+      if (isFKey) event.preventDefault();
+      if (k === "F1") {
+        setManualListFocus(false);
+        manualCodeInputRef.current?.focus();
+      } else if (k === "F2") {
+        setManualListFocus(false);
+        manualNameRef.current?.focus();
+      } else if (k === "F3") {
+        document.activeElement?.blur?.();
+        setManualListFocus(true);
+        if (!sel && items[0]) setManualSel(items[0].menuItem);
+      } else if (k === "F5") {
+        if (!event.repeat) fx.openManualFinalize();
+      } else if (k === "F8") {
+        if (!event.repeat) fx.openManualFinalize("mfin-comp");
+      } else if (k === "F9") {
+        if (!event.repeat) fx.openManualFinalize("mfin-pack");
+      } else if (!typing && manualListFocus) {
+        if (k === "Escape") {
+          event.preventDefault();
+          setManualListFocus(false);
+          manualCodeInputRef.current?.focus();
+        } else if (k === "ArrowDown" || k === "ArrowUp") {
+          event.preventDefault();
+          if (items.length === 0) return;
+          const next = k === "ArrowDown" ? Math.min(idx + 1, items.length - 1) : Math.max(idx - 1, 0);
+          setManualSel(items[Math.max(next, 0)].menuItem);
+        } else if ((k === "+" || k === "=") && sel) {
+          event.preventDefault();
+          fx.changeManualItemQuantity(sel.menuItem, 1);
+        } else if (k === "-" && sel) {
+          event.preventDefault();
+          if (sel.quantity <= 1) setManualSel((items[idx + 1] || items[idx - 1])?.menuItem || "");
+          fx.changeManualItemQuantity(sel.menuItem, -1);
+        }
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [tab, creatingManualBill, settleTarget, showManualAdvanced, showManualComplimentary, manualBill.items.length]);
+  });
+
+  // Finalize pop-up: Enter finalizes & prints, Esc closes.
+  useEffect(() => {
+    if (!showManualFinalize) return undefined;
+    const onKeyDown = (event) => {
+      const tag = event.target?.tagName;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setShowManualFinalize(false);
+      } else if (event.key === "Enter" && tag !== "BUTTON" && tag !== "TEXTAREA" && tag !== "SELECT") {
+        event.preventDefault();
+        if (!event.repeat) submitManualBillRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showManualFinalize]);
 
   const closeSettleModal = () => {
     if (settling) return;
@@ -1960,11 +2036,11 @@ function ClassicAccountantOrderBilling() {
         {tab === "NEW" && (
           <div className="rounded-[28px] bg-[#f8fbff] p-2.5 shadow-sm ring-1 ring-[#dce7f3] dark:bg-slate-900 dark:ring-slate-700 min-[1024px]:p-3 xl:rounded-[30px]">
             <div className="grid gap-2.5 min-[1024px]:grid-cols-[220px_minmax(0,1fr)_195px] min-[1024px]:gap-3 xl:gap-4 xl:grid-cols-[360px_minmax(0,1fr)_300px]">
-              <div className="space-y-3 min-[1024px]:sticky min-[1024px]:top-4 min-[1024px]:self-start">
+              <div className="min-[1024px]:sticky min-[1024px]:top-4 min-[1024px]:self-start">
                 <div className="rounded-[20px] border border-[#d7e3ef] bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[22px] xl:p-4">
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <h3 className="text-sm font-black uppercase tracking-[0.16em] text-slate-900 dark:text-white">
-                      Bill Setup
+                      Order Items
                     </h3>
                     <div className="flex items-center gap-1.5 text-xs font-black">
                       <span className="rounded-lg bg-slate-100 px-2 py-1 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
@@ -1976,131 +2052,34 @@ function ClassicAccountantOrderBilling() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <select
-                      value={manualBill.orderType}
-                      onChange={(e) => updateManualBill("orderType", e.target.value)}
-                      className="min-h-10 rounded-xl border border-[#d7e3ef] bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                    >
-                      <option value="TAKEAWAY">Takeaway</option>
-                      <option value="ONLINE">Online</option>
-                      <option value="PACKAGING">Packaging</option>
-                      <option value="OTHER">Other</option>
-                    </select>
-                    <input
-                      type="text"
-                      placeholder="Customer phone"
-                      value={manualBill.customerPhone}
-                      onChange={(e) => updateManualBill("customerPhone", e.target.value)}
-                      className="min-h-10 min-w-0 rounded-xl border border-[#d7e3ef] bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                      {...getTouchInputProps("number")}
-                    />
-                    <input
-                      type="email"
-                      placeholder="Customer email"
-                      value={manualBill.customerEmail}
-                      onChange={(e) => updateManualBill("customerEmail", e.target.value)}
-                      className="col-span-2 min-h-10 rounded-xl border border-[#d7e3ef] bg-white px-3 text-sm text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                      {...getTouchInputProps("email")}
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-[22px] border border-[#d7e3ef] bg-white shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[24px]">
-                  <button
-                    type="button"
-                    onClick={() => setShowManualComplimentary((value) => !value)}
-                    className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                  >
-                    <span>
-                      <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">
-                        Complimentary
-                      </span>
-                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
-                        {manualBill.complimentaryType === "NONE"
-                          ? "No free items applied"
-                          : `${manualBill.complimentaryType.replace("_", " ")} | ${formatCurrency(manualTotals.complimentaryAmount)}`}
-                      </span>
-                    </span>
-                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
-                      {showManualComplimentary ? "Close" : "Open"}
-                    </span>
-                  </button>
-                </div>
-
-                <div className="rounded-[22px] border border-[#d7e3ef] bg-white shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[24px]">
-                  <button
-                    type="button"
-                    onClick={() => setShowManualAdvanced(true)}
-                    className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                  >
-                    <span>
-                      <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">
-                        Advanced Bill Options
-                      </span>
-                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
-                        GST, discount, service, packaging, and extra charge
-                      </span>
-                    </span>
-                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
-                      Open
-                    </span>
-                  </button>
-                </div>
-
-              </div>
-
-              <div className="rounded-[24px] border border-[#d7e3ef] bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[26px] xl:p-5">
-                {manualBill.items.length > 0 && (
-                  <div className="mb-3 overflow-hidden rounded-xl border border-emerald-300 bg-white shadow-sm dark:border-emerald-800 dark:bg-slate-900">
-                    <div className="flex items-center justify-between gap-3 border-b border-emerald-100 px-3 py-2 dark:border-emerald-900/50">
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-wide text-emerald-600">
-                          Current order
-                        </p>
-                        <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                          {manualBill.items.length} item
-                          {manualBill.items.length === 1 ? "" : "s"} added
-                        </p>
-                      </div>
-                      <p className="text-sm font-black text-emerald-700 dark:text-emerald-300">
-                        {formatCurrency(manualTotals.totalAmount)}
-                      </p>
-                    </div>
-
-                    <div className="max-h-64 divide-y divide-slate-100 overflow-y-auto dark:divide-slate-800">
-                      {(showAllFastAddItems
-                        ? manualBill.items
-                        : manualBill.items.slice(0, 7)
-                      ).map((item) => (
+                  {manualBill.items.length === 0 ? (
+                    <p className="rounded-xl bg-slate-50 px-3 py-6 text-center text-xs font-semibold text-slate-500 dark:bg-slate-900">
+                      No items yet. Add items to start the bill.
+                    </p>
+                  ) : (
+                    <div className="max-h-[60vh] divide-y divide-slate-100 overflow-y-auto rounded-2xl border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
+                      {manualBill.items.map((item) => (
                         <div
-                          key={`fast-add-cart-${item.menuItem}`}
-                          className="flex items-center justify-between gap-2 px-3 py-1.5"
+                          key={`order-item-${item.menuItem}`}
+                          className={`flex items-center justify-between gap-2 px-3 py-2 text-sm${
+                            manualListFocus && manualSel === item.menuItem
+                              ? " bg-emerald-50 ring-2 ring-inset ring-emerald-500 dark:bg-emerald-950/30"
+                              : ""
+                          }`}
                         >
                           <div className="min-w-0">
-                            <p className="truncate text-xs font-black text-slate-900 dark:text-white">
-                              {item.name}
-                            </p>
-                            <p className="truncate text-[10px] font-semibold text-slate-500">
-                              Code{" "}
-                              {menuItems.find(
-                                (menu) => menu._id === item.menuItem
-                              )?.menuCode || "----"}
+                            <p className="truncate font-semibold text-slate-800 dark:text-slate-100">{item.name}</p>
+                            <p className="truncate text-[11px] font-bold text-slate-500">
+                              Code {menuItems.find((menu) => menu._id === item.menuItem)?.menuCode || "----"}
                               {" · "}
-                              {formatCurrency(
-                                Number(item.price || 0) *
-                                  Number(item.quantity || 0)
-                              )}
+                              {formatCurrency(Number(item.price || 0) * Number(item.quantity || 0))}
                             </p>
                           </div>
-
                           <div className="flex shrink-0 items-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() =>
-                                changeManualItemQuantity(item.menuItem, -1)
-                              }
-                              className="flex h-11 w-11 items-center justify-center rounded-md border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700/60 dark:border-slate-700 dark:text-slate-200"
+                              onClick={() => changeManualItemQuantity(item.menuItem, -1)}
+                              className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700/60"
                             >
                               <FaMinus />
                             </button>
@@ -2109,23 +2088,18 @@ function ClassicAccountantOrderBilling() {
                             </span>
                             <button
                               type="button"
-                              onClick={() =>
-                                changeManualItemQuantity(item.menuItem, 1)
-                              }
-                              className="flex h-11 w-11 items-center justify-center rounded-md bg-emerald-600 text-[10px] text-white hover:bg-emerald-700"
+                              onClick={() => changeManualItemQuantity(item.menuItem, 1)}
+                              className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-600 text-[10px] text-white hover:bg-emerald-700"
                             >
                               <FaPlus />
                             </button>
                             <button
                               type="button"
                               onClick={() => {
-                                changeManualItemQuantity(
-                                  item.menuItem,
-                                  -item.quantity
-                                );
+                                changeManualItemQuantity(item.menuItem, -item.quantity);
                                 manualCodeInputRef.current?.focus();
                               }}
-                              className="ml-0.5 min-h-11 rounded-md bg-rose-50 px-2 text-[9px] font-black text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300"
+                              className="ml-0.5 min-h-10 rounded-md bg-rose-50 px-2 text-[10px] font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-900/40"
                             >
                               Remove
                             </button>
@@ -2133,22 +2107,12 @@ function ClassicAccountantOrderBilling() {
                         </div>
                       ))}
                     </div>
-                    {manualBill.items.length > 7 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowAllFastAddItems((current) => !current)
-                        }
-                        className="w-full border-t border-emerald-100 bg-emerald-50/70 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
-                      >
-                        {showAllFastAddItems
-                          ? "Show less"
-                          : `+ ${manualBill.items.length - 7} more items`}
-                      </button>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
+              </div>
 
+
+              <div className="rounded-[24px] border border-[#d7e3ef] bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[26px] xl:p-5">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-[1.05rem] font-black text-slate-900 dark:text-white">
@@ -2303,6 +2267,7 @@ function ClassicAccountantOrderBilling() {
                     <input
                       type="text"
                       autoComplete="off"
+                      ref={manualNameRef}
                       value={quickNameSearch}
                       onChange={(e) => {
                         setQuickNameSearch(e.target.value);
@@ -2457,7 +2422,7 @@ function ClassicAccountantOrderBilling() {
 
                 <button
                   type="button"
-                  onClick={submitManualBill}
+                  onClick={() => openManualFinalize()}
                   disabled={creatingManualBill || manualBill.items.length === 0}
                   className="mt-4 hidden min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
@@ -2532,7 +2497,7 @@ function ClassicAccountantOrderBilling() {
 
                   <button
                     type="button"
-                    onClick={submitManualBill}
+                    onClick={() => openManualFinalize()}
                     disabled={creatingManualBill || manualBill.items.length === 0}
                     className="mt-5 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-base font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
@@ -2561,7 +2526,7 @@ function ClassicAccountantOrderBilling() {
 
                 <button
                   type="button"
-                  onClick={submitManualBill}
+                  onClick={() => openManualFinalize()}
                   disabled={creatingManualBill || manualBill.items.length === 0}
                   className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-base font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
@@ -4027,6 +3992,178 @@ function ClassicAccountantOrderBilling() {
               className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
             >
               Go to History
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showManualFinalize && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm">
+          <div className="absolute inset-0" onClick={() => setShowManualFinalize(false)} />
+          <div className="relative z-10 max-h-[96vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl dark:bg-slate-950">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <h3 className="text-base font-black text-slate-900 dark:text-white">Finalize Billing</h3>
+                <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  {manualBill.items.length} items
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-lg bg-emerald-50 px-3 py-1 text-base font-black text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                  {formatCurrency(manualTotals.totalAmount)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowManualFinalize(false)}
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  aria-label="Close"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Customer</p>
+                <div className="grid gap-2">
+                  <select
+                    value={manualBill.orderType}
+                    onChange={(e) => updateManualBill("orderType", e.target.value)}
+                    className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  >
+                    <option value="TAKEAWAY">Takeaway</option>
+                    <option value="ONLINE">Online</option>
+                    <option value="PACKAGING">Packaging</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                  <input
+                    id="mfin-phone"
+                    type="text"
+                    placeholder="Customer phone"
+                    value={manualBill.customerPhone}
+                    onChange={(e) => updateManualBill("customerPhone", e.target.value)}
+                    className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    {...getTouchInputProps("number")}
+                  />
+                  <input
+                    type="email"
+                    placeholder="Customer email"
+                    value={manualBill.customerEmail}
+                    onChange={(e) => updateManualBill("customerEmail", e.target.value)}
+                    className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    {...getTouchInputProps("email")}
+                  />
+                </div>
+
+                <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 mt-4">Complimentary</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                  {[
+                    ["NONE", "None"],
+                    ["FULL_ORDER", "Full order free"],
+                    ["ITEMS", "Selected items free"],
+                  ].map(([value, label]) => (
+                    <label key={value} className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
+                      <input
+                        id={value === "NONE" ? "mfin-comp" : undefined}
+                        type="radio"
+                        checked={manualBill.complimentaryType === value}
+                        onChange={() => handleManualComplimentaryTypeChange(value)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                {manualBill.complimentaryType === "ITEMS" && (
+                  <div className="mt-2 max-h-28 space-y-1 overflow-y-auto rounded-lg bg-slate-50 p-2 dark:bg-slate-900">
+                    {manualBill.items.map((item) => (
+                      <label key={`mfin-${item.menuItem}`} className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        <input
+                          type="checkbox"
+                          checked={manualBill.complimentaryItems.includes(item.menuItem)}
+                          onChange={() => toggleManualComplimentaryItem(item.menuItem)}
+                        />
+                        {item.name}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {manualBill.complimentaryType !== "NONE" && (
+                  <input
+                    value={manualBill.complimentaryNote}
+                    maxLength={300}
+                    onChange={(e) => updateManualBill("complimentaryNote", e.target.value)}
+                    placeholder="Reason / note"
+                    className="mt-2 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                )}
+              </div>
+
+              <div>
+                <p className="mb-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Advanced Bill Options</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    ["cgstRate", "CGST %"],
+                    ["sgstRate", "SGST %"],
+                  ].map(([field, label]) => (
+                    <label key={field} className="text-[11px] font-bold text-slate-500">
+                      {label}
+                      <input type="number" min="0" step="0.01" value={manualBill[field]}
+                        onChange={(e) => updateManualBill(field, e.target.value)}
+                        className="mt-0.5 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" {...getTouchInputProps("number")} />
+                    </label>
+                  ))}
+                  <label className="col-span-2 text-[11px] font-bold text-slate-500">
+                    Discount
+                    <div className="mt-0.5 flex gap-2">
+                      <input type="number" min="0" step="0.01" value={manualBill.discount}
+                        onChange={(e) => updateManualBill("discount", e.target.value)}
+                        className="min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                        {...getTouchInputProps("number")} />
+                      <select value={manualBill.discountType} onChange={(e) => updateManualBill("discountType", e.target.value)}
+                        className="min-h-9 w-20 rounded-lg border border-slate-200 bg-white px-2 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                        <option value="AMOUNT">₹</option>
+                        <option value="PERCENT">%</option>
+                      </select>
+                    </div>
+                  </label>
+                  <label className="text-[11px] font-bold text-slate-500">
+                    Service charge
+                    <input type="number" min="0" step="0.01" value={manualBill.serviceCharge}
+                      onChange={(e) => updateManualBill("serviceCharge", e.target.value)}
+                      className="mt-0.5 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" {...getTouchInputProps("number")} />
+                  </label>
+                  <label className="text-[11px] font-bold text-slate-500">
+                    Packaging
+                    <input id="mfin-pack" type="number" min="0" step="0.01" value={manualBill.packagingCharge}
+                      onChange={(e) => updateManualBill("packagingCharge", e.target.value)}
+                      className="mt-0.5 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" {...getTouchInputProps("number")} />
+                  </label>
+                  <label className="col-span-2 text-[11px] font-bold text-slate-500">
+                    Extra charge
+                    <input type="number" min="0" step="0.01" value={manualBill.extraCharge}
+                      onChange={(e) => updateManualBill("extraCharge", e.target.value)}
+                      className="mt-0.5 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" {...getTouchInputProps("number")} />
+                  </label>
+                  {sanitizeNumber(manualBill.extraCharge) > 0 && (
+                    <input
+                      value={manualBill.extraChargeReason}
+                      onChange={(e) => updateManualBill("extraChargeReason", e.target.value)}
+                      placeholder="Extra charge reason"
+                      className="col-span-2 min-h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={submitManualBill}
+              disabled={creatingManualBill}
+              className="mt-4 min-h-11 w-full rounded-xl bg-emerald-600 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {creatingManualBill ? "Working..." : "Finalize Billing & Print"}
             </button>
           </div>
         </div>

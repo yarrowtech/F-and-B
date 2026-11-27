@@ -76,7 +76,6 @@ export default function AccountantTableBilling() {
   const [nameSearchOpen, setNameSearchOpen] = useState(false);
   const [showMenuList, setShowMenuList] = useState(false);
   const [menuSearch, setMenuSearch] = useState("");
-  const [showAllFastAdd, setShowAllFastAdd] = useState(false);
   const codeRef = useRef(null);
   const nameRef = useRef(null);
   const gridRef = useRef(null);
@@ -320,9 +319,6 @@ export default function AccountantTableBilling() {
         .map((l) => (l.menuItem === id ? { ...l, quantity: l.quantity + delta } : l))
         .filter((l) => l.quantity > 0)
     );
-
-  const setNote = (id, note) =>
-    setCart((prev) => prev.map((l) => (l.menuItem === id ? { ...l, note } : l)));
 
   const handleAddByCode = () => {
     const code = codeInput.trim().toUpperCase();
@@ -711,7 +707,7 @@ export default function AccountantTableBilling() {
   }, [activeTable, view, tables, tableSel]);
 
   /* ---------- keyboard-only billing ----------
-     F1 code box | F2 name search | F3 item list (Up/Down, + / -) | F4 kitchen note
+     F1 code box | F2 name search | F3 item list (Up/Down, + / -)
      F5 bill | F6 KOT | F7 reserved (split bill) | F8 complimentary | F9 packaging | F10 tables */
   const navLines = [
     ...cart.map((c) => ({ key: `c:${c.menuItem}`, kind: "cart", cart: c })),
@@ -778,15 +774,6 @@ export default function AccountantTableBilling() {
         document.activeElement?.blur?.();
         setListFocus(true);
         if (!sel && navLines[0]) setSelKey(navLines[0].key);
-        return;
-      }
-      if (k === "F4") {
-        event.preventDefault();
-        if (sel?.kind === "cart") {
-          document.getElementById(`note-${sel.cart.menuItem}`)?.focus();
-        } else {
-          setNotice("Press F3, pick a new (unsent) item, then F4 for a kitchen note.");
-        }
         return;
       }
       if (k === "F8" || k === "F9") {
@@ -1143,7 +1130,7 @@ export default function AccountantTableBilling() {
         </div>
 
         <p className="hidden rounded-xl bg-white px-3 py-1.5 text-center text-[11px] font-bold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:ring-slate-700 lg:block">
-          F1 Code · F2 Search · F3 Items (↑ ↓ + −) · F4 Note · F5 Bill · F6 KOT · F8 Complimentary · F9 Packaging · F10 Tables
+          F1 Code · F2 Search · F3 Items (↑ ↓ + −) · F5 Bill · F6 KOT · F8 Complimentary · F9 Packaging · F10 Tables
         </p>
 
         {notice && (
@@ -1459,83 +1446,6 @@ export default function AccountantTableBilling() {
 
             {/* ============ MIDDLE ============ */}
             <div className="rounded-[24px] border border-[#d7e3ef] bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950 xl:rounded-[26px] xl:p-5">
-              {cart.length > 0 && (
-                <div className="mb-3 overflow-hidden rounded-xl border border-emerald-300 bg-white shadow-sm dark:border-emerald-800 dark:bg-slate-900">
-                  <div className="flex items-center justify-between gap-3 border-b border-emerald-100 px-4 py-3 dark:border-emerald-900/50">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-wide text-emerald-600">
-                        Current order
-                      </p>
-                      <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                        {cart.length} item{cart.length === 1 ? "" : "s"} added
-                      </p>
-                    </div>
-                    <p className="text-sm font-black text-emerald-700 dark:text-emerald-300">
-                      {formatCurrency(totals.total)}
-                    </p>
-                  </div>
-
-                  <div className="max-h-64 divide-y divide-slate-100 overflow-y-auto dark:divide-slate-800">
-                    {(showAllFastAdd ? cart : cart.slice(0, 7)).map((item) => (
-                      <div
-                        key={`fast-add-cart-${item.menuItem}`}
-                        className="flex items-center justify-between gap-2 px-3 py-1.5"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-black text-slate-900 dark:text-white">
-                            {item.name}
-                          </p>
-                          <p className="truncate text-[10px] font-semibold text-slate-500">
-                            Code {menu.find((m) => m._id === item.menuItem)?.menuCode || "----"}
-                            {" · "}
-                            {formatCurrency(item.price * item.quantity)}
-                          </p>
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => changeQty(item.menuItem, -1)}
-                            className="flex h-11 w-11 items-center justify-center rounded-md border border-slate-200 text-[10px] text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
-                          >
-                            <FaMinus />
-                          </button>
-                          <span className="w-5 text-center text-xs font-black text-slate-900 dark:text-white">
-                            {item.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => changeQty(item.menuItem, 1)}
-                            className="flex h-11 w-11 items-center justify-center rounded-md bg-emerald-600 text-[10px] text-white hover:bg-emerald-700"
-                          >
-                            <FaPlus />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              changeQty(item.menuItem, -item.quantity);
-                              codeRef.current?.focus();
-                            }}
-                            className="ml-0.5 min-h-11 rounded-md bg-rose-50 px-2 text-[9px] font-black text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {cart.length > 7 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAllFastAdd((v) => !v)}
-                      className="w-full border-t border-emerald-100 bg-emerald-50/70 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
-                    >
-                      {showAllFastAdd ? "Show less" : `+ ${cart.length - 7} more items`}
-                    </button>
-                  )}
-                </div>
-              )}
-
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-[1.05rem] font-black text-slate-900 dark:text-white">
@@ -1873,58 +1783,6 @@ export default function AccountantTableBilling() {
                   document.body
                 )}
 
-              <div className="max-h-[430px] space-y-1.5 overflow-y-auto pr-1">
-                {cart.map((item) => (
-                  <div
-                    key={item.menuItem}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1.5 rounded-lg border border-slate-200 bg-gradient-to-r from-slate-50 to-white px-2.5 py-2 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:to-slate-950"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <p title={item.name} className="truncate text-sm font-bold leading-snug text-slate-800 dark:text-slate-100">
-                          {item.name}
-                        </p>
-                        {item.gstFree && <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-black uppercase text-amber-700">GST Free</span>}
-                      </div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs font-semibold text-slate-500">
-                        <span>{formatCurrency(item.price)} x {item.quantity}</span>
-                        <span className="font-black text-emerald-700 dark:text-emerald-300">
-                          {formatCurrency(item.price * item.quantity)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        aria-label={`Decrease quantity of ${item.name}`}
-                        onClick={() => changeQty(item.menuItem, -1)}
-                        className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
-                      >
-                        <FaMinus />
-                      </button>
-                      <span className="min-w-6 px-0.5 text-center text-sm font-black text-slate-800 dark:text-slate-100">
-                        {item.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label={`Increase quantity of ${item.name}`}
-                        onClick={() => changeQty(item.menuItem, 1)}
-                        className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-600 text-xs text-white hover:bg-emerald-700"
-                      >
-                        <FaPlus />
-                      </button>
-                    </div>
-                    <input
-                      id={`note-${item.menuItem}`}
-                      value={item.note}
-                      onChange={(e) => setNote(item.menuItem, e.target.value)}
-                      aria-label={`Kitchen note for ${item.name}`}
-                      placeholder="Note for kitchen (optional)"
-                      className="col-span-2 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-xs outline-none focus:border-emerald-400 dark:border-slate-700 dark:bg-slate-900"
-                    />
-                  </div>
-                ))}
-              </div>
 
             </div>
 
