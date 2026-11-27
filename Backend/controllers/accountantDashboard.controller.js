@@ -1,4 +1,6 @@
 import Bill from "../models/Bill.model.js";
+import Restaurant from "../models/Restaurant.model.js";
+import { dashboardPayments } from "../utils/dashboardPayments.js";
 
 const getStartOfDay = (date) => {
   const value = new Date(date);
@@ -54,7 +56,7 @@ export const getAccountantDashboard = async (req, res) => {
       paidAt: { $gte: startDate, $lte: endDate },
     };
 
-    const [ownedBills, paidBills] = await Promise.all([
+    const [ownedBills, paidBills, settings] = await Promise.all([
       Bill.find({
         restaurant,
         paymentStatus: { $ne: "VOID" },
@@ -71,6 +73,7 @@ export const getAccountantDashboard = async (req, res) => {
           populate: { path: "table", select: "tableNumber" },
         })
         .sort({ paidAt: -1, updatedAt: -1 }),
+      Restaurant.findById(restaurant).select("billingTemplate.paymentMethods").lean(),
     ]);
 
     const generatedBills = ownedBills.filter((bill) => {
@@ -123,6 +126,7 @@ export const getAccountantDashboard = async (req, res) => {
         endDate,
       },
       summary: {
+        paymentMethods: dashboardPayments([settings], paidBills.map((bill) => ({ method: bill.paymentMethod, amount: bill.totalAmount, count: 1 }))),
         totalBillsGenerated: uniqueGeneratedBills.length,
         totalRevenue,
         cashCount: paymentSummary.cashCount,

@@ -541,16 +541,10 @@ const AdminDashboard = () => {
   }, [breakdown]);
 
   const paymentRows = useMemo(
-    () =>
-      foldRows(
-        (insights?.paymentMix || []).map((row) => ({
-          key: row.method,
-          label: titleCase(row.method),
-          value: row.amount,
-          countRaw: row.count,
-          sub: `${row.count} bill${row.count === 1 ? "" : "s"}`,
-        }))
-      ),
+    () => (insights?.paymentMix || []).map((row) => ({
+      key: row.method, label: titleCase(row.method), value: row.amount,
+      countRaw: row.count, sub: `${row.count} bill${row.count === 1 ? "" : "s"}`,
+    })),
     [insights]
   );
 

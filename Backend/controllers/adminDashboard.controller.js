@@ -1,3 +1,4 @@
+import { dashboardPayments } from "../utils/dashboardPayments.js";
 import logger from "../utils/pinoLogger.js";
 import mongoose from "mongoose";
 import Order from "../models/Order.model.js";
@@ -563,7 +564,7 @@ export const getAdminInsights = async (req, res) => {
     const paidAtFilter = buildPaidAtFilter({ startDate, endDate });
     const voidedAtFilter = paidAtFilter.paidAt ? { voidedAt: paidAtFilter.paidAt } : {};
 
-    const [facetResult, voidedAgg] = await Promise.all([
+    const [facetResult, voidedAgg, paymentSettings] = await Promise.all([
       Bill.aggregate([
         {
           $match: {
@@ -654,6 +655,7 @@ export const getAdminInsights = async (req, res) => {
         },
         { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: "$totalAmount" } } },
       ]),
+      Restaurant.find({ _id: { $in: restaurantIds } }).select("billingTemplate.paymentMethods").lean(),
     ]);
 
     const facet = facetResult[0] || {};
@@ -669,11 +671,11 @@ export const getAdminInsights = async (req, res) => {
         complimentaryBills: totals.complimentaryBills || 0,
         tax: totals.tax || 0,
         voided: { count: voidedAgg[0]?.count || 0, amount: voidedAgg[0]?.amount || 0 },
-        paymentMix: (facet.payment || []).map((row) => ({
+        paymentMix: dashboardPayments(paymentSettings, (facet.payment || []).map((row) => ({
           method: row._id,
           amount: row.amount,
           count: row.count,
-        })),
+        }))),
         hourly: (facet.hourly || [])
           .filter((row) => row._id !== null)
           .map((row) => ({ hour: row._id, orders: row.orders, revenue: row.revenue })),

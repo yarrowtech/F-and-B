@@ -280,21 +280,6 @@ const AccountantDashboard = () => {
         bills: paidBills,
         type: "paid",
       },
-      cashCount: {
-        title: "Cash Bills",
-        bills: paidBills.filter((bill) => String(bill.paymentMethod || "").toUpperCase() === "CASH"),
-        type: "paid",
-      },
-      cardCount: {
-        title: "Card Bills",
-        bills: paidBills.filter((bill) => String(bill.paymentMethod || "").toUpperCase() === "CARD"),
-        type: "paid",
-      },
-      upiCount: {
-        title: "UPI Bills",
-        bills: paidBills.filter((bill) => String(bill.paymentMethod || "").toUpperCase() === "UPI"),
-        type: "paid",
-      },
     }),
     [generatedBills, paidBills]
   );
@@ -357,9 +342,12 @@ const AccountantDashboard = () => {
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <SummaryCard title="Generated Bills" value={loading ? "..." : summary.totalBillsGenerated || 0} tone="slate" icon={<FaReceipt />} onClick={() => openModal("totalBillsGenerated")} />
           <SummaryCard title="Revenue" value={loading ? "..." : formatCurrency(summary.totalRevenue)} tone="emerald" icon={<FaRupeeSign />} onClick={() => openModal("totalRevenue")} />
-          <SummaryCard title="Cash" value={loading ? "..." : `${summary.cashCount || 0} orders`} detail={loading ? "" : formatCurrency(summary.cashAmount)} tone="amber" icon={<FaMoneyBillWave />} onClick={() => openModal("cashCount")} />
-          <SummaryCard title="Card" value={loading ? "..." : `${summary.cardCount || 0} orders`} detail={loading ? "" : formatCurrency(summary.cardAmount)} tone="blue" icon={<FaCreditCard />} onClick={() => openModal("cardCount")} />
-          <SummaryCard title="UPI" value={loading ? "..." : `${summary.upiCount || 0} orders`} detail={loading ? "" : formatCurrency(summary.upiAmount)} tone="rose" icon={<FaUniversity />} onClick={() => openModal("upiCount")} />
+          {(summary.paymentMethods || []).map((payment) => (
+            <SummaryCard key={payment.method} title={payment.method.replace(/_/g, " ")} value={loading ? "..." : `${payment.count} orders`} detail={loading ? "" : formatCurrency(payment.amount)}
+              tone={payment.method === "CASH" ? "amber" : payment.method === "CARD" ? "blue" : "rose"}
+              icon={payment.method === "CASH" ? <FaMoneyBillWave /> : payment.method === "CARD" ? <FaCreditCard /> : <FaUniversity />}
+              onClick={() => setModalConfig({ title: `${payment.method.replace(/_/g, " ")} Bills`, type: "paid", bills: paidBills.filter((bill) => (String(bill.paymentMethod || "").trim().toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "").slice(0, 32) || "UNKNOWN") === payment.method) })} />
+          ))}
         </section>
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">

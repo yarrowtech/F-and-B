@@ -2,6 +2,8 @@ import logger from "../utils/pinoLogger.js";
 import mongoose from "mongoose";
 import Order from "../models/Order.model.js";
 import Bill from "../models/Bill.model.js";
+import Restaurant from "../models/Restaurant.model.js";
+import { dashboardPayments } from "../utils/dashboardPayments.js";
 import Attendance from "../models/Attendance.model.js";
 import Employee from "../models/Employee.model.js";
 import ExcelJS from "exceljs";
@@ -87,7 +89,8 @@ const aggregateRange = async (restaurantId, startDate, endDate) => {
       },
       {
         $group: {
-          _id: null,
+          _id: "$paymentMethod",
+          count: { $sum: 1 },
           totalRevenue: { $sum: { $ifNull: ["$totalAmount", 0] } },
         },
       },
@@ -96,7 +99,8 @@ const aggregateRange = async (restaurantId, startDate, endDate) => {
 
   return {
     totalOrders: orderSummary[0]?.totalOrders || 0,
-    totalRevenue: billSummary[0]?.totalRevenue || 0,
+    totalRevenue: billSummary.reduce((sum, row) => sum + row.totalRevenue, 0),
+    paymentMix: billSummary.map((row) => ({ method: row._id, amount: row.totalRevenue, count: row.count })),
   };
 };
 
@@ -138,6 +142,7 @@ export const getManagerDashboard = async (req, res) => {
       lastMonthStats,
       todayPresentStaff,
       totalStaff,
+      paymentSettings,
     ] = await Promise.all([
       aggregateRange(restaurantId, todayStart, todayEnd),
       aggregateRange(restaurantId, lastWeekStart, todayEnd),
@@ -151,6 +156,7 @@ export const getManagerDashboard = async (req, res) => {
         restaurant: restaurantId,
         isActive: true,
       }),
+      Restaurant.findById(restaurantId).select("billingTemplate.paymentMethods").lean(),
     ]);
 
     const attendanceRate = totalStaff
@@ -160,6 +166,7 @@ export const getManagerDashboard = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
+        paymentMix: dashboardPayments([paymentSettings], (selectedRangeStats || todayStats).paymentMix),
         todayOrders: todayStats.totalOrders,
         todayRevenue: todayStats.totalRevenue,
         lastWeekOrders: lastWeekStats.totalOrders,

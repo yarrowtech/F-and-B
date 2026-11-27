@@ -287,6 +287,20 @@ const ManagerDashboard = () => {
         ))}
       </div>
 
+      <section className="rounded-2xl bg-white p-5 shadow-md dark:bg-neutral-800">
+        <h3 className="text-xl font-semibold text-gray-800 dark:text-white">Payments by method</h3>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{dashboard?.selectedStartDate || dashboard?.selectedEndDate ? "Selected range" : "Today"} · Paid bills</p>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {(dashboard?.paymentMix || []).map((payment) => (
+            <div key={payment.method} className="rounded-xl border border-gray-200 p-4 dark:border-neutral-700">
+              <p className="break-words font-semibold text-gray-700 dark:text-gray-200">{payment.method.replace(/_/g, " ")}</p>
+              <p className="mt-2 text-xl font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(payment.amount)}</p>
+              <p className="mt-1 text-sm text-gray-500">{payment.count} paid bills</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div className="grid gap-6 xl:grid-cols-[1.7fr_1fr]">
         <div className="rounded-2xl border border-gray-100 bg-white shadow-md dark:border-neutral-700 dark:bg-neutral-800">
           <div className="border-b border-gray-100 px-6 py-5 dark:border-neutral-700">

@@ -1450,7 +1450,7 @@ const createManualBill = async (req, res) => {
 
     return sendSuccess(
       res,
-      { ...populatedBill.toObject(), kotPrintJob },
+      { ...populatedBill.toObject(), printJob, kotPrintJob },
       201
     );
   } catch (err) {

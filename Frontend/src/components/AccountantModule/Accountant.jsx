@@ -115,7 +115,6 @@ const BOTTOM_NAV = [
   { key: "orderbilling", label: "Billing",    icon: FaUtensils },
   { key: "tables",       label: "Tables",     icon: FaTable },
   { key: "daily-sales",  label: "Sales",      icon: FaChartBar },
-  { key: "item-sales", label: "Item Sales", icon: FaChartBar },
   { key: "attendance",   label: "Attendance", icon: FaClipboardCheck },
   { key: "profile",      label: "Profile",    icon: FaUserCircle },
   { key: "notes",        label: "Notes",      icon: FaStickyNote },
@@ -156,7 +155,6 @@ const Accountant = () => {
       case "tables":       return <AccountantTableManagement />;
       case "vendorbilling":return <AccountantVendorBilling />;
       case "daily-sales":  return <AccountantDailySalesReport key="daily" />;
-      case "item-sales": return <AccountantDailySalesReport key="items" type="items" />;
       case "attendance":   return <AccountantAttendance />;
       case "notes":        return <AccountantNotes />;
       case "profile":      return <AccountantProfile />;
